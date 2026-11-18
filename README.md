@@ -1,16 +1,22 @@
-# product-template
+# kanaeru-apps
 
-新しいプロダクトを、**構想（BMAD-METHOD）→ 仕様駆動の実装（spec-kit）**で進めるための開発テンプレート。`main` は言語・フレームワークに依存しない土台（AIのスキル・文書の構成・開発の決まり・[技術選定の候補](docs/tech-selection.md)）。
+IT交流会で集めた「こんなアプリがあったらいいな」「日々の業務で面倒なこと」を、小さな実用アプリとして形にし、共通のアカウントとUIで**スイート型SaaS**に束ねていく構想。**いまは構想を練っている段階**。言語は TypeScript。
 
-**TypeScript で作るなら `typescript` ブランチから始める**（`main` の上に、TypeScript の動く骨組み〈API・画面・DB・テスト・lint・CI〉を載せたもの）。
+構想のたたき台は[構想メモ](_bmad-output/concept-memo.md)。
 
-[meguru-app](https://github.com/takumi-okuya-dev/meguru-app)と tsunagu-app で使い込んだ進め方から、プロダクト固有の内容を抜いて作った。
+## 進め方（ロードマップ）
+
+| フェーズ | やること |
+|---|---|
+| 1. 需要を集める | 「あったらいいな」を集めるアプリを公開し、主催するIT交流会の参加者に初期ユーザーとして使ってもらう。いいねだけでなく、困りごとの深さや「いくらなら払うか」も集める |
+| 2. ニーズをアプリにする | 集めた中から需要の高いものを選んで、すばやくMVPを作る。公式LINEを窓口に、「交流会で出た要望から作りました」と届けて、試してもらい声を集める |
+| 3. スイート型SaaSに束ねる | 作った小さなアプリ群を共通のアカウント・UIでまとめ、スイート全体のサブスクリプションとして提供する。交流会の外の一般の利用者にも広げる |
 
 ## ディレクトリ構成
 
 ```text
 .
-├── README.md                  このファイル（使い始めたら、プロダクトの説明に書き換える）
+├── README.md                  このファイル
 ├── CLAUDE.md                  AIが守る決まりの入口
 ├── .gitignore / .gitattributes
 ├── .github/
@@ -23,8 +29,16 @@
 ├── _bmad/                     BMADの設定（config.toml）とスクリプト
 ├── _bmad-output/              ⓪ 構想・プロダクトブリーフ・PRDの出力先
 ├── specs/                     ③ 機能ごとの仕様（specs/<領域>/NNN-…/）
+├── apps/api/                  API（Hono）・DB の定義と変更（drizzle/）
+├── apps/web/                  画面（Vite＋React）
+├── packages/contracts/        API の約束（zod）とエラーの文言
+├── packages/ui/               見た目の値（tokens.css）と部品
+├── e2e/                       通しのテスト（Playwright）
+├── tests/・scripts/security/  lint の規則と守りの確かめ
 └── docs/
     ├── README.md              文書の一覧（迷ったらここ）
+    ├── architecture.md        全体の形
+    ├── apps/                  領域の地図（見本：notes.md）
     ├── ai-skills.md           スキルの置き場所と使う順番
     ├── tech-selection.md      技術選定の候補（言語と層ごとの候補・TypeScript の既定）
     ├── design/                UI デザインの既定（SmartHR Design System を土台にした DESIGN.md・EXPERIENCE.md）
@@ -38,7 +52,35 @@
         └── documents.md          文書の種類と置き場所・作らない文書
 ```
 
-ソースコードのフォルダ（`src/`・`apps/`など）は、言語とフレームワークを決めてから足す。
+## TypeScript の骨組み
+
+API・画面・DB・テスト・lint・CI がそろった、動く最小の形。見本の領域「メモ」（一覧・追加・編集・削除）で、領域の作り方を見せる。全体の形は [docs/architecture.md](docs/architecture.md)、決まりは [コードの書き方の決まり](docs/rules/coding.md) 6章。
+
+| 層 | 使うもの |
+|---|---|
+| 言語・道具 | TypeScript 6・Node.js 26 LTS・pnpm 12・ESLint 10（境界・JSDoc・守りの規則・見た目の値）・Prettier |
+| API（`apps/api`） | Hono＋@hono/zod-openapi＋zod 4・Drizzle 0.45＋PostgreSQL 18・pino |
+| 画面（`apps/web`） | Vite 8＋React 19＋TanStack Router＋TanStack Query＋Tailwind 4＋shadcn/ui（Base UI の形。値は [DESIGN.md](docs/design/DESIGN.md) から） |
+| 約束・部品（`packages/`） | `contracts`（zod の約束と日本語のエラーの文言）・`ui`（見た目の値と部品） |
+| テスト | Vitest（API は本物の PostgreSQL）・Playwright＋axe（1440px と 375px） |
+| 守り | gitleaks（コミットの前）・`pnpm audit`（例外は理由と90日以内の期限）・Dependabot・GitHub Actions（`run-ci` のときだけ・部品は SHA で固定） |
+
+ログイン・複数のお客（組織）・置き場所（インフラ）は入れていない。ログインは仕様で足す（Better Auth を勧める）。置き場所と Terraform は、インフラの仕様で足す（[技術選定の候補](docs/tech-selection.md) 3-4・3-5）。
+
+### 初めて動かす
+
+前もって入れるもの：Docker（OrbStack・Docker Desktop など）・gitleaks（`brew install gitleaks`）・pnpm（`corepack enable` か `npm i -g pnpm`）。Node.js 26 は `pnpm install` が入れる。
+
+```bash
+cp .env.example .env                                  # 手元の設定（コミットしない）。口や DB がほかとぶつかるなら直す
+pnpm install                                          # 依存と、コミットの前の確かめ（.githooks）を入れる
+pnpm --filter e2e exec playwright install chromium    # 初めての1回（E2E のブラウザ）
+pnpm local:setup                                      # DB の容器・DB の変更・見本のデータ
+pnpm dev                                              # API と画面を立ち上げる（画面は http://localhost:5173）
+pnpm check                                            # 全部の確かめ（秘密の値・依存・整形・型・lint・テスト・E2E）
+```
+
+5432 の口をほかの Postgres が使っているときは、`.env` の `POSTGRES_PORT` と `DATABASE_URL` の口をそろえて変える（例：5433）。作業場所を分けて同時に進めるときの設定は [並行開発の決まり](docs/rules/parallel-development.md) 1。
 
 ## 入っているスキル
 
@@ -50,15 +92,12 @@
 
 使う順番は[AIスキルの使い方](docs/ai-skills.md)。
 
-## はじめにやること
+## これからやること
 
-1. GitHubで「Use this template」から新しいリポジトリを作り、クローンする（TypeScript で作るなら「Include all branches」に印を付け、`typescript` ブランチを既定の土台にする。または `git clone -b typescript` で取って新しいリポジトリに push する）。
-2. プロダクトの名前を入れる。
-   - `_bmad/config.toml`の`project_name`
-   - `CLAUDE.md`・`.specify/memory/constitution.md`の`<プロダクト名>`
-   - このREADMEを、プロダクトの説明に書き換える
-3. 既定のブランチを`develop`にする（`git switch -c develop && git push -u origin develop`のあと、GitHubの設定で既定のブランチを`develop`に）。`main`・`develop`にブランチの保護を付ける。
-4. **構想を練る**：Claude Codeを開き、`/bmad-brainstorming`や`/bmad-product-brief`から始める（迷ったら`/bmad`）。出力は`_bmad-output/`。画面は`/bmad-ux`で、[UI デザインの既定](docs/design/README.md)を土台にして考える（プロダクトの色は置きかえる）。
-5. **原則を決める**：PRDが固まったら`/speckit-constitution`で原則を書き入れる。
-6. **言語・フレームワークを決める**（`typescript` ブランチから始めたなら決め済み）：[技術選定の候補](docs/tech-selection.md)を材料に、最初の`/speckit-plan`の調査で決め、[コードの書き方の決まり](docs/rules/coding.md) 6章・`CLAUDE.md`の末尾・`.gitignore`に足す。領域を決めたら[仕様と名前の決まり](docs/rules/specs.md) 2の表に足す。
-7. 以降は機能ごとに`/speckit-specify`から（[AIスキルの使い方](docs/ai-skills.md) 4）。
+1. **構想を練る**：Claude Codeを開き、`/bmad-brainstorming`や`/bmad-product-brief`から始める（迷ったら`/bmad`）。[構想メモ](_bmad-output/concept-memo.md)を材料に渡す。出力は`_bmad-output/`。
+2. **画面の見た目を決める**：`/bmad-ux`で、[UI デザインの既定](docs/design/README.md)を土台にプロダクトの DESIGN.md を作る（プロダクトの色は置きかえる）。できたら値を `packages/ui/src/styles/tokens.css` に写し、`tokens.test.ts` の読む先をその DESIGN.md に替える（[UI デザインの既定](docs/design/README.md) 2）。
+3. **原則を決める**：PRDが固まったら`/speckit-constitution`で原則を書き入れる。
+4. **最初の領域を作る**：`/speckit-specify` から（足す手順は [コードの書き方の決まり](docs/rules/coding.md) 6-6）。領域を決めたら[仕様と名前の決まり](docs/rules/specs.md) 2の表に足す。見本の領域「メモ」は、消すか作り替える（[メモの地図](docs/apps/notes.md)）。
+5. 以降は機能ごとに`/speckit-specify`から（[AIスキルの使い方](docs/ai-skills.md) 4）。
+
+[product-template](https://github.com/takumi-okuya-dev/product-template)の`typescript`ブランチから作った。

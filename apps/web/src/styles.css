@@ -1,0 +1,7 @@
+/* 画面の CSS。値は @workspace/ui の tokens.css（DESIGN.md から写したもの）だけを使う（docs/rules/coding.md 6-3）。 */
+@import "tailwindcss";
+@import "@workspace/ui/styles/tokens.css";
+@import "@workspace/ui/styles/base.css";
+
+/* packages/ui の部品のクラスも、Tailwind に読ませる */
+@source "../../../packages/ui/src";

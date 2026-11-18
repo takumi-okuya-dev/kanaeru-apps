@@ -31,7 +31,19 @@ flowchart LR
   ```
 
 - Claude Codeを開いたら、最初に**どの領域の担当か**を伝える（例：「このセッションは領域Bを進めます」）。
-- 手元の DB と口の番号は、作業場所ごとに分ける。DB の容器は1つを共通に使い、作業場所ごとの設定ファイル（コミットしない）で、DB の名前（例：`app_<領域>`）と口の番号（例：+10ずつ）を変える。手順は言語を決めたらここに足す。
+- 手元の DB と口の番号は、作業場所ごとに分ける。DB の容器は1つを共通に使い、作業場所ごとの設定ファイル（コミットしない）で、DB の名前（例：`app_<領域>`）と口の番号（例：+10ずつ）を変える。TypeScript の骨組み（`typescript` ブランチ）では、作業場所を作ったら次のようにする。
+
+  ```bash
+  cp ../<リポジトリ名>/.env .env   # もとのクローンの .env を写す（.env はコミットしない）
+  # .env の次の4つだけを直す。COMPOSE_PROJECT_NAME と POSTGRES_PORT は、もとのクローンと同じにする（容器を1つだけ使う）
+  #   DATABASE_URL=postgres://postgres:postgres@localhost:5432/app_<領域>   （DB の名前だけ変える）
+  #   API_PORT=8797                                                     （もとのクローンから +10 ずつ）
+  #   WEB_PORT=5183                                                     （もとのクローンから +10 ずつ）
+  pnpm install && pnpm local:setup   # DB がなければ db:migrate が作る
+  ```
+
+  テストの DB（`<DB名>_test_*`）と E2E の DB（`<DB名>_e2e`）・E2E の口（`.env` の口 +1000）は、`.env` の DB の名前と口の番号から作られるので、作業場所ごとに自然に分かれる。
+- 作業場所どうしは、git の設定（`.git/config`）を分け合う。どこかで `pnpm install` が `core.hooksPath` を設定すると、ほかの作業場所にも効く（その作業場所に `.githooks` がなければ、フックが動かないだけ）。
 - E2E のように決まった口の番号を使う確かめは、作業場所をまたいで同時に1つだけ流す（口がぶつかる）。重い確かめを同時に流すと、時間切れで落ちるテストが出る。落ちたら、1つずつ流し直して確かめる。
 - サブエージェントやレビューのエージェントに頼むときは、「どの作業場所でもブランチを切り替えたり checkout したりしない」と伝える。差分は`gh pr diff`か`git show`で読ませる（ほかの作業場所が作業の途中で、切り替えると壊れる）。頼んだあとは`git worktree list`と`git branch`で、残ったブランチや切り替えがないかを確かめる。
 
@@ -58,7 +70,8 @@ flowchart LR
 
 | 一覧のファイル | 足すもの |
 |---|---|
-| （まだない） | |
+| `apps/api/src/modules.list.ts` | API の領域（`export * as <領域> from "./modules/<領域>/index.ts";`） |
+| `apps/web/src/features.list.ts` | 画面の領域（`export * as <領域> from "./features/<領域>/index.ts";`） |
 
 ### 3-2. テストに領域の数を書かない
 

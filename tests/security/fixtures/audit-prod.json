@@ -1,0 +1,51 @@
+{
+  "advisories": {
+    "1000001": {
+      "findings": [
+        {
+          "version": "1.2.3",
+          "paths": ["apps__api>sample-high"],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1000001,
+      "title": "見本の重い指摘（仮）",
+      "module_name": "sample-high",
+      "vulnerable_versions": "<1.2.4",
+      "patched_versions": ">=1.2.4",
+      "severity": "high",
+      "cwe": "CWE-0",
+      "github_advisory_id": "GHSA-test-high-0001",
+      "url": "https://github.com/advisories/GHSA-test-high-0001"
+    },
+    "1000002": {
+      "findings": [
+        {
+          "version": "0.1.0",
+          "paths": ["apps__api>sample-moderate"],
+          "dev": false,
+          "optional": true,
+          "bundled": false
+        }
+      ],
+      "id": 1000002,
+      "title": "見本の中くらいの指摘（仮）",
+      "module_name": "sample-moderate",
+      "vulnerable_versions": "<=0.1.0",
+      "patched_versions": "<0.0.0",
+      "severity": "moderate",
+      "cwe": "CWE-0",
+      "github_advisory_id": "GHSA-test-mode-0002",
+      "url": "https://github.com/advisories/GHSA-test-mode-0002"
+    }
+  },
+  "metadata": {
+    "vulnerabilities": { "info": 0, "low": 0, "moderate": 1, "high": 1, "critical": 0 },
+    "dependencies": 2,
+    "devDependencies": 0,
+    "optionalDependencies": 1,
+    "totalDependencies": 3
+  }
+}

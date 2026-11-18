@@ -1,0 +1,17 @@
+# 秘密の値の確かめの設定（gitleaks）。
+# コミットの前（.githooks/pre-commit）・pnpm security:secrets（作業の木）・CI と週1回（過去のすべてのコミット）で同じ設定を使う。
+# 止めない物を足すときは、その行の上に理由を書く（理由のない行はレビューで止める）。1つの見つけ物だけを止めないときは、
+# ここでなく .gitleaksignore に指紋で書く。
+
+title = "秘密の値の確かめ"
+
+# gitleaks の既定の規則を使う
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "手元だけの見本の値"
+paths = [
+  # .env.example は手元の見本（秘密の値は空。仮の DB の接続先と仮のメールだけ）。写した .env はコミットしない
+  '''^\.env\.example$''',
+]

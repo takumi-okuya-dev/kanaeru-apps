@@ -1,4 +1,4 @@
-# <プロダクト名> Constitution
+# kanaeru-apps Constitution
 
 <!--
   雛形。構想（_bmad-output/ のプロダクトブリーフ・PRD）が固まったら、/speckit-constitution で
@@ -22,15 +22,18 @@ MVPの範囲（PRDのMVP節）の外のものは作らない。範囲を変え�
 
 ## 技術スタック制約
 
-<!-- 構想と /speckit-plan の調査のあとで決める。決めるまでは「未定」のままでよい -->
+<!--
+  typescript ブランチの既定を書き入れてある（docs/tech-selection.md 3章）。構想と /speckit-plan の調査のあとで、
+  プロダクトに合わせて直す。ログイン・置き場所・運用コストは、まだ決めていない。
+-->
 
-- 言語・フレームワーク：<未定>
-- ホスティング：<未定>
-- データベース：<未定>
-- 認証：<未定>
+- 言語・フレームワーク：TypeScript 6.x・Node.js 26 LTS・pnpm のワークスペース。API は Hono＋@hono/zod-openapi＋zod 4、画面は Vite＋React 19＋TanStack Router＋TanStack Query＋Tailwind 4＋shadcn/ui（Base UI の形）。API の約束（zod）は `packages/contracts` の1か所に置き、API と画面が同じ形を使う。
+- ホスティング：<未定。既定の候補は GCP 東京の Cloud Run（インフラの仕様で決め、Terraform で書く）>
+- データベース：PostgreSQL（手元とテストは 18 の容器）・Drizzle ORM（0.45 の安定版）。DB の変更は SQL を読んでから当て、前の版のアプリでも壊れない形だけにする（[docs/rules/coding.md](../../docs/rules/coding.md) 3）。置き場所は <未定>。
+- 認証：<未定。足すときは仕様で決める（既定の候補は Better Auth）>
 - **運用コストの目標**：<例：月額固定のインフラ費用は$0から始める>
-- **モジュールの境界**：<例：機能ごと（アプリ・モジュールごと）にフォルダを分け、ほかのモジュールは入口からだけ使う。境界は lint などの自動の検査で守る>
-- **画面の見た目と振る舞い**：<例：見た目は `DESIGN.md`、振る舞いは `EXPERIENCE.md`（どちらも `docs/design/` の既定〈SmartHR Design System を土台にしたもの〉から始める）。WCAG 2.2 AA を下限にする>
+- **モジュールの境界**：機能ごと（領域ごと）にフォルダを分け（`apps/api/src/modules/<領域>/`・`apps/web/src/features/<領域>/`・`packages/contracts/src/<領域>/`）、ほかの領域は入口（`index.ts`）からだけ使う。依存は 組み立て → 領域 → 共通 → 土台 の一方向。画面は API の型だけを読む。境界は ESLint の規則（`eslint.config.js`）で自動に守る。
+- **画面の見た目と振る舞い**：見た目は `DESIGN.md`、振る舞いは `EXPERIENCE.md`（どちらも `docs/design/` の既定〈SmartHR Design System を土台にしたもの〉から始める）。値は `packages/ui/src/styles/tokens.css` に写した1か所だけから読む。WCAG 2.2 AA を下限にし、通しのテストで axe にかける。
 
 ## 開発ワークフロー
 

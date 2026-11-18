@@ -1,0 +1,19 @@
+# 文書は丸ごと書き換えない（docs/rules/coding.md 1）
+**/*.md
+_bmad/
+_bmad-output/
+.specify/
+.claude/
+.agents/
+.github/
+specs/
+docs/
+pnpm-lock.yaml
+pnpm-workspace.yaml
+skills-lock.json
+apps/api/drizzle/
+dist/
+coverage/
+playwright-report/
+test-results/
+apps/api/openapi.json

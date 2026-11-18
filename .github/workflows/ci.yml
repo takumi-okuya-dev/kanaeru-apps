@@ -1,0 +1,80 @@
+# CI（docs/rules/development-flow.md 3）。
+# 流れる時：PR に run-ci のラベルを付けたとき（付け直すともう一度）と、リリースの PR（develop→main）を出した・push したとき。
+# ふだんの PR はラベルなしでは流れない。秘密の値（secrets.*）は使わない。
+# 外の部品はコミットの指紋（SHA）で固定し、版の名前を注釈に書く（Dependabot が新しくする）。
+# 「流れる条件」は concurrency の group と、すべての仕事の if に同じ式で書く（tests/security/ci-config.test.ts が確かめる）。
+name: ci
+
+on:
+  pull_request:
+    types: [labeled, opened, synchronize, reopened]
+  workflow_dispatch:
+
+# 流れる出来事だけが同じ group に入り、前の流れを止める（run-ci を付け直す・リリースの PR に push する）。
+# 流れない出来事（ラベルなしの push・ほかのラベルを付ける）は run_id の group に入るので、流れている確かめを止めない。
+concurrency:
+  group: >-
+    ci-${{ github.event.pull_request.number || github.ref }}-${{ (
+    github.event_name == 'workflow_dispatch' ||
+    (github.event.action == 'labeled' && github.event.label.name == 'run-ci') ||
+    (github.base_ref == 'main' && github.event.action != 'labeled')
+    ) && 'run' || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.action == 'labeled' && github.event.label.name == 'run-ci') ||
+      (github.base_ref == 'main' && github.event.action != 'labeled')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: .env を作る（見本を写し、DB の名前だけ CI 用にする）
+        run: |
+          cp .env.example .env
+          sed -i "s|^DATABASE_URL=.*|DATABASE_URL=postgres://postgres:postgres@localhost:5432/app_ci|" .env
+      - run: pnpm --filter e2e exec playwright install --with-deps chromium
+      - run: pnpm db:migrate
+      - uses: ./.github/actions/setup-gitleaks
+      # 依存の脆弱性（pnpm security:audit）も、この中で流れる。GitHub Actions が CI=true を入れるので、通信ができないときも落ちる
+      - run: pnpm check
+
+  secrets-history:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.action == 'labeled' && github.event.label.name == 'run-ci') ||
+      (github.base_ref == 'main' && github.event.action != 'labeled')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-gitleaks
+      - name: 過去のすべてのコミットの秘密の値（値は伏せる）
+        run: gitleaks git --redact --no-banner --verbose --config .gitleaks.toml .

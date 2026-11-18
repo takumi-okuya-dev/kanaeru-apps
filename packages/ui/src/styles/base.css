@@ -1,0 +1,43 @@
+/*
+ * 画面の土台の CSS（tokens.css のあとに読む）。地・文字・フォーカスの輪を DESIGN.md のとおりに当てる。
+ * ダークモードは決まっていないので書かない（明るい画面だけ）。
+ */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-border);
+  }
+
+  html {
+    color-scheme: light;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: var(--text-m);
+    line-height: var(--leading-normal);
+  }
+
+  /*
+   * フォーカスの輪（DESIGN.md shadow.focus。四辺とも見える）。キーボードで動かしたときだけ出す。
+   * 色を消す設定（Windows のハイコントラスト）でも見えるよう、透明の outline を残す。
+   */
+  :focus-visible {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    box-shadow: var(--shadow-focus);
+  }
+
+  /* 動きを減らす設定のときは動かさない（DESIGN.md motion.reduced） */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0s !important;
+      transition-duration: 0s !important;
+    }
+  }
+}

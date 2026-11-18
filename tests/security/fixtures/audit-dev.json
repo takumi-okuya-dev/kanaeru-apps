@@ -1,0 +1,31 @@
+{
+  "advisories": {
+    "1000003": {
+      "findings": [
+        {
+          "version": "2.0.0",
+          "paths": [".>sample-dev-tool"],
+          "dev": true,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1000003,
+      "title": "見本の開発の道具の指摘（仮）",
+      "module_name": "sample-dev-tool",
+      "vulnerable_versions": "<2.0.1",
+      "patched_versions": ">=2.0.1",
+      "severity": "critical",
+      "cwe": "CWE-0",
+      "github_advisory_id": "GHSA-test-devt-0003",
+      "url": "https://github.com/advisories/GHSA-test-devt-0003"
+    }
+  },
+  "metadata": {
+    "vulnerabilities": { "info": 0, "low": 0, "moderate": 0, "high": 0, "critical": 1 },
+    "dependencies": 0,
+    "devDependencies": 1,
+    "optionalDependencies": 0,
+    "totalDependencies": 1
+  }
+}

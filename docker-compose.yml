@@ -1,0 +1,36 @@
+# 手元の PostgreSQL。
+# 名前はルートの .env の COMPOSE_PROJECT_NAME から作る（アプリの名前を焼き込まない）。
+# 作業場所（git worktree）ごとに容器を分けず、1つを共通に使う。DB の名前は DATABASE_URL で分ける
+# （docs/rules/parallel-development.md 1）。
+name: ${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME を .env に入れてください}
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    # 手元の外から届かないよう、127.0.0.1 だけで受け付ける
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    # 手元だけ：テストを速くするため、書き込みの守りを外す（本番には入れない）
+    command:
+      - postgres
+      - -c
+      - fsync=off
+      - -c
+      - synchronous_commit=off
+      - -c
+      - full_page_writes=off
+    volumes:
+      # PostgreSQL 18 の公式の容器は、データを /var/lib/postgresql/18/docker に置く。volume は親に当てる
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  postgres-data:

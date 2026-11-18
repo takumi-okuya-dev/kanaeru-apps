@@ -1,0 +1,9 @@
+[
+  {
+    "id": "GHSA-fc5q-39xc-vjpf",
+    "package": "picomatch",
+    "reason": "開発の道具だけの依存（vite・tinyglobby・eslint-plugin-boundaries・typescript-eslint の中）。本番の API と画面の組み立てには入らない。読む型（glob）は自分の設定ファイルのものだけで、利用者の入力を渡さないので ReDoS の入口がない。2026-11-18 の時点で直った版（4.0.8 以上）がまだない。直った版が出たら、依存を上げてこの行を消す",
+    "addedOn": "2026-11-18",
+    "expiresOn": "2027-02-15"
+  }
+]

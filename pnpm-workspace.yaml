@@ -1,0 +1,14 @@
+packages:
+  - apps/*
+  - packages/*
+  - e2e
+# 出てから1日（1440分）たっていない版は入れない（乗っ取られた版を、見つかる前に入れないため）。
+# どうしても急ぐ版（脆弱性の直しなど）は、minimumReleaseAgeExclude に「名前@版」で1行ずつ足す。
+minimumReleaseAge: 1440
+allowBuilds:
+  esbuild: true
+# 依存の中の古い版を、直った版に替える（理由をその行の上に書く。替えた先で動くことを確かめる）。
+overrides:
+  # drizzle-kit が使う @esbuild-kit/core-utils の esbuild 0.18（GHSA-67mh-4wv8-2f99。開発のサーバーの穴。
+  # ここでは開発のサーバーを使わず、TypeScript の変換だけに使う）。0.25 以上で直っている。pnpm db:generate で動きを確かめた
+  "@esbuild-kit/core-utils>esbuild": "^0.25.0"

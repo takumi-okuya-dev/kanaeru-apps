@@ -1,0 +1,35 @@
+# 依存を新しくする PR（docs/rules/development-flow.md 3）。毎週月曜、develop に向けて出す。
+# cooldown は pnpm-workspace.yaml の minimumReleaseAge（1440分＝1日）にそろえる。
+# まとめる組（groups）に「*」（すべて）を使わない：何が上がったかが PR から読めなくなり、壊れたときに戻しにくいため。
+# npm は、本番に入る依存と開発の道具を分け、小さな版の更新（minor・patch）だけをまとめる。大きな版（major）は1つずつ PR になる。
+# CI は run-ci を付けたときだけ流れる（決まりのまま）。
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Asia/Tokyo
+    target-branch: develop
+    cooldown:
+      default-days: 1
+    open-pull-requests-limit: 5
+    groups:
+      production-minor:
+        dependency-type: production
+        update-types: [minor, patch]
+      development-minor:
+        dependency-type: development
+        update-types: [minor, patch]
+    labels: [dependencies]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Asia/Tokyo
+    target-branch: develop
+    cooldown:
+      default-days: 1
+    labels: [dependencies]

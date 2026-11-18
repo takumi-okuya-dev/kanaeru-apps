@@ -1,4 +1,4 @@
-# <プロダクト名> で作業する Claude Code へ
+# kanaeru-apps で作業する Claude Code へ
 
 **AIが守る決まりは、この文書と、ここからリンクする`docs/rules/`だけに置く**。ほかの文書（仕様・今の形の説明・手順書）には決まりを書かない。決まりを変えたら、同じPRでここか`docs/rules/`を直す（AIのメモリーだけに書かない。ほかのセッションから読めないため）。
 
@@ -34,8 +34,9 @@
 5. **DBの変更のあるPRは小さく切り、先に入れる**。
 6. **developを少なくとも1日1回、PRを出す前とマージの前に取り込む**。共通のファイルがぶつかって迷ったら、自分で決めずにユーザーに相談する。
 
-<!--
-  言語・フレームワークを決めたら、ここに足す：
-  - よく使うコマンド（起動・テスト・lint・型チェック）
-  - 領域のフォルダの具体的なパス（例：src/<領域>/）と、「1行に1つ」の一覧ファイルのパス
--->
+### よく使う手順と置き場所（TypeScript。詳しくは [coding.md](docs/rules/coding.md) 6章）
+
+- 手順（リポジトリのルートで）：`pnpm local:setup`（初めての1回）・`pnpm dev`（立ち上げる）・`pnpm check`（全部の確かめ。秘密の値〈gitleaks。`brew install gitleaks`〉と依存の脆弱性を含む。PRの前に流す）・`pnpm db:generate` → できた SQL を読む → `pnpm db:migrate`（DBの変更）。
+- 領域のフォルダ：`apps/api/src/modules/<領域>/`・`apps/web/src/features/<領域>/`・`packages/contracts/src/<領域>/`（足す手順は [coding.md](docs/rules/coding.md) 6-6。見本は領域 `notes`）。
+- 1行に1つの一覧（`merge=union`）：`apps/api/src/modules.list.ts`・`apps/web/src/features.list.ts`（全部は [parallel-development.md](docs/rules/parallel-development.md) 3-1 の表）。
+- 見た目の値は `packages/ui/src/styles/tokens.css`（[DESIGN.md](docs/design/DESIGN.md) から写したもの）の名前だけ。Tailwind の任意の値（`bg-[#…]`）は lint で止まる。

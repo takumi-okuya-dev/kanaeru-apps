@@ -1,0 +1,48 @@
+{
+  "name": "kanaeru-apps",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.21.0",
+  "engines": {
+    "node": ">=26.13 <27"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "26.13.1",
+      "onFail": "download"
+    }
+  },
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc -p tsconfig.json && pnpm -r typecheck",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "e2e": "pnpm --filter web build && pnpm --filter e2e test",
+    "check": "pnpm security:check && pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm e2e",
+    "security:secrets": "tsx scripts/security/secrets.ts",
+    "security:audit": "tsx scripts/security/audit.ts",
+    "security:check": "pnpm security:secrets && pnpm security:audit",
+    "prepare": "node scripts/security/install-hooks.mjs",
+    "local:setup": "docker compose up -d --wait && pnpm db:migrate && pnpm db:seed",
+    "dev": "docker compose up -d --wait && pnpm db:migrate && concurrently --names api,web --prefix-colors blue,green --kill-others-on-fail \"pnpm --filter api dev\" \"pnpm --filter web dev\"",
+    "db:generate": "pnpm --filter api db:generate",
+    "db:migrate": "pnpm --filter api db:migrate",
+    "db:seed": "pnpm --filter api db:seed"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.6",
+    "concurrently": "^10.0.7",
+    "eslint": "^10.15.0",
+    "eslint-plugin-boundaries": "^7.4.4",
+    "eslint-plugin-jsdoc": "^65.4.9",
+    "globals": "^17.14.0",
+    "prettier": "^3.10.1",
+    "tsx": "^4.23.15",
+    "typescript": "6.0.3",
+    "typescript-eslint": "^8.73.0",
+    "vitest": "^5.1.0"
+  }
+}

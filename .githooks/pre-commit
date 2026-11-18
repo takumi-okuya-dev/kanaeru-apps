@@ -1,0 +1,19 @@
+#!/bin/sh
+# コミットの前の秘密の値の確かめ。
+# コミットする変更だけを gitleaks で確かめ、見つけたらコミットを止める。値は --redact で伏せる。
+# 飛ばさない（--no-verify を使わない。docs/rules/coding.md 2）。見間違いは .gitleaks.toml か .gitleaksignore に理由とともに足す。
+# pnpm install のときに、scripts/security/install-hooks.mjs が git config core.hooksPath .githooks を設定する。
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "gitleaks が入っていません。秘密の値を確かめられないので、コミットを止めます。" >&2
+  echo "  mac：brew install gitleaks（版は scripts/security/secrets.ts の MIN_GITLEAKS_VERSION 以上）。" >&2
+  exit 1
+fi
+
+if ! gitleaks git --pre-commit --staged --redact --no-banner --verbose --config .gitleaks.toml; then
+  echo "" >&2
+  echo "コミットする変更に、秘密の値に見える文字があります（上の File と Line。値は伏せています）。" >&2
+  echo "  本物の鍵なら、まず鍵を止めて作り直してください。" >&2
+  echo "  見間違いなら、.gitleaks.toml か .gitleaksignore に理由を書いて足してください。" >&2
+  exit 1
+fi

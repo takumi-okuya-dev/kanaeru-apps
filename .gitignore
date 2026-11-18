@@ -13,4 +13,11 @@
 .idea/
 .vscode/
 
-# 言語・フレームワークを決めたら、ビルドの成果物や依存のフォルダをここに足す
+# 依存・組み立ての成果物・テストの結果
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+# 書き出した OpenAPI の文書（コミットしない。並行して作ると毎回ぶつかるため）
+apps/api/openapi.json

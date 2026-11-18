@@ -2,7 +2,7 @@
 
 **対象**：コードを書くすべての人とAI。入口は[CLAUDE.md](../../CLAUDE.md)。
 
-言語・フレームワークに依存しない決まりだけを置く。言語を決めたら、6章に足す。
+1〜5章は言語・フレームワークに依存しない決まり。6章は TypeScript の決まり（`typescript` ブランチ。ほかの言語にするときは、6章を書き換える）。
 
 ## 1. 書き方
 
@@ -67,15 +67,79 @@
 
 - 決まりを変えたら、同じPRでこの文書を直す。
 
-## 6. 言語・フレームワークごとの決まり
+## 6. 言語・フレームワークごとの決まり（TypeScript）
 
-<!--
-  言語・フレームワークを決めたら（/speckit-plan の調査のあと）、ここに足す。例：
-  - 使う言語とバージョン、パッケージの管理の道具
-  - 整形・lint・型チェックの道具と、そのコマンド
-  - ドキュメントコメントの形式（JSDoc・docstring など）
-  - フォルダの構成と、領域のフォルダのパス
-  - モジュールの境界を守る lint のルールの置き場所
--->
+`typescript` ブランチの既定（[技術選定の候補](../tech-selection.md) 3章）。全体の形は [全体の形](../architecture.md)。
 
-まだ決めていない。
+### 6-1. 言語と道具
+
+- TypeScript 6.x（版はルートの `package.json` で固定する。7.0 は typescript-eslint が対応してから）。型を取り除くだけで動く書き方だけを使う（`erasableSyntaxOnly`。`enum`・`namespace`・引数のプロパティ〈`constructor(readonly x)`〉を書かない）。
+- Node.js 26 系の LTS。版はルートの `package.json` の `devEngines.runtime` で pnpm が入れる（`pnpm install` で落とし、`pnpm` で流す手順はその版で動く）。手元の Node.js の版は変えなくてよい。`.node-version` は、それを読む道具（nodenv・fnm など）のため。
+- パッケージの管理は pnpm（版は `package.json` の `packageManager`）。出てから1日たっていない版は入れない（`pnpm-workspace.yaml` の `minimumReleaseAge`）。
+- よく使う手順（リポジトリのルートで）：
+
+  | 手順 | すること |
+  |---|---|
+  | `pnpm install` | 依存を入れる。コミットの前の秘密の値の確かめ（`.githooks/pre-commit`）も、ここで git に設定する |
+  | `pnpm --filter e2e exec playwright install chromium` | 初めての1回（E2E のブラウザを入れる） |
+  | `pnpm local:setup` | 初めての1回（DB の容器・DB の変更・見本のデータ）。何度流しても増えない |
+  | `pnpm dev` | DB・API・画面を立ち上げる |
+  | `pnpm check` | 全部の確かめ（秘密の値と依存の脆弱性・整形・型・lint・単体と結合・E2E）。PR の前に流す |
+  | `pnpm security:check` | 秘密の値（`pnpm security:secrets`。gitleaks。`brew install gitleaks`）と依存の脆弱性（`pnpm security:audit`）だけを確かめる |
+  | `pnpm typecheck`・`pnpm lint`・`pnpm test`・`pnpm e2e` | 確かめを1つずつ流す |
+  | `pnpm format` | 整形（Prettier）。直した行だけでなくファイルが変わるときは、整形だけのコミットに分ける |
+  | `pnpm db:generate` → SQL を読む → `pnpm db:migrate` | DB の変更（3章）。`apps/api/drizzle/` にファイルができる |
+  | `pnpm db:seed` | 見本のデータ（仮の中身だけ）を入れる。`SAMPLE_DATA_ENABLED=true` のときだけ動く |
+  | `pnpm --filter api openapi` | API の窓口の文書を `apps/api/openapi.json` に書き出す（コミットしない） |
+
+- 設定は、ルートの `.env`（見本は `.env.example`）。DB には、つなぐ時間と1つの命令の時間の上限がある（`DATABASE_CONNECT_TIMEOUT_MS`・`DATABASE_QUERY_TIMEOUT_MS`）。値の意味と確かめは `apps/api/src/kernel/config.ts`。staging・production で危ない組み合わせ（見本のデータ・回数の制限を外す・見本の DB のパスワード・手元を指す源・http の源・production の窓口の文書）は、起動のときに止まる。
+
+### 6-2. 置き場所
+
+- API は `apps/api/src/`：`kernel/`（土台：設定・DB・ログ・エラー・列・道の型）・`platform/<名前>/`（共通：動いているか・回数の制限）・`modules/<領域>/`（領域）・組み立て（`app.ts`・`index.ts`・`modules.list.ts`・`client.ts`）。DB の変更は `apps/api/drizzle/`、手順は `apps/api/scripts/`。
+- 画面は `apps/web/src/`：`shell/`（外枠）・`features/<領域>/`（領域）・`lib/`（共通）・組み立て（`router.tsx`・`main.tsx`・`features.list.ts`）。
+- API の約束（zod）は `packages/contracts/src/<領域>/`（土台のものは `core/`）。見た目の値と部品は `packages/ui/`（値は `src/styles/tokens.css`）。
+- 通しのテストは `e2e/`。lint の規則と守りの確かめのテストは `tests/`。守りの手順は `scripts/security/`。
+- 領域の ID は、仕様のフォルダの領域の ID（`specs/<領域>/`）と同じにする。
+- 依存の向きは、組み立て → 領域 → 共通 → 土台。領域どうし・共通どうしは、相手の `index.ts` からだけ読む。画面から API は `apps/api/src/client.ts` を `import type` でだけ読む。この決まりはルートの `eslint.config.js` の境界の規則で止める（`tests/lint/boundaries.test.ts` が確かめる）。
+
+### 6-3. 書き方
+
+- 外に出す関数・クラス・型・定数には JSDoc（説明・`@param`・`@returns`・`@throws`）。JSDoc に型を書かない。React の部品の props は `@param props` でまとめる。lint（`eslint-plugin-jsdoc`）で止める。
+- 型だけを読むときは `import type`。
+- API の道は `/api/v1/…` に置き、`@hono/zod-openapi` の `createRoute` で書く（入力の確かめと窓口の文書が一緒にできる）。Hono の `.get`・`.post` で `/api` の下に道を足さない（起動のときに止まる）。
+- 道の値の ID は `kernel/http.ts` の `uuidParam` で書く（形が合わなければ、処理の前に 404 になる。処理の中で形を確かめなくてよい）。
+- 入力の形とエラーの文言は `packages/contracts` の領域のフォルダに日本語で置く（API と画面が同じ形で確かめる）。約束は**ふつうの `zod`** で書き、`@hono/zod-openapi` を読まない（画面の組み立てに OpenAPI の道具を入れないため）。窓口の文書の名前と例は、API の道の側で `.openapi("名前")` を付ける（例：`modules/notes/routes.ts`）。文言だけの定数は zod を読まないファイルに置く（例：`core/messages.ts`。画面が文言だけを読んでも zod が束に入らない）。zod の誤りの文は、欄のそばにそのまま出せる日本語で書く（日本語でない文は、API が決まった文に置きかえる）。領域のエラーは `{ code, status, message }` の一覧（例：`NOTES_ERRORS`）にして `AppError` に渡す。
+- ログに要求と応答の本文・利用者の入れた値・名前・メールを出さない（`kernel/logger.ts` が名前・メール・通行証を消すのは二重目の守り）。
+- 画面の見た目の値は `packages/ui/src/styles/tokens.css`（DESIGN.md から写したもの）の名前だけを使う（`bg-primary`・`text-text-sub`・`p-xs`・`rounded-sm` など。角だけは Tailwind の名前とぶつかるので `sm`・`md`・`lg` と呼ぶ）。Tailwind の任意の値（`bg-[#…]`・`p-[13px]`）を書かない（lint で止める）。足りない値は、DESIGN.md と `tokens.css` に足す（`tokens.test.ts` が食い違いを止める）。
+- 部品は `@workspace/ui` のもの（Button・Field・Input・Textarea・Table・Badge・Dialog・ConfirmDialog・ResponseMessage・NotificationBar）を使い、領域の中で作り直さない。新しい部品は shadcn/ui（Base UI の形。`packages/ui/components.json`）から持ってきて、値を `tokens.css` の名前に直してから使う。
+- 画面の振る舞いは EXPERIENCE.md に従う：入力の誤りは欄のそば（`Field` の `error`）、送った結果は押したボタンの近く（`ResponseMessage`）、画面が切り替わるときだけ画面の上の知らせの帯（`lib/notice.ts` の `showNotice`）、消す前は `ConfirmDialog`。ページは `lib/page.tsx` の `Page`（題は h1。外枠が道の変わり目にフォーカスを移す）。
+- 画面の `index.html` に中に書いた script を置かず、`eval`・`new Function` を使わない（組み立てた画面の CSP が止める。E2E が CSP の違反を落とす）。画面から外の源を読むときは、`apps/web/vite.config.ts` の CSP と、本番の置き場所の見出しを一緒に直す。画面のコードで環境の値（`process.env`・`import.meta.env.VITE_*`）を読まない（lint で止める。要る値は `vite.config.ts` の `define` で、秘密でないものだけ埋める）。
+- DB の命令を文字のつなぎで作らない・`sql.raw` を使わない・HTML をそのまま差しこまない・アプリのコードから OS のコマンドを動かさない（どれも lint で止める）。
+
+### 6-4. DB の表
+
+- 新しい表は、持ち主の領域の `modules/<領域>/schema.ts` に置く（drizzle-kit は `modules/*/schema.ts` と `platform/*/schema.ts` を読むので、設定は直さない）。
+- 主キーは `uuid`（既定値 `uuidv7()`。`kernel/columns.ts` の `primaryId()`）、時刻は `timestamptz`（`timestamps()` で `created_at`・`updated_at`）。
+- 表と列の名前は単数の snake_case（コードでは camelCase。Drizzle の `casing: "snake_case"`）。制約と索引の名前は `<表>_<列>_unique`・`<表>_<列>_idx` の形。
+- 同時に来ても守りたい決まり（同じ題は1つ など）は、DB の一意の制約で守り、違反を領域のエラーに読みかえる（`kernel/pg-errors.ts`）。
+- ログインや組織（複数のお客）を足すときは、その仕様で、表の持ち主の列（例：`organization_id`）と、読み書きを絞る決まりをここに足す。
+
+### 6-5. テスト
+
+- 単体と結合は Vitest（ルートの `vitest.config.ts` がワークスペースをまとめて流す）、通しは Playwright（アクセシビリティは `@axe-core/playwright`。1440px と 375px の2つの幅）。
+- API の結合のテストは本物の PostgreSQL に当てる。テストの始めに `<DB名>_test_template` に DB の変更を当て、Vitest の働き手ごとに写した DB を使う（`apps/api/test/helpers/db.ts` の `useTestDatabase()`）。表の名前を書き並べず、`truncateAllTables` で空にする。
+- 領域の窓口を足したら、`modules/<領域>/` に結合のテスト（作る・読む・直す・消すと、入力の誤り・ない ID）を足す。画面を足したら、`e2e/tests/` に通しの流れとアクセシビリティの確かめを足す。
+- E2E は E2E 専用の DB（`<DB名>_e2e`）と、`.env` の口の番号に 1000 を足した口を使い、1つずつ順に流す（テストの始めに DB を決まった状態にする）。E2E の API と画面に渡す設定は `e2e/env.ts` で決める（手元の `.env` からは DB の接続先と口の番号だけを読む）。
+- テストの設定（`apps/api/vitest.config.ts`・`e2e/env.ts`）は、手元の `.env` からは DB の接続先と口の番号だけを読み、機能の印などはテストの中で決める（2章）。
+
+### 6-6. 領域を足す手順
+
+共通のファイルで直すのは `apps/api/src/modules.list.ts` と `apps/web/src/features.list.ts` の1行ずつだけ（[並行開発の決まり](./parallel-development.md) 3-1）。ほかは、領域のフォルダの入口（`index.ts`）から出し、組み立てが読む。見本は領域 `notes`（[メモの地図](../apps/notes.md)）。
+
+1. **約束**：`packages/contracts/src/<領域>/` に入出力の形（ふつうの zod）と、領域のエラーの code と日本語の文言を置き、`index.ts` から出す。
+2. **表**：`apps/api/src/modules/<領域>/schema.ts` に表を書き、`pnpm db:generate --name <領域>` → できた SQL を読む → `pnpm db:migrate`。DB の変更のある PR は小さく切って先に入れる（[並行開発の決まり](./parallel-development.md) 4）。
+3. **API**：道は `routes.ts` に `createRoute` で書き、約束の形に `.openapi("名前")` を付けて使う。道の ID は `uuidParam`。`apps/api/src/modules/<領域>/index.ts` から `routes`（`(deps: DomainRouteDeps) => …`。戻り値の型を書かず `.openapi()` のつながりのまま返す。`deps` は `db`・`logger`・`features` だけ）を出す。`modules.list.ts` に `export * as <領域> from "./modules/<領域>/index.ts";` を1行足す。
+4. **画面**：`apps/web/src/features/<領域>/index.ts` から `feature`（`id`・`routes`・任意で `nav`）を `satisfies WebFeature` で出す（`WebFeature[]` と型を書くと、道の型が消える）。道は `createRoute({ getParentRoute: () => rootRoute, path: "/<領域>…" })`（`lib/router.ts`。TanStack Router のコードで書く形）。入力のフォームの画面は `lazyRouteComponent` で開いたときに読む。窓口は `createApiClient<ModuleRoutes["<領域>"]>()` と `request()` で呼ぶ（`ModuleRoutes` は `apps/api/src/client.ts` から `import type`）。`features.list.ts` に `export * as <領域> from "./features/<領域>/index.ts";` を1行足す。
+5. **大きな機能**は、設定 `DOMAIN_FEATURES` の印（`<領域>.<名前>`）で止められるように作る（2章）。API は `deps.features.enabled("<領域>.<名前>")` で読む。
+6. **テスト**：6-5。領域の地図 `docs/apps/<領域>.md` を書き、[docs/README.md](../README.md) 2章に1行足す。

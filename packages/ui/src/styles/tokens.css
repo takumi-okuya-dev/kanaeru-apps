@@ -1,0 +1,100 @@
+/*
+ * 見た目の値（Tailwind 4 の @theme）。docs/design/DESIGN.md の先頭の値から写した。
+ * 画面のコードは、ここの名前だけを使う（bg-primary・text-text-sub・p-xs・rounded-s など）。
+ * Tailwind の初期の値（色・文字・余白・角・影・幅の境目）は消してから足す（DESIGN.md にない値を書いても効かないように）。
+ * 値のずれは tokens.test.ts が見張る。プロダクトの DESIGN.md（_bmad-output/）を作ったら、そこから写し直し、
+ * tokens.test.ts が読む DESIGN.md の道も替える（docs/design/README.md 2）。
+ */
+@theme {
+  /* 色（DESIGN.md colors。名前もそのまま） */
+  --color-*: initial;
+  --color-primary: #2f5bb7;
+  --color-primary-hover: #2a52a6;
+  --color-on-primary: #ffffff;
+  --color-text: #23221e;
+  --color-text-sub: #706d65;
+  --color-text-disabled: #c1bdb7;
+  --color-text-link: #0071c1;
+  --color-background: #f8f7f6;
+  --color-surface: #ffffff;
+  --color-surface-sunken: #f5f4f3;
+  --color-surface-over: #f2f1f0;
+  --color-head: #edebe8;
+  --color-border: #d6d3d0;
+  --color-border-input: #8a867f;
+  --color-danger: #e01e5a;
+  --color-danger-text: #c8174d;
+  --color-warning: #ffcc17;
+  --color-success: #0f7f85;
+  --color-success-text: #0b6f74;
+  --color-overlay: rgba(3, 3, 2, 0.15);
+  --color-scrim: rgba(3, 3, 2, 0.5);
+
+  /* 文字（DESIGN.md typography） */
+  --font-*: initial;
+  --font-sans: system-ui, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  --text-*: initial;
+  --text-xxs: 10.67px;
+  --text-xs: 12px;
+  --text-s: 13.71px;
+  --text-m: 16px;
+  --text-l: 19.2px;
+  --text-xl: 24px;
+  --text-xxl: 32px;
+  --leading-*: initial;
+  --leading-none: 1;
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.75;
+  --font-weight-*: initial;
+  --font-weight-normal: 400;
+  --font-weight-bold: 700;
+
+  /* 余白（DESIGN.md spacing。1文字＝16px を単位にした段）。高さ・幅にも使う（ボタンの高さ 40px は l、小さいもの 32px は m） */
+  --spacing-*: initial;
+  /* 0（余白なし。DESIGN.md の段ではないが、inset-0・p-0 などに要る） */
+  --spacing-0: 0px;
+  --spacing-x3s: 4px;
+  --spacing-xxs: 8px;
+  --spacing-xs: 16px;
+  --spacing-s: 24px;
+  --spacing-m: 32px;
+  --spacing-l: 40px;
+  --spacing-xl: 48px;
+  --spacing-xxl: 56px;
+  --spacing-x3l: 64px;
+
+  /*
+   * 角（DESIGN.md radius）。Tailwind では rounded-s・rounded-l が「始めの側・左の側の角」になってしまうので、
+   * s・m・l を sm・md・lg と呼ぶ（rounded-sm＝4px・rounded-md＝6px・rounded-lg＝8px）
+   */
+  --radius-*: initial;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-full: 9999px;
+
+  /* 影（DESIGN.md shadow。色はどれも rgba(3,3,2,0.3)。focus は白の縁と primary の輪） */
+  --shadow-*: initial;
+  --shadow-layer1: 0 1px 2px 0 rgba(3, 3, 2, 0.3);
+  --shadow-layer2: 0 2px 4px 1px rgba(3, 3, 2, 0.3);
+  --shadow-layer3: 0 4px 8px 2px rgba(3, 3, 2, 0.3);
+  --shadow-layer4: 0 8px 16px 4px rgba(3, 3, 2, 0.3);
+  --shadow-focus: 0 0 0 2px #ffffff, 0 0 0 4px #2f5bb7;
+
+  /* 幅の境目（DESIGN.md breakpoints.small：751px 以下を狭い画面とみる）。wide: で 752px 以上 */
+  --breakpoint-*: initial;
+  --breakpoint-wide: 752px;
+
+  /*
+   * 画面の骨格の大きさ（DESIGN.md の Layout & Spacing から決めた値。DESIGN.md の先頭の表にはない）。
+   * どれも余白の単位（4px）の倍数。足すときは、ここに理由と一緒に書く。
+   */
+  --container-*: initial;
+  /* ページの本文の幅の上限（読みやすい長さに止める） */
+  --container-page: 1040px;
+  /* ダイアログの幅の上限 */
+  --container-dialog: 480px;
+  /* サイドバーの幅 */
+  --spacing-sidebar: 240px;
+}

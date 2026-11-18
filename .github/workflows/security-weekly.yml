@@ -1,0 +1,39 @@
+# 週1回の確かめ（docs/rules/development-flow.md 3）。毎週月曜 9:00（日本の時刻）に、既定のブランチ（develop）の
+# 秘密の値（過去のすべてのコミット）と依存の脆弱性だけを確かめる（pnpm check は流さない）。落ちたら GitHub の既定の知らせが届く。
+# 秘密の値（secrets.*）は使わない。外の部品は SHA で固定する。
+name: security-weekly
+
+on:
+  schedule:
+    - cron: "0 0 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  secrets-history:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-gitleaks
+      - name: 過去のすべてのコミットの秘密の値（値は伏せる）
+        run: gitleaks git --redact --no-banner --verbose --config .gitleaks.toml .
+
+  deps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # GitHub Actions が CI=true を入れるので、通信ができない・応答が合わないときも落ちる
+      - name: 本番に入る依存の既知の脆弱性
+        run: pnpm security:audit
