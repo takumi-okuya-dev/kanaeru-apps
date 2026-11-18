@@ -76,6 +76,7 @@ apps/web/src/features/reception/
 ├── api.ts・queries.ts           # 窓口の呼び出し・問い合わせの鍵（["reception", …]）
 ├── format.ts（＋test）           # 選択肢の言葉・時刻・円
 ├── checkin-form.ts（＋test）     # 入力の確かめ（約束で確かめ、欄ごとの誤りにする）
+├── flags.tsx                   # 同じ名前の印・手でのチェックインの印
 ├── CheckinFields.tsx           # 名前と3つのチップ（P1・手でのチェックイン・直す枠）
 ├── CheckinPage.tsx（＋test）     # P1
 ├── ReceptionPage.tsx・ParticipantsTab.tsx・TotalsTab.tsx・CheckinEditDialog.tsx・ManualCheckinForm.tsx # A3
@@ -95,3 +96,4 @@ docs/apps/reception.md・docs/architecture.md・docs/README.md・docs/rules/codi
 |---|---|---|
 | 共通のファイル `packages/ui/src/components/choice-chips.tsx` | P1・A3・P2 のチップ（DESIGN の choice-chip） | 部品は `@workspace/ui` に置く決まり。survey も使う（R14） |
 | 差しこみの場所（`slots.ts`） | survey が A5 と A3 の枠に節を足す | reception のフォルダを survey が直さないため（R10） |
+| 共通のファイル `e2e/tests/event.spec.ts` の1か所 | 招待を受けたあとの行き先が A3 になる | event の設計どおりのふるまいの変化で、見出しの確かめだけを直した（R17） |

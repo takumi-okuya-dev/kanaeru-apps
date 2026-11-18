@@ -108,3 +108,8 @@
 
 - **Decision**：機能の印では止めない。見本のデータ（`db:seed`）にチェックインは足さない。
 - **Rationale**：受付は 11-25 の交流会の要。見本は本物の名簿に混ざる恐れがある（event の R12 と同じ）。
+
+## R17. 招待を受けたあとの行き先（event の E2E の直し。共通の変更）
+
+- **Decision**：reception が `ADMIN_ROUTE_PATTERNS.eventReception` を道の木に足すと、event の `InviteAcceptPage`・交流会の一覧の行き先が、event の設計どおり A3 になる。`e2e/tests/event.spec.ts` の「交流会の一覧へ移る」の確かめを「A3（参加者・合計）へ移り、交流会の一覧にその交流会が出る」に直した（event のコードは直していない）。別のコミットに分けた。
+- **Rationale**：直さないと `pnpm check` が落ちる。event のふるまいは変えず、確かめだけを今の形に合わせた。
