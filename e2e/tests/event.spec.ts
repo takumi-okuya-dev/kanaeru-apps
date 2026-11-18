@@ -155,9 +155,11 @@ test("受付係が招待のリンクから受け、一覧で交流会を見る�
   await expectNoA11yViolations(page, "受付係の招待");
   await page.getByRole("button", { name: "受ける" }).click();
 
-  // 一覧画面（reception）がまだないので、交流会の一覧へ移る。その交流会が出て、主催者だけの操作は出ない
-  await expect(page.getByRole("heading", { level: 1, name: "交流会の一覧" })).toBeVisible();
+  // 受けたら一覧画面（reception の A3）へ移る。交流会の一覧にその交流会が出て、主催者だけの操作は出ない
+  await expect(page.getByRole("heading", { level: 1, name: "参加者・合計" })).toBeVisible();
   await expect(page.getByText("受付係になりました。")).toBeVisible();
+  await page.goto("/admin/events");
+  await expect(page.getByRole("heading", { level: 1, name: "交流会の一覧" })).toBeVisible();
   const row = page.getByRole("listitem").filter({ has: page.getByRole("heading", { name }) });
   await expect(row).toBeVisible();
   await expect(row.getByRole("link", { name: /準備/ })).toHaveCount(0);
