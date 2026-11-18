@@ -1,0 +1,20 @@
+# terraform.tfvars の見本（core-002）。`cp terraform.tfvars.example terraform.tfvars` で写して値を入れる。
+# terraform.tfvars はコミットしない（infra/.gitignore）。秘密の値はここにも書かない（DB のパスワードは Terraform が作る）。
+# 値の意味は variables.tf。
+
+project_id         = "kanaeru-prod-xxxx"
+billing_account_id = "000000-000000-000000"
+github_repository  = "owner/kanaeru-apps"
+
+# LINE の値（どれも秘密ではない。LINE Developers のコンソールで見る。README の 4）
+line_channel_ids       = "1234567890"
+organizer_line_user_id = "U00000000000000000000000000000000"
+open_chat_url          = "https://line.me/ti/g2/xxxxxxxx"
+
+# 既定のままでよいもの
+# region          = "asia-northeast1"
+# app_name        = "kanaeru"
+# web_url         = ""   # 空なら https://kanaeru-<プロジェクト番号>.asia-northeast1.run.app
+# budget_amount   = 2000
+# budget_currency = "JPY"
+# db_password_version = 1
