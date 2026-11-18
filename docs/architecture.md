@@ -1,6 +1,6 @@
 # 全体の形（アーキテクチャ）
 
-2026-11-18 作成（TypeScript の骨組み。`typescript` ブランチ）。2026-11-19 直した（core-001：見本の領域を消し、画面を API から返す形・LIFF の始め方・DB の夜間停止の 503・参加者の道と日本時間の関数・プロダクトの見た目の値を足した。account-001：アカウントとセッション・LINE のログイン・今の利用者の受け取り方を足した。event-001：交流会・受付係・招待・交流会ごとの権限・管理の画面の道とナビを足した）。
+2026-11-18 作成（TypeScript の骨組み。`typescript` ブランチ）。2026-11-19 直した（core-001：見本の領域を消し、画面を API から返す形・LIFF の始め方・DB の夜間停止の 503・参加者の道と日本時間の関数・プロダクトの見た目の値を足した。account-001：アカウントとセッション・LINE のログイン・今の利用者の受け取り方を足した。event-001：交流会・受付係・招待・交流会ごとの権限・管理の画面の道とナビを足した。reception-001：チェックイン・一覧画面・合計と内訳・参加者の CSV と、選択肢のチップの部品を足した）。
 
 今のシステムの形。選んだ技術の候補と目安は [技術選定の候補](./tech-selection.md)、守る決まりは [コードの書き方の決まり](./rules/coding.md) 6章。
 
@@ -38,7 +38,7 @@ flowchart LR
 | `scripts/security`・`security` | 秘密の値（gitleaks）と依存の脆弱性（`pnpm audit`）の確かめの手順と、依存の例外の一覧 |
 | `.githooks`・`.github` | コミットの前の秘密の値の確かめ（`pre-commit`）・CI（`workflows/ci.yml`・`security-weekly.yml`）・Dependabot |
 
-ログインは account の領域が持つ（LINE の ID トークンを API が LINE の verify で確かめ、自前のセッション〈DB の `session` の表と `HttpOnly; SameSite=Lax` のクッキー〉を出す。構成の決めごと AD-4・AD-12。地図は [apps/account.md](./apps/account.md)）。交流会ごとの権限（主催者・受付係）と、参加者に見せてよい交流会の要約は event の領域が持ち、要求のたびに引く（AD-5。地図は [apps/event.md](./apps/event.md)）。置き場所（Cloud Run と Cloud SQL・Terraform）は、インフラの仕様で足す（AD-8〜AD-11）。
+ログインは account の領域が持つ（LINE の ID トークンを API が LINE の verify で確かめ、自前のセッション〈DB の `session` の表と `HttpOnly; SameSite=Lax` のクッキー〉を出す。構成の決めごと AD-4・AD-12。地図は [apps/account.md](./apps/account.md)）。交流会ごとの権限（主催者・受付係）と、参加者に見せてよい交流会の要約は event の領域が持ち、要求のたびに引く（AD-5。地図は [apps/event.md](./apps/event.md)）。チェックインと、そのときの名前と金額（AD-6）は reception の領域が持ち、survey は reception の入口から引く（地図は [apps/reception.md](./apps/reception.md)）。置き場所（Cloud Run と Cloud SQL・Terraform）は、インフラの仕様で足す（AD-8〜AD-11）。
 
 ### 設定（`apps/api/src/kernel/config.ts`）
 
@@ -129,7 +129,7 @@ sequenceDiagram
 - PostgreSQL 18 の DB を1つ使い、読み書きするのは API だけ。つなぐ時間と1つの命令の時間に上限があり（設定）、DB が答えないときは待ち続けずに `503 DB_UNAVAILABLE` で失敗する。本番の DB は夜間（0時〜8時）に止まる（AD-10）。動いているかの窓口（`GET /api/v1/health`）は DB に触るので、置き場所の起動の確かめ（probe）には使わない（Cloud Run の既定の TCP の確かめのまま）。接続先と DB の名前は設定の `DATABASE_URL` で決める（手元は Docker の `postgres:18` を1つ共通に使い、作業場所ごとに DB の名前で分ける。[並行開発の決まり](./rules/parallel-development.md) 1）。
 - アプリの表は `public` スキーマ、DB の変更の記録は `drizzle` スキーマにある。DB の変更は `apps/api/drizzle/` の1列の SQL で、`meta/_journal.json` の順に当てる。当てた記録が残り、もう一度当てても何もしない。
 - 表の名前は単数の snake_case。主キーは `uuid`（既定値 `uuidv7()`）、時刻は `timestamptz`（[コードの書き方の決まり](./rules/coding.md) 6-4）。
-- 今あるアプリの表は account の `account`・`session`（[apps/account.md](./apps/account.md)）と、event の `event`・`event_staff`・`staff_invite`（[apps/event.md](./apps/event.md)）。表は領域を足すときに、その領域の `schema.ts` で足す（見本の領域の `note` は core-001 の DB の変更で消した）。
+- 今あるアプリの表は account の `account`・`session`（[apps/account.md](./apps/account.md)）と、event の `event`・`event_staff`・`staff_invite`（[apps/event.md](./apps/event.md)）と、reception の `checkin`（[apps/reception.md](./apps/reception.md)）。表は領域を足すときに、その領域の `schema.ts` で足す（見本の領域の `note` は core-001 の DB の変更で消した）。
 
 ## 6. 画面の骨格
 
@@ -140,4 +140,6 @@ sequenceDiagram
 - 画面の入口（`main.tsx`）は、`lib/liff.ts` の `initLiff()` を待ってからルーターを作る（LIFF の init の前に URL を変えないため）。LIFF ID（組み立てのときの `VITE_LIFF_ID`）がなければ、LINE につながない仮の形（未ログイン・ID トークンなし）で動く。始められなければ「読みこめませんでした」の画面（`shell/StartupErrorPage.tsx`）を出す。
 - はじめの画面（`/`）は、ナビの最初の項目へ移る（今は event の「交流会」＝交流会の一覧 `/admin/events`。受付係と主催者がミニアプリを開き直すと一覧に来る）。ナビを出す領域がなければ「ページが見つかりません」。
 - 管理の画面（`/admin/events/…`）の道の形は `@workspace/contracts/event` の `ADMIN_ROUTE_PATTERNS` の1か所にあり、画面どうしの行き来は event の `EventAdminNav`（道が登録されている項目だけを出す）。QR は画面で作る（`uqr` で点の並びを作り、React の SVG で描く。中身は `miniAppPermalink`）。
+- 一覧画面（A3）は TanStack Query の読み直しを5秒おきにする（つなぎっぱなしの仕組みは使わない。夜間の停止では止める）。書いたあとは、その場で読み直す。参加者の CSV は API が UTF-8 の BOM つきで作り、画面は受け取って保存する。
+- ほかの領域の画面に節を足すときは、持ち主の「差しこみの場所」に登録する（今は reception の A5 の節と A3 の直す枠の節。`registerEventDataSection`・`registerCheckinPanelSection`）。
 - ログインが要るページは account の `SessionGate` で包む。LINE の中では、セッションがなければ `getIDToken()` を `POST /api/v1/auth/line` に1度だけ送ってログインする。LIFF ID のない手元・E2E は、手元のログイン（`/dev/login`。試験用のログイン）で入る。
