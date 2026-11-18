@@ -24,6 +24,10 @@ export default defineConfig({
       RATE_LIMIT_ENABLED: "true",
       LOG_PRETTY: "false",
       LOG_LEVEL: "silent",
+      LINE_CHANNEL_IDS: "",
+      ORGANIZER_LINE_USER_ID: "",
+      OPEN_CHAT_URL: "",
+      WEB_DIST_DIR: "",
     },
   },
 });

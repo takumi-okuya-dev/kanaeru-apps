@@ -19,6 +19,9 @@ const STAGING = {
   DATABASE_URL: "postgres://app:Zq8-made-for-staging@127.0.0.1:5432/app",
   SAMPLE_DATA_ENABLED: "false",
   OPENAPI_DOC_ENABLED: "true",
+  LINE_CHANNEL_IDS: "1234567890",
+  ORGANIZER_LINE_USER_ID: `U${"0123456789abcdef".repeat(2)}`,
+  WEB_DIST_DIR: "/app/apps/web/dist",
 };
 
 /**
@@ -45,6 +48,37 @@ describe("設定", () => {
     expect(config.openApiDocEnabled).toBe(false);
     expect(config.rateLimit).toEqual({ enabled: true, windowSeconds: 60, max: 100 });
     expect(config.domainFeatures).toEqual([]);
+    expect(config.lineChannelIds).toEqual([]);
+    expect(config.organizerLineUserId).toBeUndefined();
+    expect(config.openChatUrl).toBeUndefined();
+    expect(config.webDistDir).toBeUndefined();
+  });
+
+  it("LINE・主催者・オープンチャット・画面の場所を読む（並びの空白と空の要素は除く・画面の場所は絶対の道）", () => {
+    const config = loadConfig({
+      ...LOCAL,
+      LINE_CHANNEL_IDS: " 1234567890, ,2345678901 ",
+      ORGANIZER_LINE_USER_ID: STAGING.ORGANIZER_LINE_USER_ID,
+      OPEN_CHAT_URL: "https://line.me/ti/g2/example",
+      WEB_DIST_DIR: "apps/web/dist",
+    });
+    expect(config.lineChannelIds).toEqual(["1234567890", "2345678901"]);
+    expect(config.organizerLineUserId).toBe(STAGING.ORGANIZER_LINE_USER_ID);
+    expect(config.openChatUrl).toBe("https://line.me/ti/g2/example");
+    expect(config.webDistDir).toMatch(/^\/.*\/apps\/web\/dist$/);
+  });
+
+  it("LINE・主催者・オープンチャットの形が違えば、どの環境でも止める", () => {
+    for (const base of [LOCAL, STAGING]) {
+      expect(problemKeys({ ...base, LINE_CHANNEL_IDS: "123,abc" })).toEqual(["LINE_CHANNEL_IDS"]);
+      expect(problemKeys({ ...base, ORGANIZER_LINE_USER_ID: "U123" })).toEqual([
+        "ORGANIZER_LINE_USER_ID",
+      ]);
+      expect(problemKeys({ ...base, OPEN_CHAT_URL: "http://line.me/ti/g2/example" })).toEqual([
+        "OPEN_CHAT_URL",
+      ]);
+      expect(problemKeys({ ...base, OPEN_CHAT_URL: "line.me" })).toEqual(["OPEN_CHAT_URL"]);
+    }
   });
 
   it("WEB_PORT から画面の源を作り、WEB_URL があればその源を使う", () => {
@@ -90,7 +124,7 @@ describe("設定", () => {
     expect(problemKeys(STAGING)).toEqual([]);
   });
 
-  it("staging・production では、手元とテストだけの設定・見本の値・手元を指す源を止める", () => {
+  it("staging・production では、手元とテストだけの設定・見本の値・手元を指す源・LINE と主催者と画面の場所がないことを止める", () => {
     for (const appEnv of ["staging", "production"]) {
       const base = { ...STAGING, APP_ENV: appEnv, OPENAPI_DOC_ENABLED: "false" };
       expect(problemKeys({ ...base, SAMPLE_DATA_ENABLED: "true" })).toEqual([
@@ -101,6 +135,11 @@ describe("設定", () => {
       expect(problemKeys({ ...base, WEB_URL: undefined })).toEqual(["WEB_URL"]);
       expect(problemKeys({ ...base, WEB_URL: "http://app.example.com" })).toEqual(["WEB_URL"]);
       expect(problemKeys({ ...base, WEB_URL: "https://localhost" })).toEqual(["WEB_URL"]);
+      expect(problemKeys({ ...base, LINE_CHANNEL_IDS: " , " })).toEqual(["LINE_CHANNEL_IDS"]);
+      expect(problemKeys({ ...base, ORGANIZER_LINE_USER_ID: undefined })).toEqual([
+        "ORGANIZER_LINE_USER_ID",
+      ]);
+      expect(problemKeys({ ...base, WEB_DIST_DIR: "" })).toEqual(["WEB_DIST_DIR"]);
     }
   });
 
