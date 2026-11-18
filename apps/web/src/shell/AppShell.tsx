@@ -1,6 +1,7 @@
 // 画面の外枠（EXPERIENCE.md 5・7・DESIGN.md Layout）。
 // - 上に帯（アプリの名前）。752px 以上は左にサイドバー、751px 以下は1列（ナビは帯の下に横に並べる）。
 // - 先頭に「本文へ移る」。道が変わったら、新しい画面の h1（tabindex="-1"）にフォーカスを移す（読み上げが題から読む）。
+//   読みこみ中で h1 がまだないときは、h1 が出たときに移す。
 // - 画面の上の知らせの帯（lib/notice.ts）を、今の道の知らせがあるときだけ出す。トーストは使わない。
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { NotificationBar } from "@workspace/ui/components/notification-bar";
@@ -17,6 +18,9 @@ export type NavItem = {
   /** 行き先の道 */
   to: string;
 };
+
+/** 道が変わったあと、読みこみ中の画面の h1 が出るのを待つ長さ（ミリ秒）。 */
+const HEADING_WAIT_MS = 10_000;
 
 /** 外枠が受け取るもの。 */
 type AppShellProps = {
@@ -44,7 +48,31 @@ export function AppShell({ navItems }: AppShellProps) {
       return;
     }
     previousPath.current = resolvedPath;
-    mainRef.current?.querySelector<HTMLElement>("h1")?.focus();
+    const main = mainRef.current;
+    if (!main) return;
+    const focusHeading = () => {
+      const heading = main.querySelector<HTMLElement>("h1");
+      heading?.focus();
+      return heading !== null;
+    };
+    if (focusHeading()) return;
+    // 読みこみ中の画面（ログインの確かめ・データの読みこみ）は、あとから h1 が出る。出たときに一度だけ移す。
+    // その間に利用者がフォーカスを動かしたら、動かさない（移ったときのフォーカスか、本文の外れたときだけ）
+    const focusedAtNavigation = document.activeElement;
+    const observer = new MutationObserver(() => {
+      const active = document.activeElement;
+      if (active !== focusedAtNavigation && active !== document.body && active !== null) {
+        observer.disconnect();
+        return;
+      }
+      if (focusHeading()) observer.disconnect();
+    });
+    observer.observe(main, { childList: true, subtree: true });
+    const timer = window.setTimeout(() => observer.disconnect(), HEADING_WAIT_MS);
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(timer);
+    };
   }, [resolvedPath]);
 
   useEffect(() => {
