@@ -29,7 +29,7 @@
 ## Phase 5: 画面（US1・US2・US3・US4）
 
 - [x] T011 [P] `packages/ui/src/components/choice-chips.test.tsx` を書き、`choice-chips.tsx` を作る（共通。別のコミット。research R14）
-- [x] T012 [P] `apps/web/src/features/reception/format.test.ts`・`checkin-form.test.ts`・`slots.test.tsx` を書き、`format.ts`・`checkin-form.ts`・`slots.ts` を作る
+- [x] T012 [P] `apps/web/src/features/reception/format.test.ts`・`checkin-form.test.ts`・`slots.test.ts` を書き、`format.ts`・`checkin-form.ts`・`slots.ts` を作る
 - [x] T013 [US1] `CheckinPage.test.tsx` を書き、`api.ts`・`queries.ts`・`CheckinFields.tsx`・`CheckinPage.tsx` を作る
 - [x] T014 [US2・US3] `ReceptionPage.tsx`・`ParticipantsTab.tsx`・`ManualCheckinForm.tsx`・`CheckinEditDialog.tsx`・`TotalsTab.tsx` を作る
 - [x] T015 [US4] `DataPage.tsx` を作る
