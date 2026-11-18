@@ -33,6 +33,7 @@
 |---|---|---|
 | [全体の形](./architecture.md) | 構成図・フォルダの役目・依存の向き・領域を足すときに触る所・要求の流れ・DB の全体・画面の骨格 | 全体の構成 |
 | [アカウント（account）の地図](./apps/account.md) | アカウントとセッションの表・LINE のログインの窓口・ほかの領域が今の利用者を受け取る形（`requireSession`・`useSession`）・テストの手伝い | account の領域 |
+| [交流会（event）の地図](./apps/event.md) | 交流会・受付係・招待のリンクの表・窓口・交流会ごとの権限（`requireEventRole`）と要約（`getEventSummary`）・管理の画面の道と `EventAdminNav`・テストの手伝い | event の領域 |
 
 ## 3. 動かす人向け（⑤。環境・外部サービス・リリース）
 

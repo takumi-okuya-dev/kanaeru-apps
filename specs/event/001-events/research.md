@@ -76,7 +76,8 @@
 - **Rationale**：EXPERIENCE は A1〜A5 の道を仮の形とした。道が領域ごとに食い違わないよう、1か所の定数にした。道は参加者が外から開かないので、AD-14 の `core` ではなく event の約束に置く。
 - **共通のファイルの変更**（並行開発の決まり 3-3。別のコミットに分け、要れば共通の PR に切り出せる形にした）：
   - `e2e/env.ts`：E2E の主催者の LINE のユーザー ID を決める（`ORGANIZER_LINE_USER_ID`。reception・survey の E2E も使う）。
-  - `e2e/tests/a11y.spec.ts`・`e2e/tests/keyboard.spec.ts`：はじめの画面（`/`）が「見つからない」と決め打ちしていたので、ナビの最初の項目へ移っても通る形にする（領域の名前は書かない）。
+  - `e2e/tests/a11y.spec.ts`・`e2e/tests/keyboard.spec.ts`・`e2e/tests/health.spec.ts`：はじめの画面（`/`）が「見つからない」と決め打ちしていたので、ナビの最初の項目へ移っても通る形にする（領域の名前は書かない）。
+  - `apps/web/src/router.tsx`・`apps/web/src/shell/AppShell.tsx`：R13。
 
 ## R10. アンケートの開閉の窓口
 
@@ -95,3 +96,10 @@
 
 - **Decision**：設定の機能の印（`DOMAIN_FEATURES`）では止めない。見本のデータ（`db:seed`）に交流会は足さない。
 - **Rationale**：event は受付の前提で、止めると reception・survey も止まる。止めたいときは主催者が交流会を作らなければよい。見本の交流会は、本物の交流会と一覧で混ざる恐れがある。
+
+## R13. 領域が2つになって見つかった、組み立てと外枠の直し（共通の変更）【仮決め】
+
+- **Decision**：
+  - `router.tsx`：道の木を作る `registeredFeatures.flatMap((feature) => feature.routes)` は、領域が2つ以上になると TypeScript が最初の領域の道の型だけに決め、型の誤りになる。返り値の型を「登録された領域の道の型の和」と書いた（ふるまいは変わらない）。
+  - `AppShell.tsx`：道が変わったときに h1 へフォーカスを移す処理は、移った瞬間に h1 があることを前提にしていた。ログインの確かめ（`SessionGate`）やデータの読みこみで h1 があとから出る画面ではフォーカスが本文の外（`body`）に落ちていた（キーボードの E2E で、はじめの画面が交流会の一覧へ移るようになって見つかった）。h1 がないときは、出たときに一度だけ移す（10秒まで。その間に利用者がフォーカスを動かしたら移さない）。
+- **Rationale**：reception・survey を足したときも同じ所でぶつかるので、先に直した。どちらも領域の名前を持たない一般の直し。別のコミットに分けてあり、共通の PR に切り出せる。

@@ -62,11 +62,13 @@ apps/api/src/modules/event/
 ├── schema.ts                   # event・event_staff・staff_invite
 ├── repository.ts               # 読み書き
 ├── access.ts                   # getEventRole・requireEventRole・currentEventRole
+├── ids.ts                      # uuid と招待の印の形・印を作る
 ├── summary.ts                  # getEventSummary
 ├── routes.ts                   # 窓口
 ├── event.test.ts・access.test.ts # 結合のテスト
 └── index.ts
 apps/api/src/modules.list.ts    # 1行
+apps/api/test/helpers/event.ts  # createEvent・makeStaff・call（reception・survey のテストも使う）
 apps/api/drizzle/0003_event.sql
 apps/web/src/features/event/
 ├── api.ts・queries.ts           # 窓口の呼び出しと問い合わせの鍵・useEvent
@@ -75,12 +77,13 @@ apps/web/src/features/event/
 ├── admin-tabs.ts・EventAdminNav.tsx（＋test）
 ├── QrCode.tsx（＋test）・QrPrintPage.tsx・print.css
 ├── EventListPage.tsx・EventFormPage.tsx（＋test）・EventSetupPage.tsx・InviteAcceptPage.tsx
-├── OrganizerOnly.tsx            # 主催者だけの画面の「使えない」状態
+├── EventAccessGate.tsx          # 交流会の読みこみと役目の確かめ（403・404・主催者だけ）
+├── navigation.tsx               # 登録された道の読み方・ほかの領域の画面へのリンク
 ├── routes.ts・index.ts
 apps/web/src/features.list.ts   # 1行
 e2e/tests/event.spec.ts
-e2e/env.ts・e2e/tests/a11y.spec.ts・e2e/tests/keyboard.spec.ts（共通。research R9）
-docs/apps/event.md・docs/architecture.md・docs/README.md
+e2e/env.ts・e2e/tests/{a11y,keyboard,health}.spec.ts・apps/web/src/router.tsx・apps/web/src/shell/AppShell.tsx（共通。research R9・R13）
+docs/apps/event.md・docs/architecture.md・docs/README.md・docs/rules/coding.md（6-3・6-5）
 ```
 
 **Structure Decision**：権限は `access.ts` に1つ（reception・survey が使う）。要約は `summary.ts`（窓口と index.ts の関数が同じものを使う）。画面のナビの項目は `admin-tabs.ts` の1か所の並び（道の定数と役目）から作る。
@@ -90,4 +93,4 @@ docs/apps/event.md・docs/architecture.md・docs/README.md
 | 増えたもの | なぜ要るか | もっと簡単な案を選ばなかった理由 |
 |---|---|---|
 | 新しい依存 `uqr` | QR を作る | 自分で QR の符号を書くと誤りやすい。API で作ると LIFF ID の設定が要る |
-| 共通の E2E のファイル3つ | 主催者の E2E と、はじめの画面がナビへ移ること | 主催者の LINE のユーザー ID は E2E の設定の1か所で決める決まり（coding.md 6-5） |
+| 共通のファイル（E2E の4つ・router.tsx・AppShell.tsx） | 主催者の E2E と、はじめの画面がナビへ移ること | 主催者の LINE のユーザー ID は E2E の設定の1か所で決める決まり（coding.md 6-5）。router.tsx と AppShell.tsx は領域が2つ以上で必ずぶつかる（research R13） |
