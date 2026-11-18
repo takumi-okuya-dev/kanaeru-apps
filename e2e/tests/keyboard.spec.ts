@@ -48,8 +48,9 @@ test("キーボードだけで、本文へ移り、リンクで道を変える�
   await page.keyboard.press("Tab");
   expect(await focused(page)).toEqual({ tag: "A", text: "本文へ移る" });
 
+  // はじめの画面（/）は、ナビの最初の項目へ移る（どの画面になるかは書かない。並行開発の決まり 3-2）
   await tabTo(page, "はじめの画面へ戻る");
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL("/");
-  await expect.poll(() => focused(page)).toEqual({ tag: "H1", text: "ページが見つかりません" });
+  await expect(page).not.toHaveURL(/\/no\/such\/page$/);
+  await expect.poll(async () => (await focused(page)).tag).toBe("H1");
 });

@@ -32,6 +32,9 @@ export const E2E_WEB_URL = `http://127.0.0.1:${E2E_API_PORT}`;
 /** 組み立てた画面のフォルダ（ルートの pnpm e2e が先に vite build する）。 */
 export const E2E_WEB_DIST_DIR = fileURLToPath(new URL("../apps/web/dist", import.meta.url));
 
+/** E2E の主催者の LINE のユーザー ID（試験用のログインでこの ID を使うと主催者になる。event・reception・survey の E2E が使う）。 */
+export const E2E_ORGANIZER_LINE_USER_ID = `U${"e".repeat(32)}`;
+
 /**
  * E2E の API に渡す環境の変数（E2E 専用の DB・口の番号・テストの値）。設定の値は、すべてここで決める。
  * Playwright は、これを今の環境の変数（PATH など）に重ねて渡す。
@@ -45,7 +48,7 @@ export const E2E_ENV: Record<string, string> = {
   WEB_URL: E2E_WEB_URL,
   WEB_DIST_DIR: E2E_WEB_DIST_DIR,
   LINE_CHANNEL_IDS: "",
-  ORGANIZER_LINE_USER_ID: "",
+  ORGANIZER_LINE_USER_ID: E2E_ORGANIZER_LINE_USER_ID,
   OPEN_CHAT_URL: "",
   SAMPLE_DATA_ENABLED: "false",
   // E2E のログインは account の試験用のログインで行う（本物の LINE は手元の http で動かない）
