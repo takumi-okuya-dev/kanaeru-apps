@@ -3,9 +3,10 @@
 // 名前と金額は、チェックインのときに写して持つ（AD-6）。外部キー：交流会は RESTRICT・本人の account は CASCADE・
 // 手で入れた人は SET NULL（AD-7）。選択肢は text と CHECK（Consistency Conventions「選択肢」）。
 // CHECK の code は約束（@workspace/contracts/reception の options.ts）と同じ並びを文字で書く（DB の変更の SQL に値を埋めるため。
-// sql.raw は使わない）。食い違いは reception.test.ts の「選択肢の code はどれも DB に入る」が見張る。
+// sql.raw は使わない）。列の型は同じ定数で絞る（{ enum }。SQL は変わらない）。食い違いは reception.test.ts の「選択肢の code はどれも DB に入る」が見張る。
 import { sql } from "drizzle-orm";
 import { check, index, integer, pgTable, text, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { APPLICATION_SOURCES, PAYMENT_METHODS, REFERRALS } from "@workspace/contracts/reception";
 import { primaryId, timestamps } from "../../kernel/columns.ts";
 import { accountTable } from "../account/index.ts";
 import { eventTable } from "../event/index.ts";
@@ -25,11 +26,11 @@ export const checkin = pgTable(
     /** 名前（チェックインのときに写したもの） */
     name: text("name").notNull(),
     /** 申し込みの媒体 */
-    applicationSource: text("application_source").notNull(),
+    applicationSource: text("application_source", { enum: APPLICATION_SOURCES }).notNull(),
     /** 知ったきっかけ */
-    referral: text("referral").notNull(),
+    referral: text("referral", { enum: REFERRALS }).notNull(),
     /** 支払い方法 */
-    paymentMethod: text("payment_method").notNull(),
+    paymentMethod: text("payment_method", { enum: PAYMENT_METHODS }).notNull(),
     /** 金額（円の整数。作るときと支払い方法を直すときだけ決める） */
     amount: integer("amount").notNull(),
     ...timestamps(),
