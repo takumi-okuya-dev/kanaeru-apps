@@ -40,11 +40,13 @@ export type DatabaseTimeouts = {
  * DB の接続を作る。
  * @param databaseUrl 接続先（設定の DATABASE_URL）
  * @param timeouts 時間の上限（既定は DEFAULT_DATABASE_TIMEOUTS）
+ * @param onIdleClientError 待っている接続が切れたときに呼ぶ（ログに残すため。既定は何もしない）
  * @returns Drizzle と Pool
  */
 export function createDatabase(
   databaseUrl: string,
   timeouts: DatabaseTimeouts = DEFAULT_DATABASE_TIMEOUTS,
+  onIdleClientError: (error: Error) => void = () => {},
 ): Database {
   const pool = new pg.Pool({
     connectionString: databaseUrl,
@@ -54,6 +56,9 @@ export function createDatabase(
     statement_timeout: timeouts.queryTimeoutMs,
     query_timeout: timeouts.queryTimeoutMs,
   });
+  // 待っている接続が DB の側で切られると（夜間の停止・再起動）、Pool が 'error' を出す。
+  // 受け手がないとプロセスごと落ちるので、必ず受ける。切れた接続は Pool が捨て、次の要求でつなぎ直す（構成の決めごと AD-10）
+  pool.on("error", onIdleClientError);
   const db = drizzle({ client: pool, casing: "snake_case" });
   return { db, pool };
 }

@@ -19,7 +19,12 @@ try {
 }
 
 const logger = createLogger({ level: config.logLevel, pretty: config.logPretty });
-const database = createDatabase(config.databaseUrl, config.databaseTimeouts);
+const database = createDatabase(config.databaseUrl, config.databaseTimeouts, (error) => {
+  logger.warn(
+    { err: { name: error.name, message: error.message } },
+    "待っている DB の接続が切れました。",
+  );
+});
 const app = createApp({ config, database, logger });
 
 const server = serve(
