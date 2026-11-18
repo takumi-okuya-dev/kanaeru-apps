@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createDatabase } from "../src/kernel/db.ts";
 import { uuidParam } from "../src/kernel/http.ts";
 import { OPENAPI_DOC_PATH, toFieldErrors } from "../src/app.ts";
-import type { AppEnv, DomainModule } from "../src/app.ts";
+import type { AppEnv, DomainModule, DomainRouteDeps } from "../src/app.ts";
 import { TEST_ORIGIN, buildApp, jsonRequest, testConfig } from "./helpers/app.ts";
 import { useTestDatabase } from "./helpers/db.ts";
 
@@ -74,6 +74,30 @@ const testModule: DomainModule = {
 };
 
 describe("組み立て", () => {
+  it("領域には、秘密でない設定と外への出口だけを渡す（DB の接続先・環境の名前は渡さない）", () => {
+    let received: DomainRouteDeps | undefined;
+    const fakeFetch: typeof fetch = () => Promise.resolve(new Response(null));
+    const spy: DomainModule = {
+      routes: (deps) => {
+        received = deps;
+        return new OpenAPIHono<AppEnv>();
+      },
+    };
+    buildApp(database, testConfig({ lineChannelIds: ["1234567890"] }), {
+      extraModules: [spy],
+      fetch: fakeFetch,
+    });
+    expect(Object.keys(received?.config ?? {}).sort()).toEqual([
+      "lineChannelIds",
+      "openChatUrl",
+      "organizerLineUserId",
+      "testLoginEnabled",
+      "webUrl",
+    ]);
+    expect(received?.config.lineChannelIds).toEqual(["1234567890"]);
+    expect(received?.fetch).toBe(fakeFetch);
+  });
+
   it("動いているかの窓口は、DB につながれば ok を返し、要求の ID と守りの見出しをつける", async () => {
     const app = buildApp(database);
     const response = await app.request("/api/v1/health");

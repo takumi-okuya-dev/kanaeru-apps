@@ -92,7 +92,7 @@
   | `pnpm db:seed` | 見本のデータ（仮の中身だけ）を入れる。`SAMPLE_DATA_ENABLED=true` のときだけ動く |
   | `pnpm --filter api openapi` | API の窓口の文書を `apps/api/openapi.json` に書き出す（コミットしない） |
 
-- 設定は、ルートの `.env`（見本は `.env.example`）。DB には、つなぐ時間と1つの命令の時間の上限がある（`DATABASE_CONNECT_TIMEOUT_MS`・`DATABASE_QUERY_TIMEOUT_MS`）。値の意味と確かめは `apps/api/src/kernel/config.ts`。staging・production で危ない組み合わせ（見本のデータ・回数の制限を外す・見本の DB のパスワード・手元を指す源・http の源・production の窓口の文書）と、要る値がないこと（`LINE_CHANNEL_IDS`・`ORGANIZER_LINE_USER_ID`・`WEB_DIST_DIR`）は、起動のときに止まる。
+- 設定は、ルートの `.env`（見本は `.env.example`）。DB には、つなぐ時間と1つの命令の時間の上限がある（`DATABASE_CONNECT_TIMEOUT_MS`・`DATABASE_QUERY_TIMEOUT_MS`）。値の意味と確かめは `apps/api/src/kernel/config.ts`。staging・production で危ない組み合わせ（見本のデータ・試験用のログイン〈`TEST_LOGIN_ENABLED`〉・回数の制限を外す・見本の DB のパスワード・手元を指す源・http の源・production の窓口の文書）と、要る値がないこと（`LINE_CHANNEL_IDS`・`ORGANIZER_LINE_USER_ID`・`WEB_DIST_DIR`）は、起動のときに止まる。
 
 ### 6-2. 置き場所
 
@@ -142,7 +142,7 @@
 
 1. **約束**：`packages/contracts/src/<領域>/` に入出力の形（ふつうの zod）と、領域のエラーの code と日本語の文言を置き、`index.ts` から出す。
 2. **表**：`apps/api/src/modules/<領域>/schema.ts` に表を書き、`pnpm db:generate --name <領域>` → できた SQL を読む → `pnpm db:migrate`。DB の変更のある PR は小さく切って先に入れる（[並行開発の決まり](./parallel-development.md) 4）。
-3. **API**：道は `routes.ts` に `createRoute` で書き、約束の形に `.openapi("名前")` を付けて使う。道の ID は `uuidParam`。`apps/api/src/modules/<領域>/index.ts` から `routes`（`(deps: DomainRouteDeps) => …`。戻り値の型を書かず `.openapi()` のつながりのまま返す。`deps` は `db`・`logger`・`features` だけ）を出す。`modules.list.ts` に `export * as <領域> from "./modules/<領域>/index.ts";` を1行足す。
+3. **API**：道は `routes.ts` に `createRoute` で書き、約束の形に `.openapi("名前")` を付けて使う。道の ID は `uuidParam`。`apps/api/src/modules/<領域>/index.ts` から `routes`（`(deps: DomainRouteDeps) => …`。戻り値の型を書かず `.openapi()` のつながりのまま返す。`deps` は `db`・`logger`・`features`・`config`〈秘密でない設定だけの `DomainConfig`〉・`fetch`〈外のサービスへの出口。テストでは差しかえ、既定は外へ出ない〉だけ。外のサービスは `deps.fetch` で呼び、全域の `fetch` を直に使わない）を出す。`modules.list.ts` に `export * as <領域> from "./modules/<領域>/index.ts";` を1行足す。
 4. **画面**：`apps/web/src/features/<領域>/index.ts` から `feature`（`id`・`routes`・任意で `nav`）を `satisfies WebFeature` で出す（`WebFeature[]` と型を書くと、道の型が消える）。道は `createRoute({ getParentRoute: () => rootRoute, path: "/<領域>…" })`（`lib/router.ts`。TanStack Router のコードで書く形）。入力のフォームの画面は `lazyRouteComponent` で開いたときに読む。窓口は `createApiClient<ModuleRoutes["<領域>"]>()` と `request()` で呼ぶ（`ModuleRoutes` は `apps/api/src/client.ts` から `import type`）。`features.list.ts` に `export * as <領域> from "./features/<領域>/index.ts";` を1行足す。
 5. **大きな機能**は、設定 `DOMAIN_FEATURES` の印（`<領域>.<名前>`）で止められるように作る（2章）。API は `deps.features.enabled("<領域>.<名前>")` で読む。
 6. **テスト**：6-5。領域の地図 `docs/apps/<領域>.md` を書き、[docs/README.md](../README.md) 2章に1行足す。

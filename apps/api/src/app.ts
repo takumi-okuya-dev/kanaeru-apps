@@ -4,7 +4,8 @@
 // /api の下の道は、すべて @hono/zod-openapi の createRoute で書く（文書に出ない道があると、起動を止める）。
 // 窓口の文書（GET /api/openapi.json）は、設定 OPENAPI_DOC_ENABLED が true のときだけ出す（production では止める）。
 // 設定 WEB_DIST_DIR があれば、/api 以外の道に組み立てた画面を返す（platform/web。AD-8）。守りの見出しは /api と画面で分ける。
-// ログインはまだない。足すときは、ログインの仕様で判定の仕組み（platform/）と、道ごとの判定の印を足す（docs/tech-selection.md 3-4）。
+// ログインは account の領域が持つ（AD-12。道ごとに account の requireSession を付ける）。領域には、秘密でない設定（DomainConfig）と
+// 外への出口（fetch）を渡す。
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import type { Hook } from "@hono/zod-openapi";
 import type { FieldError } from "@workspace/contracts/core";
@@ -49,6 +50,8 @@ export type AppDeps = {
   extraModules?: DomainModule[];
   /** 領域の機能の印の差しかえ（テストだけ。なければ設定の DOMAIN_FEATURES で作る） */
   features?: DomainFeatures;
+  /** 領域が外のサービスへ出る HTTP の出口の差しかえ（テストだけ。なければ globalThis.fetch） */
+  fetch?: typeof fetch;
 };
 
 /** 領域（modules/<領域>/index.ts）が出すもの。どの欄も任意。 */
@@ -350,6 +353,14 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
     db,
     logger,
     features: deps.features ?? createDomainFeatures(config.domainFeatures),
+    config: {
+      webUrl: config.webUrl,
+      lineChannelIds: config.lineChannelIds,
+      organizerLineUserId: config.organizerLineUserId,
+      openChatUrl: config.openChatUrl,
+      testLoginEnabled: config.testLoginEnabled,
+    },
+    fetch: deps.fetch ?? globalThis.fetch.bind(globalThis),
   };
   for (const [, domain] of domains) {
     if (domain.routes) app.route("/", domain.routes(routeDeps));

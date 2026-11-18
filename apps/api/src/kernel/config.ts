@@ -2,7 +2,7 @@
 // 起動のときに process.env を zod で確かめ、合わなければ、どの値がなぜ合わないかを日本語で出して止める。
 // DB の接続先など、値そのものはエラーに出さない。
 // 環境ごとの違いはコードで分けず、設定の値で決める（docs/rules/coding.md 2）。APP_ENV は、危ない組み合わせを止めるためだけに見る：
-// - staging・production：見本のデータの手順・回数の制限を外すこと・見本の DB のパスワード・手元を指す源・http の源を止め、
+// - staging・production：見本のデータの手順・試験用のログイン・回数の制限を外すこと・見本の DB のパスワード・手元を指す源・http の源を止め、
 //   LINE のチャネル ID・主催者の LINE のユーザー ID・組み立てた画面の場所がないときも止める。
 // - production：窓口の文書（OPENAPI_DOC_ENABLED）を止める。
 // loadConfig の中で確かめるので、API の起動・手順（見本のデータ・OpenAPI の文書）のどの入口でも効く。
@@ -197,6 +197,7 @@ const schema = z
     DATABASE_CONNECT_TIMEOUT_MS: positiveInt(5000),
     DATABASE_QUERY_TIMEOUT_MS: positiveInt(10_000),
     SAMPLE_DATA_ENABLED: flag(false),
+    TEST_LOGIN_ENABLED: flag(false),
     OPENAPI_DOC_ENABLED: flag(false),
     LOG_LEVEL: z
       .enum(LOG_LEVELS, { error: `${LOG_LEVELS.join("／")} のどれかにしてください。` })
@@ -246,6 +247,13 @@ const schema = z
           code: "custom",
           path: ["SAMPLE_DATA_ENABLED"],
           message: `APP_ENV が ${name} のときは true にできません（手元とテストだけで使う設定です）。`,
+        });
+      }
+      if (env.TEST_LOGIN_ENABLED) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["TEST_LOGIN_ENABLED"],
+          message: `APP_ENV が ${name} のときは true にできません（試験用のログインは手元とテストだけで使います）。`,
         });
       }
       if (!env.RATE_LIMIT_ENABLED) {
@@ -330,6 +338,8 @@ export type Config = {
   databaseTimeouts: { connectTimeoutMs: number; queryTimeoutMs: number };
   /** 見本のデータを入れる手順を許すか */
   sampleDataEnabled: boolean;
+  /** 試験用のログイン（POST /api/v1/auth/test-login。account の領域）を使えるか。staging・production では false だけ */
+  testLoginEnabled: boolean;
   /** 窓口の文書（GET /api/openapi.json）を出すか */
   openApiDocEnabled: boolean;
   /** ログの細かさ */
@@ -404,6 +414,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       queryTimeoutMs: value.DATABASE_QUERY_TIMEOUT_MS,
     },
     sampleDataEnabled: value.SAMPLE_DATA_ENABLED,
+    testLoginEnabled: value.TEST_LOGIN_ENABLED,
     openApiDocEnabled: value.OPENAPI_DOC_ENABLED,
     logLevel: value.LOG_LEVEL,
     logPretty: value.LOG_PRETTY,

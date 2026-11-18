@@ -48,6 +48,8 @@ export const E2E_ENV: Record<string, string> = {
   ORGANIZER_LINE_USER_ID: "",
   OPEN_CHAT_URL: "",
   SAMPLE_DATA_ENABLED: "false",
+  // E2E のログインは account の試験用のログインで行う（本物の LINE は手元の http で動かない）
+  TEST_LOGIN_ENABLED: "true",
   OPENAPI_DOC_ENABLED: "true",
   DOMAIN_FEATURES: "",
   LOG_PRETTY: "false",
