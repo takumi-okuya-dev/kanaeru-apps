@@ -48,6 +48,8 @@ export function createDatabase(
 ): Database {
   const pool = new pg.Pool({
     connectionString: databaseUrl,
+    // 1台あたりの接続の上限。Cloud Run は最大2台なので、合計が Cloud SQL（db-f1-micro）の上限を超えない（構成の決めごと AD-8）
+    max: 5,
     connectionTimeoutMillis: timeouts.connectTimeoutMs,
     statement_timeout: timeouts.queryTimeoutMs,
     query_timeout: timeouts.queryTimeoutMs,

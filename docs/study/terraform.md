@@ -386,7 +386,7 @@ infra/
   secrets.tf         # Secret Manager の入れ物と、DB の接続の値
   cloud_run.tf       # Cloud Run のサービスと jobs・その身分（サービスアカウント）と権限
   scheduler.tf       # 夜間の停止と朝の起動
-  iam_wif.tf         # GitHub Actions から鍵なしで入る仕組み（Direct WIF）
+  iam_wif.tf         # GitHub Actions から鍵なしで入る仕組み（WIF＋サービスアカウントのなりすまし）
   budget.tf          # 請求の予算と知らせ
   terraform.tfvars.example  # 値の見本（本物の tfvars はコミットしない）
   .terraform.lock.hcl       # コミットする
@@ -724,7 +724,7 @@ sequenceDiagram
 
 ### 6.7 GitHub Actions から鍵なしで入る（iam_wif.tf）
 
-GitHub Actions がデプロイするときは、サービスアカウントの鍵（JSON）を置かず、**Workload Identity Federation（WIF）**で入る。kanaeru は、サービスアカウントを通さずにプールへ直接権限を付ける **Direct WIF** を使う（AD-9。仕組みの説明は[GCPの学び](./gcp.md)）。
+GitHub Actions がデプロイするときは、サービスアカウントの鍵（JSON）を置かず、**Workload Identity Federation（WIF）**で入る。kanaeru は、WIF で入ったあとデプロイ用のサービスアカウント `kanaeru-deployer` になりすます形を使う（AD-9。Cloud Run がプールへ直接権限を付ける Direct WIF に対応していないため。仕組みの説明は[GCPの学び](./gcp.md)）。下の例は Direct WIF の形のままなので、実際の書き方は `infra/iam_wif.tf` を見る。
 
 ```hcl
 # 例（そのままでは動かない場合がある）
@@ -782,7 +782,7 @@ resource "google_service_account_iam_member" "github_act_as_run" {
 
 - `attribute_condition` を付けないと、ほかの人のリポジトリの GitHub Actions からも入れてしまうおそれがある。公式の説明も、いつも条件を付けるようにすすめている。リポジトリの名前の代わりに持ち主の数字のID（`assertion.repository_owner_id`）でも絞ると、名前を取り直されたときにも安全。
 - `google_iam_workload_identity_pool.github.name` は `projects/<番号>/locations/global/workloadIdentityPools/github` の形。GitHub Actions の `workload_identity_provider` に渡すのは、プロバイダの `name`（output で出す）。
-- 上の3つの役割で、Direct WIF のままデプロイ（イメージの押し込み・Cloud Run と jobs の更新・jobs の実行）が全部通るかは、まだ確かめていない（要確認：デプロイの仕様で最小の役割を決めるときに確かめる）。Direct WIF に対応していないサービスもあると公式の説明にある。
+- Cloud Run は Direct WIF に対応していない（公式）。そのため `infra/iam_wif.tf` では、上の3つの役割を `kanaeru-deployer` に付け、プールの身分には `roles/iam.workloadIdentityUser`（なりすましてよい）だけを付けている（core-002 R-1）。
 - プールを消すと、しばらく同じIDで作り直せない（要確認）。名前を決めたら変えない。
 - プールや権限の変更が効くまで、最大5分ほどかかる。
 

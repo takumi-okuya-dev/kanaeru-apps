@@ -113,7 +113,7 @@ flowchart TB
 - **Binds:** all（運用）
 - **Prevents:** 画面で手で作った資源が残り、作り直せない・費用が分からなくなること。作り直せない交流会の記録を失うこと
 - **Rule:**
-  - Cloud Run（サービスと jobs）・Artifact Registry・Cloud SQL（台・DB・利用者）・Secret Manager・サービスアカウントと権限・GitHub からのデプロイの権限（Workload Identity Federation・Direct WIF）・Cloud Scheduler・請求の予算は `infra/` の Terraform で作る。手で作ってよいのは、Terraform の状態を置く GCS のバケット（バージョニングあり）と、最初の GCP プロジェクトだけ。
+  - Cloud Run（サービスと jobs）・Artifact Registry・Cloud SQL（台・DB・利用者）・Secret Manager・サービスアカウントと権限・GitHub からのデプロイの権限（Workload Identity Federation で入り、デプロイ用のサービスアカウントになりすます。鍵は作らない。Cloud Run は WIF の直接の権限〈Direct WIF〉に対応していないため。core-002 R-1）・Cloud Scheduler・請求の予算は `infra/` の Terraform で作る。手で作ってよいのは、Terraform の状態を置く GCS のバケット（バージョニングあり）と、最初の GCP プロジェクトだけ。
   - 秘密の値（DBのパスワード）は Secret Manager に置き、Terraform のコードとリポジトリには書かない。
   - Cloud SQL は自動のバックアップを有効にし、時間帯は DB が動いている昼（日本時間12時台）、7日分残す。`deletion_protection` を付ける。
   - 請求の予算は月2,000円で、50%・100% でメールで知らせる。
@@ -191,7 +191,7 @@ flowchart TB
 | @line/liff | 2.32（2.31.1 未満は使わない） |
 | PostgreSQL（Cloud SQL・Enterprise・db-f1-micro） | 18 |
 | Terraform google provider | 8.12 |
-| google-github-actions/auth | v3（Direct WIF） |
+| google-github-actions/auth | v3（WIF ＋ サービスアカウントのなりすまし） |
 
 ## Structural Seed
 
