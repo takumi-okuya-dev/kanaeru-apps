@@ -26,7 +26,7 @@
 
 ## Phase 4: 画面のファイルと CSP（US1）
 
-- [x] T012 [US1] `apps/api/src/platform/web/web.test.ts` に、画面のファイル・SPA の戻り・拡張子のある道の 404・`..` の道・`/api` の見出し・キャッシュ・`index.html` がないと止まる、のテストを足す
+- [x] T012 [US1] `apps/api/test/web.test.ts` に、画面のファイル・SPA の戻り・拡張子のある道の 404・`..` の道・`/api` の見出し・キャッシュ・`index.html` がないと止まる、のテストを足す
 - [x] T013 [US1] `apps/api/src/platform/web/`（`serveWeb`・`webSecureHeaders`・画面の CSP）を作り、`app.ts` で `/api` と画面の見出しを分けてつなぐ
 - [x] T014 [US1] `apps/web/vite.config.ts` の preview の CSP を消し、E2E（`e2e/playwright.config.ts`・`e2e/env.ts`・`health.spec.ts`）を API が画面を返す形にする
 

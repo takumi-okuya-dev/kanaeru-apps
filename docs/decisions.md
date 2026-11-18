@@ -23,3 +23,5 @@
 | 2026-11-19 | 参加者の画面は未認証の LINEミニアプリで作り、ログインは LINE のIDトークンを API が確かめて自前のセッションを出す。テンプレートの既定の Better Auth は使わない | LINE が新規はミニアプリを勧めており、LIFF からは移せないため。Better Auth は LINE でメールがない人がログインできない | `_bmad-output/architecture-kanaeru/`（AD-4） |
 | 2026-11-19 | 置き場所は Cloud Run（東京）＋ Cloud SQL for PostgreSQL（東京・db-f1-micro）。DB は夜間0時〜8時に止める。すべて Terraform で持つ | 主催者が GCP と Terraform を学びたいため。DB も東京で速い。Neon（0円・シンガポール）と Cloudflare・Supabase も比べた | `_bmad-output/architecture-kanaeru/`（AD-8〜AD-10） |
 | 2026-11-19 | 環境は本番の1つで始め、`main` のマージで本番に出す。`develop` のマージでは出さない | 2026-11-25 の交流会に間に合わせるため。ステージングは交流会のあとに足す | [開発の流れの決まり](./rules/development-flow.md) 5 |
+| 2026-11-19 | 組み立てた画面は、設定 `WEB_DIST_DIR` があるときに API（`platform/web`）が返し、画面の CSP も API の1か所で付ける。E2E も同じ形で流し、`vite preview` の CSP はやめた | 1つのコンテナで画面と `/api` を同じ源にし（AD-8）、CSP を2か所に書いてずれないようにするため。環境の名前で分けない（coding.md 2） | `specs/core/001-foundation/research.md`（R6・R12） |
+| 2026-11-19 | 画面の CSP に LIFF の SDK が使う LINE の源を足し、`'unsafe-eval'` は入れない（外のブラウザで LIFF の小さな窓〈`requestFriendship` など〉が動かない見込みを受け入れる） | LINE に CSP の説明がなく、SDK の中身から源を拾った。友だち追加は LINE の中で出すので、守りを優先した（仮決め。本番で確かめる） | `specs/core/001-foundation/research.md`（R7） |
