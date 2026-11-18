@@ -15,7 +15,7 @@ if (!config.sampleDataEnabled) {
 const { db, pool } = createDatabase(config.databaseUrl, config.databaseTimeouts);
 try {
   const added = await seedSampleData(db);
-  console.log(`見本のメモを ${added} 件足しました（同じ題のものは足しません）。`);
+  console.log(`見本のデータを ${added} 件足しました（すでにあるものは足しません）。`);
 } finally {
   await pool.end();
 }

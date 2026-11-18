@@ -89,8 +89,8 @@ sequenceDiagram
   participant V as 画面の置き場所（手元は Vite）
   participant A as API（Hono）
   participant D as PostgreSQL
-  B->>V: GET /notes（画面の HTML・JS。CSP などの守りの見出しつき）
-  B->>V: PUT /api/v1/notes/{id}（同じ源）
+  B->>V: GET /e/{eventId}/checkin（画面の HTML・JS。CSP などの守りの見出しつき）
+  B->>V: POST /api/v1/…（同じ源）
   V->>A: /api を中継
   Note over A: 要求の ID → 守りの見出し → 要求ごとのログ1行<br/>→ 源の確かめ（Origin が画面の源と違えば 403）<br/>→ 本文の大きさ（100KB まで）→ 回数の制限（書く操作。IP ごと・IPv6 は /64 ごと）
   Note over A: 道（createRoute）が約束（zod）で入力を確かめる<br/>道の ID が合わなければ 404、本文が合わなければ 400 と欄ごとの日本語の理由
@@ -109,7 +109,7 @@ sequenceDiagram
 - PostgreSQL 18 の DB を1つ使い、読み書きするのは API だけ。つなぐ時間と1つの命令の時間に上限があり（設定）、DB が答えないときは待ち続けずに失敗する（動いているかの窓口は 503）。接続先と DB の名前は設定の `DATABASE_URL` で決める（手元は Docker の `postgres:18` を1つ共通に使い、作業場所ごとに DB の名前で分ける。[並行開発の決まり](./rules/parallel-development.md) 1）。
 - アプリの表は `public` スキーマ、DB の変更の記録は `drizzle` スキーマにある。DB の変更は `apps/api/drizzle/` の1列の SQL で、`meta/_journal.json` の順に当てる。当てた記録が残り、もう一度当てても何もしない。
 - 表の名前は単数の snake_case。主キーは `uuid`（既定値 `uuidv7()`）、時刻は `timestamptz`（[コードの書き方の決まり](./rules/coding.md) 6-4）。
-- 今ある表は、見本の領域の `note` だけ（[メモの地図](./apps/notes.md)）。
+- 今あるアプリの表はない（見本の領域の `note` は core-001 の DB の変更で消した）。表は領域を足すときに、その領域の `schema.ts` で足す。
 
 ## 6. 画面の骨格
 

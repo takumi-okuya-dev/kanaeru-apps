@@ -11,11 +11,26 @@ import type { NavItem } from "./shell/AppShell.tsx";
 import { ErrorPage } from "./shell/ErrorPage.tsx";
 import { NotFoundPage } from "./shell/NotFoundPage.tsx";
 
-/** 登録された領域（features.list.ts の順）。型を消さないよう、WebFeature[] と書かない（道の型が Link の to を確かめる）。 */
-const registered = Object.values(features).map((module) => module.feature);
+/** features.list.ts の領域が出す feature の型の和（領域が1つもなければ never）。 */
+type ListedFeature = {
+  [K in keyof typeof features]: (typeof features)[K] extends { feature: infer F } ? F : never;
+}[keyof typeof features];
+
+/** 登録された領域の feature の型（領域が1つもないときは、道を持たない形）。 */
+type RegisteredFeature = [ListedFeature] extends [never]
+  ? Omit<WebFeature, "routes"> & { routes: readonly never[] }
+  : ListedFeature;
+
+/**
+ * 登録された領域（features.list.ts の順）。型を消さないよう、WebFeature[] と書かない（道の型が Link の to を確かめる）。
+ * 領域が0のときも型が通るよう、名前空間の値の型を RegisteredFeature で読む。
+ */
+export const registeredFeatures = Object.values<{ feature: RegisteredFeature }>(features).map(
+  (module) => module.feature,
+);
 
 /** ナビの項目（features.list.ts の順）。 */
-export const navItems: readonly NavItem[] = registered.flatMap((feature: WebFeature) =>
+export const navItems: readonly NavItem[] = registeredFeatures.flatMap((feature: WebFeature) =>
   feature.nav ? [{ id: feature.id, label: feature.nav.label, to: feature.nav.to }] : [],
 );
 
@@ -41,7 +56,7 @@ const indexRoute = createRoute({
 /** 道の木。 */
 export const routeTree = rootRoute.addChildren([
   indexRoute,
-  ...registered.flatMap((feature) => feature.routes),
+  ...registeredFeatures.flatMap((feature) => feature.routes),
 ]);
 
 /**

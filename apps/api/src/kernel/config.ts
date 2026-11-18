@@ -185,7 +185,7 @@ const schema = z
       )
       .refine((keys) => keys.every((key) => DOMAIN_FEATURE_KEY_FORMAT.test(key)), {
         error:
-          "「<領域>.<名前>」（例 notes.export）をカンマで並べてください（領域は英小文字で始まる英小文字・数字、名前は英小文字で始まる英数字）。",
+          "「<領域>.<名前>」（例 event.export）をカンマで並べてください（領域は英小文字で始まる英小文字・数字、名前は英小文字で始まる英数字）。",
       }),
     TRUSTED_PROXY_HOPS: z.coerce
       .number({ error: "数にしてください。" })

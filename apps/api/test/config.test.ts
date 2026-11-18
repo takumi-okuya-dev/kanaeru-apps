@@ -73,7 +73,7 @@ describe("設定", () => {
     }
     expect(problemKeys({ ...LOCAL, APP_NAME: "  " })).toEqual(["APP_NAME"]);
     expect(problemKeys({ ...LOCAL, WEB_URL: "http://localhost:5173/path" })).toEqual(["WEB_URL"]);
-    expect(problemKeys({ ...LOCAL, DOMAIN_FEATURES: "Notes" })).toEqual(["DOMAIN_FEATURES"]);
+    expect(problemKeys({ ...LOCAL, DOMAIN_FEATURES: "Event" })).toEqual(["DOMAIN_FEATURES"]);
   });
 
   it("接続先の %xx の形が崩れていても投げず、DATABASE_URL の誤りとして止める（どの環境でも）", () => {
