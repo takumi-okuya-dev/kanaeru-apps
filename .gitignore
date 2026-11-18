@@ -1,0 +1,16 @@
+# Claude Code: personal, machine-local settings
+.claude/settings.local.json
+
+# Secrets / local settings（見本は .example を付けてコミットする）
+.env
+.env.*
+!.env.example
+*.local
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# 言語・フレームワークを決めたら、ビルドの成果物や依存のフォルダをここに足す

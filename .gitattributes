@@ -1,0 +1,5 @@
+# 並行開発で、領域を足すたびに1行ずつ足すだけのファイル（docs/rules/parallel-development.md 3-1）。
+# 2つのブランチが同じ場所に1行ずつ足しても、ぶつからずに両方の行が残る（merge=union）。
+# そのため、これらのファイルは「1行に1つ」だけにし、ほかの中身を足さない。取り込んだあとは型チェックとテストで確かめる。
+# 一覧のファイルを作ったら、次の形で1行足す（docs/rules/parallel-development.md 3-1 の表にも足す）：
+# path/to/list-file merge=union
