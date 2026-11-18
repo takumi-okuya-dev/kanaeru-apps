@@ -1,0 +1,18 @@
+/*
+ * QR の印刷の画面（QrPrintPage）があるときだけ、印刷では外枠の帯・ナビ・「本文へ移る」と、画面だけの操作を隠す
+ * （DESIGN.md の qr-display：印刷では1枚に1つの QR を大きく載せる。research R8）。値は使わない。
+ */
+@media print {
+  body:has([data-print-sheet]) header,
+  body:has([data-print-sheet]) nav,
+  body:has([data-print-sheet]) a[href="#main"],
+  [data-print-sheet] [data-print-hidden] {
+    display: none;
+  }
+
+  [data-print-sheet] svg {
+    width: 100%;
+    max-width: 160mm;
+    height: auto;
+  }
+}
