@@ -1,5 +1,5 @@
 // 動いているか・守りの見出し・CSP（両方の幅で流す）。
-// - API（画面の /api の中継を通したもの。ブラウザが見るのと同じ）と、画面の vite preview の見出し。
+// - API が返す /api と、API が返す組み立てた画面（同じ源。本番と同じ形）の見出し。
 // - CSP を効かせたまま、組み立てた画面が読み込め、CSP の違反が1つも出ないこと。
 import { expect, test } from "@playwright/test";
 import { collectCspViolations } from "../helpers/csp.ts";
@@ -29,14 +29,16 @@ test("窓口の文書（OpenAPI 3.1）に、すべての道が載る（E2E は O
 });
 
 test("画面（組み立てたもの）に、守りの見出しと CSP がつく", async ({ request }) => {
-  for (const path of ["/", "/no/such/page"]) {
+  for (const path of ["/", "/e/0193a1b2-0000-7000-8000-000000000000/checkin", "/no/such/page"]) {
     const response = await request.get(path);
     expect(response.status(), path).toBe(200);
     const headers = response.headers();
+    expect(headers["cache-control"], path).toBe("no-cache");
     expect(headers["x-content-type-options"], path).toBe("nosniff");
     expect(headers["x-frame-options"], path).toBe("DENY");
     const csp = headers["content-security-policy"] ?? "";
-    expect(csp, path).toContain("script-src 'self'");
+    expect(csp, path).toContain("script-src 'self' https://static.line-scdn.net");
+    expect(csp, path).toContain("connect-src 'self' https://api.line.me");
     expect(csp, path).toContain("frame-ancestors 'none'");
     expect(csp, path).not.toContain("unsafe-inline");
     expect(csp, path).not.toContain("unsafe-eval");

@@ -1,0 +1,137 @@
+// 画面のファイルを返すこと（AD-8）：ファイル・SPA の戻り・拡張子のある道・画面の外の道・/api との見出しの分け方・キャッシュ。
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createDatabase } from "../src/kernel/db.ts";
+import { WEB_CSP_DIRECTIVES } from "../src/platform/web/index.ts";
+import { buildApp, testConfig } from "./helpers/app.ts";
+
+/** 画面のフォルダの中身（組み立てた形を小さくまねたもの）。 */
+const INDEX_HTML =
+  '<!doctype html><html lang="ja"><title>テストの画面</title><div id="root"></div>';
+
+// DB には触らない（つなぐ先は使わない値）
+const database = createDatabase("postgres://user:pass@127.0.0.1:1/app");
+let root: string;
+let distDir: string;
+
+beforeAll(() => {
+  root = mkdtempSync(join(tmpdir(), "web-dist-"));
+  distDir = join(root, "dist");
+  mkdirSync(join(distDir, "assets"), { recursive: true });
+  writeFileSync(join(distDir, "index.html"), INDEX_HTML);
+  writeFileSync(join(distDir, "assets", "app-abc123.js"), "console.log(1);");
+  // 画面のフォルダの外のファイル（読ませてはいけない）
+  writeFileSync(join(root, "secret.txt"), "秘密");
+});
+
+afterAll(async () => {
+  rmSync(root, { recursive: true, force: true });
+  await database.pool.end();
+});
+
+/**
+ * 画面のフォルダを渡して API を組み立てる。
+ * @param webUrl 画面の源
+ * @returns 組み立てた API
+ */
+function appWithWeb(webUrl?: string) {
+  return buildApp(database, testConfig({ webDistDir: distDir, ...(webUrl ? { webUrl } : {}) }));
+}
+
+describe("画面のファイル", () => {
+  it("/ と画面の道（ファイルのない道）は index.html と画面の CSP を返し、毎回確かめさせる", async () => {
+    const app = appWithWeb();
+    for (const path of [
+      "/",
+      "/e/0193a1b2-0000-7000-8000-000000000000/checkin",
+      "/invite/abc",
+      "/apifoo",
+    ]) {
+      const response = await app.request(path);
+      expect(response.status, path).toBe(200);
+      expect(response.headers.get("content-type"), path).toContain("text/html");
+      expect(await response.text(), path).toContain("テストの画面");
+      expect(response.headers.get("cache-control"), path).toBe("no-cache");
+      const csp = response.headers.get("content-security-policy") ?? "";
+      expect(csp, path).toContain("script-src 'self' https://static.line-scdn.net");
+      expect(csp, path).toContain("connect-src 'self' https://api.line.me");
+      expect(csp, path).toContain("frame-ancestors 'none'");
+      expect(csp, path).not.toContain("unsafe-inline");
+      expect(csp, path).not.toContain("unsafe-eval");
+      expect(response.headers.get("x-frame-options"), path).toBe("DENY");
+      expect(response.headers.get("x-content-type-options"), path).toBe("nosniff");
+      expect(response.headers.get("referrer-policy"), path).toBe("strict-origin-when-cross-origin");
+      expect(response.headers.get("x-request-id"), path).toBeTruthy();
+    }
+  });
+
+  it("中身の印つきのファイル（/assets/）は、そのまま返し、長く持たせる", async () => {
+    const response = await appWithWeb().request("/assets/app-abc123.js");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("javascript");
+    expect(response.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+    expect(await response.text()).toBe("console.log(1);");
+  });
+
+  it("拡張子のある道でファイルがなければ、index.html を返さず 404（長く持たせない）", async () => {
+    const response = await appWithWeb().request("/assets/nothing-here.js");
+    expect(response.status).toBe(404);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(((await response.json()) as { error: { code: string } }).error.code).toBe("NOT_FOUND");
+  });
+
+  it("画面のフォルダの外のファイルは読ませない", async () => {
+    const app = appWithWeb();
+    for (const path of ["/../secret.txt", "/%2e%2e/secret.txt", "/assets/..%2f..%2fsecret.txt"]) {
+      const response = await app.request(path);
+      expect(await response.text(), path).not.toContain("秘密");
+    }
+  });
+
+  it("/api の下は、画面を返さず、API の答えと API の CSP", async () => {
+    const response = await appWithWeb().request("/api/v1/nothing-here");
+    expect(response.status).toBe(404);
+    expect(((await response.json()) as { error: { code: string } }).error.code).toBe("NOT_FOUND");
+    expect(response.headers.get("content-security-policy")).toContain("default-src 'none'");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("GET・HEAD でない要求には画面を返さない", async () => {
+    const response = await appWithWeb().request("/e/x/checkin", { method: "POST" });
+    expect(response.status).toBe(404);
+  });
+
+  it("HEAD は本文なしで 200", async () => {
+    const response = await appWithWeb().request("/e/x/checkin", { method: "HEAD" });
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("");
+  });
+
+  it("WEB_URL が https のときだけ、画面にも HSTS がつく", async () => {
+    expect((await appWithWeb().request("/")).headers.get("strict-transport-security")).toBeNull();
+    const https = await appWithWeb("https://app.example.com").request("/");
+    expect(https.headers.get("strict-transport-security")).toMatch(
+      /^max-age=\d{8,}; includeSubDomains$/,
+    );
+  });
+
+  it("WEB_DIST_DIR がなければ画面を返さない（/ は API の 404）", async () => {
+    const response = await buildApp(database, testConfig()).request("/");
+    expect(response.status).toBe(404);
+  });
+
+  it("WEB_DIST_DIR に index.html がなければ、組み立てが止まる", () => {
+    expect(() => buildApp(database, testConfig({ webDistDir: root }))).toThrow("index.html");
+  });
+
+  it("画面の CSP は、LINE の SDK が使う源を許し、ほかの外の源を許さない", () => {
+    const sources = Object.values(WEB_CSP_DIRECTIVES)
+      .flat()
+      .filter((source) => source.startsWith("https://"));
+    for (const source of sources) {
+      expect(new URL(source).hostname, source).toMatch(/(^|\.)line\.me$|(^|\.)line-scdn\.net$/);
+    }
+  });
+});

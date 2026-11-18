@@ -3,6 +3,7 @@
 // 本文の大きさの上限をそろえる。領域を足しても、このファイルは直さない（modules.list.ts に1行足す。docs/rules/coding.md 6-6）。
 // /api の下の道は、すべて @hono/zod-openapi の createRoute で書く（文書に出ない道があると、起動を止める）。
 // 窓口の文書（GET /api/openapi.json）は、設定 OPENAPI_DOC_ENABLED が true のときだけ出す（production では止める）。
+// 設定 WEB_DIST_DIR があれば、/api 以外の道に組み立てた画面を返す（platform/web。AD-8）。守りの見出しは /api と画面で分ける。
 // ログインはまだない。足すときは、ログインの仕様で判定の仕組み（platform/）と、道ごとの判定の印を足す（docs/tech-selection.md 3-4）。
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import type { Hook } from "@hono/zod-openapi";
@@ -24,6 +25,12 @@ import { REQUEST_ID_HEADER, requestIdMiddleware } from "./kernel/request-id.ts";
 import * as modules from "./modules.list.ts";
 import { healthRoutes } from "./platform/health/index.ts";
 import { createRateLimiter } from "./platform/rate-limit/index.ts";
+import {
+  HSTS_MAX_AGE_SECONDS,
+  isApiPath,
+  serveWeb,
+  webSecureHeaders,
+} from "./platform/web/index.ts";
 
 /** 組み立てた API の文脈の型（要求ごとの値。kernel/http.ts の ApiEnv と同じ）。 */
 export type AppEnv = ApiEnv;
@@ -76,9 +83,6 @@ function listDomains(deps: Pick<AppDeps, "extraModules">): [name: string, module
 
 /** 状態を変えない動き。 */
 const SAFE_METHODS = /^(GET|HEAD|OPTIONS)$/;
-
-/** HSTS の長さ（2年。https の源のときだけ出す）。 */
-const HSTS_MAX_AGE_SECONDS = 63_072_000;
 
 /** /api/v1 の本文の大きさの上限（バイト）。ファイルを受け取る窓口を足すときは、その窓口だけ別に決める。 */
 const MAX_BODY_BYTES = 100 * 1024;
@@ -245,7 +249,8 @@ export function assertDocumentedRoutes(app: OpenAPIHono<AppEnv>): void {
  * API を組み立てる。
  * @param deps 組み立てに使う道具
  * @returns 組み立てた API
- * @throws {Error} createRoute を通さない道があるとき・DOMAIN_FEATURES に登録されていない領域の名前があるとき（起動を止める）
+ * @throws {Error} createRoute を通さない道があるとき・DOMAIN_FEATURES に登録されていない領域の名前があるとき・
+ *   WEB_DIST_DIR に index.html がないとき（起動を止める）
  */
 export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
   const { config, logger } = deps;
@@ -260,13 +265,21 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
 
   const app = new OpenAPIHono<AppEnv>({ defaultHook });
 
-  // 要求の ID・守りの見出し・応答の見出し・要求ごとのログ1行
+  // 要求の ID・守りの見出し（/api は API の CSP、ほかは画面の CSP）・応答の見出し・要求ごとのログ1行
   app.use("*", requestIdMiddleware());
-  app.use("*", apiSecureHeaders(config.webUrl));
+  const apiHeaders = apiSecureHeaders(config.webUrl);
+  const webHeaders = webSecureHeaders(config.webUrl);
+  app.use(
+    "*",
+    createMiddleware<AppEnv>(async (c, next) => {
+      await (isApiPath(c.req.path) ? apiHeaders(c, next) : webHeaders(c, next));
+    }),
+  );
   app.use("*", async (c, next) => {
     const startedAt = performance.now();
     await next();
-    c.res.headers.set("Cache-Control", "no-store");
+    // 画面のファイルは platform/web がキャッシュを決める。ほか（API の答え・エラー）は持たせない
+    if (!c.res.headers.has("Cache-Control")) c.res.headers.set("Cache-Control", "no-store");
     c.res.headers.set(REQUEST_ID_HEADER, c.var.requestId);
     // 本文と、決めたもののほかの見出しは出さない。道は定義の形（実際の値ではない）
     logger.info(
@@ -327,6 +340,9 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
     return c.json(toErrorBody(new AppError("INTERNAL"), requestId), 500);
   });
   app.notFound((c) => c.json(toErrorBody(new AppError("NOT_FOUND"), c.var.requestId ?? ""), 404));
+
+  // 組み立てた画面（/api 以外の GET・HEAD）。index.html がなければ、ここで起動を止める
+  if (config.webDistDir) app.use("*", serveWeb({ distDir: config.webDistDir }));
 
   // platform の道と、領域の道
   app.route("/", buildPlatformRoutes(deps));
