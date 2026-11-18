@@ -1,5 +1,6 @@
 // チェックインの画面（P1）：名前の初期値・選ばずに押したときの誤り・済んだカード・チェックイン済み・アンケートと案内のリンク・
 // 交流会がないとき。API は fetch の差しかえで答える。
+import type { EventSummary } from "@workspace/contracts/event";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expectNoAxeViolations } from "@workspace/ui/testing/axe";
@@ -11,7 +12,7 @@ import { CheckinPage } from "./CheckinPage.tsx";
 const EVENT_ID = "0193a1b2-0000-7000-8000-000000000001";
 
 /** 要約の見本。 */
-const SUMMARY = {
+const SUMMARY: EventSummary = {
   id: EVENT_ID,
   name: "11月の交流会",
   startsAt: "2026-11-25T10:00:00.000Z",
@@ -47,7 +48,7 @@ type Sent = { method: string; path: string; body: unknown };
  */
 function stubApi(
   options: {
-    summary?: Partial<typeof SUMMARY>;
+    summary?: Partial<EventSummary>;
     checkin?: typeof CHECKIN | null;
     summaryStatus?: number;
   } = {},
