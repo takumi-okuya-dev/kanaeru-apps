@@ -3,6 +3,7 @@
 import { createServer } from "node:net";
 import type { AddressInfo, Socket } from "node:net";
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
+import { sql } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { describe, expect, it } from "vitest";
 import { createDatabase } from "../src/kernel/db.ts";
@@ -241,7 +242,7 @@ describe("組み立て", () => {
       [413, "PAYLOAD_TOO_LARGE"],
       [429, "RATE_LIMITED"],
       [500, "INTERNAL"],
-      [503, "UNAVAILABLE"],
+      [503, "DB_UNAVAILABLE"],
     ] as const) {
       const response = await app.request(`/api/v1/test-only/status/${status}`);
       expect(response.status).toBe(status);
@@ -293,13 +294,49 @@ describe("組み立て", () => {
       const response = await app.request("/api/v1/health");
       expect(response.status).toBe(503);
       expect(((await response.json()) as { error: { code: string } }).error.code).toBe(
-        "UNAVAILABLE",
+        "DB_UNAVAILABLE",
       );
       expect(performance.now() - startedAt).toBeLessThan(3000);
     } finally {
       await silent.pool.end().catch(() => undefined);
       for (const socket of sockets) socket.destroy();
       await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it("領域の窓口で DB に届かないときも、土台が 503 の DB_UNAVAILABLE にする", async () => {
+    // 使っていない口（つなぐと拒まれる）
+    const server = createServer();
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = server.address() as AddressInfo;
+    await new Promise((resolve) => server.close(resolve));
+    const refused = createDatabase(`postgres://user:pass@127.0.0.1:${port}/app`, {
+      connectTimeoutMs: 1000,
+      queryTimeoutMs: 1000,
+    });
+    const reads: DomainModule = {
+      routes: (deps) =>
+        new OpenAPIHono<AppEnv>().openapi(
+          createRoute({
+            method: "get",
+            path: "/api/v1/test-only/reads-db",
+            responses: { 200: { description: "DB を読む" } },
+          }),
+          async (c) => {
+            await deps.db.execute(sql`SELECT 1`);
+            return c.json({ ok: true }, 200);
+          },
+        ),
+    };
+    try {
+      const app = buildApp(refused, testConfig(), { extraModules: [reads] });
+      const response = await app.request("/api/v1/test-only/reads-db");
+      expect(response.status).toBe(503);
+      const body = (await response.json()) as { error: { code: string; message: string } };
+      expect(body.error.code).toBe("DB_UNAVAILABLE");
+      expect(body.error.message).toContain("夜間（0時〜8時）は止まっています");
+    } finally {
+      await refused.pool.end().catch(() => undefined);
     }
   });
 

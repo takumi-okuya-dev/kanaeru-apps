@@ -11,13 +11,11 @@ import type { Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { csrf } from "hono/csrf";
 import { createMiddleware } from "hono/factory";
-import { HTTPException } from "hono/http-exception";
 import { routePath } from "hono/route";
 import { secureHeaders } from "hono/secure-headers";
 import type { Config } from "./kernel/config.ts";
 import type { Database } from "./kernel/db.ts";
-import { AppError, CORE_ERROR_STATUS, toErrorBody } from "./kernel/errors.ts";
-import type { CoreErrorCode } from "@workspace/contracts/core";
+import { AppError, toAppError, toErrorBody } from "./kernel/errors.ts";
 import { assertKnownDomainFeatures, createDomainFeatures } from "./kernel/features.ts";
 import type { DomainFeatures } from "./kernel/features.ts";
 import type { ApiEnv, DomainRouteDeps } from "./kernel/http.ts";
@@ -78,14 +76,6 @@ function listDomains(deps: Pick<AppDeps, "extraModules">): [name: string, module
 
 /** 状態を変えない動き。 */
 const SAFE_METHODS = /^(GET|HEAD|OPTIONS)$/;
-
-/** HTTPException の状態の番号を、土台の code に読みかえる表（CORE_ERROR_STATUS の逆引き）。 */
-const STATUS_TO_CODE: ReadonlyMap<number, CoreErrorCode> = new Map(
-  (Object.entries(CORE_ERROR_STATUS) as [CoreErrorCode, number][]).map(([code, status]) => [
-    status,
-    code,
-  ]),
-);
 
 /** HSTS の長さ（2年。https の源のときだけ出す）。 */
 const HSTS_MAX_AGE_SECONDS = 63_072_000;
@@ -324,10 +314,12 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
 
   app.onError((error, c) => {
     const requestId = c.var.requestId ?? "";
-    if (error instanceof AppError) return c.json(toErrorBody(error, requestId), error.status);
-    const code = error instanceof HTTPException ? STATUS_TO_CODE.get(error.status) : undefined;
-    if (code) {
-      const appError = new AppError(code);
+    // 読みかえは kernel/errors.ts の toAppError だけ（DB に届かないときの 503 DB_UNAVAILABLE も）
+    const appError = toAppError(error);
+    if (appError) {
+      if (appError.code === "DB_UNAVAILABLE") {
+        logger.warn({ requestId, errorName: error.name }, "DB に届きません");
+      }
       return c.json(toErrorBody(appError, requestId), appError.status);
     }
     // 予期しないエラー：ログにはエラーの名前と積み重ねと要求の ID だけ

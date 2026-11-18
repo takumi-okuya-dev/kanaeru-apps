@@ -1,9 +1,12 @@
 // API のエラー。
 // code → 状態の番号はここで決め、文言は @workspace/contracts/core（領域のものは領域の約束）から読む。
+// 投げられたものを応答のエラーに読みかえるのは toAppError の1か所（DB に届かないときの 503 DB_UNAVAILABLE も。AD-10）。
 import "@hono/zod-openapi";
 import { CORE_ERROR_MESSAGES, ErrorBody as ErrorBodyContract } from "@workspace/contracts/core";
 import type { CoreErrorCode, ErrorBody, FieldError } from "@workspace/contracts/core";
+import { HTTPException } from "hono/http-exception";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { isDbUnavailable } from "./pg-errors.ts";
 
 /** 土台の code と、状態の番号。 */
 export const CORE_ERROR_STATUS = {
@@ -11,7 +14,7 @@ export const CORE_ERROR_STATUS = {
   FORBIDDEN: 403,
   NOT_FOUND: 404,
   CONFLICT: 409,
-  UNAVAILABLE: 503,
+  DB_UNAVAILABLE: 503,
   PAYLOAD_TOO_LARGE: 413,
   RATE_LIMITED: 429,
   INTERNAL: 500,
@@ -55,6 +58,32 @@ export class AppError extends Error {
     this.status = resolved.status;
     this.fields = options.fields;
   }
+}
+
+/** 状態の番号を、土台の code に読みかえる表（CORE_ERROR_STATUS の逆引き。HTTPException に使う）。 */
+const STATUS_TO_CODE: ReadonlyMap<number, CoreErrorCode> = new Map(
+  (Object.entries(CORE_ERROR_STATUS) as [CoreErrorCode, number][]).map(([code, status]) => [
+    status,
+    code,
+  ]),
+);
+
+/**
+ * 投げられたものを、応答に使うエラーに読みかえる（組み立ての onError が呼ぶ。読みかえはここだけに置く）。
+ * - AppError はそのまま
+ * - HTTPException は、状態の番号に合う土台の code
+ * - DB に届かない（拒否・時間切れ・止まっている）は 503 DB_UNAVAILABLE（どの領域の窓口でも）
+ * @param error 投げられたもの
+ * @returns 応答に使うエラー（予期しないものは undefined。呼ぶ側が INTERNAL にしてログに残す）
+ */
+export function toAppError(error: unknown): AppError | undefined {
+  if (error instanceof AppError) return error;
+  if (error instanceof HTTPException) {
+    const code = STATUS_TO_CODE.get(error.status);
+    return code ? new AppError(code) : undefined;
+  }
+  if (isDbUnavailable(error)) return new AppError("DB_UNAVAILABLE");
+  return undefined;
 }
 
 /**

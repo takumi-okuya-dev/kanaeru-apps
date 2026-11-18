@@ -1,4 +1,5 @@
 // 動いているかの窓口（GET /api/v1/health）。API と DB につながるかだけを返す。名前や中身は返さない。
+// DB に触るので、置き場所（Cloud Run）の起動の確かめ（probe）には使わない（夜間は DB が止まるため。AD-10）。
 import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { Health as HealthContract } from "@workspace/contracts/core";
 import { AppError, errorResponse } from "../../kernel/errors.ts";
@@ -12,10 +13,11 @@ const getHealth = createRoute({
   tags: ["core"],
   operationId: "getHealth",
   summary: "動いているかを見る",
-  description: "API と DB につながるかを返す。名前や中身は返さない。",
+  description:
+    "API と DB につながるかを返す。名前や中身は返さない。DB に触るので、置き場所の起動の確かめ（probe）には使わない。",
   responses: {
     200: { description: "動いている", content: { "application/json": { schema: Health } } },
-    503: errorResponse("UNAVAILABLE", "DB につながらない"),
+    503: errorResponse("DB_UNAVAILABLE", "DB につながらない（夜間の停止など）"),
   },
 });
 
@@ -35,7 +37,7 @@ export function healthRoutes(deps: HealthDeps) {
     try {
       await deps.ping();
     } catch {
-      throw new AppError("UNAVAILABLE");
+      throw new AppError("DB_UNAVAILABLE");
     }
     return c.json({ status: "ok" as const }, 200);
   });
