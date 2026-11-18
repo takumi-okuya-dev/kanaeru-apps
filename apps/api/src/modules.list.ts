@@ -3,3 +3,4 @@
 // app.ts はこの一覧を読んでつなぐので、領域を足しても app.ts は直さない。0行でもモジュールとして読める。
 export {};
 export * as account from "./modules/account/index.ts";
+export * as event from "./modules/event/index.ts";
