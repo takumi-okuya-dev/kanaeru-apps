@@ -71,8 +71,8 @@ apps/api/test/helpers/survey.ts # 回答を作る手伝い
 apps/api/drizzle/0005_survey.sql
 apps/web/src/features/survey/
 ├── api.ts・queries.ts           # 窓口の呼び出し・問い合わせの鍵（["survey", …]）
-├── format.ts（＋test）           # チップの選択肢（「答えない」つき）・言葉
-├── survey-form.ts（＋test）      # 欄の値と入力の行き来
+├── format.ts                   # チップの選択肢（「答えない」つき）・言葉
+├── survey-form.ts（＋test）      # 欄の値と入力の行き来（「答えない」のチップの並びも確かめる）
 ├── SurveyFields.tsx            # 5つの設問（P2・代わりの入力）
 ├── SurveyPage.tsx（＋test）      # P2
 ├── ConcernsPage.tsx（＋test）    # 困りごと
