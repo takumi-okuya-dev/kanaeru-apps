@@ -11,7 +11,7 @@ import { render } from "@testing-library/react";
 import type * as React from "react";
 
 /**
- * 部品を、道と TanStack Query の中で描く（Link が使える。/notes など、ほかの道は空の画面）。
+ * 部品を、道と TanStack Query の中で描く（Link が使える。/ のほかの道は空の画面）。
  * @param ui 描く部品
  * @returns Testing Library の描いた結果
  */

@@ -92,7 +92,7 @@
   | `pnpm db:seed` | 見本のデータ（仮の中身だけ）を入れる。`SAMPLE_DATA_ENABLED=true` のときだけ動く |
   | `pnpm --filter api openapi` | API の窓口の文書を `apps/api/openapi.json` に書き出す（コミットしない） |
 
-- 設定は、ルートの `.env`（見本は `.env.example`）。DB には、つなぐ時間と1つの命令の時間の上限がある（`DATABASE_CONNECT_TIMEOUT_MS`・`DATABASE_QUERY_TIMEOUT_MS`）。値の意味と確かめは `apps/api/src/kernel/config.ts`。staging・production で危ない組み合わせ（見本のデータ・回数の制限を外す・見本の DB のパスワード・手元を指す源・http の源・production の窓口の文書）は、起動のときに止まる。
+- 設定は、ルートの `.env`（見本は `.env.example`）。DB には、つなぐ時間と1つの命令の時間の上限がある（`DATABASE_CONNECT_TIMEOUT_MS`・`DATABASE_QUERY_TIMEOUT_MS`）。値の意味と確かめは `apps/api/src/kernel/config.ts`。staging・production で危ない組み合わせ（見本のデータ・回数の制限を外す・見本の DB のパスワード・手元を指す源・http の源・production の窓口の文書）と、要る値がないこと（`LINE_CHANNEL_IDS`・`ORGANIZER_LINE_USER_ID`・`WEB_DIST_DIR`）は、起動のときに止まる。
 
 ### 6-2. 置き場所
 
@@ -109,12 +109,15 @@
 - 型だけを読むときは `import type`。
 - API の道は `/api/v1/…` に置き、`@hono/zod-openapi` の `createRoute` で書く（入力の確かめと窓口の文書が一緒にできる）。Hono の `.get`・`.post` で `/api` の下に道を足さない（起動のときに止まる）。
 - 道の値の ID は `kernel/http.ts` の `uuidParam` で書く（形が合わなければ、処理の前に 404 になる。処理の中で形を確かめなくてよい）。
-- 入力の形とエラーの文言は `packages/contracts` の領域のフォルダに日本語で置く（API と画面が同じ形で確かめる）。約束は**ふつうの `zod`** で書き、`@hono/zod-openapi` を読まない（画面の組み立てに OpenAPI の道具を入れないため）。窓口の文書の名前と例は、API の道の側で `.openapi("名前")` を付ける（例：`modules/notes/routes.ts`）。文言だけの定数は zod を読まないファイルに置く（例：`core/messages.ts`。画面が文言だけを読んでも zod が束に入らない）。zod の誤りの文は、欄のそばにそのまま出せる日本語で書く（日本語でない文は、API が決まった文に置きかえる）。領域のエラーは `{ code, status, message }` の一覧（例：`NOTES_ERRORS`）にして `AppError` に渡す。
+- 入力の形とエラーの文言は `packages/contracts` の領域のフォルダに日本語で置く（API と画面が同じ形で確かめる）。約束は**ふつうの `zod`** で書き、`@hono/zod-openapi` を読まない（画面の組み立てに OpenAPI の道具を入れないため）。窓口の文書の名前と例は、API の道の側で `.openapi("名前")` を付ける（例：`platform/health/routes.ts`）。文言だけの定数は zod を読まないファイルに置く（例：`core/messages.ts`。画面が文言だけを読んでも zod が束に入らない）。zod の誤りの文は、欄のそばにそのまま出せる日本語で書く（日本語でない文は、API が決まった文に置きかえる）。領域のエラーは `{ code, status, message }` の一覧（例：`ACCOUNT_ERRORS`）にして `AppError` に渡す。
 - ログに要求と応答の本文・利用者の入れた値・名前・メールを出さない（`kernel/logger.ts` が名前・メール・通行証を消すのは二重目の守り）。
 - 画面の見た目の値は `packages/ui/src/styles/tokens.css`（DESIGN.md から写したもの）の名前だけを使う（`bg-primary`・`text-text-sub`・`p-xs`・`rounded-sm` など。角だけは Tailwind の名前とぶつかるので `sm`・`md`・`lg` と呼ぶ）。Tailwind の任意の値（`bg-[#…]`・`p-[13px]`）を書かない（lint で止める）。足りない値は、DESIGN.md と `tokens.css` に足す（`tokens.test.ts` が食い違いを止める）。
 - 部品は `@workspace/ui` のもの（Button・Field・Input・Textarea・Table・Badge・Dialog・ConfirmDialog・ResponseMessage・NotificationBar）を使い、領域の中で作り直さない。新しい部品は shadcn/ui（Base UI の形。`packages/ui/components.json`）から持ってきて、値を `tokens.css` の名前に直してから使う。
 - 画面の振る舞いは EXPERIENCE.md に従う：入力の誤りは欄のそば（`Field` の `error`）、送った結果は押したボタンの近く（`ResponseMessage`）、画面が切り替わるときだけ画面の上の知らせの帯（`lib/notice.ts` の `showNotice`）、消す前は `ConfirmDialog`。ページは `lib/page.tsx` の `Page`（題は h1。外枠が道の変わり目にフォーカスを移す）。
-- 画面の `index.html` に中に書いた script を置かず、`eval`・`new Function` を使わない（組み立てた画面の CSP が止める。E2E が CSP の違反を落とす）。画面から外の源を読むときは、`apps/web/vite.config.ts` の CSP と、本番の置き場所の見出しを一緒に直す。画面のコードで環境の値（`process.env`・`import.meta.env.VITE_*`）を読まない（lint で止める。要る値は `vite.config.ts` の `define` で、秘密でないものだけ埋める）。
+- 画面の `index.html` に中に書いた script を置かず、`eval`・`new Function` を使わない（組み立てた画面の CSP が止める。E2E が CSP の違反を落とす）。組み立てた画面の CSP は、本番も E2E も API が付ける（`apps/api/src/platform/web/web.ts` の `WEB_CSP_DIRECTIVES` の1か所）。画面から外の源を読むときは、そこを直し、源ごとに何に使うかを書く。画面のコードで環境の値（`process.env`・`import.meta.env.VITE_*`）を読まない（lint で止める。要る値は `vite.config.ts` の `define` で、秘密でないものだけ埋める）。
+- LINE（`@line/liff`）を読むのは `apps/web/src/lib/liff.ts` だけ。画面と領域は `initLiff`・`getLiff` を使い、`liff.init()` を書かない（構成の決めごと AD-4）。サーバーに送るのは `getIDToken()` の生の値だけ。
+- 参加者が開く画面の道・ミニアプリの URL・日本時間の日付と「その日の終わり」・夜間の停止の時間帯と DB に届かないときの文は、`@workspace/contracts/core` のもの（`participantPaths`・`PARTICIPANT_ROUTE_PATTERNS`・`miniAppPermalink`・`jstDate`・`endOfJstDate`・`isNightStopWindow`・`dbUnavailableMessage`）を使い、領域の中で作り直さない（AD-10・AD-14・Consistency Conventions）。
+- DB に届かないときの 503（`DB_UNAVAILABLE`）は土台（`kernel/errors.ts` の `toAppError`）が返す。領域で DB の接続のエラーを捕まえて読みかえない（AD-10）。
 - DB の命令を文字のつなぎで作らない・`sql.raw` を使わない・HTML をそのまま差しこまない・アプリのコードから OS のコマンドを動かさない（どれも lint で止める）。
 
 ### 6-4. DB の表
@@ -135,7 +138,7 @@
 
 ### 6-6. 領域を足す手順
 
-共通のファイルで直すのは `apps/api/src/modules.list.ts` と `apps/web/src/features.list.ts` の1行ずつだけ（[並行開発の決まり](./parallel-development.md) 3-1）。ほかは、領域のフォルダの入口（`index.ts`）から出し、組み立てが読む。見本は領域 `notes`（[メモの地図](../apps/notes.md)）。
+共通のファイルで直すのは `apps/api/src/modules.list.ts` と `apps/web/src/features.list.ts` の1行ずつだけ（[並行開発の決まり](./parallel-development.md) 3-1）。ほかは、領域のフォルダの入口（`index.ts`）から出し、組み立てが読む（テンプレートの見本の領域 `notes` は core-001 で消した。形は `git show cd869b9:apps/api/src/modules/notes/routes.ts` などで読める）。
 
 1. **約束**：`packages/contracts/src/<領域>/` に入出力の形（ふつうの zod）と、領域のエラーの code と日本語の文言を置き、`index.ts` から出す。
 2. **表**：`apps/api/src/modules/<領域>/schema.ts` に表を書き、`pnpm db:generate --name <領域>` → できた SQL を読む → `pnpm db:migrate`。DB の変更のある PR は小さく切って先に入れる（[並行開発の決まり](./parallel-development.md) 4）。

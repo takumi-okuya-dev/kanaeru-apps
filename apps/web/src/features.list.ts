@@ -2,4 +2,3 @@
 // 形：export * as <領域> from "./features/<領域>/index.ts";
 // router.tsx はこの一覧を読んで道とナビをつなぐので、領域を足しても router.tsx は直さない。
 export {};
-export * as notes from "./features/notes/index.ts";
