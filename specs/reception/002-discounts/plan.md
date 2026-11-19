@@ -43,7 +43,7 @@ apps/api/src/modules/event/schema.ts                   # event_discount
 apps/api/src/modules/event/discounts.ts（＋test）        # 割引の読み書き（並びを保存・探す）
 apps/api/src/modules/event/summary.ts・routes.ts・index.ts
 apps/api/drizzle/0006_event_discount.sql
-apps/web/src/features/event/EventFormPage.tsx（＋test）・DiscountFields.tsx・format.ts
+apps/web/src/features/event/EventFormPage.tsx（＋test）・DiscountFields.tsx
 packages/contracts/src/reception/checkin.ts（＋test）・errors.ts・index.ts
 apps/api/src/modules/reception/schema.ts・amount.ts（＋test）・discount.ts・repository.ts・views.ts・csv.ts（＋test）・routes.ts
 apps/api/src/modules/reception/discounts.test.ts        # 金額の決まり・権限・CSV の結合のテスト
