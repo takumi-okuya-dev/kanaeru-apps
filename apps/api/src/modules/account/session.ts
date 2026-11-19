@@ -2,7 +2,7 @@
 // - 札は 32 バイトの乱数（base64url）。クッキーに札、DB に札の SHA-256 だけを持つ。期限は作ってから30日（延ばさない）。
 // - クッキーは HttpOnly・SameSite=Lax・Path=/。画面の源（設定 WEB_URL）が https なら Secure と __Host- の名前
 //   （環境の名前で分けない。HSTS と同じ形）。
-// - requireSession は要求のたびに DB を引き、今の利用者を文脈に置く。ほかの領域は currentAccount(c) だけで読む。
+// - requireSession は要求のたびに DB を1度引き（session と account を結んで）、今の利用者を文脈に置く。ほかの領域は currentAccount(c) だけで読む。
 // - 主催者は設定 ORGANIZER_LINE_USER_ID と LINE のユーザー ID が同じ人（表に印を持たない。AD-5）。
 // 札・クッキーはログに出さない。
 import { createHash, randomBytes } from "node:crypto";
@@ -14,7 +14,8 @@ import { createMiddleware } from "hono/factory";
 import type { Db } from "../../kernel/db.ts";
 import { AppError } from "../../kernel/errors.ts";
 import type { ApiEnv, DomainConfig } from "../../kernel/http.ts";
-import { createSession, findSessionAccount } from "./repository.ts";
+import { createSession, deleteSessionByTokenHash, findSessionAccount } from "./repository.ts";
+import type { AccountRecord } from "./repository.ts";
 
 /** セッションの期限（ミリ秒。30日。AD-4）。 */
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -36,8 +37,8 @@ export type SessionAccount = {
 /** 文脈に今の利用者を置く名前（account の中だけで使う。ほかの領域は currentAccount で読む）。 */
 const CONTEXT_KEY = "account.session";
 
-/** 文脈の値の型（account の中だけ）。 */
-type SessionEnv = { Variables: { [CONTEXT_KEY]: SessionAccount } };
+/** 文脈の値の型（account の中だけ。GET /me が2度目の命令なしに答えられるよう、アカウントの行ごと置く）。 */
+type SessionEnv = { Variables: { [CONTEXT_KEY]: AccountRecord } };
 
 /**
  * 札の SHA-256（16進）を作る。
@@ -57,34 +58,41 @@ export function generateSessionToken(): { token: string; tokenHash: string } {
   return { token, tokenHash: hashSessionToken(token) };
 }
 
+/** セッションのクッキーの決め方（画面の源で決まるので、道を作るときに1度だけ作る）。 */
+export type SessionCookie = {
+  /** https の源か（Secure と __Host- の名前を使う） */
+  secure: boolean;
+  /** クッキーの属性 */
+  options: CookieOptions;
+};
+
 /**
- * クッキーの属性（画面の源が https なら Secure と __Host-）。
+ * クッキーの決め方を作る（画面の源が https なら Secure と __Host-）。要求のたびに作らない。
  * @param config 領域の設定（webUrl）
- * @returns クッキーの属性
+ * @returns クッキーの決め方
  */
-function cookieOptions(config: Pick<DomainConfig, "webUrl">): CookieOptions {
+export function sessionCookie(config: Pick<DomainConfig, "webUrl">): SessionCookie {
   const secure = new URL(config.webUrl).protocol === "https:";
   return {
-    httpOnly: true,
-    sameSite: "Lax",
-    path: "/",
     secure,
-    ...(secure ? { prefix: "host" as const } : {}),
+    options: {
+      httpOnly: true,
+      sameSite: "Lax",
+      path: "/",
+      secure,
+      ...(secure ? { prefix: "host" as const } : {}),
+    },
   };
 }
 
 /**
  * クッキーから札を読む（形が違えば undefined）。
  * @param c 要求の文脈
- * @param config 領域の設定（webUrl）
+ * @param cookie クッキーの決め方
  * @returns 札
  */
-export function readSessionToken(
-  c: Context,
-  config: Pick<DomainConfig, "webUrl">,
-): string | undefined {
-  const secure = new URL(config.webUrl).protocol === "https:";
-  const token = secure
+export function readSessionToken(c: Context, cookie: SessionCookie): string | undefined {
+  const token = cookie.secure
     ? getCookie(c, SESSION_COOKIE_NAME, "host")
     : getCookie(c, SESSION_COOKIE_NAME);
   return token && TOKEN_FORMAT.test(token) ? token : undefined;
@@ -92,25 +100,28 @@ export function readSessionToken(
 
 /**
  * セッションを作り、クッキーを出す（ログインの窓口が呼ぶ）。
+ * ブラウザがすでにセッションのクッキーを持っていれば、そのセッションを先に消す（上書きしたクッキーの札を残さない）。
  * @param c 要求の文脈
- * @param deps DB と領域の設定
- * @param deps.db DB
- * @param deps.config 領域の設定（webUrl）
+ * @param db DB
+ * @param cookie クッキーの決め方
  * @param accountId account の ID
  */
 export async function issueSession(
   c: Context,
-  deps: { db: Db; config: Pick<DomainConfig, "webUrl"> },
+  db: Db,
+  cookie: SessionCookie,
   accountId: string,
 ): Promise<void> {
+  const previous = readSessionToken(c, cookie);
+  if (previous) await deleteSessionByTokenHash(db, hashSessionToken(previous));
   const { token, tokenHash } = generateSessionToken();
-  await createSession(deps.db, {
+  await createSession(db, {
     accountId,
     tokenHash,
     expiresAt: new Date(Date.now() + SESSION_TTL_MS),
   });
   setCookie(c, SESSION_COOKIE_NAME, token, {
-    ...cookieOptions(deps.config),
+    ...cookie.options,
     maxAge: Math.floor(SESSION_TTL_MS / 1000),
   });
 }
@@ -118,10 +129,10 @@ export async function issueSession(
 /**
  * セッションのクッキーを消す（ログアウト）。
  * @param c 要求の文脈
- * @param config 領域の設定（webUrl）
+ * @param cookie クッキーの決め方
  */
-export function clearSessionCookie(c: Context, config: Pick<DomainConfig, "webUrl">): void {
-  deleteCookie(c, SESSION_COOKIE_NAME, cookieOptions(config));
+export function clearSessionCookie(c: Context, cookie: SessionCookie): void {
+  deleteCookie(c, SESSION_COOKIE_NAME, cookie.options);
 }
 
 /**
@@ -134,8 +145,9 @@ export function clearSessionCookie(c: Context, config: Pick<DomainConfig, "webUr
  * @returns middleware
  */
 export function requireSession(deps: { db: Db; config: Pick<DomainConfig, "webUrl"> }) {
+  const cookie = sessionCookie(deps.config);
   return createMiddleware<ApiEnv>(async (c, next) => {
-    const token = readSessionToken(c, deps.config);
+    const token = readSessionToken(c, cookie);
     const found = token ? await findSessionAccount(deps.db, hashSessionToken(token)) : null;
     if (!found) throw new AppError(ACCOUNT_ERRORS.UNAUTHENTICATED);
     (c as unknown as Context<SessionEnv>).set(CONTEXT_KEY, found);
@@ -150,8 +162,18 @@ export function requireSession(deps: { db: Db; config: Pick<DomainConfig, "webUr
  * @throws {Error} requireSession を付けていない道で呼んだとき（作りの誤り）
  */
 export function currentAccount(c: Context): SessionAccount {
-  const value = (c as unknown as Context<SessionEnv>).get(CONTEXT_KEY) as
-    SessionAccount | undefined;
+  const { id, lineUserId } = currentAccountRecord(c);
+  return { accountId: id, lineUserId };
+}
+
+/**
+ * 今の利用者のアカウントの行を返す（account の中だけ。GET /me が使う）。
+ * @param c 要求の文脈
+ * @returns アカウントの行
+ * @throws {Error} requireSession を付けていない道で呼んだとき（作りの誤り）
+ */
+export function currentAccountRecord(c: Context): AccountRecord {
+  const value = (c as unknown as Context<SessionEnv>).get(CONTEXT_KEY) as AccountRecord | undefined;
   if (!value) {
     throw new Error("currentAccount は requireSession を付けた道の中で呼んでください。");
   }

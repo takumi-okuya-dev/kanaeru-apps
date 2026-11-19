@@ -214,6 +214,34 @@ describe("アカウントの窓口", () => {
       expect(third.displayName).toBe("鈴木");
     });
 
+    it("クッキーを持ったままログインし直すと、前のセッションを消す（前の札は 401）", async () => {
+      const sub = testLineUserId();
+      const first = cookieOf(await lineLogin(app, fakeIdToken(sub, "佐藤")));
+      const again = await app.request("/api/v1/auth/line", {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: TEST_ORIGIN, cookie: first },
+        body: JSON.stringify({ idToken: fakeIdToken(sub, "佐藤") }),
+      });
+      expect(again.status).toBe(200);
+      const second = cookieOf(again);
+      expect(second).not.toBe(first);
+      expect((await app.request("/api/v1/accounts/me", withCookie(first))).status).toBe(401);
+      expect((await app.request("/api/v1/accounts/me", withCookie(second))).status).toBe(200);
+      expect(await countRows("session")).toBe(1);
+
+      // 試験用のログインでも同じ（別の人として入り直しても、前の人のセッションを残さない）
+      const switched = await app.request(
+        "/api/v1/auth/test-login",
+        withCookie(
+          second,
+          jsonRequest("POST", { lineUserId: testLineUserId(), displayName: "別" }),
+        ),
+      );
+      expect(switched.status).toBe(200);
+      expect((await app.request("/api/v1/accounts/me", withCookie(second))).status).toBe(401);
+      expect(await countRows("session")).toBe(1);
+    });
+
     it("DB には札そのものを持たず、札の SHA-256 だけを持つ", async () => {
       const response = await lineLogin(app, fakeIdToken(testLineUserId(), "佐藤"));
       const token = cookieOf(response).split("=")[1] ?? "";
@@ -425,14 +453,28 @@ describe("アカウントの窓口", () => {
       expect(second.account).toEqual({ ...first.account, displayName: "試験2" });
     });
 
-    it("切なら 404", async () => {
-      const disabled = buildApp(database, testConfig({ testLoginEnabled: false }));
-      const response = await disabled.request(
-        "/api/v1/auth/test-login",
-        jsonRequest("POST", { lineUserId: testLineUserId(), displayName: "試験" }),
+    it("切なら道を登録しない：合う入力も合わない入力も 404 で、窓口の文書にも出さない", async () => {
+      const disabled = buildApp(
+        database,
+        testConfig({ testLoginEnabled: false, openApiDocEnabled: true }),
       );
-      expect(response.status).toBe(404);
+      for (const body of [
+        { lineUserId: testLineUserId(), displayName: "試験" },
+        { lineUserId: "U1", displayName: "" },
+      ]) {
+        const response = await disabled.request(
+          "/api/v1/auth/test-login",
+          jsonRequest("POST", body),
+        );
+        expect(response.status).toBe(404);
+        expect(((await response.json()) as ErrorBody).error.code).toBe("NOT_FOUND");
+      }
       expect(await countRows("account")).toBe(0);
+      const document = (await (await disabled.request("/api/openapi.json")).json()) as {
+        paths: Record<string, unknown>;
+      };
+      expect(Object.keys(document.paths)).toContain("/api/v1/auth/line");
+      expect(Object.keys(document.paths)).not.toContain("/api/v1/auth/test-login");
     });
 
     it("入力が合わなければ 400 と、欄のそばに出せる日本語の理由", async () => {

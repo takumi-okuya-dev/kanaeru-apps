@@ -9,6 +9,7 @@
 // DB の先が 127.0.0.1 なのは、DB への中継（Cloud SQL Auth Proxy など）の形なので止めない。
 // ログインは LINE の ID トークンを API が確かめる（構成の決めごと AD-4）。確かめる client_id は LINE_CHANNEL_IDS。
 import { resolve } from "node:path";
+import { LINE_USER_ID_FORMAT } from "@workspace/contracts/account";
 import { DOMAIN_FEATURE_KEY_FORMAT } from "./features.ts";
 import { z } from "zod";
 
@@ -34,9 +35,6 @@ const SAMPLE_DB_PASSWORD = "postgres";
 
 /** LINE のチャネル ID の形（数字だけ）。 */
 const LINE_CHANNEL_ID_FORMAT = /^\d+$/;
-
-/** LINE のユーザー ID の形（U と16進の32文字）。 */
-const LINE_USER_ID_FORMAT = /^U[0-9a-f]{32}$/;
 
 /** 源の形が合わないときの文。 */
 const ORIGIN_FORMAT = "http:// か https:// で始まる源（道を含まない URL）にしてください。";

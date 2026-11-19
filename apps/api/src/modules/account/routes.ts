@@ -10,22 +10,18 @@ import { invalidInputResponse, notFoundResponse, uuidParam } from "../../kernel/
 import type { ApiEnv, DomainRouteDeps } from "../../kernel/http.ts";
 import { createLineIdTokenVerifier } from "./line-verifier.ts";
 import type { LineIdTokenVerifier } from "./line-verifier.ts";
-import {
-  deleteAccount,
-  deleteSessionByTokenHash,
-  findAccountById,
-  upsertAccount,
-} from "./repository.ts";
+import { deleteAccount, deleteSessionByTokenHash, upsertAccount } from "./repository.ts";
 import type { AccountRecord } from "./repository.ts";
 import {
   clearSessionCookie,
-  currentAccount,
+  currentAccountRecord,
   hashSessionToken,
   isOrganizer,
   issueSession,
   readSessionToken,
   requireOrganizer,
   requireSession,
+  sessionCookie,
 } from "./session.ts";
 
 /** 今の利用者（文書の名前つき）。 */
@@ -83,11 +79,11 @@ const testLoginRoute = createRoute({
   operationId: "accountTestLogin",
   summary: "試験用のログイン（設定 TEST_LOGIN_ENABLED のときだけ。手元とテスト）",
   description:
-    "設定 TEST_LOGIN_ENABLED が false なら 404。staging・production では使えない（起動で止める）。",
+    "設定 TEST_LOGIN_ENABLED が false なら道を登録しない（404）。staging・production では使えない（起動で止める）。",
   request: {
     body: { required: true, content: { "application/json": { schema: TestLoginInput } } },
   },
-  responses: { 200: loggedIn, 400: invalidInputResponse, 404: notFoundResponse },
+  responses: { 200: loggedIn, 400: invalidInputResponse },
 });
 
 const logoutRoute = createRoute({
@@ -178,9 +174,10 @@ export function accountRoutes(
   }),
 ) {
   const { db, config } = deps;
+  const cookie = sessionCookie(config);
 
   /**
-   * アカウントを作るか探し、セッションを出して、今の利用者を返す。
+   * アカウントを作るか探し、セッションを出して（ブラウザの前のセッションは消して）、今の利用者を返す。
    * @param c 要求の文脈
    * @param input LINE のユーザー ID と表示名
    * @param input.lineUserId LINE のユーザー ID
@@ -192,31 +189,36 @@ export function accountRoutes(
     input: { lineUserId: string; displayName: string | undefined },
   ) => {
     const record = await upsertAccount(db, input);
-    await issueSession(c, deps, record.id);
+    await issueSession(c, db, cookie, record.id);
     return present(config, record);
   };
 
-  return new OpenAPIHono<ApiEnv>()
-    .openapi(lineLoginRoute, async (c) => {
-      const user = await verifier.verify(c.req.valid("json").idToken);
-      return c.json(await login(c, user), 200);
-    })
-    .openapi(testLoginRoute, async (c) => {
-      if (!config.testLoginEnabled) throw new AppError("NOT_FOUND");
-      return c.json(await login(c, c.req.valid("json")), 200);
-    })
+  const routes = new OpenAPIHono<ApiEnv>().openapi(lineLoginRoute, async (c) => {
+    const user = await verifier.verify(c.req.valid("json").idToken);
+    return c.json(await login(c, user), 200);
+  });
+
+  /**
+   * 試験用のログインの道を足す（設定 TEST_LOGIN_ENABLED のときだけ呼ぶ）。
+   * @param app 道を足す先
+   * @returns 道を足したもの
+   */
+  const withTestLogin = (app: typeof routes) =>
+    app.openapi(testLoginRoute, async (c) => c.json(await login(c, c.req.valid("json")), 200));
+
+  // 切のときは道を登録しない（窓口の文書に出さず、入力も確かめずに 404）。画面の型のため、型だけは足した形にそろえる
+  const withTest = config.testLoginEnabled
+    ? withTestLogin(routes)
+    : (routes as unknown as ReturnType<typeof withTestLogin>);
+
+  return withTest
     .openapi(logoutRoute, async (c) => {
-      const token = readSessionToken(c, config);
+      const token = readSessionToken(c, cookie);
       if (token) await deleteSessionByTokenHash(db, hashSessionToken(token));
-      clearSessionCookie(c, config);
+      clearSessionCookie(c, cookie);
       return c.body(null, 204);
     })
-    .openapi(meRoute(deps), async (c) => {
-      const record = await findAccountById(db, currentAccount(c).accountId);
-      // requireSession のあとに消された（同時の削除）ときは、未ログインとして返す
-      if (!record) throw new AppError(ACCOUNT_ERRORS.UNAUTHENTICATED);
-      return c.json(present(config, record), 200);
-    })
+    .openapi(meRoute(deps), (c) => c.json(present(config, currentAccountRecord(c)), 200))
     .openapi(deleteRoute(deps), async (c) => {
       const deleted = await deleteAccount(db, c.req.valid("param").accountId);
       if (!deleted) throw new AppError("NOT_FOUND");

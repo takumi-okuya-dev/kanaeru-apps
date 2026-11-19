@@ -94,17 +94,17 @@ export async function createSession(
 }
 
 /**
- * 札の SHA-256 から、期限内のセッションの今の利用者を引く（account と結んで1回で読む）。
+ * 札の SHA-256 から、期限内のセッションのアカウントを引く（account と結んで1回で読む。GET /me もこの行で答える）。
  * @param db DB
  * @param tokenHash 札の SHA-256
- * @returns 今の利用者。ない・期限切れなら null
+ * @returns アカウント。ない・期限切れなら null
  */
 export async function findSessionAccount(
   db: Executor,
   tokenHash: string,
-): Promise<{ accountId: string; lineUserId: string } | null> {
+): Promise<AccountRecord | null> {
   const [row] = await db
-    .select({ accountId: account.id, lineUserId: account.lineUserId })
+    .select(accountColumns)
     .from(session)
     .innerJoin(account, eq(account.id, session.accountId))
     .where(and(eq(session.tokenHash, tokenHash), gt(session.expiresAt, sql`now()`)))
