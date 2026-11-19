@@ -53,6 +53,15 @@ describe("設定", () => {
     expect(config.organizerLineUserId).toBeUndefined();
     expect(config.openChatUrl).toBeUndefined();
     expect(config.webDistDir).toBeUndefined();
+    expect(config.testLoginEnabled).toBe(false);
+  });
+
+  it('試験用のログインは、local・test で入にできる（"true"／"false" のほかは止める）', () => {
+    expect(loadConfig({ ...LOCAL, TEST_LOGIN_ENABLED: "true" }).testLoginEnabled).toBe(true);
+    expect(
+      loadConfig({ ...LOCAL, APP_ENV: "test", TEST_LOGIN_ENABLED: "true" }).testLoginEnabled,
+    ).toBe(true);
+    expect(problemKeys({ ...LOCAL, TEST_LOGIN_ENABLED: "yes" })).toEqual(["TEST_LOGIN_ENABLED"]);
   });
 
   it("LINE・主催者・オープンチャット・画面の場所を読む（並びの空白と空の要素は除く・画面の場所は絶対の道）", () => {
@@ -132,7 +141,7 @@ describe("設定", () => {
     expect(problemKeys(STAGING)).toEqual([]);
   });
 
-  it("staging・production では、手元とテストだけの設定・見本の値・手元を指す源・LINE と主催者と画面の場所がないことを止める", () => {
+  it("staging・production では、手元とテストだけの設定（見本のデータ・試験用のログインなど）・見本の値・手元を指す源・LINE と主催者と画面の場所がないことを止める", () => {
     for (const appEnv of ["staging", "production"]) {
       const base = { ...STAGING, APP_ENV: appEnv, OPENAPI_DOC_ENABLED: "false" };
       expect(problemKeys({ ...base, SAMPLE_DATA_ENABLED: "true" })).toEqual([
@@ -148,6 +157,8 @@ describe("設定", () => {
         "ORGANIZER_LINE_USER_ID",
       ]);
       expect(problemKeys({ ...base, WEB_DIST_DIR: "" })).toEqual(["WEB_DIST_DIR"]);
+      expect(problemKeys({ ...base, TEST_LOGIN_ENABLED: "true" })).toEqual(["TEST_LOGIN_ENABLED"]);
+      expect(problemKeys({ ...base, TEST_LOGIN_ENABLED: "false" })).toEqual([]);
     }
   });
 

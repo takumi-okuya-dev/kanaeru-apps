@@ -1,6 +1,6 @@
 // API の呼び出し：エラーの本文を ApiError に、応答がないときを NetworkError に読みかえる。
 import { describe, expect, it } from "vitest";
-import { ApiError, NetworkError, errorMessage, request } from "./api.ts";
+import { ApiError, NetworkError, errorMessage, onUnauthenticated, request } from "./api.ts";
 
 /**
  * JSON の応答を作る。
@@ -16,6 +16,24 @@ function json(status: number, body: unknown): Response {
 }
 
 describe("request", () => {
+  it("401 を受けたら、onUnauthenticated の受け手に知らせる（ほかの失敗では知らせない）。外すと知らせない", async () => {
+    const received: ApiError[] = [];
+    const unsubscribe = onUnauthenticated((error) => received.push(error));
+    const unauthenticated = json(401, {
+      error: { code: "UNAUTHENTICATED", message: "ログインしていません。", requestId: "req-1" },
+    });
+    await request(() => Promise.resolve(unauthenticated)).catch(() => undefined);
+    await request(() =>
+      Promise.resolve(
+        json(403, { error: { code: "FORBIDDEN", message: "使えません。", requestId: "req-1" } }),
+      ),
+    ).catch(() => undefined);
+    expect(received.map((error) => error.code)).toEqual(["UNAUTHENTICATED"]);
+    unsubscribe();
+    await request(() => Promise.resolve(unauthenticated.clone())).catch(() => undefined);
+    expect(received).toHaveLength(1);
+  });
+
   it("成功なら本文を返し、204 なら undefined", async () => {
     expect(await request(() => Promise.resolve(json(200, { ok: true })))).toEqual({ ok: true });
     expect(

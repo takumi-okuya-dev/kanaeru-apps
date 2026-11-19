@@ -19,6 +19,7 @@ export default defineConfig({
       WEB_URL: "http://localhost:5173",
       DATABASE_URL: rootEnv.DATABASE_URL ?? "postgres://postgres:postgres@localhost:5432/app",
       SAMPLE_DATA_ENABLED: "true",
+      TEST_LOGIN_ENABLED: "true",
       OPENAPI_DOC_ENABLED: "true",
       DOMAIN_FEATURES: "",
       RATE_LIMIT_ENABLED: "true",
