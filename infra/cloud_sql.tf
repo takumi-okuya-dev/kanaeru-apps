@@ -65,10 +65,11 @@ resource "google_sql_database" "app" {
   instance = google_sql_database_instance.main.name
 }
 
-# アプリの DB の利用者。パスワードは secrets.tf の ephemeral の値を、書くだけの欄で渡す（state に残らない）
+# アプリの DB の利用者。パスワードは、Secret Manager に書いた版を読み直した値を、書くだけの欄で渡す（state に残らない）。
+# 書く順番と、途中で落ちたときに食い違わない理由は secrets.tf の頭
 resource "google_sql_user" "app" {
   name                = local.name
   instance            = google_sql_database_instance.main.name
-  password_wo         = ephemeral.random_password.db.result
+  password_wo         = local.db_password
   password_wo_version = var.db_password_version
 }

@@ -21,7 +21,9 @@
 
 ## R-3 DB のパスワードと秘密
 
-- **Decision**：Terraform の `ephemeral "random_password"`（その場だけの値）で作り、`google_sql_user.password_wo` と `google_secret_manager_secret_version.secret_data_wo`（書くだけの欄）に同じ apply で渡す。2つの `*_wo_version` は同じ変数 `db_password_version`。秘密には `DATABASE_URL` 丸ごと（`kanaeru-database-url`）を入れ、Cloud Run のサービスと job に `secret_key_ref`（`latest`）で渡す。
+- **Decision**：Terraform の `ephemeral "random_password"`（その場だけの値）で作り、まず `google_secret_manager_secret_version.secret_data_wo`（書くだけの欄）に書く。その版を `ephemeral "google_secret_manager_secret_version"`（google 8.12 にある、その場だけの読み取り）で読み直し、取り出したパスワードを `google_sql_user.password_wo` に書く。2つの `*_wo_version` は同じ変数 `db_password_version`。秘密には `DATABASE_URL` 丸ごと（`kanaeru-database-url`）を入れ、Cloud Run のサービスと job に `secret_key_ref`（`latest`）で渡す。
+- **なぜ読み直すか（自分の点検で直した）**：ephemeral の値は plan・apply のたびに作り直され、`*_wo` は資源を作るときと `*_wo_version` が変わったときだけ書かれる。同じ ephemeral を2か所に直に書く形だと、apply が途中で落ちたとき（片方だけ書けた）に、次の apply では書けなかったほうにだけ**別の**値が書かれ、黙って食い違う。Secret Manager の版を正本にし、DB の利用者はそれを読んで書く形にすると、途中で落ちても次の apply で同じ値がそろう（版が作られる apply では、読み取りは版を作ったあとに開かれる）。それでもそろわないとき（手で直したなど）は `db_password_version` を上げれば、両方に新しい同じ値が書かれる（infra/README.md 6）。
+- **Alternatives**：同じ ephemeral を2か所に直に書く（前の形。途中で落ちると食い違う）・`random_password` を ephemeral でない資源にする（値が state に残る。FR-006 に反する）・パスワードだけの秘密を別に置く（秘密が2つになり、DATABASE_URL の秘密も同じ順番の問題を持つ）。取り出しは `regex` に頼るが、パスワードは英大小・数字だけで、利用者の名前にも `:` はないので、形は崩れない。
 - **Rationale**：値が state にも plan のファイルにも残らない（Terraform 1.10・1.11 の仕組み）。手で `gcloud secrets versions add` するより、DB の利用者と秘密が食い違わない。Cloud Run は環境の値の中で別の値を差しこめないので、パスワードだけを秘密にすると `DATABASE_URL` を組み立てられない。
 - そのため `required_version = ">= 1.11"`（依頼の「1.9 以上」より上げた）。
 - 秘密の複製は東京だけ（`user_managed`）。【仮決め】

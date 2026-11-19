@@ -104,6 +104,9 @@ GitHub のリポジトリの **Variables**（Settings → Secrets and variables 
 
 - 設定（環境の値・台数など）を変える：`*.tf` を直す PR → マージのあと手元で `plan` → 読む → `apply`。
 - DB のパスワードを替える：`db_password_version` を1つ上げて apply（DB と Secret Manager に同じ新しい値が書かれる）。続けて `gcloud run services update kanaeru --region=asia-northeast1 --update-labels=rotated=<日付>` で新しい版に切り替える（動いている台は古いパスワードを持っているため）。
+- DB のパスワードが食い違ったとき（API が `password authentication failed` で DB につなげない）：`db_password_version` を1つ上げて apply し、上と同じく新しい版に切り替える。
+  - パスワードは、版（`db_password_version`）が変わったとき（と最初に作るとき）だけ書かれる。2つの資源（Secret Manager の版・DB の利用者）は同じ `db_password_version` を見ているので、上げると**両方に同じ新しい値**が書かれる。
+  - 書く順番は「Secret Manager の版 → それを読み直して DB の利用者」（`secrets.tf` の頭）。apply が途中で落ちても、もう一度 apply すれば、DB の利用者は Secret Manager にある値で書かれてそろう。版を上げるのは、画面で手で直したなど、それでもそろわないときだけ。
 - 何も直していないのに plan に差が出たら、apply しない。理由（画面で手で直した・GitHub Actions が変えた）を先に調べる。
 
 ## 7. 夜間の停止と交流会
