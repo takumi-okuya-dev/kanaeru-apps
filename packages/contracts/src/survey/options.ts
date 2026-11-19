@@ -91,6 +91,16 @@ export const JOB_TYPE_LABELS = {
 /** 任意の設問の「答えない」の言葉（API と DB では null）。 */
 export const NOT_ANSWERED_LABEL = "答えない";
 
+/**
+ * 選択肢の言葉を引く（答えていない・「答えない」の null は空。一覧の表とカード・CSV に使う）。
+ * @param labels code から言葉
+ * @param value code か null
+ * @returns 言葉か空
+ */
+export function choiceLabel<K extends string>(labels: Record<K, string>, value: K | null): string {
+  return value === null ? "" : labels[value];
+}
+
 /** 設問の名前（画面の見出し・一覧と CSV の見出しに使う）。 */
 export const SURVEY_QUESTION_LABELS = {
   concern: "困りごと",

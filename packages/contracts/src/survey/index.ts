@@ -31,6 +31,7 @@ export {
   SURVEY_SORTS,
   TESTER_ANSWERS,
   TESTER_ANSWER_LABELS,
+  choiceLabel,
   compareByMonthlyPrice,
 } from "./options.ts";
 export type { JobRole, JobType, MonthlyPrice, SurveySort, TesterAnswer } from "./options.ts";

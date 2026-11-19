@@ -12,6 +12,7 @@ import {
   SurveyAnswerInput,
   SurveyListQuery,
   TESTER_ANSWER_LABELS,
+  choiceLabel,
   compareByMonthlyPrice,
   normalizeSurveyAnswer,
 } from "./index.ts";
@@ -127,6 +128,11 @@ describe("選択肢", () => {
       "unknown",
       null,
     ]);
+  });
+
+  it("選択肢の言葉は code から引き、答えていない（null）は空", () => {
+    expect(choiceLabel(MONTHLY_PRICE_LABELS, "jpy3000plus")).toBe("3,000円以上");
+    expect(choiceLabel(TESTER_ANSWER_LABELS, null)).toBe("");
   });
 });
 

@@ -10,6 +10,7 @@ import {
   MONTHLY_PRICE_LABELS,
   SURVEY_COLUMN_LABELS,
   TESTER_ANSWER_LABELS,
+  choiceLabel,
 } from "@workspace/contracts/survey";
 import { Link, getRouteApi } from "@tanstack/react-router";
 import { buttonVariants } from "@workspace/ui/components/button";
@@ -30,7 +31,6 @@ import { errorMessage } from "../../lib/api.ts";
 import { Page } from "../../lib/page.tsx";
 import { SessionGate } from "../account/index.ts";
 import { EventAccessGate, EventAdminNav, formatEventDateTime } from "../event/index.ts";
-import { labelOrEmpty } from "./format.ts";
 import { isNightStop, useSurveyAnswers } from "./queries.ts";
 
 /** 絞りこみの値。 */
@@ -65,10 +65,10 @@ export function toListQuery(filter: FilterValue, sort: SurveySort): SurveyListQu
  */
 function choiceTexts(row: SurveyAnswerRow) {
   return {
-    monthlyPrice: labelOrEmpty(MONTHLY_PRICE_LABELS, row.monthlyPrice),
-    tester: labelOrEmpty(TESTER_ANSWER_LABELS, row.tester),
-    jobRole: labelOrEmpty(JOB_ROLE_LABELS, row.jobRole),
-    jobType: labelOrEmpty(JOB_TYPE_LABELS, row.jobType),
+    monthlyPrice: choiceLabel(MONTHLY_PRICE_LABELS, row.monthlyPrice),
+    tester: choiceLabel(TESTER_ANSWER_LABELS, row.tester),
+    jobRole: choiceLabel(JOB_ROLE_LABELS, row.jobRole),
+    jobType: choiceLabel(JOB_TYPE_LABELS, row.jobType),
   };
 }
 

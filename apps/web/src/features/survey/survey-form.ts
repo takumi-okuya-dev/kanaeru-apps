@@ -1,6 +1,6 @@
 // アンケートの欄の値と入力の行き来（P2 と主催者の代わりの入力で同じ）。
 // 任意の設問は「答えない」（none）を最初に選んでおき、送るときに null にする。困りごとの確かめは約束（SurveyAnswerInput）で行う。
-import { SurveyAnswerInput } from "@workspace/contracts/survey";
+import { SurveyAnswerInput, normalizeSurveyAnswer } from "@workspace/contracts/survey";
 import type {
   JobRole,
   JobType,
@@ -57,20 +57,20 @@ export type SurveyFormResult =
   { ok: true; input: SurveyAnswerInput } | { ok: false; errors: FieldErrors };
 
 /**
- * 欄の値を約束で確かめ、送る入力にする（「答えない」と空の困りごとは null）。
+ * 欄の値を約束で確かめ、送る入力にする（「答えない」は null。前後の空白を除いて空の困りごとも、約束の
+ * normalizeSurveyAnswer で null にする。API と同じ正規化）。
  * @param values 欄の値
  * @returns 送る入力か、欄の名前ごとの誤り
  */
 export function validateSurveyForm(values: SurveyFormValues): SurveyFormResult {
-  const concern = values.concern.trim();
   const parsed = SurveyAnswerInput.safeParse({
-    concern: concern.length > 0 ? concern : null,
+    concern: values.concern,
     monthlyPrice: values.monthlyPrice,
     tester: values.tester,
     jobRole: values.jobRole === NOT_ANSWERED ? null : values.jobRole,
     jobType: values.jobType === NOT_ANSWERED ? null : values.jobType,
   });
   return parsed.success
-    ? { ok: true, input: parsed.data }
+    ? { ok: true, input: normalizeSurveyAnswer(parsed.data) }
     : { ok: false, errors: fieldErrorsFromIssues(parsed.error.issues) };
 }

@@ -7,6 +7,7 @@ import {
   MONTHLY_PRICE_LABELS,
   SURVEY_COLUMN_LABELS,
   TESTER_ANSWER_LABELS,
+  choiceLabel,
 } from "@workspace/contracts/survey";
 import type { AnswerWithCheckin } from "./views.ts";
 
@@ -59,16 +60,6 @@ export function csvCell(value: string): string {
 }
 
 /**
- * 選択肢の言葉を引く（null は空欄）。
- * @param labels code から言葉
- * @param value code か null
- * @returns 言葉か空
- */
-function labelOf<K extends string>(labels: Record<K, string>, value: K | null): string {
-  return value === null ? "" : labels[value];
-}
-
-/**
  * 困りごとの CSV を作る（BOM つき・CRLF・最後の行も CRLF で終える）。
  * @param rows 回答とチェックインの組（並びはそのまま）
  * @returns CSV の文字
@@ -80,10 +71,10 @@ export function buildConcernsCsv(rows: readonly AnswerWithCheckin[]): string {
       [
         checkin.name,
         answer.concern ?? "",
-        labelOf(MONTHLY_PRICE_LABELS, answer.monthlyPrice),
-        labelOf(TESTER_ANSWER_LABELS, answer.tester),
-        labelOf(JOB_ROLE_LABELS, answer.jobRole),
-        labelOf(JOB_TYPE_LABELS, answer.jobType),
+        choiceLabel(MONTHLY_PRICE_LABELS, answer.monthlyPrice),
+        choiceLabel(TESTER_ANSWER_LABELS, answer.tester),
+        choiceLabel(JOB_ROLE_LABELS, answer.jobRole),
+        choiceLabel(JOB_TYPE_LABELS, answer.jobType),
         checkin.accountId === null ? "手" : "LINE",
         formatJstDateTime(answer.updatedAt),
       ]

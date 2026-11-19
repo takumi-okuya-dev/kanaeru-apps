@@ -68,6 +68,7 @@
 
 - **Decision**：見出し `名前,困りごと,月いくら,テスター,仕事の立場,職種,入れ方,回答の時刻`。回答を作った時刻の古い順。空と「答えない」は空欄。入れ方は「LINE」か「手」（チェックインの入れ方）。回答の時刻は日本時間の `YYYY-MM-DD HH:mm`（直した時刻）。BOM・CRLF・`=`・`+`・`-`・`@`・タブ・CR で始まる欄は先頭に `'`・`,`・`"`・改行を含む欄は `"` で囲む（reception と同じ形を survey の `csv.ts` に置く。reception の内部は読まない）。ファイルの名前は `concerns-YYYY-MM-DD.csv`。
 - **Rationale**：Conventions「書き出し」・reception R11 にそろえる。困りごとは改行を含むので、囲みが要る。
+- **共通にする残り**：CSV の欄の書き方（`csvCell`・日本時間の日時）と、画面で受け取った CSV を保存させる道具（`ConcernsCsvSection.tsx` の保存）は、reception と同じものが2か所にある。領域の PR では直さず、共通に出す小さな PR に回す（backlog A-3）。
 
 ## R13. 困りごとの本文をログに出さない
 

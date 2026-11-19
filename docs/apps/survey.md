@@ -33,7 +33,7 @@
 
 API の入口（`apps/api/src/modules/survey/index.ts`）は `routes` だけを出す（回答の表は survey だけが読み書きする）。
 
-約束（`@workspace/contracts/survey`）：`SurveyAnswerInput`・`normalizeSurveyAnswer`・`SurveyAnswer`・`MySurveyState`・`ProxySurveyState`・`SurveyAnswerRow`・`SurveyListQuery`、選択肢 `MONTHLY_PRICES`（`MONTHLY_PRICES_HIGH_FIRST`・`compareByMonthlyPrice`）・`TESTER_ANSWERS`・`JOB_ROLES`・`JOB_TYPES` と `*_LABELS`・`NOT_ANSWERED_LABEL`・`SURVEY_QUESTION_LABELS`・`SURVEY_COLUMN_LABELS`・`SURVEY_SORTS`、`SURVEY_ERRORS`。
+約束（`@workspace/contracts/survey`）：`SurveyAnswerInput`・`normalizeSurveyAnswer`・`SurveyAnswer`・`MySurveyState`・`ProxySurveyState`・`SurveyAnswerRow`・`SurveyListQuery`、選択肢 `MONTHLY_PRICES`（`MONTHLY_PRICES_HIGH_FIRST`・`compareByMonthlyPrice`）・`TESTER_ANSWERS`・`JOB_ROLES`・`JOB_TYPES` と `*_LABELS`・`NOT_ANSWERED_LABEL`・`choiceLabel`（選択肢の言葉。null は空）・`SURVEY_QUESTION_LABELS`・`SURVEY_COLUMN_LABELS`・`SURVEY_SORTS`、`SURVEY_ERRORS`。
 
 画面の入口（`apps/web/src/features/survey/index.ts`）：`SURVEY_QUERY_KEYS`（どれも `"survey"` で始まる）。reception の差しこみの場所に、`registerCheckinPanelSection({ id: "survey-proxy-answer" })` と `registerEventDataSection({ id: "survey-concerns-csv" })` をここで1度だけ登録する。
 

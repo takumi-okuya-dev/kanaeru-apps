@@ -56,13 +56,3 @@ export const JOB_TYPE_OPTIONS: readonly ChoiceOption<JobType | NotAnswered>[] = 
   ...optionsOf<JobType>(JOB_TYPES, JOB_TYPE_LABELS),
   NOT_ANSWERED_OPTION,
 ];
-
-/**
- * 選択肢の言葉（答えていなければ空）。一覧の表とカードに使う。
- * @param labels code から言葉
- * @param value code か null
- * @returns 言葉か空
- */
-export function labelOrEmpty<K extends string>(labels: Record<K, string>, value: K | null): string {
-  return value === null ? "" : labels[value];
-}
