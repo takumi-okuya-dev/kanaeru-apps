@@ -26,6 +26,7 @@
 | GET | `…/survey-answers/export` | 主催者 | 困りごとの CSV（UTF-8 の BOM・CRLF・回答の古い順・`concerns-YYYY-MM-DD.csv`。`=`・`+`・`-`・`@` で始まる欄は先頭に `'`） |
 
 - どの設問も必須にしない。空で送っても受け付ける。
+- チェックインを読んでから書くまでの間に取り消されたら、参加者は 403 `SURVEY_NOT_CHECKED_IN`、主催者の代わりの入力は 404 `CHECKIN_NOT_FOUND`（外部キーの違反を 500 にしない）。
 - 交流会がない・形の違う ID は 404（event の `NOT_FOUND`）、権限の誤りは 403（event の `FORBIDDEN`。受付係も）。
 - 入力の形・選択肢（code・言葉・並び・高い順・「答えない」）・エラーの文言は `packages/contracts/src/survey/`。
 

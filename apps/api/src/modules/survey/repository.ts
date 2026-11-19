@@ -5,6 +5,21 @@ import { eq, inArray, sql } from "drizzle-orm";
 import type { Executor } from "../../kernel/db.ts";
 import { surveyAnswer } from "./schema.ts";
 
+/** 回答のチェックインへの外部キーの制約の名前（DB の変更 0005_survey.sql）。 */
+const CHECKIN_FK = "survey_answer_checkin_id_checkin_id_fk";
+
+/**
+ * 回答のチェックインへの外部キーの違反か（チェックインがもうない。drizzle が包んだ違反は cause に入る）。
+ * kernel/pg-errors.ts には一意の制約の違反しかないので、survey の中で見分ける（共通に出すのは別の共通の PR）。
+ * @param error 投げられたもの
+ * @returns 違反なら true
+ */
+function isCheckinForeignKeyViolation(error: unknown): boolean {
+  const own = error as { code?: unknown; constraint?: unknown } | null;
+  const cause = (error as { cause?: { code?: unknown; constraint?: unknown } } | null)?.cause;
+  return [own, cause].some((item) => item?.code === "23503" && item.constraint === CHECKIN_FK);
+}
+
 /** 回答の行（読み出す形）。 */
 export type SurveyAnswerRecord = typeof surveyAnswer.$inferSelect;
 
@@ -28,25 +43,33 @@ export async function findAnswerByCheckin(
 
 /**
  * チェックインの回答を作るか、全部を置きかえる（同時に2回来ても1行。checkin_id の一意の制約。research R5）。
+ * チェックインを読んでから書くまでの間に、チェックインが取り消された（外部キーの違反）ときは null を返す。
  * @param db DB
  * @param checkinId チェックインの ID
  * @param values 回答の値（5つの欄がそろったもの）
- * @returns 作った・直した回答
- * @throws {Error} 行が返らなかったとき（ふつうは起きない）
+ * @returns 作った・直した回答。チェックインがもうなければ null
+ * @throws {Error} 行が返らなかったとき（ふつうは起きない）と、外部キーの違反のほかの DB のエラー
  */
 export async function upsertAnswer(
   db: Executor,
   checkinId: string,
   values: SurveyAnswerValues,
-): Promise<SurveyAnswerRecord> {
-  const [row] = await db
-    .insert(surveyAnswer)
-    .values({ checkinId, ...values })
-    .onConflictDoUpdate({
-      target: surveyAnswer.checkinId,
-      set: { ...values, updatedAt: sql`now()` },
-    })
-    .returning();
+): Promise<SurveyAnswerRecord | null> {
+  let rows: SurveyAnswerRecord[];
+  try {
+    rows = await db
+      .insert(surveyAnswer)
+      .values({ checkinId, ...values })
+      .onConflictDoUpdate({
+        target: surveyAnswer.checkinId,
+        set: { ...values, updatedAt: sql`now()` },
+      })
+      .returning();
+  } catch (error) {
+    if (isCheckinForeignKeyViolation(error)) return null;
+    throw error;
+  }
+  const [row] = rows;
   if (!row) throw new Error("書いた回答が返りませんでした。");
   return row;
 }

@@ -31,7 +31,7 @@
 
 ## R5. 参加者の回答の窓口と、断る順
 
-- **Decision**：`GET …/survey-answers/me`：要約がなければ 404（event の `NOT_FOUND`）。`{ checkedIn, answer }` を返す（開閉にかかわらず読める。画面は要約の `surveyOpen` と合わせて状態を決める）。`PUT …/survey-answers/me`：要約がなければ 404 → 閉じていれば 409 `SURVEY_CLOSED` → チェックインがなければ 403 `SURVEY_NOT_CHECKED_IN` → `INSERT … ON CONFLICT (checkin_id) DO UPDATE`。答えは 200 の回答。
+- **Decision**：`GET …/survey-answers/me`：要約がなければ 404（event の `NOT_FOUND`）。`{ checkedIn, answer }` を返す（開閉にかかわらず読める。画面は要約の `surveyOpen` と合わせて状態を決める）。`PUT …/survey-answers/me`：要約がなければ 404 → 閉じていれば 409 `SURVEY_CLOSED` → チェックインがなければ 403 `SURVEY_NOT_CHECKED_IN` → `INSERT … ON CONFLICT (checkin_id) DO UPDATE`。答えは 200 の回答。チェックインを読んでから書くまでの間に取り消された（外部キーの違反 23503）ときも、500 にせず 403 `SURVEY_NOT_CHECKED_IN`（主催者の代わりの入力は 404 `CHECKIN_NOT_FOUND`）。違反の見分けは survey の `repository.ts` に置く（`kernel/pg-errors.ts` には一意の制約の違反しかなく、共通に足すのは別の共通の PR）。
 - **Rationale**：AD-13（書くたびに `getEventSummary` で開閉を読む。今の account → `findCheckin` → `checkin_id`）。閉じているときは、チェックインがあってもなくても答えられないので、先に「閉じています」を伝える（画面の状態の順と同じ）。同時の2回は一意の制約と `ON CONFLICT` で1行に守る（coding.md 6-4）。
 - **Alternatives**：チェックインがない人に 404：交流会がないのと見分けられない。
 

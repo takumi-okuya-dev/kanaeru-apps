@@ -301,6 +301,8 @@ export function surveyRoutes(deps: DomainRouteDeps) {
       const checkin = await findCheckin(db, eventId, currentAccount(c).accountId);
       if (!checkin) throw new AppError(SURVEY_ERRORS.SURVEY_NOT_CHECKED_IN);
       const record = await upsertAnswer(db, checkin.id, values);
+      // 読んでから書くまでの間にチェックインが取り消されたら、チェックインがないのと同じに断る
+      if (!record) throw new AppError(SURVEY_ERRORS.SURVEY_NOT_CHECKED_IN);
       return c.json(toSurveyAnswer(record), 200);
     })
     .openapi(routes.getProxy, async (c) => {
@@ -315,6 +317,8 @@ export function surveyRoutes(deps: DomainRouteDeps) {
       // 主催者の代わりの入力は、閉じていても受ける（AD-13・A9）
       const checkin = await checkinInEvent(deps, eventId, checkinId);
       const record = await upsertAnswer(db, checkin.id, values);
+      // 読んでから書くまでの間にチェックインが取り消されたら、ないチェックインと同じに断る
+      if (!record) throw new AppError(RECEPTION_ERRORS.CHECKIN_NOT_FOUND);
       return c.json(toSurveyAnswer(record), 200);
     })
     .openapi(routes.list, async (c) => {
