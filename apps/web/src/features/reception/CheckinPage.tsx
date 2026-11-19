@@ -27,8 +27,11 @@ import { EMPTY_CHECKIN_FORM, focusFirstCheckinError, validateCheckinForm } from 
 import type { CheckinFormValues } from "./checkin-form.ts";
 import { RECEPTION_QUERY_KEYS, isNightStop, useMyCheckin } from "./queries.ts";
 
-/** 主のボタンの見た目（高さ 48px・狭い画面では横いっぱい。DESIGN の button-primary）。 */
-const primaryActionClassName = "min-h-xl w-full wide:w-auto";
+/**
+ * 主のボタンの見た目（高さ 48px・狭い画面では横いっぱい・広い画面では言葉の幅に左右 32px の余白。DESIGN の button-primary）。
+ * 縦に並べる flex の中では w-auto だけだと横に伸びるので、広い画面では self-start で左に寄せる。
+ */
+const primaryActionClassName = "min-h-xl w-full wide:w-auto wide:self-start wide:px-m";
 
 /** 外のページへのリンクの属性（LINE の中でもアプリの外として開く）。 */
 const EXTERNAL_LINK = { target: "_blank", rel: "noopener noreferrer" } as const;

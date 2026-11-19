@@ -33,10 +33,10 @@ function TotalsCard({ totals }: { totals: CheckinTotals }) {
             <th scope="col" className="py-x3s text-left font-normal">
               支払い方法
             </th>
-            <th scope="col" className="py-x3s text-right font-normal">
+            <th scope="col" className="py-x3s pl-xs text-right font-normal">
               人数
             </th>
-            <th scope="col" className="py-x3s text-right font-normal">
+            <th scope="col" className="py-x3s pl-xs text-right font-normal">
               金額
             </th>
           </tr>
@@ -44,11 +44,15 @@ function TotalsCard({ totals }: { totals: CheckinTotals }) {
         <tbody>
           {totals.byPaymentMethod.map((row) => (
             <tr key={row.paymentMethod} className="border-t border-border">
-              <th scope="row" className="py-xxs text-left font-normal">
+              <th scope="row" className="py-xxs text-left font-normal break-keep">
                 {PAYMENT_METHOD_LABELS[row.paymentMethod]}
               </th>
-              <td className="py-xxs text-right tabular-nums">{formatCount(row.count)}</td>
-              <td className="py-xxs text-right tabular-nums">{formatFee(row.amount)}</td>
+              <td className="py-xxs pl-xs text-right whitespace-nowrap tabular-nums">
+                {formatCount(row.count)}
+              </td>
+              <td className="py-xxs pl-xs text-right whitespace-nowrap tabular-nums">
+                {formatFee(row.amount)}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -57,8 +61,12 @@ function TotalsCard({ totals }: { totals: CheckinTotals }) {
             <th scope="row" className="pt-xxs text-left">
               合計
             </th>
-            <td className="pt-xxs text-right tabular-nums">{formatCount(totals.total.count)}</td>
-            <td className="pt-xxs text-right tabular-nums">{formatFee(totals.total.amount)}</td>
+            <td className="pt-xxs pl-xs text-right whitespace-nowrap tabular-nums">
+              {formatCount(totals.total.count)}
+            </td>
+            <td className="pt-xxs pl-xs text-right whitespace-nowrap tabular-nums">
+              {formatFee(totals.total.amount)}
+            </td>
           </tr>
         </tfoot>
       </table>
