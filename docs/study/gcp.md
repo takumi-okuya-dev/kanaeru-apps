@@ -5,7 +5,7 @@
 - 読む人：TypeScript で Web を作ってきて、GCP は初めての人（kanaeru の開発者）。
 - この文書は「学び」の文書。考え方と使い方の説明で、**今のシステムの正本でも、決まりの正本でもない**。
   - 置き場所の決めごと（台の型・台数・夜間の停止・バックアップ・予算）は[構成の決めごと](../../_bmad-output/architecture-kanaeru/architecture-kanaeru.md)の AD-8〜AD-11 が正本。
-  - デプロイの決まり（`main` のマージで出す・8時〜24時に出す）は[開発の流れの決まり](../rules/development-flow.md) 5章が正本。
+  - デプロイの決まり（`main` のマージで出す・8時15分〜23時に始める）は[開発の流れの決まり](../rules/development-flow.md) 5章が正本。
   - 資源の名前・権限の細部は、これから書く `infra/` の Terraform で決める。
 - 料金は2026-11-19に公式の文書で確かめた値。1ドル＝150円で円にした（税なし・為替は仮）。確かめられなかったものは（要確認）と書いた。
 - Terraform そのものの考え方は[Terraformの学び](./terraform.md)、LINE の側は[LINEの学び](./line.md)に分けた。

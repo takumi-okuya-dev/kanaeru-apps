@@ -906,7 +906,7 @@ flowchart LR
 
 - GitHub Actions はイメージだけを変え、Terraform はイメージの差を無視する（6.5 の `ignore_changes`）。こうすると、2つが同じ値を取り合わない。
 - 逆に、GitHub Actions のデプロイで環境の値（`--set-env-vars` など）も変えると、Terraform の持つ値と取り合いになり、次の plan に差が出る。環境の値を変えるのは Terraform だけにする形が分かりやすい。
-- デプロイの流れ（コンテナ → `db:migrate` → 出す）と時間帯（8時〜24時）の決まりは、[開発の流れの決まり](../rules/development-flow.md) 5章と AD-11 が正本。
+- デプロイの流れ（コンテナ → `db:migrate` → 出す）と時間帯（8時15分〜23時に始める）の決まりは、[開発の流れの決まり](../rules/development-flow.md) 5章と AD-11 が正本。
 
 ---
 
