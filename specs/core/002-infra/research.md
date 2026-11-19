@@ -62,7 +62,7 @@
 - Scheduler：`kanaeru-db-stop`（`0 0 * * *`）・`kanaeru-db-start`（`0 8 * * *`）、`Asia/Tokyo`、`PATCH https://sqladmin.googleapis.com/v1/projects/P/instances/I` に `{"settings":{"activationPolicy":...}}`、OAuth のトークン、再試行3回、`ignore_changes = [paused]`。
 - 【仮決め】Scheduler の身分の役割は `roles/cloudsql.editor` ではなく、`cloudsql.instances.get`・`cloudsql.instances.update` だけの自前の役割（`kanaeruSqlActivation`）。
 - 予算：月2,000円・50%と100%・宛先は既定（請求先アカウントの管理者と利用者）。【仮決め】`credit_types_treatment = "EXCLUDE_ALL_CREDITS"`（新規の300ドルのクレジットで0円に見える間も、本当の費用で知らせる）。
-- 【仮決め】Artifact Registry の掃除：新しい5つを残し、7日より古いものを消す（無料の枠 0.5 GB に近づける）。
+- 【仮決め】Artifact Registry の掃除：新しい10個を残し、それ以外で30日より古いものを消す。前は「新しい5つ・7日」だったが、デプロイが db:migrate などで5回落ちる（押し込んだイメージは数に入る）と、動いている版のイメージが7日で消えうる。最小0台なので、台が0から立ち上がるたびにイメージを読み、消えていると立ち上がれないことがある（自分の点検で直した）。無料の枠（0.5 GB）は超えうるが、超えた分は 1 GB あたり月 0.1 ドルほどで、予算（月2,000円）の中で小さい。動いている版のイメージにタグを付けて残す形は、デプロイの手順と権限が増えるので採らない。
 
 ## R-9 デプロイの流れ（deploy.yml）
 
