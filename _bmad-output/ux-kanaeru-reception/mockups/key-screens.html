@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>kanaeru 受付 主な画面</title>
+<style>
+/* ===== 主な画面の見本 1（key screens）=====
+   この見本が描く決めごと（確かめる所）:
+   - .memlog.md (decision) 雰囲気：信頼感・きちんと／落ち着いた・シンプル
+   - .memlog.md (decision) プロダクトの色 墨：primary #3B3833 / primary-hover #34312D / on-primary #FFFFFF
+       リンクは必ず下線つき。選んだチップの地 = primary-subtle（primary 8% を白に混ぜた #EFEFEF）
+   - .memlog.md (assumption) 画面の構成 P1・P2（参加者・LINEの中）、A3 一覧画面（タブ：参加者・合計・困りごと〈主催者だけ〉、
+       手でチェックイン、同じ名前の印、直す・取り消す、5秒おきに読み直す）、A4 の受付QR・アンケートQR・開閉・招待、A5 書き出し
+   - .memlog.md (assumption) 振る舞い：です・ます、スマホ本文16px以上、押せる所は高さ44px以上、チップは1つだけ選ぶ（ラジオ）
+   - 状態：夜間停止（architecture .memlog：0時〜8時は自動停止）
+   - PRD §3 用語集の言葉、FR-4（チェックインの選択肢）、FR-10（アンケートの選択肢）、FR-11/12/14
+   - 基の値：docs/design/DESIGN.md の frontmatter（neutrals・radius・spacing・typography・danger/success・focus）
+   画面ごとの見出し（.lbl）は見本の説明で、画面の中の文字ではない。 */
+:root{
+  --primary:#3B3833;--primary-hover:#34312D;--on-primary:#FFFFFF;--primary-subtle:#EFEFEF;
+  --text:#23221E;--text-sub:#706D65;--text-disabled:#C1BDB7;
+  --background:#F8F7F6;--surface:#FFFFFF;--surface-sunken:#F5F4F3;--surface-over:#F2F1F0;--head:#EDEBE8;
+  --border:#D6D3D0;--border-input:#8A867F;
+  --danger:#E01E5A;--danger-text:#C8174D;--warning:#FFCC17;--success:#0F7F85;--success-text:#0B6F74;
+  --fs-xs:12px;--fs-s:13.71px;--fs-m:16px;--fs-l:19.2px;--fs-xl:24px;
+  --sp-4:4px;--sp-8:8px;--sp-16:16px;--sp-24:24px;--sp-32:32px;
+  --r-s:4px;--r-m:6px;--r-l:8px;
+  --shadow1:0 1px 2px 0 rgba(3,3,2,.3);--shadow2:0 2px 4px 1px rgba(3,3,2,.3);
+  --focus:0 0 0 2px #FFFFFF,0 0 0 4px var(--primary);
+}
+*{box-sizing:border-box}
+body{margin:0;background:#E9E7E4;color:var(--text);font-family:system-ui,"Hiragino Sans","Noto Sans JP",sans-serif;font-size:16px;line-height:1.5}
+a{color:var(--text);text-decoration:underline;text-underline-offset:3px}
+:focus-visible{outline:none;box-shadow:var(--focus)}
+.wrap{max-width:1600px;margin:0 auto;padding:32px 16px 64px}
+.top h1{font-size:var(--fs-xl);line-height:1.25;margin:0 0 8px}
+.top p{margin:0;color:var(--text-sub);font-size:var(--fs-s);max-width:80ch}
+.row{display:flex;flex-wrap:wrap;gap:32px;margin-top:32px;align-items:flex-start}
+.col{display:flex;flex-direction:column;gap:12px;width:375px;max-width:100%}
+.lbl{font-size:var(--fs-s);line-height:1.4;color:var(--text)}
+.lbl b{display:inline-block;background:var(--primary);color:var(--on-primary);border-radius:var(--r-s);padding:1px 8px;margin-right:8px;font-size:var(--fs-xs)}
+.lbl span{display:block;color:var(--text-sub);font-size:var(--fs-xs);margin-top:2px}
+
+/* phone */
+.phone{width:375px;max-width:100%;background:var(--background);border:1px solid #BDB9B3;border-radius:32px;overflow:hidden;box-shadow:0 8px 24px rgba(3,3,2,.12)}
+.status{height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:13px;font-weight:700;background:var(--surface)}
+.status i{font-style:normal;font-weight:400;letter-spacing:2px}
+.linebar{height:52px;display:flex;align-items:center;gap:8px;padding:0 8px 0 16px;background:var(--surface);border-bottom:1px solid var(--border)}
+.linebar .t{flex:1;min-width:0;line-height:1.2}
+.linebar .t strong{display:block;font-size:15px}
+.linebar .t small{display:block;font-size:var(--fs-xs);color:var(--text-sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ib{width:44px;height:44px;display:grid;place-items:center;font-size:20px;color:var(--text);border-radius:var(--r-s)}
+.appbar{height:56px;display:flex;align-items:center;gap:8px;padding:0 8px 0 16px;background:var(--surface);border-bottom:1px solid var(--border)}
+.appbar .t{flex:1;min-width:0;line-height:1.25}
+.appbar .t strong{display:block;font-size:var(--fs-m)}
+.appbar .t small{display:block;font-size:var(--fs-xs);color:var(--text-sub)}
+.scr{padding:16px;display:flex;flex-direction:column;gap:16px;min-height:560px}
+.homebar{height:24px;display:grid;place-items:center;background:var(--background)}
+.homebar::after{content:"";width:120px;height:4px;border-radius:9999px;background:#23221E;opacity:.7}
+
+/* surfaces */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-m);padding:16px}
+.event h2{margin:0 0 8px;font-size:var(--fs-l);line-height:1.25}
+.event dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 16px;font-size:var(--fs-m)}
+.event dt{color:var(--text-sub)}
+.event dd{margin:0}
+.field{display:flex;flex-direction:column;gap:8px}
+.field>.fl{font-weight:700;font-size:var(--fs-m)}
+.field>.fl small{font-weight:400;color:var(--text-sub);font-size:var(--fs-s);margin-left:8px}
+.field .hint{font-size:var(--fs-s);color:var(--text-sub);margin:0}
+.input{height:48px;border:1px solid var(--border-input);border-radius:var(--r-s);background:var(--surface);padding:0 12px;display:flex;align-items:center;font-size:var(--fs-m)}
+.textarea{min-height:120px;border:1px solid var(--border-input);border-radius:var(--r-s);background:var(--surface);padding:12px;font-size:var(--fs-m);color:var(--text)}
+.textarea.ph{color:var(--text-sub)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{min-height:44px;padding:0 16px;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border-input);border-radius:9999px;background:var(--surface);font-size:var(--fs-m);color:var(--text)}
+.chip.on{background:var(--primary-subtle);border:2px solid var(--primary);padding:0 15px;font-weight:700}
+.chip.on::before{content:"✓";font-weight:700}
+.btn{min-height:48px;padding:0 24px;display:flex;align-items:center;justify-content:center;border-radius:var(--r-s);font-size:var(--fs-m);font-weight:700;border:1px solid transparent;text-align:center}
+.btn.primary{background:var(--primary);color:var(--on-primary)}
+.btn.secondary{background:var(--surface);color:var(--text);border-color:var(--border-input)}
+.btn.sm{min-height:36px;padding:0 12px;font-size:var(--fs-s);display:inline-flex;gap:6px}
+.btn.full{width:100%}
+.note{font-size:var(--fs-s);color:var(--text-sub);margin:0}
+.done{text-align:center;padding:24px 16px}
+.mark{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;margin:0 auto 12px;font-size:28px;font-weight:700;color:#fff}
+.mark.ok{background:var(--success)}
+.mark.idle{background:var(--surface-over);color:var(--text-sub);border:1px solid var(--border)}
+.done h2{margin:0 0 4px;font-size:var(--fs-xl);line-height:1.25}
+.done p{margin:0}
+.steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+.tag{display:inline-flex;align-items:center;height:22px;padding:0 6px;border-radius:var(--r-s);font-size:var(--fs-xs);font-weight:700;white-space:nowrap}
+.tag.hand{border:1px solid var(--border-input);color:var(--text);background:var(--surface)}
+.tag.dup{background:var(--warning);color:var(--text)}
+.tag.pay{background:var(--surface-over);color:var(--text);font-weight:400;border:1px solid var(--border)}
+.divider{height:1px;background:var(--border);margin:0}
+
+/* tabs */
+.tabs{display:flex;background:var(--surface);border-bottom:1px solid var(--border);padding:0 8px}
+.tab{min-height:44px;padding:0 16px;display:flex;align-items:center;font-size:var(--fs-m);color:var(--text-sub);border-bottom:3px solid transparent;margin-bottom:-1px}
+.tab.on{color:var(--text);font-weight:700;border-bottom-color:var(--primary)}
+
+/* mobile list */
+.list{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-m);overflow:hidden}
+.li{display:flex;align-items:center;gap:8px;padding:8px 4px 8px 16px;border-top:1px solid var(--border);min-height:64px}
+.li:first-child{border-top:0}
+.li .m{flex:1;min-width:0}
+.li .n{font-size:var(--fs-m);font-weight:700;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.li .s{font-size:var(--fs-s);color:var(--text-sub);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.li.dupbg{background:#FFFBEA}
+.meta{display:flex;justify-content:space-between;align-items:center;font-size:var(--fs-s);color:var(--text-sub)}
+.totals{width:100%;border-collapse:collapse;font-size:var(--fs-m)}
+.totals th,.totals td{padding:12px 0;border-top:1px solid var(--border);text-align:right;font-weight:400}
+.totals tr:first-child th,.totals tr:first-child td{border-top:0}
+.totals th{text-align:left}
+.totals .sum th,.totals .sum td{font-weight:700;border-top:2px solid var(--text);font-size:var(--fs-l)}
+.num{font-variant-numeric:tabular-nums}
+
+/* PC browser */
+.pcwrap{display:flex;flex-direction:column;gap:12px;margin-top:40px}
+.browser{width:100%;max-width:1280px;background:var(--background);border:1px solid #BDB9B3;border-radius:var(--r-l);overflow:hidden;box-shadow:0 8px 24px rgba(3,3,2,.12)}
+.chrome{height:40px;display:flex;align-items:center;gap:12px;padding:0 12px;background:var(--surface-over);border-bottom:1px solid var(--border)}
+.dots{display:flex;gap:6px}.dots i{width:10px;height:10px;border-radius:50%;background:#C1BDB7;display:block}
+.url{flex:1;max-width:520px;height:26px;border-radius:9999px;background:var(--surface);border:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-sub);display:flex;align-items:center;padding:0 12px}
+.pc{padding:24px 32px 32px;display:flex;flex-direction:column;gap:16px}
+.crumb{font-size:var(--fs-s)}
+.pchead{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;flex-wrap:wrap}
+.pchead h2{margin:0;font-size:var(--fs-xl);line-height:1.25}
+.pchead p{margin:4px 0 0;color:var(--text-sub);font-size:var(--fs-s)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.switch{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 12px;border:1px solid var(--border-input);border-radius:var(--r-s);background:var(--surface);font-size:var(--fs-s);font-weight:700}
+.sw{width:36px;height:20px;border-radius:9999px;background:var(--primary);position:relative;flex:none}
+.sw::after{content:"";position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:50%;background:#fff}
+.sw-state{font-weight:400;color:var(--success-text)}
+.pctabs{padding:0;background:transparent}
+.toolbar{display:flex;justify-content:space-between;align-items:center;gap:16px}
+.toolbar .meta{gap:16px}
+table.t{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-m);font-size:var(--fs-s)}
+table.t th{background:var(--head);text-align:left;font-weight:700;padding:10px 12px;white-space:nowrap}
+table.t td{padding:10px 12px;border-top:1px solid var(--border);vertical-align:middle}
+table.t td.nm{font-size:var(--fs-m);font-weight:700}
+table.t td.nm .tag{margin-left:6px;vertical-align:2px}
+table.t tr.dupbg td{background:#FFFBEA}
+.mbtn{width:36px;height:36px;display:grid;place-items:center;border:1px solid var(--border);border-radius:var(--r-s);background:var(--surface);font-size:16px;margin-left:auto}
+.mcell{position:relative;width:56px}
+.menu{position:absolute;right:12px;top:44px;z-index:2;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-m);box-shadow:var(--shadow2);min-width:140px;padding:4px 0}
+.menu div{padding:10px 16px;font-size:var(--fs-m)}
+.menu .dz{color:var(--danger)}
+.mbtn.open{box-shadow:var(--focus)}
+.filters{display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:var(--fs-s)}
+.check{display:inline-flex;align-items:center;gap:8px;min-height:36px}
+.box{width:18px;height:18px;border-radius:var(--r-s);background:var(--primary);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700}
+.select{height:36px;border:1px solid var(--border-input);border-radius:var(--r-s);background:var(--surface);padding:0 12px;display:inline-flex;align-items:center;gap:12px}
+.worry{max-width:44ch;font-size:var(--fs-m);line-height:1.6}
+
+/* night stop */
+.stop{text-align:center;padding:32px 16px}
+.stop h2{margin:0 0 8px;font-size:var(--fs-l);line-height:1.4}
+.stop p{margin:0}
+</style></head>
+<body><div class="wrap">
+
+<div class="top">
+  <h1>kanaeru 受付　主な画面の見本 1</h1>
+  <p>色は墨（primary #3B3833）。選んだチップの地は primary-subtle（#EFEFEF）。リンクはどこでも下線つき。スマホは幅375px、PCは1枠。各枠の上の札が画面のID。</p>
+</div>
+
+<div class="row">
+
+<!-- ========== P1 チェックインの画面 ========== -->
+<div class="col">
+  <div class="lbl"><b>P1</b>チェックインの画面<span>/e/{eventId}/checkin・LINEの中（未認証のMINI Appなのでドメインが出る）・UJ-1 の答えを選んだところ</span></div>
+  <div class="phone">
+    <div class="status">9:41<i>●●● ▮</i></div>
+    <div class="linebar"><div class="t"><strong>kanaeru 受付</strong><small>reception-xxxxxxxx-an.a.run.app</small></div><span class="ib" aria-label="メニュー">⋯</span><span class="ib" aria-label="閉じる">✕</span></div>
+    <div class="scr">
+      <div class="card event">
+        <h2>IT交流会 11月</h2>
+        <dl><dt>日時</dt><dd>2026年11月25日（水）19:00</dd><dt>会場</dt><dd>渋谷・コワーキングスペース 3階</dd><dt>参加費</dt><dd class="num">3,000円</dd></dl>
+      </div>
+      <div class="field">
+        <div class="fl">名前</div>
+        <div class="input">佐藤 一郎</div>
+        <p class="hint">LINEの名前が入っています。違うときだけ直してください。</p>
+      </div>
+      <div class="field">
+        <div class="fl">申し込みの媒体</div>
+        <div class="chips" role="radiogroup"><span class="chip on">connpass</span><span class="chip">Peatix</span><span class="chip">直接</span><span class="chip">その他</span></div>
+      </div>
+      <div class="field">
+        <div class="fl">知ったきっかけ</div>
+        <div class="chips" role="radiogroup"><span class="chip on">知人の紹介</span><span class="chip">SNS</span><span class="chip">connpass などの告知</span><span class="chip">その他</span></div>
+      </div>
+      <div class="field">
+        <div class="fl">支払い方法</div>
+        <div class="chips" role="radiogroup"><span class="chip on">PayPay</span><span class="chip">現金</span><span class="chip">無料（招待など）</span></div>
+      </div>
+      <div class="btn primary full">チェックインする</div>
+    </div>
+    <div class="homebar"></div>
+  </div>
+</div>
+
+<!-- ========== P1 済んだあと ========== -->
+<div class="col">
+  <div class="lbl"><b>P1</b>チェックインの画面・済んだあと<span>FR-4 の「チェックインしました」＋交流会の名前／紙の名札の案内／オープンチャット（FR-17・Should）／アンケートが開いているとき</span></div>
+  <div class="phone">
+    <div class="status">9:41<i>●●● ▮</i></div>
+    <div class="linebar"><div class="t"><strong>kanaeru 受付</strong><small>reception-xxxxxxxx-an.a.run.app</small></div><span class="ib">⋯</span><span class="ib">✕</span></div>
+    <div class="scr">
+      <div class="card done">
+        <div class="mark ok" aria-hidden="true">✓</div>
+        <h2>チェックインしました</h2>
+        <p>IT交流会 11月</p>
+      </div>
+      <div class="card">
+        <div class="field">
+          <div class="fl">次にすること</div>
+          <ol class="steps">
+            <li>受付にある紙の名札に、名前を書いてください。</li>
+            <li>名札を胸につけて、会場へお入りください。</li>
+          </ol>
+        </div>
+      </div>
+      <div class="card">
+        <div class="field">
+          <div class="fl">アンケートが始まりました</div>
+          <p class="note">仕事の困りごとを教えてください。1分ほどで終わります。</p>
+          <div class="btn primary full">アンケートに答える</div>
+        </div>
+      </div>
+      <p style="margin:0"><a href="#">交流会のオープンチャットに参加する</a></p>
+    </div>
+    <div class="homebar"></div>
+  </div>
+</div>
+
+<!-- ========== P2 アンケートの画面 ========== -->
+<div class="col">
+  <div class="lbl"><b>P2</b>アンケートの画面<span>/e/{eventId}/survey・FR-10 の設問と選択肢</span></div>
+  <div class="phone">
+    <div class="status">9:41<i>●●● ▮</i></div>
+    <div class="linebar"><div class="t"><strong>kanaeru 受付</strong><small>reception-xxxxxxxx-an.a.run.app</small></div><span class="ib">⋯</span><span class="ib">✕</span></div>
+    <div class="scr">
+      <div class="field">
+        <div class="fl" style="font-size:18px">仕事の困りごとを聞かせてください</div>
+        <p class="hint">この交流会では、参加者の仕事の困りごとを集めて、AI活用勉強会のテーマや小さなアプリにしています。</p>
+        <p class="hint">・書いてもらった内容は、主催者だけが読みます。勉強会やアプリにするときに、お名前を出すことはありません。<br>・1分ほどで終わります。答えにくい設問は、飛ばして大丈夫です。</p>
+      </div>
+      <div class="divider"></div>
+      <div class="field">
+        <div class="fl">困りごと</div>
+        <p class="hint">仕事で、めんどくさいと感じていることを書いてください。</p>
+        <div class="textarea">部下にAIをどう使わせればいいか分からない。何から始めればいいか、教えられる人もいない。</div>
+      </div>
+      <div class="field">
+        <div class="fl">実現したら、月いくらなら使いますか</div>
+        <p class="hint">答えるだけで、実際には払いません。</p>
+        <div class="chips"><span class="chip">0円</span><span class="chip">500円</span><span class="chip">1,000円</span><span class="chip on">3,000円以上</span><span class="chip">分からない</span></div>
+      </div>
+      <div class="field">
+        <div class="fl">テスターになりますか</div>
+        <div class="chips"><span class="chip on">はい</span><span class="chip">いいえ</span></div>
+      </div>
+      <div class="divider"></div>
+      <div class="field">
+        <div class="fl">仕事の立場<small>任意</small></div>
+        <div class="chips"><span class="chip">答えない</span><span class="chip">経営者</span><span class="chip on">管理職</span><span class="chip">会社員</span><span class="chip">フリーランス</span><span class="chip">学生</span><span class="chip">その他</span></div>
+      </div>
+      <div class="field">
+        <div class="fl">職種<small>任意</small></div>
+        <div class="chips"><span class="chip">答えない</span><span class="chip">エンジニア</span><span class="chip">デザイナー</span><span class="chip on">営業</span><span class="chip">マーケティング</span><span class="chip">企画・PM</span><span class="chip">事務・管理部門</span><span class="chip">経営</span><span class="chip">その他</span></div>
+      </div>
+      <div class="btn primary full">送る</div>
+    </div>
+    <div class="homebar"></div>
+  </div>
+</div>
+
+<!-- ========== P2 送ったあと ========== -->
+<div class="col">
+  <div class="lbl"><b>P2</b>アンケートの画面・送ったあと<span>FR-10 のお礼／GoogleフォームのURLがあるときだけボタンが出る（決定A20）</span></div>
+  <div class="phone">
+    <div class="status">9:41<i>●●● ▮</i></div>
+    <div class="linebar"><div class="t"><strong>kanaeru 受付</strong><small>reception-xxxxxxxx-an.a.run.app</small></div><span class="ib">⋯</span><span class="ib">✕</span></div>
+    <div class="scr">
+      <div class="card done">
+        <div class="mark ok" aria-hidden="true">✓</div>
+        <h2>ありがとうございました</h2>
+        <p>あなたの困りごとが、解決する企画やアプリにつながります。</p>
+      </div>
+      <div class="card">
+        <div class="field">
+          <div class="fl">交流会の感想も聞かせてください</div>
+          <p class="note">Googleフォームが開きます。</p>
+          <div class="btn primary full">続けて交流会のアンケートへ</div>
+        </div>
+      </div>
+    </div>
+    <div class="homebar"></div>
+  </div>
+</div>
+
+<!-- ========== A3 スマホ 参加者タブ ========== -->
+<div class="col">
+  <div class="lbl"><b>A3</b>一覧画面（スマホ・受付係）参加者タブ<span>タブは参加者・合計だけ（困りごとは主催者だけ）・手の印・同じ名前の印（FR-5）・5秒おきに読み直す</span></div>
+  <div class="phone">
+    <div class="status">19:12<i>●●● ▮</i></div>
+    <div class="appbar"><div class="t"><strong>IT交流会 11月</strong><small>11月25日（水）19:00・受付係</small></div><span class="ib" aria-label="メニュー">☰</span></div>
+    <div class="tabs"><span class="tab on">参加者</span><span class="tab">合計</span></div>
+    <div class="scr" style="gap:12px">
+      <div class="btn primary full">手でチェックイン</div>
+      <div class="meta"><span><b style="color:var(--text)">22人</b>（新しい順）</span><span>5秒おきに新しくなります</span></div>
+      <div class="list">
+        <div class="li"><div class="m"><div class="n">佐藤 一郎</div><div class="s"><span class="num">19:11</span><span class="tag pay">PayPay</span><span>connpass</span></div></div><span class="ib">⋯</span></div>
+        <div class="li dupbg"><div class="m"><div class="n">山本 大輔<span class="tag hand" title="手でのチェックイン">手</span><span class="tag dup">同じ名前があります</span></div><div class="s"><span class="num">19:09</span><span class="tag pay">現金</span><span>直接</span></div></div><span class="ib">⋯</span></div>
+        <div class="li"><div class="m"><div class="n">鈴木 花子</div><div class="s"><span class="num">19:08</span><span class="tag pay">現金</span><span>Peatix</span></div></div><span class="ib">⋯</span></div>
+        <div class="li"><div class="m"><div class="n">山本 大輔</div><div class="s"><span class="num">19:06</span><span class="tag pay">現金</span><span>connpass</span></div></div><span class="ib">⋯</span></div>
+        <div class="li"><div class="m"><div class="n">高橋 美咲</div><div class="s"><span class="num">19:05</span><span class="tag pay">PayPay</span><span>connpass</span></div></div><span class="ib">⋯</span></div>
+        <div class="li"><div class="m"><div class="n">中村 誠<span class="tag hand">手</span></div><div class="s"><span class="num">19:03</span><span class="tag pay">無料</span><span>その他</span></div></div><span class="ib">⋯</span></div>
+        <div class="li"><div class="m"><div class="n">田中 健</div><div class="s"><span class="num">19:01</span><span class="tag pay">PayPay</span><span>connpass</span></div></div><span class="ib">⋯</span></div>
+      </div>
+    </div>
+    <div class="homebar"></div>
+  </div>
+</div>
+
+<!-- ========== A3 スマホ 合計タブ ========== -->
+<div class="col">
+  <div class="lbl"><b>A3</b>一覧画面（スマホ・受付係）合計タブ<span>FR-12：支払い方法ごとの人数と合計金額（人数 × 参加費）</span></div>
+  <div class="phone">
+    <div class="status">19:12<i>●●● ▮</i></div>
+    <div class="appbar"><div class="t"><strong>IT交流会 11月</strong><small>11月25日（水）19:00・受付係</small></div><span class="ib">☰</span></div>
+    <div class="tabs"><span class="tab">参加者</span><span class="tab on">合計</span></div>
+    <div class="scr">
+      <div class="card">
+        <div class="field">
+          <div class="fl">支払い方法ごとの合計</div>
+          <p class="hint">参加費 3,000円 × 人数</p>
+        </div>
+        <table class="totals num">
+          <tr><th>PayPay</th><td>12人</td><td>36,000円</td></tr>
+          <tr><th>現金</th><td>8人</td><td>24,000円</td></tr>
+          <tr><th>無料</th><td>2人</td><td>0円</td></tr>
+          <tr class="sum"><th>合計</th><td>22人</td><td>60,000円</td></tr>
+        </table>
+      </div>
+      <p class="note">手でのチェックインも入ります。取り消したチェックインは入りません。</p>
+      <div class="meta"><span></span><span>5秒おきに新しくなります</span></div>
+    </div>
+    <div class="homebar"></div>
+  </div>
+</div>
+
+<!-- ========== 夜間停止 ========== -->
+<div class="col">
+  <div class="lbl"><b>状態</b>夜間停止（P1・P2・A3 共通）<span>0時〜8時はDBが止まる（architecture：自動停止・503）。P1で開いたところ</span></div>
+  <div class="phone">
+    <div class="status">0:25<i>●●● ▮</i></div>
+    <div class="linebar"><div class="t"><strong>kanaeru 受付</strong><small>reception-xxxxxxxx-an.a.run.app</small></div><span class="ib">⋯</span><span class="ib">✕</span></div>
+    <div class="scr">
+      <div class="card stop">
+        <div class="mark idle" aria-hidden="true">☾</div>
+        <h2>夜間（0時〜8時）は止まっています</h2>
+        <p>朝8時から、また使えます。</p>
+      </div>
+    </div>
+    <div class="homebar"></div>
+  </div>
+</div>
+
+</div><!-- /row -->
+
+<!-- ========== A3 PC 主催者 参加者タブ ========== -->
+<div class="pcwrap">
+  <div class="lbl"><b>A3</b>一覧画面（PC・主催者）参加者タブ<span>タブは参加者・合計・困りごと／見出しの操作：受付QR・アンケートQR（A4）、アンケートの開閉（FR-9）、受付係を招く（FR-21）、書き出し（A5）／行のメニュー：直す・取り消す（FR-8）</span></div>
+  <div class="browser">
+    <div class="chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">reception-xxxxxxxx-an.a.run.app</div></div>
+    <div class="pc">
+      <div class="crumb"><a href="#">交流会の一覧</a></div>
+      <div class="pchead">
+        <div><h2>IT交流会 11月</h2><p>2026年11月25日（水）19:00・渋谷・コワーキングスペース 3階・参加費 3,000円</p></div>
+        <div class="actions">
+          <span class="btn secondary sm">受付QR</span>
+          <span class="btn secondary sm">アンケートQR</span>
+          <span class="switch"><span class="sw" aria-hidden="true"></span>アンケートを開く<span class="sw-state">開いています</span></span>
+          <span class="btn secondary sm">受付係を招く</span>
+          <span class="btn secondary sm">書き出し</span>
+        </div>
+      </div>
+      <div class="tabs pctabs"><span class="tab on">参加者</span><span class="tab">合計</span><span class="tab">困りごと</span></div>
+      <div class="toolbar">
+        <div class="meta"><span><b style="color:var(--text)">22人</b>（新しい順）</span><span>5秒おきに新しくなります</span></div>
+        <span class="btn primary">手でチェックイン</span>
+      </div>
+      <table class="t">
+        <thead><tr><th>名前</th><th>チェックインの時刻</th><th>申し込みの媒体</th><th>知ったきっかけ</th><th>支払い方法</th><th></th></tr></thead>
+        <tbody class="num">
+          <tr><td class="nm">佐藤 一郎</td><td>19:11</td><td>connpass</td><td>知人の紹介</td><td>PayPay</td><td class="mcell"><span class="mbtn">⋯</span></td></tr>
+          <tr class="dupbg"><td class="nm">山本 大輔<span class="tag hand">手</span><span class="tag dup">同じ名前があります</span></td><td>19:09</td><td>直接</td><td>その他</td><td>現金</td><td class="mcell"><span class="mbtn open">⋯</span><div class="menu"><div>直す</div><div class="dz">取り消す</div></div></td></tr>
+          <tr><td class="nm">鈴木 花子</td><td>19:08</td><td>Peatix</td><td>SNS</td><td>現金</td><td class="mcell"><span class="mbtn">⋯</span></td></tr>
+          <tr><td class="nm">山本 大輔</td><td>19:06</td><td>connpass</td><td>connpass などの告知</td><td>現金</td><td class="mcell"><span class="mbtn">⋯</span></td></tr>
+          <tr><td class="nm">高橋 美咲</td><td>19:05</td><td>connpass</td><td>SNS</td><td>PayPay</td><td class="mcell"><span class="mbtn">⋯</span></td></tr>
+          <tr><td class="nm">中村 誠<span class="tag hand">手</span></td><td>19:03</td><td>その他</td><td>知人の紹介</td><td>無料（招待など）</td><td class="mcell"><span class="mbtn">⋯</span></td></tr>
+          <tr><td class="nm">田中 健</td><td>19:01</td><td>connpass</td><td>connpass などの告知</td><td>PayPay</td><td class="mcell"><span class="mbtn">⋯</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ========== A3 PC 主催者 困りごとタブ ========== -->
+<div class="pcwrap">
+  <div class="lbl"><b>A3</b>一覧画面（PC・主催者）困りごとタブ<span>FR-14：テスター「はい」だけに絞り、月いくらの高い順に並べたところ</span></div>
+  <div class="browser">
+    <div class="chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">reception-xxxxxxxx-an.a.run.app</div></div>
+    <div class="pc">
+      <div class="tabs pctabs"><span class="tab">参加者</span><span class="tab">合計</span><span class="tab on">困りごと</span></div>
+      <div class="toolbar">
+        <div class="filters">
+          <span class="check"><span class="box">✓</span>テスター「はい」だけ</span>
+          <span class="select">並べ方：月いくらの高い順 <span aria-hidden="true">▾</span></span>
+        </div>
+        <span class="note"><b style="color:var(--text)">4件</b>（全部で 18件）</span>
+      </div>
+      <table class="t">
+        <thead><tr><th>困りごと</th><th>名前</th><th>月いくら</th><th>テスター</th><th>仕事の立場</th></tr></thead>
+        <tbody class="num">
+          <tr><td class="worry">部下にAIをどう使わせればいいか分からない。何から始めればいいか、教えられる人もいない。</td><td>佐藤 一郎</td><td>3,000円以上</td><td>はい</td><td>管理職</td></tr>
+          <tr><td class="worry">見積もりと請求書を毎月手で作っていて、半日かかる。</td><td>高橋 美咲</td><td>1,000円</td><td>はい</td><td>フリーランス</td></tr>
+          <tr><td class="worry">会議の日程を合わせるのに、メールが何往復もする。</td><td>田中 健</td><td>500円</td><td>はい</td><td>会社員</td></tr>
+          <tr><td class="worry">交流会で名刺をもらっても、あとで誰だったか思い出せない。</td><td>鈴木 花子</td><td>分からない</td><td>はい</td><td>経営者</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div></body></html>
