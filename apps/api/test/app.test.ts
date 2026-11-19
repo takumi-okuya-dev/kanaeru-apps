@@ -92,10 +92,50 @@ describe("組み立て", () => {
       "openChatUrl",
       "organizerLineUserId",
       "testLoginEnabled",
+      "threadsApiBaseUrl",
       "webUrl",
     ]);
     expect(received?.config.lineChannelIds).toEqual(["1234567890"]);
     expect(received?.fetch).toBe(fakeFetch);
+    // 秘密の値は、値ではなく道具（秘密の箱・合言葉の確かめ）にして渡す。設定がなければ箱はなく、合言葉はいつも合わない
+    expect(Object.keys(received ?? {}).sort()).toEqual([
+      "apps",
+      "config",
+      "db",
+      "features",
+      "fetch",
+      "isJobRequest",
+      "logger",
+      "metaApp",
+      "secretBox",
+    ]);
+    expect(received?.secretBox).toBeUndefined();
+    expect(received?.isJobRequest("Bearer ")).toBe(false);
+    // Meta のアプリの設定がなければ、その道具もない
+    expect(received?.metaApp).toBeUndefined();
+  });
+
+  it("鍵の束と合言葉の設定があれば、秘密の箱と合言葉の確かめを渡す（値は渡さない）", async () => {
+    let received: DomainRouteDeps | undefined;
+    const spy: DomainModule = {
+      routes: (deps) => {
+        received = deps;
+        return new OpenAPIHono<AppEnv>();
+      },
+    };
+    const key = btoa(String.fromCharCode(...new Uint8Array(32).fill(5)));
+    buildApp(
+      database,
+      testConfig({
+        tokenEncryption: { keyRing: JSON.stringify({ "1": key }), currentVersion: 1 },
+        jobTriggerSecret: "k".repeat(32),
+      }),
+      { extraModules: [spy] },
+    );
+    const sealed = await received?.secretBox?.seal("値", "id");
+    expect(sealed?.keyVersion).toBe(1);
+    expect(received?.isJobRequest(`Bearer ${"k".repeat(32)}`)).toBe(true);
+    expect(JSON.stringify(received?.config)).not.toContain(key);
   });
 
   it("動いているかの窓口は、DB につながれば ok を返し、要求の ID と守りの見出しをつける", async () => {
@@ -185,6 +225,40 @@ describe("組み立て", () => {
     expect(((await other.json()) as { error: { code: string } }).error.code).toBe("FORBIDDEN");
     const same = await app.request("/api/v1/test-only/echo", jsonRequest("POST", { value: "x" }));
     expect(same.status).toBe(200);
+  });
+
+  it("フォームの形の書きこみは、Webhook の道（/api/v1/<領域>/webhooks/…）だけ源の確かめを通さない", async () => {
+    // 外のサービス（Meta）は Origin なしのフォームの形で送る。Webhook の道は領域が署名で確かめる
+    const accepted = createRoute({
+      method: "post",
+      path: "/api/v1/sample/webhooks/ping",
+      responses: { 200: { description: "受け取った" } },
+    });
+    const plain = createRoute({
+      method: "post",
+      path: "/api/v1/test-only/form",
+      responses: { 200: { description: "受け取った" } },
+    });
+    const forms: DomainModule = {
+      routes: () =>
+        new OpenAPIHono<AppEnv>()
+          .openapi(accepted, (c) => c.json({}, 200))
+          .openapi(plain, (c) => c.json({}, 200)),
+    };
+    const app = buildApp(database, testConfig(), { extraModules: [forms] });
+    const form = {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: "signed_request=x",
+    };
+    expect((await app.request("/api/v1/sample/webhooks/ping", form)).status).toBe(200);
+    expect((await app.request("/api/v1/test-only/form", form)).status).toBe(403);
+    // Webhook の道でも、画面と違う源（Origin）は止める
+    const foreign = await app.request("/api/v1/sample/webhooks/ping", {
+      ...form,
+      headers: { ...form.headers, origin: "https://evil.example.com" },
+    });
+    expect(foreign.status).toBe(403);
   });
 
   it("本文が大きすぎれば 413 の PAYLOAD_TOO_LARGE", async () => {

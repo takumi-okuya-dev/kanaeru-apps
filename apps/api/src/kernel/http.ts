@@ -3,11 +3,13 @@
 import { z } from "@hono/zod-openapi";
 import { jstDate } from "@workspace/contracts/core";
 import type { AppDefinition } from "@workspace/contracts/core";
+import type { SecretBox } from "@workspace/secret-box";
 import type { RequestIdVariables } from "hono/request-id";
 import type { Config } from "./config.ts";
 import type { Db } from "./db.ts";
 import { errorResponse } from "./errors.ts";
 import type { DomainFeatures } from "./features.ts";
+import type { MetaApp } from "./meta-app.ts";
 import type { Logger } from "./logger.ts";
 
 /** 道の文脈の型（要求ごとの値）。 */
@@ -20,7 +22,12 @@ export type ApiEnv = { Variables: RequestIdVariables };
 export type DomainConfig = Readonly<
   Pick<
     Config,
-    "webUrl" | "lineChannelIds" | "organizerLineUserId" | "openChatUrl" | "testLoginEnabled"
+    | "webUrl"
+    | "lineChannelIds"
+    | "organizerLineUserId"
+    | "openChatUrl"
+    | "testLoginEnabled"
+    | "threadsApiBaseUrl"
   >
 >;
 
@@ -36,6 +43,21 @@ export type DomainRouteDeps = {
   config: DomainConfig;
   /** 外のサービス（LINE など）への HTTP の出口。テストでは差しかえる（既定は外へ出ない） */
   fetch: typeof fetch;
+  /**
+   * 秘密の箱（外のサービスのトークンを DB に持つ前に包む。AES-256-GCM。鍵の値は渡さない）。
+   * 設定 TOKEN_ENCRYPTION_KEYS がなければ undefined（トークンを持つ機能は「準備ができていない」と断る）
+   */
+  secretBox: SecretBox | undefined;
+  /**
+   * 定期の仕事（Cloud Scheduler）からの要求かを確かめる（見出し Authorization: Bearer <JOB_TRIGGER_SECRET>）。
+   * 合言葉の設定がなければ、いつも false（定期の仕事の窓口は断る）。合言葉の値は渡さない
+   */
+  isJobRequest: (authorization: string | undefined) => boolean;
+  /**
+   * アプリの Meta のアプリ（OAuth の接続・Meta の Webhook の署名の確かめ。秘密の値は渡さない）。
+   * 設定 THREADS_APP_ID・THREADS_APP_SECRET がなければ undefined（その機能は使えない）。手で組み立てるテストは書かなくてよい
+   */
+  metaApp?: MetaApp | undefined;
   /** 登録されたアプリ（apps.list.ts の順。テストでは組み立ての extraApps も足す。suite の台帳が読む。AD-15） */
   apps: readonly AppDefinition[];
 };

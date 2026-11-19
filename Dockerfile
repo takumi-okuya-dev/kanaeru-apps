@@ -34,7 +34,7 @@ FROM base AS api
 COPY . .
 RUN pnpm install --frozen-lockfile --prod --filter "api..." \
   && rm -rf apps/api/test \
-  && find apps/api/src packages/contracts/src packages/csv/src -name "*.test.ts" -delete
+  && find apps/api/src packages/contracts/src packages/csv/src packages/secret-box/src -name "*.test.ts" -delete
 
 # ---- 動かすコンテナ（pnpm を持たない。ファイルは root の持ち物で、動かす人〈node〉は書き換えられない）
 FROM node:26.13.1-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS runtime
@@ -47,6 +47,7 @@ COPY --from=api /app/package.json /app/pnpm-workspace.yaml ./
 COPY --from=api /app/node_modules ./node_modules
 COPY --from=api /app/packages/contracts ./packages/contracts
 COPY --from=api /app/packages/csv ./packages/csv
+COPY --from=api /app/packages/secret-box ./packages/secret-box
 COPY --from=api /app/apps/api ./apps/api
 COPY --from=web /app/apps/web/dist ./apps/web/dist
 WORKDIR /app/apps/api

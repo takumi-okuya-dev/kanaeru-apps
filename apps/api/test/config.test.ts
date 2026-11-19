@@ -166,4 +166,74 @@ describe("設定", () => {
     expect(problemKeys({ ...STAGING, APP_ENV: "production" })).toEqual(["OPENAPI_DOC_ENABLED"]);
     expect(problemKeys(STAGING)).toEqual([]);
   });
+
+  it("Meta のアプリの ID と秘密の値は、両方そろえて読む（threads-010）", () => {
+    const secret = "m".repeat(32);
+    expect(
+      loadConfig({ ...LOCAL, THREADS_APP_ID: "123456", THREADS_APP_SECRET: secret }).threadsApp,
+    ).toEqual({
+      appId: "123456",
+      appSecret: secret,
+    });
+    expect(loadConfig(LOCAL).threadsApp).toBeUndefined();
+    expect(problemKeys({ ...LOCAL, THREADS_APP_ID: "123456" })).toEqual(["THREADS_APP_SECRET"]);
+    expect(problemKeys({ ...LOCAL, THREADS_APP_SECRET: secret })).toEqual(["THREADS_APP_ID"]);
+    expect(problemKeys({ ...LOCAL, THREADS_APP_ID: "abc", THREADS_APP_SECRET: secret })).toEqual([
+      "THREADS_APP_ID",
+    ]);
+    expect(problemKeys({ ...LOCAL, THREADS_APP_ID: "1", THREADS_APP_SECRET: "short" })).toEqual([
+      "THREADS_APP_SECRET",
+    ]);
+  });
+
+  it("外のサービスのトークンを包む鍵の束・定期の仕事の合言葉・Threads の API の宛先を読む（値は文に出さない）", () => {
+    const key = btoa(String.fromCharCode(...new Uint8Array(32).fill(3)));
+    const ring = JSON.stringify({ "1": key });
+    const config = loadConfig({
+      ...LOCAL,
+      TOKEN_ENCRYPTION_KEYS: ring,
+      TOKEN_ENCRYPTION_KEY_VERSION: "1",
+      JOB_TRIGGER_SECRET: "j".repeat(32),
+      THREADS_API_BASE_URL: "http://127.0.0.1:9790/",
+    });
+    expect(config.tokenEncryption).toEqual({ keyRing: ring, currentVersion: 1 });
+    expect(config.jobTriggerSecret).toBe("j".repeat(32));
+    expect(config.threadsApiBaseUrl).toBe("http://127.0.0.1:9790");
+    const defaults = loadConfig(LOCAL);
+    expect(defaults.tokenEncryption).toBeUndefined();
+    expect(defaults.jobTriggerSecret).toBeUndefined();
+    expect(defaults.threadsApiBaseUrl).toBe("https://graph.threads.net");
+
+    expect(problemKeys({ ...LOCAL, TOKEN_ENCRYPTION_KEYS: ring })).toEqual([
+      "TOKEN_ENCRYPTION_KEY_VERSION",
+    ]);
+    expect(problemKeys({ ...LOCAL, TOKEN_ENCRYPTION_KEY_VERSION: "1" })).toEqual([
+      "TOKEN_ENCRYPTION_KEYS",
+    ]);
+    expect(
+      problemKeys({ ...LOCAL, TOKEN_ENCRYPTION_KEYS: ring, TOKEN_ENCRYPTION_KEY_VERSION: "2" }),
+    ).toEqual(["TOKEN_ENCRYPTION_KEYS"]);
+    expect(problemKeys({ ...LOCAL, JOB_TRIGGER_SECRET: "short" })).toEqual(["JOB_TRIGGER_SECRET"]);
+    expect(problemKeys({ ...LOCAL, THREADS_API_BASE_URL: "graph.threads.net" })).toEqual([
+      "THREADS_API_BASE_URL",
+    ]);
+    expect(() =>
+      loadConfig({
+        ...LOCAL,
+        TOKEN_ENCRYPTION_KEYS: `{"1":"${key}x"}`,
+        TOKEN_ENCRYPTION_KEY_VERSION: "1",
+      }),
+    ).toThrow(expect.objectContaining({ message: expect.not.stringContaining(key) as string }));
+    // .env.example を写したままの空の値は「ない」とみなす（起動を止めない）
+    expect(
+      loadConfig({ ...LOCAL, TOKEN_ENCRYPTION_KEYS: "", TOKEN_ENCRYPTION_KEY_VERSION: "" })
+        .tokenEncryption,
+    ).toBeUndefined();
+    expect(problemKeys({ ...STAGING, THREADS_API_BASE_URL: "http://127.0.0.1:9790" })).toEqual([
+      "THREADS_API_BASE_URL",
+    ]);
+    expect(problemKeys({ ...STAGING, THREADS_API_BASE_URL: "https://graph.threads.net" })).toEqual(
+      [],
+    );
+  });
 });
