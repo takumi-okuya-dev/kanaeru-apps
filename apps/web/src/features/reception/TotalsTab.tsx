@@ -183,7 +183,7 @@ export function TotalsTab({
           </h2>
           {breakdown ? (
             <>
-              <div className="flex flex-col gap-xs wide:flex-row">
+              <div className="grid gap-xs wide:grid-cols-2">
                 <BreakdownTable
                   title={`${CHECKIN_QUESTION_LABELS.applicationSource}の内訳`}
                   rows={breakdown.applicationSource.map((row) => ({
@@ -200,7 +200,7 @@ export function TotalsTab({
                 />
               </div>
               {breakdown.discounts.some((row) => row.discountId !== null) ? (
-                <div className="flex flex-col gap-xs wide:flex-row wide:items-start">
+                <div className="grid items-start gap-xs wide:grid-cols-2">
                   <DiscountBreakdownTable rows={breakdown.discounts} />
                   {breakdown.referrers.length > 0 ? (
                     <BreakdownTable
