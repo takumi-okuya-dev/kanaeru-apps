@@ -20,6 +20,9 @@ export function toMyCheckin(record: CheckinRecord): MyCheckin {
     referral: record.referral,
     paymentMethod: record.paymentMethod,
     amount: record.amount,
+    discountId: record.discountId,
+    discountName: record.discountName,
+    discountAmount: record.discountAmount,
     checkedInAt: record.createdAt.toISOString(),
   };
 }
@@ -67,16 +70,18 @@ export async function enteredByNames(
 }
 
 /**
- * チェックインを、一覧画面の行にする。
+ * チェックインを、一覧画面の行にする。紹介者の名前は主催者のときだけ入れる（第三者の名前。reception-002 research R7）。
  * @param record チェックイン
  * @param names 手で入れた人の表示名（enteredByNames）
  * @param flagged 同じ名前の印を付ける行の ID（sameNameIds）
+ * @param showReferrer 紹介者の名前を入れるか（主催者のときだけ true）
  * @returns 一覧画面の行
  */
 export function toCheckinView(
   record: CheckinRecord,
   names: ReadonlyMap<string, string>,
   flagged: ReadonlySet<string>,
+  showReferrer: boolean,
 ): CheckinView {
   return {
     ...toMyCheckin(record),
@@ -84,5 +89,6 @@ export function toCheckinView(
     accountId: record.accountId,
     enteredByName: record.enteredBy ? (names.get(record.enteredBy) ?? null) : null,
     sameName: flagged.has(record.id),
+    referrerName: showReferrer ? record.referrerName : null,
   };
 }

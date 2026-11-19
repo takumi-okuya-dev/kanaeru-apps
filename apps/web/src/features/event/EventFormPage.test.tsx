@@ -84,8 +84,36 @@ describe("交流会の入力の確かめ", () => {
         fee: 1000,
         googleFormUrl: null,
         lineGroupUrl: null,
+        discounts: [],
       },
     });
+  });
+
+  it("割引の行を送る形にする（額の全角・桁の区切りを除く。誤りは行の欄の名前で）", () => {
+    const rows = [
+      {
+        key: "a",
+        id: "0193a1b2-0000-7000-8000-000000000009",
+        name: "紹介割",
+        amount: "１,０００",
+        asksReferrer: true,
+      },
+      { key: "b", name: "学割", amount: "", asksReferrer: false },
+    ];
+    const result = validateEventForm(VALUES, rows);
+    expect(result).toEqual({
+      ok: false,
+      errors: { "discounts.1.amount": "割引の額を数字で入れてください。" },
+    });
+    const ok = validateEventForm(VALUES, rows.slice(0, 1));
+    expect(ok.ok && ok.input.discounts).toEqual([
+      {
+        id: "0193a1b2-0000-7000-8000-000000000009",
+        name: "紹介割",
+        amount: 1000,
+        asksReferrer: true,
+      },
+    ]);
   });
 
   it("空の欄と誤りを、欄の名前ごとにまとめる（日時の誤りは日付の欄に出す）", () => {
@@ -134,9 +162,45 @@ describe("交流会の作成の画面", () => {
             fee: 0,
             googleFormUrl: null,
             lineGroupUrl: null,
+            discounts: [],
           },
         },
       ]),
+    );
+  });
+
+  it("割引を足して作ると、割引の行も一緒に送る。同じ名前は2つ目の名前の欄のそばに出る", async () => {
+    const sent = stubApi(true);
+    renderWithRouter(<EventNewPage />);
+    await screen.findByRole("heading", { level: 1, name: "交流会を追加" });
+    await userEvent.type(screen.getByRole("textbox", { name: /交流会の名前/ }), VALUES.name);
+    await userEvent.type(screen.getByLabelText(/日付/), VALUES.date);
+    await userEvent.type(screen.getByLabelText(/時刻/), VALUES.time);
+    await userEvent.type(screen.getByRole("textbox", { name: /会場/ }), VALUES.venue);
+    await userEvent.type(screen.getByRole("textbox", { name: /参加費/ }), "5000");
+
+    await userEvent.click(screen.getByRole("button", { name: "割引を足す" }));
+    await userEvent.click(screen.getByRole("button", { name: "割引を足す" }));
+    const names = screen.getAllByRole("textbox", { name: /割引の名前/ });
+    const amounts = screen.getAllByRole("textbox", { name: /割引の額/ });
+    await userEvent.type(names[0]!, "紹介割");
+    await userEvent.type(amounts[0]!, "1000");
+    await userEvent.click(screen.getAllByRole("checkbox", { name: "紹介者の名前を聞く" })[0]!);
+    await userEvent.type(names[1]!, "紹介割");
+    await userEvent.type(amounts[1]!, "500");
+    await userEvent.click(screen.getByRole("button", { name: "作る" }));
+    const second = screen.getAllByRole("textbox", { name: /割引の名前/ })[1]!;
+    expect(second).toHaveAccessibleDescription(/同じ名前の割引があります/);
+    expect(sent.filter((item) => item.method === "POST")).toEqual([]);
+
+    // 2つ目の行を外す
+    await userEvent.click(screen.getAllByRole("button", { name: /外す/ })[1]!);
+    await userEvent.click(screen.getByRole("button", { name: "作る" }));
+    await waitFor(() =>
+      expect(sent.find((item) => item.method === "POST")?.body).toMatchObject({
+        fee: 5000,
+        discounts: [{ name: "紹介割", amount: 1000, asksReferrer: true }],
+      }),
     );
   });
 

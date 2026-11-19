@@ -4,10 +4,15 @@ export type { QrKind } from "./admin-paths.ts";
 export { EVENT_ERRORS } from "./errors.ts";
 export type { EventErrorKey } from "./errors.ts";
 export {
+  EVENT_DISCOUNTS_MAX,
+  EVENT_DISCOUNT_NAME_MAX,
   EVENT_FEE_MAX,
   EVENT_NAME_MAX,
   EVENT_URL_MAX,
   EVENT_VENUE_MAX,
+  EventDiscountInput,
+  EventDiscountView,
+  EventDiscountsInput,
   EventInput,
   EventList,
   EventRoleSchema,

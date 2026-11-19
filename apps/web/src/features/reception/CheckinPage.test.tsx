@@ -22,6 +22,7 @@ const SUMMARY: EventSummary = {
   googleFormUrl: null,
   lineGroupUrl: null,
   openChatUrl: null,
+  discounts: [],
 };
 
 /** チェックインの見本。 */
@@ -186,9 +187,52 @@ describe("チェックインの画面", () => {
           applicationSource: "peatix",
           referral: "sns",
           paymentMethod: "cash",
+          discountId: null,
         },
       },
     ]);
+    // 割引のない交流会には割引の設問を出さない
+    expect(screen.queryByRole("radiogroup", { name: "割引" })).toBeNull();
+  });
+
+  it("割引があれば「割引なし」が選ばれたチップを出し、紹介者を聞く割引を選んだときだけ紹介者の欄を出して送る", async () => {
+    const referralId = "0193a1b2-0000-7000-8000-00000000000a";
+    const sent = stubApi({
+      summary: {
+        fee: 5000,
+        discounts: [
+          { id: referralId, name: "紹介割", amount: 1000, asksReferrer: true },
+          {
+            id: "0193a1b2-0000-7000-8000-00000000000b",
+            name: "学割",
+            amount: 500,
+            asksReferrer: false,
+          },
+        ],
+      },
+    });
+    const { container } = renderWithRouter(<CheckinPage eventId={EVENT_ID} />);
+    await screen.findByRole("heading", { level: 1, name: "11月の交流会" });
+    expect(screen.getByRole("radio", { name: "割引なし" })).toBeChecked();
+    expect(screen.queryByRole("textbox", { name: /紹介してくれた人の名前/ })).toBeNull();
+
+    await userEvent.click(screen.getByRole("radio", { name: "学割（−500円）" }));
+    expect(screen.queryByRole("textbox", { name: /紹介してくれた人の名前/ })).toBeNull();
+    await userEvent.click(screen.getByRole("radio", { name: "紹介割（−1,000円）" }));
+    const referrer = screen.getByRole("textbox", { name: /紹介してくれた人の名前/ });
+    await userEvent.type(referrer, "田中 花子");
+    expect(screen.getByText(/紹介してくれた人の名前は主催者だけが読みます/)).toBeInTheDocument();
+    await expectNoAxeViolations(container);
+
+    await userEvent.click(screen.getByRole("radio", { name: "Peatix" }));
+    await userEvent.click(screen.getByRole("radio", { name: "SNS" }));
+    await userEvent.click(screen.getByRole("radio", { name: "現金" }));
+    await userEvent.click(screen.getByRole("button", { name: "チェックインする" }));
+    await screen.findByRole("heading", { level: 2, name: "チェックインしました" });
+    expect(sent.find((item) => item.method === "POST")?.body).toMatchObject({
+      discountId: referralId,
+      referrerName: "田中 花子",
+    });
   });
 
   it("チェックイン済みなら欄を出さず、アンケートが開いていれば「アンケートに答える」と案内を出す", async () => {

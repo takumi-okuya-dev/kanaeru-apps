@@ -1,4 +1,4 @@
-// 交流会の領域の表（docs/apps/event.md）。event・event_staff・staff_invite は event の領域だけが持つ（AD-3）。
+// 交流会の領域の表（docs/apps/event.md）。event・event_staff・staff_invite・event_discount は event の領域だけが持つ（AD-3）。
 // 主キーは uuid（uuidv7()）、時刻は timestamptz（docs/rules/coding.md 6-4）。金額は円の整数。
 // event を指す外部キーは RESTRICT（この版は交流会を消さない）。受付係の account は CASCADE（本人のデータ。AD-7）。
 import { sql } from "drizzle-orm";
@@ -9,6 +9,7 @@ import {
   integer,
   pgTable,
   text,
+  unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -78,5 +79,33 @@ export const staffInvite = pgTable(
   (table) => [
     uniqueIndex("staff_invite_event_id_unique").on(table.eventId),
     uniqueIndex("staff_invite_token_unique").on(table.token),
+  ],
+);
+
+/**
+ * 割引（交流会ごとに主催者が登録する名前と円の額。reception-002）。
+ * 行は消さず、外すと archived_at を入れて新しいチェックインで選べなくする（チェックインは名前と額を写す。research R1）。
+ * (event_id, id) の一意は、reception の checkin からの複合の外部キー（別の交流会の割引を指せない）のため。
+ */
+export const eventDiscount = pgTable(
+  "event_discount",
+  {
+    id: primaryId(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => event.id, { onDelete: "restrict" }),
+    /** 名前（例：紹介割） */
+    name: text("name").notNull(),
+    /** 額（円の整数・1以上） */
+    amount: integer("amount").notNull(),
+    /** 紹介者の名前を聞くか */
+    asksReferrer: boolean("asks_referrer").notNull().default(false),
+    /** 使うのをやめた時刻（使っていれば null） */
+    archivedAt: timestamptz("archived_at"),
+    ...timestamps(),
+  },
+  (table) => [
+    unique("event_discount_event_id_id_unique").on(table.eventId, table.id),
+    check("event_discount_amount_check", sql`${table.amount} > 0`),
   ],
 );

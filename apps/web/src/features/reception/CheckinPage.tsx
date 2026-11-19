@@ -1,5 +1,6 @@
 // P1 チェックインの画面（参加者が受付QRから開く。EXPERIENCE.md の P1・UJ-1）。
-// 交流会の要約 → 名前（初期値あり）→ 3つのチップ → 何をどう使うかの1文 → 「チェックインする」（この画面の主のボタン1つ）。
+// 交流会の要約 → 名前（初期値あり）→ 3つのチップ →（割引があれば）割引のチップと紹介者の欄 → 何をどう使うかの1文 →
+// 「チェックインする」（この画面の主のボタン1つ）。
 // 済んだら同じ画面をチェックインのカードに変え、カードの見出しにフォーカスを移す。チェックイン済みなら、欄を出さずにカードを出す。
 // 済んだ状態：紙の名札の案内・オープンチャット（URL があれば。FR-17）・アンケートが開いていれば「アンケートに答える」（survey の道）と
 // LINE グループ（招待リンクがあれば。FR-22）。友だち追加の案内は重ねない（FR-6）。
@@ -26,8 +27,11 @@ import { EMPTY_CHECKIN_FORM, focusFirstCheckinError, validateCheckinForm } from 
 import type { CheckinFormValues } from "./checkin-form.ts";
 import { RECEPTION_QUERY_KEYS, isNightStop, useMyCheckin } from "./queries.ts";
 
-/** 主のボタンの見た目（高さ 48px・狭い画面では横いっぱい。DESIGN の button-primary）。 */
-const primaryActionClassName = "min-h-xl w-full wide:w-auto";
+/**
+ * 主のボタンの見た目（高さ 48px・狭い画面では横いっぱい・広い画面では言葉の幅に左右 32px の余白。DESIGN の button-primary）。
+ * 縦に並べる flex の中では w-auto だけだと横に伸びるので、広い画面では self-start で左に寄せる。
+ */
+const primaryActionClassName = "min-h-xl w-full wide:w-auto wide:self-start wide:px-m";
 
 /** 外のページへのリンクの属性（LINE の中でもアプリの外として開く）。 */
 const EXTERNAL_LINK = { target: "_blank", rel: "noopener noreferrer" } as const;
@@ -193,10 +197,17 @@ function CheckinForm({ summary, state, onDone }: FormProps) {
 
   return (
     <form ref={formRef} noValidate onSubmit={submit} className="flex flex-col gap-s">
-      <CheckinFields values={values} onChange={setValues} errors={errors} />
+      <CheckinFields
+        values={values}
+        onChange={setValues}
+        errors={errors}
+        discounts={summary.discounts}
+      />
       <div className="flex flex-col gap-xxs">
         <p className="text-s text-text-sub">
-          お名前と選んだ答えは、この交流会の受付と、主催者の集計だけに使います。
+          {summary.discounts.some((discount) => discount.asksReferrer)
+            ? "お名前・選んだ答え・紹介してくれた人の名前は、この交流会の受付と、主催者の集計だけに使います。紹介してくれた人の名前は主催者だけが読みます。"
+            : "お名前と選んだ答えは、この交流会の受付と、主催者の集計だけに使います。"}
         </p>
         <Button
           type="submit"

@@ -19,6 +19,10 @@ function record(overrides: Partial<CheckinRecord> = {}): CheckinRecord {
     referral: "friend",
     paymentMethod: "paypay",
     amount: 1000,
+    discountId: null,
+    discountName: null,
+    discountAmount: null,
+    referrerName: null,
     createdAt: new Date("2026-11-25T10:03:00.000Z"),
     updatedAt: new Date("2026-11-25T10:03:00.000Z"),
     ...overrides,
@@ -33,12 +37,23 @@ describe("参加者の CSV", () => {
         record: record({ accountId: null, enteredBy: "x", paymentMethod: "free", amount: 0 }),
         enteredByName: "受付係",
       },
+      {
+        record: record({
+          amount: 4000,
+          discountId: "0193a1b2-0000-7000-8000-000000000009",
+          discountName: "紹介割",
+          discountAmount: 1000,
+          referrerName: "=田中",
+        }),
+        enteredByName: null,
+      },
     ]);
     expect(csv.startsWith("﻿名前,チェックインの時刻,")).toBe(true);
     expect(csv.split("\r\n")).toEqual([
-      "﻿名前,チェックインの時刻,申し込みの媒体,知ったきっかけ,支払い方法,金額,入れ方,入れた人",
-      "佐藤 太郎,2026-11-25 19:03,connpass,知人の紹介,PayPay,1000,LINE,",
-      "佐藤 太郎,2026-11-25 19:03,connpass,知人の紹介,無料（招待など）,0,手,受付係",
+      "﻿名前,チェックインの時刻,申し込みの媒体,知ったきっかけ,支払い方法,金額,割引,割引の額,紹介者,入れ方,入れた人",
+      "佐藤 太郎,2026-11-25 19:03,connpass,知人の紹介,PayPay,1000,,,,LINE,",
+      "佐藤 太郎,2026-11-25 19:03,connpass,知人の紹介,無料（招待など）,0,,,,手,受付係",
+      "佐藤 太郎,2026-11-25 19:03,connpass,知人の紹介,PayPay,4000,紹介割,1000,'=田中,LINE,",
       "",
     ]);
   });

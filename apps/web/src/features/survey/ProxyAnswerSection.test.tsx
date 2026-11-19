@@ -21,6 +21,7 @@ const EVENT: EventView = {
   createdAt: "2026-11-19T10:00:00.000Z",
   updatedAt: "2026-11-19T10:00:00.000Z",
   myRole: "organizer",
+  discounts: [],
 };
 
 /** 手でのチェックイン。 */
@@ -36,6 +37,10 @@ const CHECKIN: CheckinView = {
   accountId: null,
   enteredByName: "主催者",
   sameName: false,
+  discountId: null,
+  discountName: null,
+  discountAmount: null,
+  referrerName: null,
 };
 
 /** 送られた要求。 */

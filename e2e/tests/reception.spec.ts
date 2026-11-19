@@ -316,7 +316,7 @@ test("受付係が手でチェックインし、支払い方法を直すと合�
   expect([...bytes.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
   const csv = bytes.subarray(3).toString("utf8");
   expect(csv.split("\r\n")[0]).toBe(
-    "名前,チェックインの時刻,申し込みの媒体,知ったきっかけ,支払い方法,金額,入れ方,入れた人",
+    "名前,チェックインの時刻,申し込みの媒体,知ったきっかけ,支払い方法,金額,割引,割引の額,紹介者,入れ方,入れた人",
   );
   expect(csv).toContain(`${person},`);
   await organizerContext.close();

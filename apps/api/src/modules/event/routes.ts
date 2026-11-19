@@ -19,6 +19,7 @@ import {
   unauthenticatedResponse,
 } from "../account/index.ts";
 import { requireEventRole } from "./access.ts";
+import { listActiveDiscounts, listActiveDiscountsByEvents, saveDiscounts } from "./discounts.ts";
 import { generateInviteToken, isInviteToken } from "./ids.ts";
 import {
   addStaff,
@@ -48,6 +49,7 @@ const EventInput = contract.EventInput.openapi("EventInput", {
     fee: 1000,
     googleFormUrl: "https://forms.gle/example",
     lineGroupUrl: null,
+    discounts: [{ name: "紹介割", amount: 1000, asksReferrer: true }],
   },
 });
 
@@ -185,6 +187,8 @@ function defineRoutes(deps: DomainRouteDeps) {
       tags,
       operationId: "eventUpdate",
       summary: "交流会を直す（主催者だけ。すでにあるチェックインの金額は変わらない。AD-6）",
+      description:
+        "discounts を送ると、それがその交流会で使う割引のすべてになる（id のある行は直す・ない行は足す・並びにない割引は使うのをやめる。消さない）。送らなければ割引は変えない。割引を直しても、すでにあるチェックインの割引と金額は変わらない（reception-002）。",
       middleware: [session, organizerOfEvent] as const,
       request: {
         params: EventParams,
@@ -397,25 +401,51 @@ export function eventRoutes(deps: DomainRouteDeps) {
       const organizer = isOrganizer(config, me);
       const records = organizer ? await listAllEvents(db) : await listStaffEvents(db, me.accountId);
       const role = organizer ? "organizer" : "staff";
-      return c.json({ events: records.map((record) => toEventView(record, role)) }, 200);
+      const discounts = await listActiveDiscountsByEvents(
+        db,
+        records.map((record) => record.id),
+      );
+      return c.json(
+        {
+          events: records.map((record) =>
+            toEventView(record, role, discounts.get(record.id) ?? []),
+          ),
+        },
+        200,
+      );
     })
     .openapi(routes.create, async (c) => {
-      const record = await insertEvent(db, toValues(c.req.valid("json")));
-      return c.json(toEventView(record, "organizer"), 201);
+      const input = c.req.valid("json");
+      // 交流会と割引は同じ取引で作る（割引だけ残る・交流会だけ残るにしない）
+      const record = await db.transaction(async (tx) => {
+        const created = await insertEvent(tx, toValues(input));
+        if (input.discounts) await saveDiscounts(tx, created.id, input.discounts);
+        return created;
+      });
+      return c.json(
+        toEventView(record, "organizer", await listActiveDiscounts(db, record.id)),
+        201,
+      );
     })
     .openapi(routes.get, async (c) => {
       const me = currentAccount(c);
       const record = await mustFindEvent(deps, c.req.valid("param").eventId);
-      return c.json(toEventView(record, isOrganizer(config, me) ? "organizer" : "staff"), 200);
+      const role = isOrganizer(config, me) ? "organizer" : "staff";
+      return c.json(toEventView(record, role, await listActiveDiscounts(db, record.id)), 200);
     })
     .openapi(routes.update, async (c) => {
-      const record = await updateEvent(
-        db,
-        c.req.valid("param").eventId,
-        toValues(c.req.valid("json")),
+      const { eventId } = c.req.valid("param");
+      const input = c.req.valid("json");
+      const record = await db.transaction(async (tx) => {
+        const updated = await updateEvent(tx, eventId, toValues(input));
+        if (!updated) throw new AppError(EVENT_ERRORS.NOT_FOUND);
+        if (input.discounts) await saveDiscounts(tx, eventId, input.discounts);
+        return updated;
+      });
+      return c.json(
+        toEventView(record, "organizer", await listActiveDiscounts(db, record.id)),
+        200,
       );
-      if (!record) throw new AppError(EVENT_ERRORS.NOT_FOUND);
-      return c.json(toEventView(record, "organizer"), 200);
     })
     .openapi(routes.summary, async (c) => {
       const summary = await getEventSummary(db, config, c.req.valid("param").eventId);

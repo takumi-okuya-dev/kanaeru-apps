@@ -1,6 +1,6 @@
 // チェックインの読み書き（表は reception の領域だけが読み書きする。AD-3）。
 // findCheckin・getCheckin・listCheckins は survey も index.ts から使う。
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, sql } from "drizzle-orm";
 import type { Executor } from "../../kernel/db.ts";
 import { checkin } from "./schema.ts";
 
@@ -10,10 +10,18 @@ export type CheckinRecord = typeof checkin.$inferSelect;
 /** チェックインを作るときの値。 */
 export type NewCheckinValues = Omit<typeof checkin.$inferInsert, "id" | "createdAt" | "updatedAt">;
 
-/** チェックインを直すときの値（名前・3つの選択肢・金額）。 */
+/** チェックインを直すときの値（名前・3つの選択肢・金額・割引の写しと紹介者の名前）。 */
 export type CheckinChanges = Pick<
   CheckinRecord,
-  "name" | "applicationSource" | "referral" | "paymentMethod" | "amount"
+  | "name"
+  | "applicationSource"
+  | "referral"
+  | "paymentMethod"
+  | "amount"
+  | "discountId"
+  | "discountName"
+  | "discountAmount"
+  | "referrerName"
 >;
 
 /** 一覧の並び（新しい順・同じ時刻は ID の新しい順。research R6）。 */
@@ -228,4 +236,41 @@ export function countBySourceAndReferral(
     .from(checkin)
     .where(eq(checkin.eventId, eventId))
     .groupBy(checkin.applicationSource, checkin.referral);
+}
+
+/**
+ * 割引ごとの人数と、割引の額の合計（無料でないチェックインの写した割引の額の和。割引なしの行は discountId が null。
+ * reception-002 research R8）。
+ * @param db DB
+ * @param eventId 交流会の ID
+ * @returns 割引の ID・人数・割引の額の合計の並び（チェックインのない割引は返らない）
+ */
+export function sumByDiscount(
+  db: Executor,
+  eventId: string,
+): Promise<{ discountId: string | null; count: number; discountTotal: number }[]> {
+  return db
+    .select({
+      discountId: checkin.discountId,
+      count: sql<number>`count(*)::int`,
+      discountTotal: sql<number>`coalesce(sum(${checkin.discountAmount}) filter (where ${checkin.paymentMethod} <> 'free'), 0)::int`,
+    })
+    .from(checkin)
+    .where(eq(checkin.eventId, eventId))
+    .groupBy(checkin.discountId);
+}
+
+/**
+ * その交流会の紹介者の名前（空でないもの。古い順。主催者の内訳だけが使う）。
+ * @param db DB
+ * @param eventId 交流会の ID
+ * @returns 紹介者の名前の並び
+ */
+export async function listReferrerNames(db: Executor, eventId: string): Promise<string[]> {
+  const rows = await db
+    .select({ referrerName: checkin.referrerName })
+    .from(checkin)
+    .where(and(eq(checkin.eventId, eventId), isNotNull(checkin.referrerName)))
+    .orderBy(...OLDEST_FIRST);
+  return rows.flatMap((row) => (row.referrerName ? [row.referrerName] : []));
 }

@@ -12,11 +12,14 @@ import type { FieldErrors } from "../../lib/form.ts";
 import { CheckinFields } from "./CheckinFields.tsx";
 import { createManualCheckin } from "./api.ts";
 import { EMPTY_CHECKIN_FORM, focusFirstCheckinError, validateCheckinForm } from "./checkin-form.ts";
+import type { DiscountChoice } from "./format.ts";
 
 /** ManualCheckinForm が受け取るもの。 */
 export type ManualCheckinFormProps = {
   /** 交流会の ID */
   eventId: string;
+  /** 交流会の使っている割引（reception-002） */
+  discounts: readonly DiscountChoice[];
   /** 済んだとき（作った行） */
   onDone: (checkin: CheckinView) => void;
   /** やめたとき */
@@ -25,10 +28,15 @@ export type ManualCheckinFormProps = {
 
 /**
  * 手でのチェックインの欄。
- * @param props 交流会の ID（eventId）・済んだとき（onDone）・やめたとき（onCancel）
+ * @param props 交流会の ID（eventId）・割引（discounts）・済んだとき（onDone）・やめたとき（onCancel）
  * @returns 欄の要素
  */
-export function ManualCheckinForm({ eventId, onDone, onCancel }: ManualCheckinFormProps) {
+export function ManualCheckinForm({
+  eventId,
+  discounts,
+  onDone,
+  onCancel,
+}: ManualCheckinFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const [values, setValues] = useState(EMPTY_CHECKIN_FORM);
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -82,7 +90,7 @@ export function ManualCheckinForm({ eventId, onDone, onCancel }: ManualCheckinFo
       <h3 id="manual-checkin-title" className="text-l leading-tight font-bold">
         手でチェックイン
       </h3>
-      <CheckinFields values={values} onChange={setValues} errors={errors} />
+      <CheckinFields values={values} onChange={setValues} errors={errors} discounts={discounts} />
       <div className="flex flex-col gap-xxs">
         <div className="flex flex-wrap gap-xxs">
           <Button

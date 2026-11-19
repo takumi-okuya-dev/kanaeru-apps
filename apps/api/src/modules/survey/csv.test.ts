@@ -15,6 +15,10 @@ const CHECKIN: CheckinRecord = {
   referral: "friend",
   paymentMethod: "paypay",
   amount: 1000,
+  discountId: null,
+  discountName: null,
+  discountAmount: null,
+  referrerName: null,
   createdAt: new Date("2026-11-25T10:00:00Z"),
   updatedAt: new Date("2026-11-25T10:00:00Z"),
 };

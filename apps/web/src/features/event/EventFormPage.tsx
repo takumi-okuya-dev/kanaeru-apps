@@ -1,5 +1,5 @@
 // A2 交流会の作成・編集（主催者だけ。EXPERIENCE.md）。名前・日時（日本時間の日付と時刻）・会場・参加費・
-// GoogleフォームのURL（任意）・LINEグループの招待リンク（任意）。入力の誤りは欄のそば、送った結果はボタンの近く。
+// GoogleフォームのURL（任意）・LINEグループの招待リンク（任意）・割引（任意。reception-002）。入力の誤りは欄のそば、送った結果はボタンの近く。
 // 作ったら準備の画面（QR）へ、直したら一覧へ移り、画面の上の知らせの帯で伝える。
 import { EventInput } from "@workspace/contracts/event";
 import type { EventView } from "@workspace/contracts/event";
@@ -17,6 +17,8 @@ import type { FieldErrors } from "../../lib/form.ts";
 import { showNotice } from "../../lib/notice.ts";
 import { Page } from "../../lib/page.tsx";
 import { SessionGate, useSession } from "../account/index.ts";
+import { DiscountFields, toDiscountRows } from "./DiscountFields.tsx";
+import type { DiscountRowValues } from "./DiscountFields.tsx";
 import { EventAccessGate, Loading, OrganizerOnlyPage } from "./EventAccessGate.tsx";
 import { createEvent, updateEvent } from "./api.ts";
 import { fromJstInputs, parseFee, toJstInputs } from "./format.ts";
@@ -63,12 +65,14 @@ function toFormValues(event: EventView): FormValues {
 }
 
 /**
- * 欄の値を確かめ、送る形にする。
+ * 欄の値を確かめ、送る形にする。割引はいつも並び全体を送る（並びにない割引は使うのをやめる。reception-002 research R2）。
  * @param values 欄の値
+ * @param discountRows 割引の行（既定は空）
  * @returns 送る形か、欄ごとの誤り
  */
 export function validateEventForm(
   values: FormValues,
+  discountRows: readonly DiscountRowValues[] = [],
 ): { ok: true; input: EventInput } | { ok: false; errors: FieldErrors } {
   const startsAt = fromJstInputs(values.date, values.time);
   const parsed = EventInput.safeParse({
@@ -78,6 +82,12 @@ export function validateEventForm(
     fee: parseFee(values.fee),
     googleFormUrl: values.googleFormUrl.trim() || null,
     lineGroupUrl: values.lineGroupUrl.trim() || null,
+    discounts: discountRows.map((row) => ({
+      ...(row.id ? { id: row.id } : {}),
+      name: row.name,
+      amount: parseFee(row.amount),
+      asksReferrer: row.asksReferrer,
+    })),
   });
   const errors: FieldErrors = parsed.success ? {} : fieldErrorsFromIssues(parsed.error.issues);
   if (!values.date) errors.date = "日付を入れてください。";
@@ -105,6 +115,9 @@ function EventForm({ event }: EventFormProps) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [values, setValues] = useState<FormValues>(event ? toFormValues(event) : EMPTY);
+  const [discountRows, setDiscountRows] = useState<DiscountRowValues[]>(() =>
+    event ? toDiscountRows(event.discounts) : [],
+  );
   const [errors, setErrors] = useState<FieldErrors>({});
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<string>();
@@ -138,7 +151,7 @@ function EventForm({ event }: EventFormProps) {
     submitEvent.preventDefault();
     if (pending) return;
     setFailure(undefined);
-    const result = validateEventForm(values);
+    const result = validateEventForm(values, discountRows);
     if (!result.ok) {
       setErrors(result.errors);
       setFocusRequest((count) => count + 1);
@@ -210,6 +223,20 @@ function EventForm({ event }: EventFormProps) {
       >
         <Input inputMode="numeric" autoComplete="off" {...bind("fee")} />
       </Field>
+      <DiscountFields
+        rows={discountRows}
+        onChange={(rows) => {
+          setDiscountRows(rows);
+          // 行を足し・外すと行の番号がずれるので、割引の誤りは送り直すまで消す
+          setErrors((current) =>
+            Object.fromEntries(
+              Object.entries(current).filter(([key]) => !key.startsWith("discounts")),
+            ),
+          );
+        }}
+        errors={errors}
+        editing={event !== undefined}
+      />
       <Field
         label="GoogleフォームのURL"
         description="任意。アプリのアンケートを送ったあとに「続けて交流会のアンケートへ」で案内します。"

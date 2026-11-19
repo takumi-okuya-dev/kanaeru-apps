@@ -1,7 +1,8 @@
 // 受付の窓口（自分のチェックイン・一覧・手でのチェックイン・直す・取り消す・合計・内訳・参加者の CSV）。
 // 道はすべて createRoute で書き、道の頭は /api/v1/events/{eventId}/checkins（Consistency Conventions）。
 // どの道もログインが要る（account の requireSession）。管理の道は event の requireEventRole で、要求のたびに役目を引く（AD-5）。
-// 金額は作るときと支払い方法を直すときだけ決める（AD-6。amount.ts）。名前はログに出さない。
+// 金額は作るときと、支払い方法か割引を直すときだけ決める（AD-6。amount.ts・discount.ts）。名前と紹介者の名前はログに出さない。
+// 紹介者の名前は主催者だけに返す（受付係の一覧・手でのチェックイン・直すの答えでは null。reception-002 research R7）。
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { jstDate } from "@workspace/contracts/core";
 import { EVENT_ERRORS } from "@workspace/contracts/event";
@@ -18,12 +19,15 @@ import {
   unauthenticatedResponse,
 } from "../account/index.ts";
 import {
+  currentEventRole,
   eventForbiddenResponse,
   eventNotFoundResponse,
   getEventSummary,
+  listEventDiscounts,
   requireEventRole,
 } from "../event/index.ts";
 import { decideAmount } from "./amount.ts";
+import { discountForNewCheckin, discountForUpdate } from "./discount.ts";
 import { buildParticipantsCsv } from "./csv.ts";
 import {
   countBySourceAndReferral,
@@ -33,7 +37,9 @@ import {
   getCheckin,
   insertCheckin,
   listCheckins,
+  listReferrerNames,
   listSameNameCandidates,
+  sumByDiscount,
   sumByPaymentMethod,
   updateCheckin,
 } from "./repository.ts";
@@ -47,6 +53,8 @@ const CheckinInput = contract.CheckinInput.openapi("CheckinInput", {
     applicationSource: "connpass",
     referral: "friend",
     paymentMethod: "paypay",
+    discountId: "0193a1b2-0000-7000-8000-000000000001",
+    referrerName: "田中 花子",
   },
 });
 
@@ -154,7 +162,8 @@ function defineRoutes(deps: DomainRouteDeps) {
       tags,
       operationId: "receptionCheckInMine",
       summary: "自分でチェックインする（ログインした人。すでにあれば記録を増やさず、それを返す）",
-      description: "金額は、無料なら0円、ほかはその時の交流会の参加費（AD-6）。",
+      description:
+        "金額は、無料なら0円、ほかはその時の交流会の参加費から選んだ割引の額を引いたもの（0円より下にしない。AD-6・reception-002）。選べない割引は 400 DISCOUNT_UNAVAILABLE。",
       middleware: [session] as const,
       request: {
         params: EventParams,
@@ -204,7 +213,10 @@ function defineRoutes(deps: DomainRouteDeps) {
       path: `${base}/{checkinId}`,
       tags,
       operationId: "receptionUpdateCheckin",
-      summary: "チェックインを直す（主催者・受付係。支払い方法が変わったときだけ金額を決め直す）",
+      summary:
+        "チェックインを直す（主催者・受付係。支払い方法か割引が変わったときだけ金額を決め直す）",
+      description:
+        "割引を変えると、その割引の今の名前と額を写す。referrerName を送らなければ、割引が同じなら紹介者の名前を残し、割引が変われば空にする（reception-002）。",
       middleware: [session, organizerOrStaff] as const,
       request: {
         params: CheckinParams,
@@ -249,7 +261,7 @@ function defineRoutes(deps: DomainRouteDeps) {
       path: `${base}/breakdown`,
       tags,
       operationId: "receptionGetBreakdown",
-      summary: "申し込みの媒体と知ったきっかけの人数の内訳（主催者だけ）",
+      summary: "申し込みの媒体・知ったきっかけ・割引の人数の内訳と、紹介者ごとの人数（主催者だけ）",
       middleware: [session, organizerOnly] as const,
       request: { params: EventParams },
       responses: { 200: json(CheckinBreakdown, "内訳"), ...manageErrors },
@@ -290,15 +302,17 @@ async function currentFee(deps: DomainRouteDeps, eventId: string): Promise<numbe
  * チェックインの並びを、一覧画面の行にする（入れた人の名前と、同じ名前の印つき）。
  * @param deps 土台が渡す道具
  * @param records その交流会のチェックイン（印は、この並びの中で比べる）
+ * @param showReferrer 紹介者の名前を入れるか（主催者のときだけ true）
  * @returns 一覧画面の行
  */
 async function toViews(
   deps: DomainRouteDeps,
   records: readonly CheckinRecord[],
+  showReferrer: boolean,
 ): Promise<contract.CheckinView[]> {
   const names = await enteredByNames(deps.db, records);
   const flagged = sameNameIds(records);
-  return records.map((record) => toCheckinView(record, names, flagged));
+  return records.map((record) => toCheckinView(record, names, flagged, showReferrer));
 }
 
 /**
@@ -306,11 +320,13 @@ async function toViews(
  * 交流会の全部を読まず、そろえた名前が同じ行だけを DB で探して印を決める。
  * @param deps 土台が渡す道具
  * @param record チェックイン
+ * @param showReferrer 紹介者の名前を入れるか（主催者のときだけ true）
  * @returns 一覧画面の行
  */
 async function toViewInEvent(
   deps: DomainRouteDeps,
   record: CheckinRecord,
+  showReferrer: boolean,
 ): Promise<contract.CheckinView> {
   const key = contract.normalizeCheckinName(record.name);
   const [names, candidates] = await Promise.all([
@@ -324,7 +340,74 @@ async function toViewInEvent(
       (item) => item.id !== record.id && contract.normalizeCheckinName(item.name) === key,
     ),
   ];
-  return toCheckinView(record, names, sameNameIds(group));
+  return toCheckinView(record, names, sameNameIds(group), showReferrer);
+}
+
+/**
+ * 入力から、チェックインの名前と3つの選択肢だけを取り出す（割引と紹介者は discount.ts が決める）。
+ * @param input 入力
+ * @returns 名前と3つの選択肢
+ */
+function checkinFields(input: contract.CheckinInput) {
+  return {
+    name: input.name,
+    applicationSource: input.applicationSource,
+    referral: input.referral,
+    paymentMethod: input.paymentMethod,
+  };
+}
+
+/**
+ * 割引の内訳（使っている割引と、使われた割引を作った順に。最後に割引なし。research R8）。
+ * @param discounts その交流会の割引のすべて（event の listEventDiscounts）
+ * @param rows 割引ごとの人数と割引の額の合計（sumByDiscount）
+ * @returns 割引の内訳
+ */
+function discountBreakdown(
+  discounts: readonly { id: string; name: string; active: boolean }[],
+  rows: readonly { discountId: string | null; count: number; discountTotal: number }[],
+): contract.CheckinBreakdown["discounts"] {
+  const byId = new Map(rows.map((row) => [row.discountId, row]));
+  const listed = discounts.flatMap((discount) => {
+    const row = byId.get(discount.id);
+    if (!discount.active && !row) return [];
+    return [
+      {
+        discountId: discount.id,
+        name: discount.name,
+        active: discount.active,
+        count: row?.count ?? 0,
+        discountTotal: row?.discountTotal ?? 0,
+      },
+    ];
+  });
+  return [
+    ...listed,
+    {
+      discountId: null,
+      name: null,
+      active: true,
+      count: byId.get(null)?.count ?? 0,
+      discountTotal: 0,
+    },
+  ];
+}
+
+/**
+ * 紹介者ごとの人数（そろえた名前〈normalizeCheckinName〉で数え、最初に入った書き方で出す。多い順・同じ数は最初に入った順）。
+ * @param names 紹介者の名前（古い順）
+ * @returns 紹介者ごとの人数
+ */
+function referrerBreakdown(names: readonly string[]): contract.CheckinBreakdown["referrers"] {
+  const groups = new Map<string, { name: string; count: number }>();
+  for (const name of names) {
+    const key = contract.normalizeCheckinName(name);
+    const group = groups.get(key);
+    if (group) group.count += 1;
+    else groups.set(key, { name, count: 1 });
+  }
+  // Map は入れた順を保ち、sort は同じ数の並びを変えない
+  return [...groups.values()].sort((a, b) => b.count - a.count);
 }
 
 /**
@@ -357,12 +440,14 @@ export function receptionRoutes(deps: DomainRouteDeps) {
       const me = currentAccount(c);
       const existing = await findCheckin(db, eventId, me.accountId);
       if (existing) return c.json({ checkin: toMyCheckin(existing), alreadyCheckedIn: true }, 200);
+      const discount = await discountForNewCheckin(db, eventId, input);
       try {
         const record = await insertCheckin(db, {
           eventId,
           accountId: me.accountId,
-          ...input,
-          amount: decideAmount(input.paymentMethod, fee),
+          ...checkinFields(input),
+          ...discount,
+          amount: decideAmount(input.paymentMethod, fee, discount.discountAmount),
         });
         return c.json({ checkin: toMyCheckin(record), alreadyCheckedIn: false }, 201);
       } catch (error) {
@@ -375,19 +460,23 @@ export function receptionRoutes(deps: DomainRouteDeps) {
     })
     .openapi(routes.list, async (c) => {
       const records = await listCheckins(db, c.req.valid("param").eventId);
-      return c.json({ checkins: await toViews(deps, records) }, 200);
+      const showReferrer = currentEventRole(c) === "organizer";
+      return c.json({ checkins: await toViews(deps, records, showReferrer) }, 200);
     })
     .openapi(routes.createManual, async (c) => {
       const { eventId } = c.req.valid("param");
       const input = c.req.valid("json");
       const fee = await currentFee(deps, eventId);
+      const discount = await discountForNewCheckin(db, eventId, input);
       const record = await insertCheckin(db, {
         eventId,
         enteredBy: currentAccount(c).accountId,
-        ...input,
-        amount: decideAmount(input.paymentMethod, fee),
+        ...checkinFields(input),
+        ...discount,
+        amount: decideAmount(input.paymentMethod, fee, discount.discountAmount),
       });
-      return c.json(await toViewInEvent(deps, record), 201);
+      const showReferrer = currentEventRole(c) === "organizer";
+      return c.json(await toViewInEvent(deps, record, showReferrer), 201);
     })
     .openapi(routes.update, async (c) => {
       const { eventId, checkinId } = c.req.valid("param");
@@ -396,14 +485,24 @@ export function receptionRoutes(deps: DomainRouteDeps) {
       if (!current || current.eventId !== eventId) {
         throw new AppError(RECEPTION_ERRORS.CHECKIN_NOT_FOUND);
       }
-      // 金額は支払い方法が変わったときだけ、その時の参加費で決め直す（AD-6）
+      const discount = await discountForUpdate(db, current, input);
+      // 金額は支払い方法か割引が変わったときだけ、その時の参加費と写した割引の額で決め直す（AD-6・research R5）
       const amount =
-        input.paymentMethod === current.paymentMethod
+        input.paymentMethod === current.paymentMethod && !discount.changed
           ? current.amount
-          : decideAmount(input.paymentMethod, await currentFee(deps, eventId));
-      const record = await updateCheckin(db, eventId, checkinId, { ...input, amount });
+          : decideAmount(
+              input.paymentMethod,
+              await currentFee(deps, eventId),
+              discount.snapshot.discountAmount,
+            );
+      const record = await updateCheckin(db, eventId, checkinId, {
+        ...checkinFields(input),
+        ...discount.snapshot,
+        amount,
+      });
       if (!record) throw new AppError(RECEPTION_ERRORS.CHECKIN_NOT_FOUND);
-      return c.json(await toViewInEvent(deps, record), 200);
+      const showReferrer = currentEventRole(c) === "organizer";
+      return c.json(await toViewInEvent(deps, record, showReferrer), 200);
     })
     .openapi(routes.remove, async (c) => {
       const { eventId, checkinId } = c.req.valid("param");
@@ -425,7 +524,13 @@ export function receptionRoutes(deps: DomainRouteDeps) {
       return c.json({ byPaymentMethod, total }, 200);
     })
     .openapi(routes.breakdown, async (c) => {
-      const rows = await countBySourceAndReferral(db, c.req.valid("param").eventId);
+      const { eventId } = c.req.valid("param");
+      const [rows, discountRows, discounts, referrerNames] = await Promise.all([
+        countBySourceAndReferral(db, eventId),
+        sumByDiscount(db, eventId),
+        listEventDiscounts(db, eventId),
+        listReferrerNames(db, eventId),
+      ]);
       const sum = (match: (row: (typeof rows)[number]) => boolean) =>
         rows.filter(match).reduce((total, row) => total + row.count, 0);
       const breakdown: contract.CheckinBreakdown = {
@@ -438,6 +543,8 @@ export function receptionRoutes(deps: DomainRouteDeps) {
           count: sum((row) => row.referral === value),
         })),
         total: sum(() => true),
+        discounts: discountBreakdown(discounts, discountRows),
+        referrers: referrerBreakdown(referrerNames),
       };
       return c.json(breakdown, 200);
     })

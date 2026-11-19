@@ -82,6 +82,63 @@ describe("交流会の入力", () => {
   });
 });
 
+describe("割引の入力（reception-002）", () => {
+  it("名前の前後の空白を除き、紹介者を聞くかは送らなくてもよい", () => {
+    const parsed = EventInput.parse({
+      ...VALID,
+      discounts: [
+        { name: " 紹介割 ", amount: 1000 },
+        { name: "学割", amount: 500, asksReferrer: true },
+      ],
+    });
+    expect(parsed.discounts).toEqual([
+      { name: "紹介割", amount: 1000 },
+      { name: "学割", amount: 500, asksReferrer: true },
+    ]);
+  });
+
+  it("送らなければ discounts はない（割引を変えない）", () => {
+    expect(EventInput.parse(VALID).discounts).toBeUndefined();
+  });
+
+  it("名前は1〜30文字・額は1円以上の整数", () => {
+    expect(issuesOf({ ...VALID, discounts: [{ name: " ", amount: 1000 }] })).toEqual([
+      ["discounts.0.name", "割引の名前を入れてください。"],
+    ]);
+    expect(issuesOf({ ...VALID, discounts: [{ name: "あ".repeat(31), amount: 1000 }] })).toEqual([
+      ["discounts.0.name", "割引の名前は30文字までにしてください。"],
+    ]);
+    expect(issuesOf({ ...VALID, discounts: [{ name: "紹介割", amount: 0 }] })).toEqual([
+      ["discounts.0.amount", "割引の額は1円以上にしてください。"],
+    ]);
+    expect(issuesOf({ ...VALID, discounts: [{ name: "紹介割", amount: 1.5 }] })).toEqual([
+      ["discounts.0.amount", "割引の額は円の整数で入れてください。"],
+    ]);
+  });
+
+  it("同じ名前は、2つ目の名前の欄の誤り（前後の空白を除いて比べる）", () => {
+    expect(
+      issuesOf({
+        ...VALID,
+        discounts: [
+          { name: "紹介割", amount: 1000 },
+          { name: " 紹介割", amount: 500 },
+        ],
+      }),
+    ).toEqual([["discounts.1.name", "同じ名前の割引があります。別の名前にしてください。"]]);
+  });
+
+  it("11個は誤り・知らない欄は誤り", () => {
+    const many = Array.from({ length: 11 }, (_, index) => ({ name: `割引${index}`, amount: 100 }));
+    expect(issuesOf({ ...VALID, discounts: many })).toEqual([
+      ["discounts", "割引は10個までにしてください。"],
+    ]);
+    expect(
+      EventInput.safeParse({ ...VALID, discounts: [{ name: "a", amount: 1, rate: 10 }] }).success,
+    ).toBe(false);
+  });
+});
+
 describe("交流会のほかの形", () => {
   it("要約は決めた欄だけを持つ（URL はなければ null）", () => {
     const summary = {
@@ -94,6 +151,14 @@ describe("交流会のほかの形", () => {
       googleFormUrl: null,
       lineGroupUrl: null,
       openChatUrl: null,
+      discounts: [
+        {
+          id: "0193a1b2-0000-7000-8000-000000000001",
+          name: "紹介割",
+          amount: 1000,
+          asksReferrer: true,
+        },
+      ],
     };
     expect(EventSummary.parse(summary)).toEqual(summary);
     expect(Object.keys(EventSummary.shape).sort()).toEqual(Object.keys(summary).sort());

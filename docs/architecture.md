@@ -1,6 +1,6 @@
 # 全体の形（アーキテクチャ）
 
-2026-11-18 作成（TypeScript の骨組み。`typescript` ブランチ）。2026-11-19 直した（core-001：見本の領域を消し、画面を API から返す形・LIFF の始め方・DB の夜間停止の 503・参加者の道と日本時間の関数・プロダクトの見た目の値を足した。account-001：アカウントとセッション・LINE のログイン・今の利用者の受け取り方を足した。event-001：交流会・受付係・招待・交流会ごとの権限・管理の画面の道とナビを足した。reception-001：チェックイン・一覧画面・合計と内訳・参加者の CSV と、選択肢のチップの部品を足した。survey-001：アンケートの回答・困りごとの一覧と CSV と、reception の差しこみの場所への節を足した）。
+2026-11-18 作成（TypeScript の骨組み。`typescript` ブランチ）。2026-11-19 直した（core-001：見本の領域を消し、画面を API から返す形・LIFF の始め方・DB の夜間停止の 503・参加者の道と日本時間の関数・プロダクトの見た目の値を足した。account-001：アカウントとセッション・LINE のログイン・今の利用者の受け取り方を足した。event-001：交流会・受付係・招待・交流会ごとの権限・管理の画面の道とナビを足した。reception-001：チェックイン・一覧画面・合計と内訳・参加者の CSV と、選択肢のチップの部品を足した。survey-001：アンケートの回答・困りごとの一覧と CSV と、reception の差しこみの場所への節を足した。reception-002：交流会ごとの割引〈event〉と、チェックインの割引の写し・紹介者の名前〈reception〉を足した）。
 
 今のシステムの形。選んだ技術の候補と目安は [技術選定の候補](./tech-selection.md)、守る決まりは [コードの書き方の決まり](./rules/coding.md) 6章。
 
@@ -129,7 +129,7 @@ sequenceDiagram
 - PostgreSQL 18 の DB を1つ使い、読み書きするのは API だけ。つなぐ時間と1つの命令の時間に上限があり（設定）、DB が答えないときは待ち続けずに `503 DB_UNAVAILABLE` で失敗する。本番の DB は夜間（0時〜8時）に止まる（AD-10）。動いているかの窓口（`GET /api/v1/health`）は DB に触るので、置き場所の起動の確かめ（probe）には使わない（Cloud Run の既定の TCP の確かめのまま）。接続先と DB の名前は設定の `DATABASE_URL` で決める（手元は Docker の `postgres:18` を1つ共通に使い、作業場所ごとに DB の名前で分ける。[並行開発の決まり](./rules/parallel-development.md) 1）。
 - アプリの表は `public` スキーマ、DB の変更の記録は `drizzle` スキーマにある。DB の変更は `apps/api/drizzle/` の1列の SQL で、`meta/_journal.json` の順に当てる。当てた記録が残り、もう一度当てても何もしない。
 - 表の名前は単数の snake_case。主キーは `uuid`（既定値 `uuidv7()`）、時刻は `timestamptz`（[コードの書き方の決まり](./rules/coding.md) 6-4）。
-- 今あるアプリの表は account の `account`・`session`（[apps/account.md](./apps/account.md)）と、event の `event`・`event_staff`・`staff_invite`（[apps/event.md](./apps/event.md)）と、reception の `checkin`（[apps/reception.md](./apps/reception.md)）と、survey の `survey_answer`（[apps/survey.md](./apps/survey.md)）。表は領域を足すときに、その領域の `schema.ts` で足す（見本の領域の `note` は core-001 の DB の変更で消した）。
+- 今あるアプリの表は account の `account`・`session`（[apps/account.md](./apps/account.md)）と、event の `event`・`event_staff`・`staff_invite`・`event_discount`（[apps/event.md](./apps/event.md)）と、reception の `checkin`（[apps/reception.md](./apps/reception.md)）と、survey の `survey_answer`（[apps/survey.md](./apps/survey.md)）。表は領域を足すときに、その領域の `schema.ts` で足す（見本の領域の `note` は core-001 の DB の変更で消した）。
 
 ## 6. 画面の骨格
 

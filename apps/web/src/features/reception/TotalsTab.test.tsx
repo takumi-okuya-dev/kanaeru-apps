@@ -1,5 +1,5 @@
 // 合計のタブ：内訳を初めに読めなかったときは、読みこみ中のまま止めず、内訳の節に文と「もう一度」を出す（合計は出したまま）。
-import type { CheckinTotals } from "@workspace/contracts/reception";
+import type { CheckinBreakdown, CheckinTotals } from "@workspace/contracts/reception";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -46,5 +46,50 @@ describe("合計のタブ", () => {
     render(<TotalsTab totals={TOTALS} breakdown={undefined} showBreakdown />);
     expect(screen.getByText("読みこんでいます…")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "もう一度" })).toBeNull();
+  });
+
+  it("割引があった交流会は、割引の内訳（人数・割引の額の合計）と紹介者の人数を出す。割引がなければ出さない", () => {
+    const base: CheckinBreakdown = {
+      applicationSource: [{ value: "connpass", count: 2 }],
+      referral: [{ value: "friend", count: 2 }],
+      total: 2,
+      discounts: [{ discountId: null, name: null, active: true, count: 2, discountTotal: 0 }],
+      referrers: [],
+    };
+    const { rerender } = render(<TotalsTab totals={TOTALS} breakdown={base} showBreakdown />);
+    expect(screen.queryByRole("table", { name: "割引の内訳" })).toBeNull();
+
+    rerender(
+      <TotalsTab
+        totals={TOTALS}
+        breakdown={{
+          ...base,
+          discounts: [
+            {
+              discountId: "0193a1b2-0000-7000-8000-00000000000a",
+              name: "紹介割",
+              active: true,
+              count: 1,
+              discountTotal: 1000,
+            },
+            {
+              discountId: "0193a1b2-0000-7000-8000-00000000000b",
+              name: "学割",
+              active: false,
+              count: 0,
+              discountTotal: 0,
+            },
+            { discountId: null, name: null, active: true, count: 1, discountTotal: 0 },
+          ],
+          referrers: [{ name: "田中 花子", count: 1 }],
+        }}
+        showBreakdown
+      />,
+    );
+    const discounts = screen.getByRole("table", { name: "割引の内訳" });
+    expect(discounts).toHaveTextContent("紹介割1人1,000円");
+    expect(discounts).toHaveTextContent("学割（使うのをやめた割引）0人0円");
+    expect(discounts).toHaveTextContent("割引なし1人—");
+    expect(screen.getByRole("table", { name: /紹介者/ })).toHaveTextContent("田中 花子1人");
   });
 });

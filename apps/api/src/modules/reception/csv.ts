@@ -1,5 +1,6 @@
 // 参加者の CSV（FR-15。research R11）。UTF-8 の BOM と CRLF で、Excel で開いても文字化けしない。
-// 名前は利用者が入れた値なので、式として読まれないよう、= + - @ タブ CR で始まる欄の先頭に ' を足す。
+// 名前・紹介者の名前は利用者が入れた値なので、式として読まれないよう、= + - @ タブ CR で始まる欄の先頭に ' を足す。
+// 割引（名前と額の写し）と紹介者の名前は reception-002 で足した（主催者だけの窓口。research R9）。
 import {
   APPLICATION_SOURCE_LABELS,
   PAYMENT_METHOD_LABELS,
@@ -18,6 +19,9 @@ export const PARTICIPANTS_CSV_HEADER = [
   "知ったきっかけ",
   "支払い方法",
   "金額",
+  "割引",
+  "割引の額",
+  "紹介者",
   "入れ方",
   "入れた人",
 ] as const;
@@ -79,6 +83,9 @@ export function buildParticipantsCsv(rows: readonly ParticipantRow[]): string {
         REFERRAL_LABELS[record.referral],
         PAYMENT_METHOD_LABELS[record.paymentMethod],
         String(record.amount),
+        record.discountName ?? "",
+        record.discountAmount === null ? "" : String(record.discountAmount),
+        record.referrerName ?? "",
         record.accountId === null ? "手" : "LINE",
         enteredByName ?? "",
       ]

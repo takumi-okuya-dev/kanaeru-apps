@@ -11,6 +11,12 @@ export const RECEPTION_ERRORS = {
     message:
       "このチェックインは見つかりません。ほかの人が取り消した可能性があります。一覧を読み直してください。",
   },
+  /** 選んだ割引が、その交流会の使っている割引でない（使うのをやめた・別の交流会の割引。reception-002 research R6） */
+  DISCOUNT_UNAVAILABLE: {
+    code: "DISCOUNT_UNAVAILABLE",
+    status: 400,
+    message: "この割引は選べなくなりました。画面を読み直して、割引を選び直してください。",
+  },
 } as const;
 
 /** 領域のエラーのキー。 */
