@@ -181,6 +181,20 @@ test("受付係が招待のリンクから受け、一覧で交流会を見る�
   await expect(
     page.getByRole("heading", { level: 1, name: "この交流会の一覧画面は使えません" }),
   ).toBeVisible();
+
+  // 外すと招待のリンクも作り直されるので、外された人は前のリンクで受け直せない（SC-004・research R3）
+  await page.goto(`/invite/${token}`);
+  await expect(
+    page.getByRole("heading", { level: 1, name: "この招待のリンクは使えません" }),
+  ).toBeVisible();
+  const again = await page.request.post(`/api/v1/staff-invites/${token}/accept`, {
+    headers: { origin: E2E_WEB_URL },
+  });
+  expect(again.status()).toBe(404);
+  await page.goto(`/admin/events/${eventId}/setup`);
+  await expect(
+    page.getByRole("heading", { level: 1, name: "この交流会の一覧画面は使えません" }),
+  ).toBeVisible();
   await organizer.dispose();
 });
 

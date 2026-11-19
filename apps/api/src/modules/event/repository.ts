@@ -234,6 +234,27 @@ export async function upsertInvite(
 }
 
 /**
+ * 招待のリンクがあれば、印だけを替える（受付係を外したとき。前の印で受け直せないようにする。research R3）。
+ * まだリンクがなければ何もしない（新しく作らない）。
+ * @param db DB（受付係を外すのと同じ取引の中で呼ぶ）
+ * @param eventId 交流会の ID
+ * @param token 新しい印
+ * @returns 替えたら true、リンクがなければ false
+ */
+export async function replaceInviteToken(
+  db: Executor,
+  eventId: string,
+  token: string,
+): Promise<boolean> {
+  const rows = await db
+    .update(staffInvite)
+    .set({ token, createdAt: sql`now()` })
+    .where(eq(staffInvite.eventId, eventId))
+    .returning({ id: staffInvite.id });
+  return rows.length > 0;
+}
+
+/**
  * 印から、招待のリンクの交流会を読む。
  * @param db DB
  * @param token 招待の印

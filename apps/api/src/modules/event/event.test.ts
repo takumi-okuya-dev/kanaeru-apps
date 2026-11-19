@@ -321,5 +321,60 @@ describe("交流会の窓口", () => {
       expect(deleted.status).toBe(204);
       expect(await countRows("event_staff")).toBe(0);
     });
+
+    it("受付係を外すと招待のリンクが作り直され、外された人は前のリンクで受け直せない。残りの受付係はそのまま", async () => {
+      const created = await createEvent(app, organizer);
+      const invitePath = `/api/v1/events/${created.id}/staff-invite`;
+      const { token } = (await (await call(app, organizer, invitePath, "POST")).json()) as {
+        token: string;
+      };
+      const removedStaff = await loginAs(app);
+      const keptStaff = await loginAs(app);
+      const accept = `/api/v1/staff-invites/${token}/accept`;
+      expect((await call(app, removedStaff.cookie, accept, "POST")).status).toBe(200);
+      expect((await call(app, keptStaff.cookie, accept, "POST")).status).toBe(200);
+
+      const removed = await call(
+        app,
+        organizer,
+        `/api/v1/events/${created.id}/staff/${removedStaff.account.id}`,
+        "DELETE",
+      );
+      expect(removed.status).toBe(204);
+
+      const again = await call(app, removedStaff.cookie, accept, "POST");
+      expect(again.status).toBe(404);
+      expect(((await again.json()) as ErrorBody).error.code).toBe("STAFF_INVITE_INVALID");
+      expect((await call(app, removedStaff.cookie, `/api/v1/staff-invites/${token}`)).status).toBe(
+        404,
+      );
+      expect((await call(app, removedStaff.cookie, `/api/v1/events/${created.id}`)).status).toBe(
+        403,
+      );
+
+      const current = (await (await call(app, organizer, invitePath)).json()) as {
+        invite: { token: string };
+      };
+      expect(current.invite.token).not.toBe(token);
+      expect(current.invite.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      expect((await call(app, keptStaff.cookie, `/api/v1/events/${created.id}`)).status).toBe(200);
+    });
+
+    it("招待のリンクがない交流会で外しても、リンクは作られない", async () => {
+      const created = await createEvent(app, organizer);
+      const staff = await makeStaff(app, organizer, created.id);
+      // makeStaff が作ったリンクを消したのと同じ形にするため、表から消す
+      await database.pool.query("DELETE FROM staff_invite");
+      const removed = await call(
+        app,
+        organizer,
+        `/api/v1/events/${created.id}/staff/${staff.account.id}`,
+        "DELETE",
+      );
+      expect(removed.status).toBe(204);
+      expect(
+        await (await call(app, organizer, `/api/v1/events/${created.id}/staff-invite`)).json(),
+      ).toEqual({ invite: null });
+    });
   });
 });

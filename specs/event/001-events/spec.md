@@ -88,6 +88,7 @@
 4. **Given** 主催者がリンクを作り直した, **When** 前のリンクで受ける, **Then** 同じく使えない
 5. **Given** すでに受付係・主催者, **When** リンクで受ける, **Then** そのまま進む（記録は増えない）
 6. **Given** 主催者が受付係を外した, **When** その人が交流会の窓口を呼ぶ, **Then** 403
+7. **Given** 主催者が受付係を外した, **When** その人が外される前のリンクで受け直す, **Then** 使えない（外すと招待のリンクも作り直される【仮決め R3】）
 
 ---
 
@@ -146,7 +147,7 @@ reception・survey は、交流会ごとの権限（主催者・受付係・ど�
 - **FR-006**: 主催者だけが、アンケートを開く・閉じる（`PUT /api/v1/events/{eventId}/survey`）。
 - **FR-007**: 主催者だけが、招待のリンクを作る・作り直す（`POST /api/v1/events/{eventId}/staff-invite`）・今のリンクを読む（`GET` 同じ道）。作り直すと前の印は使えない。期限（交流会の日時の日本時間の日付の終わり）を一緒に返す。
 - **FR-008**: ログインした人は、招待の中身（交流会の名前・日時・期限・自分の役目）を読み（`GET /api/v1/staff-invites/{inviteToken}`）、受ける（`POST /api/v1/staff-invites/{inviteToken}/accept`）。受けると受付係になる。期限は受けるときに、交流会の今の日時から決める。すでに主催者・受付係なら、期限にかかわらず何もせずに通す。
-- **FR-009**: 主催者だけが、受付係の一覧（表示名・加えた時刻）を読み（`GET /api/v1/events/{eventId}/staff`）、外せる（`DELETE /api/v1/events/{eventId}/staff/{accountId}`）。
+- **FR-009**: 主催者だけが、受付係の一覧（表示名・加えた時刻）を読み（`GET /api/v1/events/{eventId}/staff`）、外せる（`DELETE /api/v1/events/{eventId}/staff/{accountId}`）。外すと、招待のリンクがあれば作り直し、前の印は使えない（外された人が前のリンクで受け直せない）。
 - **FR-010**: event の入口（`index.ts`）が、ほかの領域に `getEventRole(db, config, eventId, account)`（`"organizer" | "staff" | null`）・`requireEventRole(deps, roles)`（`{eventId}` の道の middleware）・`currentEventRole(c)`・`getEventSummary(db, config, eventId)`・`eventTable`（外部キーのためだけ）を出す。役目は要求のたびに引き、セッションに写さない。
 - **FR-011**: 交流会の権限の誤りは 403（code `FORBIDDEN`・event の文）、ない交流会は 404（code `NOT_FOUND`・event の文）。
 - **FR-012**: 画面：交流会の一覧（A1）・作成と編集（A2）・準備（A4。QR の表示と印刷・招待のリンクと作り直し・受付係の一覧と外す・アンケートの開閉）・受付係の招待（P3）。どれもログインが要る（`SessionGate`）。
@@ -168,7 +169,7 @@ reception・survey は、交流会ごとの権限（主催者・受付係・ど�
 - **SC-001**: 全部の確かめ（`pnpm check`）が通る。
 - **SC-002**: 主催者が交流会を作り、準備の画面で受付QRを出し、アンケートを開くまでが、E2E で両方の幅のアクセシビリティの違反0件で通る。
 - **SC-003**: 受付係が招待のリンクから受け、一覧でその交流会を見て、準備の画面が使えないことが、E2E で通る。
-- **SC-004**: 外した受付係の次の要求が 403 になる（結合のテスト）。
+- **SC-004**: 外した受付係の次の要求が 403 になり、外される前のリンクで受け直せない（結合のテスト・通しのテスト）。
 
 ## Assumptions
 

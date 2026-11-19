@@ -31,6 +31,7 @@ import {
   listStaff,
   listStaffEvents,
   removeStaff,
+  replaceInviteToken,
   setSurveyOpen,
   updateEvent,
   upsertInvite,
@@ -280,7 +281,8 @@ function defineRoutes(deps: DomainRouteDeps) {
       path: "/api/v1/events/{eventId}/staff/{accountId}",
       tags,
       operationId: "eventRemoveStaff",
-      summary: "受付係を外す（主催者だけ。外された人は次の要求から使えない）",
+      summary:
+        "受付係を外す（主催者だけ。外された人は次の要求から使えない。招待のリンクがあれば作り直し、前のリンクでは受け直せない）",
       middleware: [session, organizerOfEvent] as const,
       request: { params: StaffParams },
       responses: {
@@ -452,7 +454,13 @@ export function eventRoutes(deps: DomainRouteDeps) {
     })
     .openapi(routes.removeStaff, async (c) => {
       const { eventId, accountId } = c.req.valid("param");
-      if (!(await removeStaff(db, eventId, accountId))) throw new AppError("NOT_FOUND");
+      // 外した人が、まだ期限の切れていない前のリンクで受け直せないよう、同じ取引で招待の印も替える（SC-004・research R3）
+      const removed = await db.transaction(async (tx) => {
+        if (!(await removeStaff(tx, eventId, accountId))) return false;
+        await replaceInviteToken(tx, eventId, generateInviteToken());
+        return true;
+      });
+      if (!removed) throw new AppError("NOT_FOUND");
       return c.body(null, 204);
     })
     .openapi(routes.previewInvite, async (c) => {

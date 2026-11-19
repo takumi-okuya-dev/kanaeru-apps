@@ -269,7 +269,11 @@ function StaffSection({ event }: { event: EventView }) {
     onSuccess: async () => {
       setRemoved(target?.displayName);
       setTarget(undefined);
-      await queryClient.invalidateQueries({ queryKey: EVENT_QUERY_KEYS.staff(event.id) });
+      // 外すと招待のリンクも作り直される（research R3）ので、受付係の一覧と一緒に読み直す
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: EVENT_QUERY_KEYS.staff(event.id) }),
+        queryClient.invalidateQueries({ queryKey: EVENT_QUERY_KEYS.invite(event.id) }),
+      ]);
     },
   });
 
@@ -303,7 +307,9 @@ function StaffSection({ event }: { event: EventView }) {
         </ul>
       )}
       {removed !== undefined ? (
-        <ResponseMessage tone="success">{`${removed || "受付係"}さんを外しました。`}</ResponseMessage>
+        <ResponseMessage tone="success">
+          {`${removed || "受付係"}さんを外しました。招待のリンクも作り直したので、前のリンクは使えません。ほかの人を招くときは、新しいリンクを送ってください。`}
+        </ResponseMessage>
       ) : null}
       <ConfirmDialog
         open={target !== undefined}
@@ -321,6 +327,9 @@ function StaffSection({ event }: { event: EventView }) {
       >
         <p>
           {`${target?.displayName || "この受付係"}さんは、次に画面を開いたときから、この交流会の一覧画面を使えなくなります。`}
+        </p>
+        <p>
+          前のリンクで受け直せないよう、招待のリンクも作り直します。ほかの受付係は、そのまま使えます。
         </p>
       </ConfirmDialog>
     </Section>

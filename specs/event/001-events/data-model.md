@@ -38,6 +38,8 @@
 | `token` | text | NOT NULL・一意 `staff_invite_token_unique`。32 バイトの乱数の base64url（43文字。research R3） |
 | `created_at` | timestamptz | NOT NULL・`now()`。作り直すと替わる |
 
+- 受付係を外すと、同じ取引で印と `created_at` を替える（行がなければ作らない。research R3）。
+
 - 期限は列に持たない。受けるときに `now() < endOfJstDate(event.starts_at)` で決める（AD-5）。
 
 ## 役目

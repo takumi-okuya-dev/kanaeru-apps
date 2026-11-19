@@ -10,7 +10,7 @@
 |---|---|---|
 | `event` | `id`・`name`・`starts_at`（始まりの日時）・`venue`・`fee`（円の整数）・`google_form_url`（任意）・`line_group_url`（任意）・`survey_open`（既定 false）・`created_at`・`updated_at` | `fee >= 0`（`event_fee_check`）。索引 `event_starts_at_idx`。消さない（この版は消す機能がない） |
 | `event_staff` | `id`・`event_id`・`account_id`・`created_at`（受付係になった時刻） | 組は一意（`event_staff_event_id_account_id_unique`）。`event_id` は `RESTRICT`、`account_id` は `ON DELETE CASCADE`（`event_staff_account_id_idx`） |
-| `staff_invite` | `id`・`event_id`・`token`・`created_at` | 交流会ごとに1行（`staff_invite_event_id_unique`）。`token` は 32 バイトの base64url で一意。作り直すと同じ行の印と時刻が替わる。期限は列に持たず、受けるときに `endOfJstDate(starts_at)` で決める |
+| `staff_invite` | `id`・`event_id`・`token`・`created_at` | 交流会ごとに1行（`staff_invite_event_id_unique`）。`token` は 32 バイトの base64url で一意。作り直す・受付係を外すと、同じ行の印と時刻が替わる。期限は列に持たず、受けるときに `endOfJstDate(starts_at)` で決める |
 
 ほかの領域は `event.id` を外部キーで参照するだけ（`eventTable` を `.references(() => eventTable.id, { onDelete: "restrict" })` にだけ使う。AD-7）。
 
@@ -26,7 +26,7 @@
 | PUT | `/api/v1/events/{eventId}/survey` | 主催者 | アンケートを開く・閉じる（`{ open }`） |
 | GET・POST | `/api/v1/events/{eventId}/staff-invite` | 主催者 | 今の招待のリンクを読む（なければ `null`）・作る／作り直す |
 | GET | `/api/v1/events/{eventId}/staff` | 主催者 | 受付係の一覧（表示名は account の `findAccountById`） |
-| DELETE | `/api/v1/events/{eventId}/staff/{accountId}` | 主催者 | 受付係を外す（204） |
+| DELETE | `/api/v1/events/{eventId}/staff/{accountId}` | 主催者 | 受付係を外す（204）。同じ取引で招待のリンクがあれば作り直す（外された人が前のリンクで受け直せない） |
 | GET | `/api/v1/staff-invites/{inviteToken}` | ログインした人 | 招待の中身（交流会の名前・日時・期限・期限切れか・自分の役目） |
 | POST | `/api/v1/staff-invites/{inviteToken}/accept` | ログインした人 | 受けて受付係になる（すでに主催者・受付係なら何もしない）。知らない印は 404 `STAFF_INVITE_INVALID`、期限切れは 410 `STAFF_INVITE_EXPIRED` |
 
@@ -98,7 +98,7 @@ const summary = await getEventSummary(deps.db, deps.config, eventId); // 参加�
 |---|---|---|
 | `/admin/events` | A1 交流会の一覧 | 主催者はすべて、受付係は自分の交流会だけ。主催者には「交流会を追加」と行ごとの「準備」「直す」。名前は、その役目の最初の管理の画面へのリンク（なければ文字だけ）。ナビの「交流会」・はじめの画面（`/`）から来る |
 | `/admin/events/new`・`/admin/events/$eventId/edit` | A2 作成・編集（主催者だけ） | 名前・日付と時刻（日本時間）・会場・参加費・GoogleフォームのURL（任意）・LINEグループの招待リンク（任意）。直すときは「参加費を直しても、すでにあるチェックインの金額は変わりません」。作ったら準備へ、直したら一覧へ |
-| `/admin/events/$eventId/setup` | A4 準備（主催者だけ） | 受付QR・アンケートQR（並べる。中身の URL も出す）と印刷の画面への入口・アンケートの開閉・招待のリンク（写す・作り直す〈確かめ〉・期限）・受付係の一覧（外す〈確かめ〉） |
+| `/admin/events/$eventId/setup` | A4 準備（主催者だけ） | 受付QR・アンケートQR（並べる。中身の URL も出す）と印刷の画面への入口・アンケートの開閉・招待のリンク（写す・作り直す〈確かめ〉・期限）・受付係の一覧（外す〈確かめ。招待のリンクも作り直すと伝える〉） |
 | `/admin/events/$eventId/setup/qr/$kind` | QR の印刷（主催者だけ） | 「受付QR」「アンケートQR」の見出し・交流会の名前・大きな QR。「印刷する」。印刷では外枠と操作を隠す（`print.css`） |
 | `/invite/$inviteToken` | P3 受付係の招待 | 交流会の名前と「受ける」。受けたら一覧画面（なければ交流会の一覧）へ。すでに受付係・主催者ならそのまま移る。使えないリンクは「この招待のリンクは使えません。主催者に新しいリンクをもらってください」 |
 

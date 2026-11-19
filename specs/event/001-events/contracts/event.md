@@ -13,7 +13,7 @@
 | GET | `/api/v1/events/{eventId}/staff-invite` | 主催者 | — | 200 `{ invite: StaffInviteView \| null }` | 401・403・404 |
 | POST | `/api/v1/events/{eventId}/staff-invite` | 主催者 | — | 200 `StaffInviteView`（作る・作り直す。前の印は使えない） | 401・403・404 |
 | GET | `/api/v1/events/{eventId}/staff` | 主催者 | — | 200 `{ staff: StaffMember[] }`（加えた順） | 401・403・404 |
-| DELETE | `/api/v1/events/{eventId}/staff/{accountId}` | 主催者 | — | 204 | 401・403・404 |
+| DELETE | `/api/v1/events/{eventId}/staff/{accountId}` | 主催者 | — | 204（招待のリンクがあれば作り直す。前の印は使えない） | 401・403・404 |
 | GET | `/api/v1/staff-invites/{inviteToken}` | ログインした人 | — | 200 `InvitePreview` | 401・404 `STAFF_INVITE_INVALID` |
 | POST | `/api/v1/staff-invites/{inviteToken}/accept` | ログインした人 | — | 200 `{ eventId, role }` | 401・404 `STAFF_INVITE_INVALID`・410 `STAFF_INVITE_EXPIRED` |
 
