@@ -5,7 +5,8 @@ import type { AddressInfo, Socket } from "node:net";
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { sql } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
-import { describe, expect, it } from "vitest";
+import { DB_UNAVAILABLE_MESSAGES } from "@workspace/contracts/core";
+import { describe, expect, it, vi } from "vitest";
 import { createDatabase } from "../src/kernel/db.ts";
 import { uuidParam } from "../src/kernel/http.ts";
 import { OPENAPI_DOC_PATH, toFieldErrors } from "../src/app.ts";
@@ -304,7 +305,7 @@ describe("組み立て", () => {
     }
   });
 
-  it("領域の窓口で DB に届かないときも、土台が 503 の DB_UNAVAILABLE にする", async () => {
+  it("領域の窓口で DB に届かないときも、土台が 503 の DB_UNAVAILABLE にする（文は日本時間で選ぶ）", async () => {
     // 使っていない口（つなぐと拒まれる）
     const server = createServer();
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -316,28 +317,81 @@ describe("組み立て", () => {
     });
     const reads: DomainModule = {
       routes: (deps) =>
+        new OpenAPIHono<AppEnv>()
+          .openapi(
+            createRoute({
+              method: "get",
+              path: "/api/v1/test-only/reads-db",
+              responses: { 200: { description: "DB を読む（Drizzle が包む命令のエラー）" } },
+            }),
+            async (c) => {
+              await deps.db.execute(sql`SELECT 1`);
+              return c.json({ ok: true }, 200);
+            },
+          )
+          .openapi(
+            createRoute({
+              method: "get",
+              path: "/api/v1/test-only/tx-db",
+              responses: {
+                200: { description: "取引を始める（包まれない pool.connect() のエラー）" },
+              },
+            }),
+            async (c) => {
+              await deps.db.transaction(async (tx) => {
+                await tx.execute(sql`SELECT 1`);
+              });
+              return c.json({ ok: true }, 200);
+            },
+          ),
+    };
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const app = buildApp(refused, testConfig(), { extraModules: [reads] });
+      for (const [time, message] of [
+        ["2026-11-25T03:00:00+09:00", DB_UNAVAILABLE_MESSAGES.nightStop],
+        ["2026-11-25T14:00:00+09:00", DB_UNAVAILABLE_MESSAGES.temporary],
+      ] as const) {
+        vi.setSystemTime(new Date(time));
+        for (const path of ["/api/v1/test-only/reads-db", "/api/v1/test-only/tx-db"]) {
+          const response = await app.request(path);
+          expect(response.status, `${time} ${path}`).toBe(503);
+          const body = (await response.json()) as { error: { code: string; message: string } };
+          expect(body.error.code, `${time} ${path}`).toBe("DB_UNAVAILABLE");
+          expect(body.error.message, `${time} ${path}`).toBe(message);
+        }
+      }
+    } finally {
+      vi.useRealTimers();
+      await refused.pool.end().catch(() => undefined);
+    }
+  });
+
+  it("DB の層から来ていない通信の失敗（LINE への fetch の ENOTFOUND）は、DB_UNAVAILABLE にせず INTERNAL", async () => {
+    const callsLine: DomainModule = {
+      routes: () =>
         new OpenAPIHono<AppEnv>().openapi(
           createRoute({
             method: "get",
-            path: "/api/v1/test-only/reads-db",
-            responses: { 200: { description: "DB を読む" } },
+            path: "/api/v1/test-only/calls-line",
+            responses: { 200: { description: "LINE を呼ぶ" } },
           }),
-          async (c) => {
-            await deps.db.execute(sql`SELECT 1`);
-            return c.json({ ok: true }, 200);
+          () => {
+            // fetch が名前を引けなかったときの形（TypeError に、ソケットのエラーが包まれる）
+            throw new TypeError("fetch failed", {
+              cause: Object.assign(new Error("getaddrinfo ENOTFOUND api.line.me"), {
+                code: "ENOTFOUND",
+                syscall: "getaddrinfo",
+                hostname: "api.line.me",
+              }),
+            });
           },
         ),
     };
-    try {
-      const app = buildApp(refused, testConfig(), { extraModules: [reads] });
-      const response = await app.request("/api/v1/test-only/reads-db");
-      expect(response.status).toBe(503);
-      const body = (await response.json()) as { error: { code: string; message: string } };
-      expect(body.error.code).toBe("DB_UNAVAILABLE");
-      expect(body.error.message).toContain("夜間（0時〜8時）は止まっています");
-    } finally {
-      await refused.pool.end().catch(() => undefined);
-    }
+    const app = buildApp(database, testConfig(), { extraModules: [callsLine] });
+    const response = await app.request("/api/v1/test-only/calls-line");
+    expect(response.status).toBe(500);
+    expect(((await response.json()) as { error: { code: string } }).error.code).toBe("INTERNAL");
   });
 
   it("1つの命令が時間の上限を超えたら、待ち続けずに失敗する", async () => {

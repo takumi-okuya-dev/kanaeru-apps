@@ -116,7 +116,7 @@
 - 画面の振る舞いは EXPERIENCE.md に従う：入力の誤りは欄のそば（`Field` の `error`）、送った結果は押したボタンの近く（`ResponseMessage`）、画面が切り替わるときだけ画面の上の知らせの帯（`lib/notice.ts` の `showNotice`）、消す前は `ConfirmDialog`。ページは `lib/page.tsx` の `Page`（題は h1。外枠が道の変わり目にフォーカスを移す）。
 - 画面の `index.html` に中に書いた script を置かず、`eval`・`new Function` を使わない（組み立てた画面の CSP が止める。E2E が CSP の違反を落とす）。組み立てた画面の CSP は、本番も E2E も API が付ける（`apps/api/src/platform/web/web.ts` の `WEB_CSP_DIRECTIVES` の1か所）。画面から外の源を読むときは、そこを直し、源ごとに何に使うかを書く。画面のコードで環境の値（`process.env`・`import.meta.env.VITE_*`）を読まない（lint で止める。要る値は `vite.config.ts` の `define` で、秘密でないものだけ埋める）。
 - LINE（`@line/liff`）を読むのは `apps/web/src/lib/liff.ts` だけ。画面と領域は `initLiff`・`getLiff` を使い、`liff.init()` を書かない（構成の決めごと AD-4）。サーバーに送るのは `getIDToken()` の生の値だけ。
-- 参加者が開く画面の道・ミニアプリの URL・日本時間の日付と「その日の終わり」は、`@workspace/contracts/core` のもの（`participantPaths`・`PARTICIPANT_ROUTE_PATTERNS`・`miniAppPermalink`・`jstDate`・`endOfJstDate`）を使い、領域の中で作り直さない（AD-14・Consistency Conventions）。
+- 参加者が開く画面の道・ミニアプリの URL・日本時間の日付と「その日の終わり」・夜間の停止の時間帯と DB に届かないときの文は、`@workspace/contracts/core` のもの（`participantPaths`・`PARTICIPANT_ROUTE_PATTERNS`・`miniAppPermalink`・`jstDate`・`endOfJstDate`・`isNightStopWindow`・`dbUnavailableMessage`）を使い、領域の中で作り直さない（AD-10・AD-14・Consistency Conventions）。
 - DB に届かないときの 503（`DB_UNAVAILABLE`）は土台（`kernel/errors.ts` の `toAppError`）が返す。領域で DB の接続のエラーを捕まえて読みかえない（AD-10）。
 - DB の命令を文字のつなぎで作らない・`sql.raw` を使わない・HTML をそのまま差しこまない・アプリのコードから OS のコマンドを動かさない（どれも lint で止める）。
 

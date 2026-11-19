@@ -2,7 +2,11 @@
 // code → 状態の番号はここで決め、文言は @workspace/contracts/core（領域のものは領域の約束）から読む。
 // 投げられたものを応答のエラーに読みかえるのは toAppError の1か所（DB に届かないときの 503 DB_UNAVAILABLE も。AD-10）。
 import "@hono/zod-openapi";
-import { CORE_ERROR_MESSAGES, ErrorBody as ErrorBodyContract } from "@workspace/contracts/core";
+import {
+  CORE_ERROR_MESSAGES,
+  ErrorBody as ErrorBodyContract,
+  coreErrorMessage,
+} from "@workspace/contracts/core";
 import type { CoreErrorCode, ErrorBody, FieldError } from "@workspace/contracts/core";
 import { HTTPException } from "hono/http-exception";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
@@ -43,14 +47,14 @@ export class AppError extends Error {
   readonly fields: FieldError[] | undefined;
 
   /**
-   * code から状態の番号と文言を決める。
+   * code から状態の番号と文言を決める（DB_UNAVAILABLE の文は、作った時刻の日本時間で選ぶ。coreErrorMessage）。
    * @param spec 土台の code か、領域のエラーの決め方（@workspace/contracts/<領域> の *_ERRORS の値）
    * @param options 入力が合わないときの欄ごとの理由
    */
   constructor(spec: CoreErrorCode | DomainErrorSpec, options: { fields?: FieldError[] } = {}) {
     const resolved =
       typeof spec === "string"
-        ? { code: spec, status: CORE_ERROR_STATUS[spec], message: CORE_ERROR_MESSAGES[spec] }
+        ? { code: spec, status: CORE_ERROR_STATUS[spec], message: coreErrorMessage(spec) }
         : spec;
     super(resolved.message);
     this.name = "AppError";
@@ -72,7 +76,9 @@ const STATUS_TO_CODE: ReadonlyMap<number, CoreErrorCode> = new Map(
  * 投げられたものを、応答に使うエラーに読みかえる（組み立ての onError が呼ぶ。読みかえはここだけに置く）。
  * - AppError はそのまま
  * - HTTPException は、状態の番号に合う土台の code
- * - DB に届かない（拒否・時間切れ・止まっている）は 503 DB_UNAVAILABLE（どの領域の窓口でも）
+ * - DB の層（Drizzle の命令・pg の接続）から来た、DB に届かない（拒否・つなぐのが時間切れ・止まっている・切られた）エラーは
+ *   503 DB_UNAVAILABLE（どの領域の窓口でも。見分けは kernel/pg-errors.ts の isDbUnavailable）。
+ *   LINE への fetch の失敗など、DB の層から来ていないものは読みかえない（領域が扱わなければ INTERNAL）
  * @param error 投げられたもの
  * @returns 応答に使うエラー（予期しないものは undefined。呼ぶ側が INTERNAL にしてログに残す）
  */
