@@ -97,6 +97,11 @@
   --container-page: 1040px;
   /* ダイアログの幅の上限 */
   --container-dialog: 480px;
+  /*
+   * 入力のフォームの幅の上限（max-w-form。欄を読みやすい長さに止める）。
+   * Tailwind の max-w-xl などは、ここに名前がないと余白の段（--spacing-xl＝48px）に落ちるので使わない
+   */
+  --container-form: 560px;
   /* サイドバーの幅 */
   --spacing-sidebar: 240px;
 }

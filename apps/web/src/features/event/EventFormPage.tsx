@@ -182,7 +182,7 @@ function EventForm({ event }: EventFormProps) {
       ref={formRef}
       noValidate
       onSubmit={(submitEvent) => void submit(submitEvent)}
-      className="flex max-w-xl flex-col gap-s"
+      className="flex max-w-form flex-col gap-s"
     >
       <Field label="交流会の名前" error={errors.name} required>
         <Input autoComplete="off" {...bind("name")} />
