@@ -77,6 +77,34 @@ components:
     foreground: '{colors.text-sub}'
     border: '1px solid {colors.border}'
     radius: '{radius.s}'
+  app-sidebar:                  # 管理の画面・752px 以上（core-003）
+    width: '240px'              # tokens.css の --spacing-sidebar
+    background: '{colors.surface-sunken}'
+    border-right: '1px solid {colors.border}'
+    item-min-height: '{spacing.xl}'
+    item-padding-x: '{spacing.xs}'
+    item-gap: '{spacing.xxs}'
+    item-font-size: '{typography.size.m}'
+    item-current-background: '{colors.surface}'
+    item-current-indicator: '4px の左の線・{colors.primary}'
+    item-current-weight: '{typography.weight.bold}'
+    icon-size: '{spacing.s}'
+  sidebar-toggle:               # 上の帯の左（752px 以上だけ）
+    size: '{spacing.xl}'
+    icon: 'menu（三本線）・{colors.text}'
+    radius: '{radius.s}'
+    background-hover: '{colors.surface-over}'
+  tab-bar:                      # 管理の画面・751px 以下（core-003）
+    background: '{colors.surface}'
+    border-top: '1px solid {colors.border}'
+    item-min-height: '{spacing.xxl}'      # 押せる高さ 44px 以上
+    item-font-size: '{typography.size.xs}'
+    item-foreground: '{colors.text-sub}'
+    item-current-foreground: '{colors.text}'
+    item-current-indicator: '2px の上の線・{colors.primary}'
+    item-current-weight: '{typography.weight.bold}'
+    icon-size: '{spacing.s}'
+    padding-bottom: 'env(safe-area-inset-bottom)'
 ---
 
 # kanaeru 受付アプリの見た目
@@ -152,6 +180,15 @@ components:
 - **同じ名前の印**：`{components.flag-same-name}`。注意の黄色の地に、注意のアイコンと「同じ名前があります」。色だけにしない。
 - **手でのチェックインの印**：`{components.flag-manual}`。くぼみの地に、手で入れたことと入れた人の名前。
 
+### 外枠のナビ（サイドバー・タブバー）
+
+管理の画面の行き来（core-003）。振る舞いは [EXPERIENCE.md](./EXPERIENCE.md) の Information Architecture「外枠のナビ」。参加者の画面には出さない。
+
+- **サイドバー**（752px 以上）：`{components.app-sidebar}`。くぼみの地に、アイコン（24px）と名前の項目を縦に並べる。今の項目は、白の地・**左の 4px の墨の線**・太字。墨の文字だけで今の項目を示さない（墨と本文は 1.36:1）。
+- **メニューのボタン**：`{components.sidebar-toggle}`。上の帯の左、アプリの名前の前。三本線のアイコンだけで、読み上げの名前は「メニュー」。押せる四角は 48px。
+- **タブバー**（751px 以下）：`{components.tab-bar}`。画面の下の段にいつも出る白い帯（上の帯と本文だけがスクロールし、本文はタブバーの下に潜らない）。項目は横に等しく並べ、上にアイコン（24px）、下に名前（`{typography.size.xs}`。長いときは折り返す）。今の項目は**上の 2px の墨の線**・太字・本文の色、ほかは `{colors.text-sub}`。下にホームの印を避ける余白（端末の安全な余白）。影は付けず、上の線で本文と分ける。
+- どちらも重なりの値を付けない（重ねる枠〈ダイアログ〉が上に来る）。印刷では出さない。
+
 ### QRの表示
 
 準備の画面で、受付QRとアンケートQRを出し、印刷する部品。`{components.qr-display}`。
@@ -172,3 +209,4 @@ components:
 | 合計と金額は、桁がそろう数字で右寄せ | 金額を色で塗り分ける |
 | QRは濃い点と白い地、ことばで種類を書く | 色つき・ロゴ入りのQR、色だけで受付QRとアンケートQRを分ける |
 | 値は先頭の表と土台の表から読む | 色の値を画面のコードに直接書く |
+| ナビの今の項目は、墨の線と太字で示す | 墨の文字の色だけで今の項目を示す |
