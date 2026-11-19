@@ -182,7 +182,8 @@ describe("アカウントの窓口", () => {
       expect(first.status).toBe(200);
       const view = (await first.json()) as View;
       expect(view).toMatchObject({ displayName: "佐藤", isOrganizer: false });
-      expect(Date.parse(view.registeredAt)).toBeLessThanOrEqual(Date.now());
+      // 登録日は DB の時計で付く。DB とテストの時計は少しずれることがある（手元の容器・Cloud SQL と Cloud Run）ので、5秒までのずれを許す
+      expect(Date.parse(view.registeredAt)).toBeLessThanOrEqual(Date.now() + 5_000);
 
       const setCookie = first.headers.get("set-cookie") ?? "";
       expect(setCookie).toMatch(/^kanaeru_session=[A-Za-z0-9_-]{43};/);
