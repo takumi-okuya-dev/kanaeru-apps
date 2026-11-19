@@ -15,6 +15,7 @@ import { cn } from "@workspace/ui/lib/cn";
 import { useEffect, useRef, useState } from "react";
 import type * as React from "react";
 import { ApiError, errorMessage } from "../../lib/api.ts";
+import { fieldErrorsFromApi } from "../../lib/form.ts";
 import type { FieldErrors } from "../../lib/form.ts";
 import { Page } from "../../lib/page.tsx";
 import { SessionGate } from "../account/index.ts";
@@ -161,8 +162,9 @@ function CheckinForm({ summary, state, onDone }: FormProps) {
       onDone(!result.alreadyCheckedIn);
     },
     onError: (error) => {
-      if (error instanceof ApiError && error.fields.length > 0) {
-        setErrors(Object.fromEntries(error.fields.map((field) => [field.path, field.message])));
+      const fields = fieldErrorsFromApi(error);
+      if (Object.keys(fields).length > 0) {
+        setErrors(fields);
         setFocusRequest((count) => count + 1);
       }
     },
@@ -204,8 +206,7 @@ function CheckinForm({ summary, state, onDone }: FormProps) {
         >
           {mutation.isPending ? "チェックインしています…" : "チェックインする"}
         </Button>
-        {mutation.isError &&
-        !(mutation.error instanceof ApiError && mutation.error.fields.length) ? (
+        {mutation.isError && Object.keys(fieldErrorsFromApi(mutation.error)).length === 0 ? (
           <ResponseMessage tone="danger">
             {`チェックインできませんでした。${errorMessage(mutation.error)}開かないときは、受付の人に声をかけてください。`}
           </ResponseMessage>

@@ -44,6 +44,7 @@ type Sent = { method: string; path: string; body: unknown };
  * @param options.summary 要約に重ねる値
  * @param options.checkin すでにあるチェックイン（なければ null）
  * @param options.summaryStatus 要約の状態の番号
+ * @param options.rejectNameOnPost チェックインの送信を、名前の欄の誤り（400）で返すか
  * @param options.failRefetch 要約と自分のチェックインの2回目からの読みこみを失敗（500）にするか
  * @returns 送られた要求の一覧
  */
@@ -53,6 +54,7 @@ function stubApi(
     checkin?: typeof CHECKIN | null;
     summaryStatus?: number;
     failRefetch?: boolean;
+    rejectNameOnPost?: boolean;
   } = {},
 ): Sent[] {
   const sent: Sent[] = [];
@@ -97,6 +99,21 @@ function stubApi(
           checkin: options.checkin ?? null,
           prefill: { name: "佐藤 太郎", referral: null },
         }),
+      );
+    }
+    if (options.rejectNameOnPost) {
+      return Promise.resolve(
+        Response.json(
+          {
+            error: {
+              code: "INVALID_INPUT",
+              message: "入力に誤りがあります。",
+              requestId: "r",
+              fields: [{ path: "name", message: "名前は50文字までにしてください。" }],
+            },
+          },
+          { status: 400 },
+        ),
       );
     }
     return Promise.resolve(
@@ -214,6 +231,22 @@ describe("チェックインの画面", () => {
     expect(
       screen.getByRole("link", { name: "コミュニティのオープンチャットに参加する" }),
     ).toBeInTheDocument();
+  });
+
+  it("API が欄の誤りを返したら、その欄のそばに出してフォーカスを移し、ボタンの近くには出さない", async () => {
+    stubApi({ rejectNameOnPost: true });
+    renderWithRouter(<CheckinPage eventId={EVENT_ID} />);
+    const name = await screen.findByRole("textbox", { name: "名前" });
+    await userEvent.click(screen.getByRole("radio", { name: "Peatix" }));
+    await userEvent.click(screen.getByRole("radio", { name: "SNS" }));
+    await userEvent.click(screen.getByRole("radio", { name: "現金" }));
+    await userEvent.click(screen.getByRole("button", { name: "チェックインする" }));
+
+    await waitFor(() =>
+      expect(name).toHaveAccessibleDescription("名前は50文字までにしてください。"),
+    );
+    await waitFor(() => expect(name).toHaveFocus());
+    expect(screen.queryByText(/チェックインできませんでした/)).toBeNull();
   });
 
   it("読めたあとの読み直しが失敗しても、入れかけの欄と済んだカードを消さない", async () => {
