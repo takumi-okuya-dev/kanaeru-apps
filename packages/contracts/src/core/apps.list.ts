@@ -5,3 +5,4 @@
 import { defineApp } from "./app-definition.ts";
 export {};
 export const reception = defineApp({ key: "reception", name: "受付", summary: "交流会の受付・アンケート", description: "交流会の受付を QR と LINE だけで済ませ、合計と困りごとのアンケートを集めます。", icon: "qr", domains: ["event", "reception", "survey"], basePath: "/admin/events", uses: [], accountData: "チェックイン・アンケートの回答・受付係の割り当て" });
+export const threads = defineApp({ key: "threads", name: "Threads", summary: "投稿の案・承認・自動投稿", description: "Threads の投稿の案をためて承認し、決めた時間に自動で投稿します。反応を取りこみ、次の案のプロンプトに生かします。", icon: "chat", domains: ["threads"], basePath: "/threads", uses: [], accountData: "運用アカウント・投稿の案・反応の記録" });

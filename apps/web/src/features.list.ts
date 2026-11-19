@@ -6,4 +6,5 @@ export * as account from "./features/account/index.ts";
 export * as event from "./features/event/index.ts";
 export * as reception from "./features/reception/index.ts";
 export * as survey from "./features/survey/index.ts";
+export * as threads from "./features/threads/index.ts";
 export * as suite from "./features/suite/index.ts";

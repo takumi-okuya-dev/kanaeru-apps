@@ -32,6 +32,22 @@ export const E2E_WEB_URL = `http://127.0.0.1:${E2E_API_PORT}`;
 /** 組み立てた画面のフォルダ（ルートの pnpm e2e が先に vite build する）。 */
 export const E2E_WEB_DIST_DIR = fileURLToPath(new URL("../apps/web/dist", import.meta.url));
 
+/** E2E の偽の Threads の API の口の番号（API の口の次。threads-002）。 */
+export const E2E_FAKE_THREADS_PORT = E2E_API_PORT + 1;
+/** E2E の偽の Threads の API の源。 */
+export const E2E_FAKE_THREADS_URL = `http://127.0.0.1:${E2E_FAKE_THREADS_PORT}`;
+/** E2E の定期の仕事の合言葉（テストだけの値。本番の値ではない）。 */
+export const E2E_JOB_TRIGGER_SECRET = "e2e-job-trigger".padEnd(40, "0");
+/** E2E のトークンを包む鍵の束（テストだけの値。決まったバイトから作る）。 */
+const E2E_TOKEN_KEY_RING = JSON.stringify({
+  "1": Buffer.alloc(32, 7).toString("base64"),
+});
+
+/** E2E の Meta のアプリの ID（テストだけの値。threads-010）。 */
+export const E2E_THREADS_APP_ID = "1234567890";
+/** E2E の Meta のアプリの秘密の値（テストだけの値。本番の値ではない）。 */
+export const E2E_THREADS_APP_SECRET = "e2e-meta-app-secret".padEnd(32, "0");
+
 /** E2E の主催者の LINE のユーザー ID（試験用のログインでこの ID を使うと主催者になる。event・reception・survey の E2E が使う）。 */
 export const E2E_ORGANIZER_LINE_USER_ID = `U${"e".repeat(32)}`;
 
@@ -54,7 +70,8 @@ export const E2E_ENV: Record<string, string> = {
   // E2E のログインは account の試験用のログインで行う（本物の LINE は手元の http で動かない）
   TEST_LOGIN_ENABLED: "true",
   OPENAPI_DOC_ENABLED: "true",
-  DOMAIN_FEATURES: "",
+  // 機能の印で止めている領域のうち、通しのテストで確かめるもの（threads-010 の OAuth）
+  DOMAIN_FEATURES: "threads.oauth",
   LOG_PRETTY: "false",
   LOG_LEVEL: "warn",
   DATABASE_CONNECT_TIMEOUT_MS: "5000",
@@ -65,4 +82,12 @@ export const E2E_ENV: Record<string, string> = {
   RATE_LIMIT_WINDOW_SECONDS: "60",
   RATE_LIMIT_MAX: "10000",
   TRUSTED_PROXY_HOPS: "0",
+  // Threads への接続と自動投稿（threads-002）：偽の Threads の API に向け、テストだけの鍵と合言葉を使う
+  THREADS_API_BASE_URL: E2E_FAKE_THREADS_URL,
+  TOKEN_ENCRYPTION_KEYS: E2E_TOKEN_KEY_RING,
+  TOKEN_ENCRYPTION_KEY_VERSION: "1",
+  JOB_TRIGGER_SECRET: E2E_JOB_TRIGGER_SECRET,
+  // アプリの Meta のアプリ（threads-010）：テストだけの値。偽の Threads の認可の画面と Webhook の署名に使う
+  THREADS_APP_ID: E2E_THREADS_APP_ID,
+  THREADS_APP_SECRET: E2E_THREADS_APP_SECRET,
 };

@@ -3,7 +3,7 @@
 // DB は E2E 専用の名前（<DB名>_e2e）。Chromium で、パソコンの幅（1440px）とスマホの幅（375px）の2つ。
 // テストは DB を空にしてから始めるので、1つずつ順に流す（workers: 1）。
 import { defineConfig, devices } from "@playwright/test";
-import { E2E_ENV, E2E_WEB_URL } from "./env.ts";
+import { E2E_ENV, E2E_FAKE_THREADS_PORT, E2E_FAKE_THREADS_URL, E2E_WEB_URL } from "./env.ts";
 
 export default defineConfig({
   testDir: "./tests",
@@ -30,6 +30,15 @@ export default defineConfig({
     },
   ],
   webServer: [
+    {
+      // 偽の Threads の API（threads-002。API が THREADS_API_BASE_URL で呼ぶ。外の Threads には出ない）
+      command: "pnpm --filter api exec tsx src/modules/threads/fake-threads-serve.ts",
+      cwd: "..",
+      env: { FAKE_THREADS_PORT: String(E2E_FAKE_THREADS_PORT) },
+      url: `${E2E_FAKE_THREADS_URL}/__control/posts`,
+      reuseExistingServer: false,
+      timeout: 60_000,
+    },
     {
       // DB の変更を当てて（DB がなければ作って）から、API を立ち上げる（組み立てた画面も API が返す）。
       // API は本番と同じ NODE_ENV=production で動かす（ふるまいは設定の値で決め、NODE_ENV に頼らない）。
