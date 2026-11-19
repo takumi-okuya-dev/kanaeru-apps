@@ -33,7 +33,7 @@ import type { ApiEnv, DomainRouteDeps } from "./kernel/http.ts";
 import type { Logger } from "./kernel/logger.ts";
 import { REQUEST_ID_HEADER, requestIdMiddleware } from "./kernel/request-id.ts";
 import * as modules from "./modules.list.ts";
-import { requireApp } from "./modules/suite/index.ts";
+import { requireApp, requireAppNotOff } from "./modules/suite/index.ts";
 import { healthRoutes } from "./platform/health/index.ts";
 import { createRateLimiter } from "./platform/rate-limit/index.ts";
 import {
@@ -120,6 +120,12 @@ function resolveApps(deps: Pick<AppDeps, "extraApps">): readonly AppDefinition[]
   }
   return apps;
 }
+
+/**
+ * 機械の道（定期の仕事・外のサービスの Webhook）。見る人がいないので、requireApp の代わりに requireAppNotOff を付ける
+ * （アプリが切のときだけ 404。道が自分で合言葉・署名を確かめる。AD-16）。
+ */
+const MACHINE_PATH = /^\/api\/v1\/[a-z]+\/(?:jobs|webhooks)\//;
 
 /** 状態を変えない動き。 */
 const SAFE_METHODS = /^(GET|HEAD|OPTIONS)$/;
@@ -408,12 +414,13 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
     if (owner) {
       // アプリに属する領域のすべての道の前に、suite の requireApp を置く（同じ動きと道に先に足した処理が先に動く。AD-16）
       const guard = requireApp(routeDeps, owner.key);
+      const machineGuard = requireAppNotOff(routeDeps, owner.key);
       const seen = new Set<string>();
       for (const route of domainRoutes.routes) {
         const key = `${route.method} ${route.path}`;
         if (route.method === "ALL" || seen.has(key)) continue;
         seen.add(key);
-        app.on(route.method, route.path, guard);
+        app.on(route.method, route.path, MACHINE_PATH.test(route.path) ? machineGuard : guard);
       }
     }
     app.route("/", domainRoutes);

@@ -2,6 +2,8 @@
 // - 公開：だれにでも見える（ログインの前も）。運営者だけ：運営者にだけ。切：だれにも見えない。行がなければ運営者だけ
 // - requireApp は各アプリが付けない。組み立て（app.ts）が apps.list.ts の「アプリ → 属する領域」から、その領域のすべての道に付ける
 // - 見えないときは 404（道があることも知らせない）。公開のアプリは、セッションを引かずに通す
+// - 機械の道（/api/v1/<領域>/jobs/…・/api/v1/<領域>/webhooks/…。定期の仕事と外のサービスが送る）は見る人がいないので、
+//   requireAppNotOff で「切」のときだけ止める（運営者だけでも動く。道が自分で合言葉・署名を確かめる）
 import type { AppViewer, AppVisibility } from "@workspace/contracts/suite";
 import { DEFAULT_APP_VISIBILITY, isVisibleTo } from "@workspace/contracts/suite";
 import type { Context } from "hono";
@@ -73,6 +75,22 @@ export function requireApp(
       const viewer = visibility === "off" ? null : await readViewer(deps, c);
       if (!isVisibleTo(visibility, viewer)) throw new AppError("NOT_FOUND");
     }
+    await next();
+  });
+}
+
+/**
+ * 機械の道（定期の仕事・外のサービスの Webhook）の middleware を作る（アプリが切のときだけ 404 NOT_FOUND）。
+ * 見る人（セッション）がいないので、運営者だけのアプリでも通す。道は自分で合言葉・署名を確かめる。
+ * 組み立て（app.ts）が、アプリに属する領域の機械の道に、requireApp の代わりに付ける。
+ * @param deps db
+ * @param deps.db DB
+ * @param appKey アプリの key
+ * @returns middleware
+ */
+export function requireAppNotOff(deps: { db: Db }, appKey: string) {
+  return createMiddleware<ApiEnv>(async (_c, next) => {
+    if ((await appVisibility(deps.db, appKey)) === "off") throw new AppError("NOT_FOUND");
     await next();
   });
 }

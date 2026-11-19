@@ -4,7 +4,7 @@ import type { DomainRouteDeps } from "../../kernel/http.ts";
 import { suiteRoutes } from "./routes.ts";
 
 export { INITIAL_APP_SETTINGS, restoreInitialAppSettings, upsertVisibility } from "./repository.ts";
-export { appVisibility, isAppVisible, requireApp } from "./visibility.ts";
+export { appVisibility, isAppVisible, requireApp, requireAppNotOff } from "./visibility.ts";
 
 /**
  * スイートの領域の道。戻り値の型は書かない（書くと画面に渡す型が消える）。

@@ -57,6 +57,7 @@ API（`apps/api/src/modules/suite/index.ts`）：
 |---|---|
 | `isAppVisible(db, appKey, viewer)` | 見えるか。`viewer` は `{ isOperator }`（ログインの前は `null`）。公開はだれにも、運営者だけは運営者にだけ、切はだれにも見えない |
 | `requireApp(deps, appKey)` | 見えなければ 404 の middleware。**各アプリは付けない**。組み立て（`app.ts`）が、アプリに属する領域のすべての道（参加者が外から開く道も）の前に自動で付ける。公開のアプリはセッションを引かずに通す |
+| `requireAppNotOff(deps, appKey)` | 機械の道（`/api/v1/<領域>/jobs/…`・`/api/v1/<領域>/webhooks/…`。定期の仕事と外のサービスが送る）の middleware。見る人がいないので、**切のときだけ** 404（運営者だけでも通す）。組み立てが `requireApp` の代わりに付ける。道は自分で合言葉・署名を確かめる |
 | `appVisibility(db, appKey)`・`upsertVisibility(db, appKey, visibility)` | 公開の状態を読む・書く（書くのは suite の窓口と E2E の立ち上げだけ） |
 | `INITIAL_APP_SETTINGS`・`restoreInitialAppSettings(db)` | DB の変更が入れる初めの行と、それを戻す手順（結合のテストの `truncateAllTables` が使う） |
 

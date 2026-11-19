@@ -153,6 +153,17 @@ describe("スイートの窓口", () => {
       expect((await app.request("/api/v1/demo/ping")).status).toBe(200);
     });
 
+    it("機械の道（jobs・webhooks）は、運営者だけでもログインなしで通り、切のときだけ 404", async () => {
+      const tick = () => app.request("/api/v1/demo/jobs/tick", jsonRequest("POST", {}));
+      // 行がない（運営者だけ）：ふつうの道はログインの前に 404 だが、機械の道は通る
+      expect((await app.request("/api/v1/demo/ping")).status).toBe(404);
+      expect((await tick()).status).toBe(200);
+      await putVisibility(DEMO_APP_KEY, "off");
+      expect((await tick()).status).toBe(404);
+      await putVisibility(DEMO_APP_KEY, "public");
+      expect((await tick()).status).toBe(200);
+    });
+
     it("受付アプリを切にすると、その領域の道（参加者が開く道も）が 404 になる", async () => {
       expect((await app.request("/api/v1/events", withCookie(operator))).status).toBe(200);
       await putVisibility("reception", "off");
