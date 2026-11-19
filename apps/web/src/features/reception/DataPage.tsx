@@ -127,10 +127,10 @@ function DeleteSection({ event }: { event: EventView }) {
   const [target, setTarget] = useState<CheckinView>();
   const [deleted, setDeleted] = useState<string>();
   const mutation = useMutation({
-    mutationFn: (checkin: CheckinView) =>
-      checkin.accountId
-        ? deleteParticipantAccount(checkin.accountId)
-        : deleteCheckin(event.id, checkin.id),
+    mutationFn: async (checkin: CheckinView) => {
+      if (checkin.accountId) await deleteParticipantAccount(checkin.accountId);
+      else await deleteCheckin(event.id, checkin.id);
+    },
     onSuccess: async (_result, checkin) => {
       setDeleted(checkin.name);
       setTarget(undefined);

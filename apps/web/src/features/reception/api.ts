@@ -2,8 +2,9 @@
 // 読み書きは lib/api.ts の request を通す（エラーの読み方と 401 の知らせをそろえる）。
 // 参加者のデータを消すときだけ、account の窓口（DELETE /api/v1/accounts/{accountId}）を呼ぶ（FR-16・AD-7）。
 import type { CheckinInput } from "@workspace/contracts/reception";
+import { RECEPTION_ERRORS } from "@workspace/contracts/reception";
 import type { ModuleRoutes } from "../../../../api/src/client.ts";
-import { NetworkError, createApiClient, request } from "../../lib/api.ts";
+import { ApiError, NetworkError, createApiClient, request } from "../../lib/api.ts";
 
 let client: ReturnType<typeof createApiClient<ModuleRoutes["reception"]>> | undefined;
 let accountClient: ReturnType<typeof createApiClient<ModuleRoutes["account"]>> | undefined;
@@ -85,17 +86,25 @@ export function updateCheckin(eventId: string, checkinId: string, input: Checkin
 }
 
 /**
- * チェックインを取り消す（主催者・受付係。行を消す）。
+ * チェックインを取り消す（主催者・受付係。行を消す）。ほかの端末で先に取り消されていた（404 CHECKIN_NOT_FOUND）ときは、
+ * 望んだとおりもうないので、取り消せたものとして扱う（呼ぶ側は枠を閉じて一覧を読み直す）。
  * @param eventId 交流会の ID
  * @param checkinId チェックインの ID
  * @returns 終わり
+ * @throws {ApiError} CHECKIN_NOT_FOUND のほかの API のエラー（交流会がない・権限がないなど）
+ * @throws {NetworkError} 通信が届かなかったとき
  */
-export function deleteCheckin(eventId: string, checkinId: string) {
-  return request(() =>
-    api().api.v1.events[":eventId"].checkins[":checkinId"].$delete({
-      param: { eventId, checkinId },
-    }),
-  );
+export async function deleteCheckin(eventId: string, checkinId: string): Promise<void> {
+  try {
+    await request(() =>
+      api().api.v1.events[":eventId"].checkins[":checkinId"].$delete({
+        param: { eventId, checkinId },
+      }),
+    );
+  } catch (error) {
+    if (error instanceof ApiError && error.code === RECEPTION_ERRORS.CHECKIN_NOT_FOUND.code) return;
+    throw error;
+  }
 }
 
 /**

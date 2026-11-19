@@ -59,6 +59,7 @@ export function CheckinEditDialog({ event, checkin, onClose, onDone }: CheckinEd
       }
     },
   });
+  // ほかの端末で先に取り消されていたとき（404 CHECKIN_NOT_FOUND）も、deleteCheckin が取り消せたものとして返す
   const remove = useMutation({
     mutationFn: () => deleteCheckin(event.id, checkin.id),
     onSuccess: () => onDone(`${checkin.name}さんのチェックインを取り消しました。`),
