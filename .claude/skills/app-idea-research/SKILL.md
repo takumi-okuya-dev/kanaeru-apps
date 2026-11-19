@@ -11,7 +11,7 @@ description: 'Turns a raw app idea for the kanaeru suite into a sourced go/no-go
 
 - [CLAUDE.md](../../../CLAUDE.md) と `docs/rules/`（とくに [並行開発の決まり](../../../docs/rules/parallel-development.md) の作業場所の置き方・[文書の決まり](../../../docs/rules/documents.md)）
 - [Constitution](../../../.specify/memory/constitution.md)（原則 I お金を預からない・II 個人の情報は最小限）
-- [プロダクトブリーフ](../../../_bmad-output/brief-kanaeru-apps/brief-kanaeru-apps.md)（スイートの思い・最初に向き合う人）と、`docs/backlog.md` の A（スイートの構成の見直し・売り方の切り替え）と B（今後作りたいアプリ）
+- [プロダクトブリーフ](../../../_bmad-output/brief-kanaeru-apps/brief-kanaeru-apps.md)（スイートの思い・最初に向き合う人）と、[構成の決めごと](../../../_bmad-output/architecture-kanaeru/architecture-kanaeru.md) の AD-15〜AD-21（アプリの台帳・売り方の切り替え・AIエージェントネイティブ）と、`docs/backlog.md` の B（今後作りたいアプリ）
 - すでにある調べもの：`_bmad-output/research-app-ideas/`（同じ観点を調べ直さず、足りない所だけを足す）
 
 ## 守ること
@@ -65,7 +65,7 @@ git worktree add ../idea-<短い名前> -b docs/idea-<短い名前> origin/devel
 3つのファイルを読み、[報告の型](./assets/report-template.md) で `_bmad-output/research-app-ideas/<番号>-<短い名前>.md` を書く。
 
 - 判断は「**早く作る／あとで作る／作らない**」のどれかと、その理由（3行まで）。
-- 売り方は「**スイートに含める／個別に課金／両方**」（`docs/backlog.md` A の 7）。
+- 売り方は「**スイートに含める／個別に課金／両方**」（構成の決めごとの AD-16）。
 - kanaeru との相性（受付アプリが玄関になるか・LINE・交流会のコミュニティ・アカウントの共通）と、1人で作るときの手間の目安。
 - 次の一歩（例：`/bmad-forge-idea` でアイデアを固める・テスターに聞き取り・作らない）。
 
