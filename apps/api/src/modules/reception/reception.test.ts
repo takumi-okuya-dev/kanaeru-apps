@@ -214,12 +214,20 @@ describe("受付の窓口", () => {
       const b = await loginAs(app);
       const c = await loginAs(app);
       await checkIn(app, a.cookie, eventId, { name: "佐藤 太郎" });
-      await manualCheckIn(app, organizer, eventId, { name: "佐藤太郎　" });
+      // 手でのチェックインの答えの行も、同じ交流会の同じ名前と比べた印を持つ（DB でそろえた名前を探す）
+      expect(await manualCheckIn(app, organizer, eventId, { name: "佐藤太郎　" })).toMatchObject({
+        sameName: true,
+      });
       await checkIn(app, b.cookie, eventId, { name: "鈴木" });
       await checkIn(app, c.cookie, eventId, { name: "鈴木" });
-      await manualCheckIn(app, organizer, eventId, { name: "ﾀﾅｶ" });
-      await manualCheckIn(app, organizer, eventId, { name: "タナカ" });
-      await manualCheckIn(app, organizer, eventId, { name: "一人だけ" });
+      expect(await manualCheckIn(app, organizer, eventId, { name: "ﾀﾅｶ" })).toMatchObject({
+        sameName: false,
+      });
+      expect(await manualCheckIn(app, organizer, eventId, { name: "タナカ" })).toMatchObject({
+        sameName: true,
+      });
+      const alone = await manualCheckIn(app, organizer, eventId, { name: "一人だけ" });
+      expect(alone.sameName).toBe(false);
 
       const flags = Object.fromEntries(
         (await listOf(organizer)).map((row) => [`${row.name}/${row.method}`, row.sameName]),
@@ -232,6 +240,20 @@ describe("受付の窓口", () => {
         "タナカ/manual": true,
         "一人だけ/manual": false,
       });
+
+      // 直したあとの答えの行も、直した名前で比べる（ほかの交流会の同じ名前とは比べない）
+      const other = await createEvent(app, organizer, { name: "別の交流会" });
+      await manualCheckIn(app, organizer, other.id, { name: "山田" });
+      const renamed = await call(app, organizer, `${base}/${alone.id}`, "PUT", {
+        ...SAMPLE_CHECKIN,
+        name: "山田",
+      });
+      expect(await renamed.json()).toMatchObject({ name: "山田", sameName: false });
+      const toSuzuki = await call(app, organizer, `${base}/${alone.id}`, "PUT", {
+        ...SAMPLE_CHECKIN,
+        name: " 鈴\u3000木 ",
+      });
+      expect(await toSuzuki.json()).toMatchObject({ name: "鈴\u3000木", sameName: true });
     });
 
     it("主催者でも受付係でもない人は 403、ない交流会は 404、未ログインは 401", async () => {

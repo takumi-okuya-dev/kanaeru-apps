@@ -33,6 +33,7 @@ import {
   getCheckin,
   insertCheckin,
   listCheckins,
+  listSameNameCandidates,
   sumByPaymentMethod,
   updateCheckin,
 } from "./repository.ts";
@@ -301,20 +302,29 @@ async function toViews(
 }
 
 /**
- * 1つのチェックインを、同じ交流会のほかの行と比べた一覧画面の行にする。
+ * 1つのチェックインを、同じ交流会のほかの行と比べた一覧画面の行にする（手でのチェックイン・直したあと）。
+ * 交流会の全部を読まず、そろえた名前が同じ行だけを DB で探して印を決める。
  * @param deps 土台が渡す道具
  * @param record チェックイン
  * @returns 一覧画面の行
- * @throws {Error} 読み直した一覧に、その行がないとき（作ったばかりなので、ふつうは起きない）
  */
 async function toViewInEvent(
   deps: DomainRouteDeps,
   record: CheckinRecord,
 ): Promise<contract.CheckinView> {
-  const views = await toViews(deps, await listCheckins(deps.db, record.eventId));
-  const view = views.find((item) => item.id === record.id);
-  if (!view) throw new Error("直したチェックインが一覧にありません。");
-  return view;
+  const key = contract.normalizeCheckinName(record.name);
+  const [names, candidates] = await Promise.all([
+    enteredByNames(deps.db, [record]),
+    listSameNameCandidates(deps.db, record.eventId, key),
+  ]);
+  // DB と JavaScript の NFKC がずれても、一覧（sameNameIds）と同じ答えになるよう、ここでもう一度そろえて比べる
+  const group = [
+    record,
+    ...candidates.filter(
+      (item) => item.id !== record.id && contract.normalizeCheckinName(item.name) === key,
+    ),
+  ];
+  return toCheckinView(record, names, sameNameIds(group));
 }
 
 /**

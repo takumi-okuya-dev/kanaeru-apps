@@ -72,6 +72,40 @@ export function listCheckins(
     .orderBy(...(order === "newest" ? NEWEST_FIRST : OLDEST_FIRST));
 }
 
+/** 同じ名前の候補の行（同じ名前の印に要る列だけ）。 */
+export type SameNameCandidate = Pick<CheckinRecord, "id" | "name" | "accountId">;
+
+/**
+ * 同じ名前の候補を探すときに消す空白（JavaScript の \s と同じ文字。約束の normalizeCheckinName に合わせる）。
+ * PostgreSQL の正規表現の文字の書き方（\t・\uXXXX）で書き、値として渡す。
+ */
+const WHITESPACE_PATTERN =
+  "[\\t\\n\\v\\f\\r \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]+";
+
+/**
+ * その交流会で、そろえた名前（NFKC でそろえ、空白をすべて消したもの）が同じ行を DB で探す（同じ名前の印を1行だけ決めるとき）。
+ * DB の NFKC は JavaScript と Unicode の版がずれうるので、呼ぶ側は normalizeCheckinName でもう一度確かめる。
+ * @param db DB
+ * @param eventId 交流会の ID
+ * @param normalizedName normalizeCheckinName でそろえた名前
+ * @returns 候補の行（id・name・accountId）
+ */
+export function listSameNameCandidates(
+  db: Executor,
+  eventId: string,
+  normalizedName: string,
+): Promise<SameNameCandidate[]> {
+  return db
+    .select({ id: checkin.id, name: checkin.name, accountId: checkin.accountId })
+    .from(checkin)
+    .where(
+      and(
+        eq(checkin.eventId, eventId),
+        sql`regexp_replace(normalize(${checkin.name}, NFKC), ${WHITESPACE_PATTERN}, '', 'g') = ${normalizedName}`,
+      ),
+    );
+}
+
 /**
  * その人の前回のチェックイン（どの交流会でも、いちばん新しいもの）の名前と知ったきっかけ（初期値。AD-6・決定 A4）。
  * @param db DB
