@@ -101,16 +101,24 @@ function listDomains(deps: Pick<AppDeps, "extraModules">): [name: string, module
 
 /**
  * 登録されたアプリ（apps.list.ts の順のあとに、テストの extraApps）を決まりで確かめて返す。
- * modules.list.ts の領域が、どれもちょうど1つのアプリか共通に属することも確かめる（AD-15）。
+ * 組み立てる領域（modules.list.ts と、テストの名前つきの extraModules）が、どれもちょうど1つのアプリか共通に属することも
+ * 確かめる（AD-15。並びの extraModules〈"extra:<番号>"〉は、組み立てのテストの道具なので確かめない）。
  * @param deps 組み立てに使う道具
+ * @param domainNames 組み立てる領域の名前
  * @returns アプリの並び
  * @throws {Error} 決まりに合わないアプリの一覧・どこにも属さない領域があるとき（起動を止める）
  */
-function resolveApps(deps: Pick<AppDeps, "extraApps">): readonly AppDefinition[] {
+function resolveApps(
+  deps: Pick<AppDeps, "extraApps">,
+  domainNames: readonly string[],
+): readonly AppDefinition[] {
   const apps = [...listApps(), ...(deps.extraApps ?? [])];
   const problems = [
     ...appRegistryProblems(apps),
-    ...unassignedDomains(Object.keys(modules), apps).map(
+    ...unassignedDomains(
+      domainNames.filter((name) => !name.startsWith("extra:")),
+      apps,
+    ).map(
       (domain) =>
         `領域 ${domain} がどのアプリにも属していません（packages/contracts/src/core/apps.list.ts に足してください）`,
     ),
@@ -303,7 +311,10 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
   const { db } = deps.database;
   const allowedOrigin = new URL(config.webUrl).origin;
   const domains = listDomains(deps);
-  const apps = resolveApps(deps);
+  const apps = resolveApps(
+    deps,
+    domains.map(([name]) => name),
+  );
   // 設定 DOMAIN_FEATURES の領域の名前は、登録された領域だけ（書き違いで黙って切のままにしない）
   assertKnownDomainFeatures(
     config.domainFeatures,

@@ -164,6 +164,7 @@ function appsView(overrides: Partial<ShellAppsView> = {}): ShellAppsView {
     apps: [RECEPTION],
     place: { kind: "app", key: "reception" },
     hidden: false,
+    placeVisible: true,
     appsPath: "/apps",
     settingsPath: "/settings",
     ...overrides,
@@ -269,7 +270,9 @@ describe("外枠のアプリの切り替え（core-005）", () => {
       component: () => (
         <AppShell
           useNavItems={() => ITEMS}
-          useApps={() => appsView({ place: { kind: "app", key: "sample" }, hidden: true })}
+          useApps={() =>
+            appsView({ place: { kind: "app", key: "sample" }, hidden: true, placeVisible: false })
+          }
         />
       ),
     });

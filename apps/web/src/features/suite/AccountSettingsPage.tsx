@@ -5,6 +5,7 @@
 // ログアウト・退会のあとは、すべてのアプリの画面へ移り、画面の上の知らせの帯で伝える（画面が切り替わるため）。
 import type { CurrentAccountView } from "@workspace/contracts/account";
 import { useQueryClient } from "@tanstack/react-query";
+import { listApps } from "@workspace/contracts/core";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
@@ -105,15 +106,16 @@ function AccountSummary({ account }: { account: CurrentAccountView }) {
  * @returns 要素
  */
 function Withdraw() {
-  const { status, apps } = useVisibleApps();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | undefined>();
+  // 消えるのは、見えるアプリだけでなく、登録されたすべてのアプリの本人の記録（AD-19 の CASCADE）
+  const registered = listApps();
   const records =
-    status === "success" && apps.length > 0
-      ? `（${apps.map((app) => `${app.name}の${app.accountData}`).join("、")}）`
+    registered.length > 0
+      ? `（${registered.map((app) => `${app.name}の${app.accountData}`).join("、")}）`
       : "";
 
   const confirm = async () => {

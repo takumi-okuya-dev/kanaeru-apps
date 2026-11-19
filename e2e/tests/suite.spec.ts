@@ -110,7 +110,7 @@ test("運営者が台帳で見本のアプリを「運営者だけ」にする�
     await expect(demoRow.getByRole("status")).toHaveText("「運営者だけ」にしました。");
     await expect(demoRow.getByRole("cell").last()).toHaveText("運営者だけ");
     await expect(table.getByRole("row").filter({ hasText: "受付" })).toContainText(
-      "ログインした人すべて",
+      "だれでも（ログインの前も）",
     );
     await expectNoA11yViolations(page, "アプリの台帳");
 

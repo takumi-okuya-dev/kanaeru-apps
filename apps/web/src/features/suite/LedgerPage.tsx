@@ -42,14 +42,15 @@ type RowResult = { tone: "success" | "danger"; message: string };
  */
 function LedgerRow({ setting }: { setting: AppSettingView }) {
   const queryClient = useQueryClient();
-  const [value, setValue] = useState<AppVisibility>(setting.visibility);
+  // 保存の間だけ選んだ値を出し、ふだんは読み直した台帳の値に従う（ほかのタブ・ほかの運営者の変更も映す）
+  const [optimistic, setOptimistic] = useState<AppVisibility | undefined>();
   const [result, setResult] = useState<RowResult | undefined>();
   const [pending, setPending] = useState(false);
+  const value = optimistic ?? setting.visibility;
 
   const change = async (next: AppVisibility) => {
     if (pending || next === value) return;
-    const previous = value;
-    setValue(next);
+    setOptimistic(next);
     setPending(true);
     setResult(undefined);
     try {
@@ -58,9 +59,9 @@ function LedgerRow({ setting }: { setting: AppSettingView }) {
       // 切り替え・ナビ・すべてのアプリにすぐ効かせる（台帳も読み直す）
       await queryClient.invalidateQueries({ queryKey: SUITE_QUERY_KEYS.all });
     } catch (caught) {
-      setValue(previous);
       setResult({ tone: "danger", message: errorMessage(caught) });
     } finally {
+      setOptimistic(undefined);
       setPending(false);
     }
   };

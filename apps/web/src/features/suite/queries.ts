@@ -33,6 +33,8 @@ export type VisibleAppsState = {
   apps: VisibleAppList["apps"];
   /** 見る人が運営者か */
   isOperator: boolean;
+  /** この画面でログインしているとわかっているか（わからない間は、見えないアプリでも画面を出し、画面にログインさせる） */
+  signedIn: boolean;
 };
 
 /**
@@ -59,6 +61,7 @@ export function useVisibleApps(): VisibleAppsState {
     status: query.status,
     apps: query.data?.apps ?? [],
     isOperator: query.data?.isOperator ?? false,
+    signedIn: account !== null,
   };
 }
 

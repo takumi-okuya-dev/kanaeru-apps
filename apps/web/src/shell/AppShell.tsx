@@ -51,6 +51,7 @@ const NO_APPS: ShellAppsView = {
   apps: [],
   place: null,
   hidden: false,
+  placeVisible: false,
   appsPath: null,
   settingsPath: null,
 };
@@ -240,10 +241,11 @@ export function AppShell({ useNavItems, useApps = useNoApps }: AppShellProps) {
     if (notice && notice.path !== pathname) clearNotice();
   }, [notice, pathname]);
 
+  const placeAppKey = apps.place?.kind === "app" ? apps.place.key : undefined;
   useEffect(() => {
-    // アプリの中にいるときは、そのアプリをこの端末に覚える（はじめの画面〈/〉で開く）
-    if (apps.place?.kind === "app" && !apps.hidden) writeLastApp(apps.place.key);
-  }, [apps.place, apps.hidden]);
+    // 見えると確かめたアプリの中にいるときは、そのアプリをこの端末に覚える（はじめの画面〈/〉で開く）
+    if (placeAppKey !== undefined && apps.placeVisible) writeLastApp(placeAppKey);
+  }, [placeAppKey, apps.placeVisible]);
 
   const admin = layout === "admin";
   // 切り替えは、見えるアプリが2つ以上のときだけ（1つなら今までと同じ見た目）

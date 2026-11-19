@@ -31,6 +31,8 @@ export type ShellAppsView = {
   place: ShellPlace;
   /** 今の道のアプリが、見る人に見えないか（見えなければ外枠が「ページが見つかりません」を出す） */
   hidden: boolean;
+  /** 今の道のアプリが、見る人に見えると確かめたか（確かめたときだけ、最後に使ったアプリとして覚える） */
+  placeVisible: boolean;
   /** すべてのアプリの道（なければ null） */
   appsPath: string | null;
   /** 設定の道（なければ null。あれば外枠が「設定」の入口を出す） */

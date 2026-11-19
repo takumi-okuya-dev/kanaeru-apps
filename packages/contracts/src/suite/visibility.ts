@@ -20,14 +20,15 @@ export const APP_VISIBILITY_LABELS = {
 export const APP_VISIBILITY_AUDIENCES = {
   off: "だれにも見えません",
   operator_only: "運営者だけ",
-  public: "ログインした人すべて",
+  public: "だれでも（ログインの前も）",
 } as const satisfies Record<AppVisibility, string>;
 
 /** 公開の状態ごとの説明（台帳の凡例）。 */
 export const APP_VISIBILITY_DESCRIPTIONS = {
   off: "だれにも見せない。窓口は 404。ナビ・すべてのアプリにも出さない",
   operator_only: "運営者にだけ見せる（本番で確かめるとき）。台帳に行がないアプリはこの状態",
-  public: "ログインした人すべてに見せる。参加者が外から開く画面（受付QR など）も動く",
+  public:
+    "だれにでも見せる（ログインの前も。ログインが要る画面は、それぞれの画面がログインを求める）。参加者が外から開く画面（受付QR など）も動く",
 } as const satisfies Record<AppVisibility, string>;
 
 /** アプリを見る人（ログインの前は null）。 */

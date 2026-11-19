@@ -201,14 +201,17 @@ export function useShellApps(): ShellAppsView {
     : appKey
       ? { kind: "app", key: appKey }
       : null;
+  const listed =
+    appKey !== undefined &&
+    visible.status === "success" &&
+    visible.apps.some((app) => app.key === appKey);
   return {
     apps,
     place,
-    // 見えるアプリを読めたときだけ決める（読めないときは画面を出す。窓口は API の requireApp が守る）
-    hidden:
-      appKey !== undefined &&
-      visible.status === "success" &&
-      !visible.apps.some((app) => app.key === appKey),
+    // 見えるアプリを読めて、ログインしているとわかっているときだけ決める（読めないとき・ログインの前は画面を出す。
+    // 運営者だけのアプリでも、画面がログインさせてから読み直す。窓口は API の requireApp が守る）
+    hidden: appKey !== undefined && visible.status === "success" && visible.signedIn && !listed,
+    placeVisible: listed,
     appsPath: SUITE_ROUTE_PATTERNS.apps,
     settingsPath: SUITE_ROUTE_PATTERNS.settings,
   };
