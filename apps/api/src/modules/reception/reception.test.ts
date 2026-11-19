@@ -331,6 +331,36 @@ describe("受付の窓口", () => {
       expect(await countCheckins()).toBe(1);
     });
 
+    it("ない交流会の直す・取り消すは event の NOT_FOUND で、窓口の文書の 404 には両方の code を書く", async () => {
+      const row = await manualCheckIn(app, organizer, eventId);
+      const missing = `/api/v1/events/${MISSING_ID}/checkins/${row.id}`;
+      for (const method of ["PUT", "DELETE"] as const) {
+        const response = await call(app, organizer, missing, method, SAMPLE_CHECKIN);
+        expect(response.status).toBe(404);
+        expect(((await response.json()) as ErrorBody).error.code).toBe("NOT_FOUND");
+      }
+
+      const documented = buildApp(
+        database,
+        testConfig({
+          organizerLineUserId: ORGANIZER_LINE_USER_ID_FOR_TEST,
+          openApiDocEnabled: true,
+        }),
+      );
+      type NotFoundDoc = {
+        content: Record<string, { examples: Record<string, { value: ErrorBody }> }>;
+      };
+      const document = (await (await documented.request("/api/openapi.json")).json()) as {
+        paths: Record<string, Record<string, { responses: Record<string, NotFoundDoc> }>>;
+      };
+      const path = document.paths["/api/v1/events/{eventId}/checkins/{checkinId}"];
+      for (const method of ["put", "delete"]) {
+        const notFound = path?.[method]?.responses["404"]?.content["application/json"];
+        const codes = Object.values(notFound?.examples ?? {}).map((item) => item.value.error.code);
+        expect(codes.sort(), method).toEqual(["CHECKIN_NOT_FOUND", "NOT_FOUND"]);
+      }
+    });
+
     it("主催者でも受付係でもない人は、直せず取り消せない（403）", async () => {
       const row = await manualCheckIn(app, organizer, eventId);
       const other = await loginAs(app);
