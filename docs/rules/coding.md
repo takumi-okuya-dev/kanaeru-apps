@@ -57,6 +57,7 @@
 - 次のリリースは、前のリリースが本番で落ち着いてから出す。前の版に安全に戻せるのは**1つ前まで**。
 - DBの変更のファイルを道具で作ったら、**できたSQLを読んでからコミットする**（名前の変更を「消して足す」として書く道具がある）。
 - **一度`develop`に入ったDBの変更のファイルは、書き換えない・消さない**。ステージングにはもう当たっているので、直すときは新しい変更を足す。
+- DBの変更の作り忘れ・記録（`meta/_journal.json`）の順番の狂い・壊れた記録は、`pnpm db:check`（`pnpm check`に入っている）が止める。落ちたら、出た直し方に従う（番号・記録・snapshotを手で直さない）。
 
 ## 4. テスト
 
@@ -98,8 +99,8 @@
 
 - API は `apps/api/src/`：`kernel/`（土台：設定・DB・ログ・エラー・列・道の型）・`platform/<名前>/`（共通：動いているか・回数の制限）・`modules/<領域>/`（領域）・組み立て（`app.ts`・`index.ts`・`modules.list.ts`・`client.ts`）。DB の変更は `apps/api/drizzle/`、手順は `apps/api/scripts/`。
 - 画面は `apps/web/src/`：`shell/`（外枠）・`features/<領域>/`（領域）・`lib/`（共通）・組み立て（`router.tsx`・`main.tsx`・`features.list.ts`）。
-- API の約束（zod）は `packages/contracts/src/<領域>/`（土台のものは `core/`）。見た目の値と部品は `packages/ui/`（値は `src/styles/tokens.css`）。
-- 通しのテストは `e2e/`。lint の規則と守りの確かめのテストは `tests/`。守りの手順は `scripts/security/`。
+- API の約束（zod）は `packages/contracts/src/<領域>/`（土台のものは `core/`。日本時間の関数〈`jstDate`・`jstDateTime`・`endOfJstDate`〉もここ）。見た目の値と部品は `packages/ui/`（値は `src/styles/tokens.css`）。業務を知らない技術の道具は `packages/<道具>/` の小さな包み（今は CSV の作り方の `@workspace/csv`。ほかの包みとアプリを読まない。lint で止める）。CSV を返すヘッダーは API の `kernel/http.ts` の `csvAttachment`、画面のファイルの受け取りと保存は `apps/web/src/lib/download.ts`（[並行開発の決まり](./parallel-development.md) 3-3）。
+- 通しのテストは `e2e/`。lint の規則・守りの確かめ・DB の変更の確かめのテストは `tests/`。守りの手順は `scripts/security/`、DB の変更の確かめは `scripts/db/`。
 - 領域の ID は、仕様のフォルダの領域の ID（`specs/<領域>/`）と同じにする。
 - 依存の向きは、組み立て → 領域 → 共通 → 土台。領域どうし・共通どうしは、相手の `index.ts` からだけ読む。画面から API は `apps/api/src/client.ts` を `import type` でだけ読む。この決まりはルートの `eslint.config.js` の境界の規則で止める（`tests/lint/boundaries.test.ts` が確かめる）。
 

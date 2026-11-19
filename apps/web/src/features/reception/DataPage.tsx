@@ -13,6 +13,7 @@ import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useState } from "react";
 import type * as React from "react";
 import { errorMessage } from "../../lib/api.ts";
+import { saveFile } from "../../lib/download.ts";
 import { Page } from "../../lib/page.tsx";
 import { SessionGate, useSession } from "../account/index.ts";
 import { EventAccessGate, formatEventDateTime } from "../event/index.ts";
@@ -45,22 +46,6 @@ function Section({ id, title, children }: SectionProps) {
       {children}
     </section>
   );
-}
-
-/**
- * ファイルを保存させる（受け取った中身を、ブラウザの保存にわたす）。
- * @param blob 中身
- * @param filename ファイルの名前
- */
-function saveFile(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /**

@@ -1,6 +1,8 @@
 // 参加者の CSV の形：BOM・CRLF・囲み・式の差しこみを打ち消す・日本時間。
 import { describe, expect, it } from "vitest";
-import { buildParticipantsCsv, csvCell, formatJstDateTime } from "./csv.ts";
+import { jstDateTime } from "@workspace/contracts/core";
+import { csvCell } from "@workspace/csv";
+import { buildParticipantsCsv } from "./csv.ts";
 import type { CheckinRecord } from "./repository.ts";
 
 /**
@@ -69,6 +71,6 @@ describe("参加者の CSV", () => {
   });
 
   it("日本時間の日付の境をまたぐ", () => {
-    expect(formatJstDateTime(new Date("2026-11-25T15:30:00.000Z"))).toBe("2026-11-26 00:30");
+    expect(jstDateTime(new Date("2026-11-25T15:30:00.000Z"))).toBe("2026-11-26 00:30");
   });
 });

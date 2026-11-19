@@ -4,13 +4,12 @@
 // 参加者の回答は、書くたびに event の getEventSummary で開閉を読み、閉じていれば断る。主催者の代わりの入力は閉じていても受ける（AD-13）。
 // 名前はいつも reception のチェックインの名前（AD-6）。困りごとの本文はログに出さない（このファイルは logger を使わない）。
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
-import { jstDate } from "@workspace/contracts/core";
 import { EVENT_ERRORS } from "@workspace/contracts/event";
 import { RECEPTION_ERRORS } from "@workspace/contracts/reception";
 import * as contract from "@workspace/contracts/survey";
 import { SURVEY_ERRORS, normalizeSurveyAnswer } from "@workspace/contracts/survey";
 import { AppError, domainErrorResponse } from "../../kernel/errors.ts";
-import { invalidInputResponse, uuidParam } from "../../kernel/http.ts";
+import { csvAttachment, invalidInputResponse, uuidParam } from "../../kernel/http.ts";
 import type { ApiEnv, DomainRouteDeps } from "../../kernel/http.ts";
 import { currentAccount, requireSession, unauthenticatedResponse } from "../account/index.ts";
 import {
@@ -331,10 +330,6 @@ export function surveyRoutes(deps: DomainRouteDeps) {
       const { eventId } = c.req.valid("param");
       // 回答の古い順（新しい順を逆にする）
       const rows = applyListQuery(await answersInEvent(deps, eventId), {}).reverse();
-      const filename = `concerns-${jstDate(new Date())}.csv`;
-      return c.body(buildConcernsCsv(rows), 200, {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="${filename}"`,
-      });
+      return c.body(buildConcernsCsv(rows), 200, csvAttachment("concerns"));
     });
 }

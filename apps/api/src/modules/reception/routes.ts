@@ -4,12 +4,11 @@
 // 金額は作るときと、支払い方法か割引を直すときだけ決める（AD-6。amount.ts・discount.ts）。名前と紹介者の名前はログに出さない。
 // 紹介者の名前は主催者だけに返す（受付係の一覧・手でのチェックイン・直すの答えでは null。reception-002 research R7）。
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
-import { jstDate } from "@workspace/contracts/core";
 import { EVENT_ERRORS } from "@workspace/contracts/event";
 import * as contract from "@workspace/contracts/reception";
 import { PAYMENT_METHODS, RECEPTION_ERRORS } from "@workspace/contracts/reception";
 import { AppError, domainErrorResponse } from "../../kernel/errors.ts";
-import { invalidInputResponse, uuidParam } from "../../kernel/http.ts";
+import { csvAttachment, invalidInputResponse, uuidParam } from "../../kernel/http.ts";
 import type { ApiEnv, DomainRouteDeps } from "../../kernel/http.ts";
 import { isUniqueViolation } from "../../kernel/pg-errors.ts";
 import {
@@ -557,10 +556,6 @@ export function receptionRoutes(deps: DomainRouteDeps) {
           enteredByName: record.enteredBy ? (names.get(record.enteredBy) ?? null) : null,
         })),
       );
-      const filename = `participants-${jstDate(new Date())}.csv`;
-      return c.body(csv, 200, {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="${filename}"`,
-      });
+      return c.body(csv, 200, csvAttachment("participants"));
     });
 }

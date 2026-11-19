@@ -5,23 +5,8 @@ import { useMutation } from "@tanstack/react-query";
 import { Button } from "@workspace/ui/components/button";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { errorMessage } from "../../lib/api.ts";
+import { saveFile } from "../../lib/download.ts";
 import { downloadConcernsCsv } from "./api.ts";
-
-/**
- * ファイルを保存させる（受け取った中身を、ブラウザの保存にわたす）。
- * @param blob 中身
- * @param filename ファイルの名前
- */
-function saveFile(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 
 /**
  * 困りごとの CSV の書き出しの節（見出し h2 から始める）。

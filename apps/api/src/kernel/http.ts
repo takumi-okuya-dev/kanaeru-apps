@@ -1,6 +1,7 @@
-// 道の文脈の型と、領域の道に土台が渡す道具の型、領域の道で共に使う手伝い（道の値の形・よく使うエラーの応答）。
+// 道の文脈の型と、領域の道に土台が渡す道具の型、領域の道で共に使う手伝い（道の値の形・よく使うエラーの応答・CSV を返すヘッダー）。
 // 組み立て（app.ts）と領域（modules/<領域>/）が同じ型を使う。領域は組み立てを読めない（境界の決まり）ので、ここに置く。
 import { z } from "@hono/zod-openapi";
+import { jstDate } from "@workspace/contracts/core";
 import type { RequestIdVariables } from "hono/request-id";
 import type { Config } from "./config.ts";
 import type { Db } from "./db.ts";
@@ -55,3 +56,23 @@ export const invalidInputResponse = errorResponse(
   "INVALID_INPUT",
   "入力が合わない（欄ごとの理由）",
 );
+
+/** CSV のファイル名の頭に使える形（英小文字・数字・-。ヘッダーに差しこまれないように）。 */
+const CSV_BASENAME_FORMAT = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/**
+ * CSV を添付として返すヘッダー（`c.body(csv, 200, csvAttachment("participants"))`）。ファイル名は `<名前>-<日本時間の日付>.csv`。
+ * @param basename ファイル名の頭（英小文字・数字・-）
+ * @param now 今の時刻（日付を決める。テストで固定する）
+ * @returns ヘッダー（種類と添付）
+ * @throws {RangeError} 使えない名前のとき
+ */
+export function csvAttachment(basename: string, now: Date = new Date()): Record<string, string> {
+  if (!CSV_BASENAME_FORMAT.test(basename)) {
+    throw new RangeError("CSV のファイル名の頭は、英小文字・数字・- で書いてください。");
+  }
+  return {
+    "Content-Type": "text/csv; charset=utf-8",
+    "Content-Disposition": `attachment; filename="${basename}-${jstDate(now)}.csv"`,
+  };
+}

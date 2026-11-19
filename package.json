@@ -20,7 +20,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "e2e": "pnpm --filter web build && pnpm --filter e2e test",
-    "check": "pnpm security:check && pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm e2e",
+    "check": "pnpm security:check && pnpm db:check && pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm e2e",
     "security:secrets": "tsx scripts/security/secrets.ts",
     "security:audit": "tsx scripts/security/audit.ts",
     "security:check": "pnpm security:secrets && pnpm security:audit",
@@ -29,7 +29,8 @@
     "dev": "docker compose up -d --wait && pnpm db:migrate && concurrently --names api,web --prefix-colors blue,green --kill-others-on-fail \"pnpm --filter api dev\" \"pnpm --filter web dev\"",
     "db:generate": "pnpm --filter api db:generate",
     "db:migrate": "pnpm --filter api db:migrate",
-    "db:seed": "pnpm --filter api db:seed"
+    "db:seed": "pnpm --filter api db:seed",
+    "db:check": "tsx scripts/db/check-migrations.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
