@@ -15,7 +15,7 @@ companions: ['./.memlog.md']
 
 # 構成の決めごと — kanaeru
 
-作成：2026-11-19（決めた理由は [.memlog.md](./.memlog.md)。いまのコードの形は [docs/architecture.md](../../docs/architecture.md)。点検の記録は [reviews/](./reviews/)）。2026-11-19 直した（reception-002：交流会ごとの割引。AD-3・AD-5・AD-6・AD-7・Capability map。理由は [specs/reception/002-discounts/research.md](../../specs/reception/002-discounts/research.md)）。2026-11-19 直した（スイートとして並行開発できる構成への見直し：AD-15〜AD-21 を足し、AD-1・AD-3・AD-5・AD-9 を直した。**[仮決め]** と書いたものは主催者の確かめ待ち）
+作成：2026-11-19（決めた理由は [.memlog.md](./.memlog.md)。いまのコードの形は [docs/architecture.md](../../docs/architecture.md)。点検の記録は [reviews/](./reviews/)）。2026-11-19 直した（reception-002：交流会ごとの割引。AD-3・AD-5・AD-6・AD-7・Capability map。理由は [specs/reception/002-discounts/research.md](../../specs/reception/002-discounts/research.md)）。2026-11-19 直した（スイートとして並行開発できる構成への見直し：AD-15〜AD-21 を足し、AD-1・AD-3・AD-5・AD-9 を直した）。2026-11-19 主催者が確かめた（仮決めをすべて採用。AD-18 は共通にしてよいものを技術の道具に絞り、AD-20 の外の AI は本人の記録だけに決め、B1 はこのリポジトリの中。Constitution 1.1.0）
 
 ## Design Paradigm
 
@@ -27,7 +27,7 @@ companions: ['./.memlog.md']
 flowchart TB
   subgraph common["スイートの共通"]
     account["account<br/>アカウント・セッション・今の利用者・運営者か<br/>（あとで：OAuth の認可・API キー）"]
-    suite["suite [仮決め]<br/>アプリの台帳・使えるか・契約"]
+    suite["suite<br/>アプリの台帳・使えるか・契約"]
   end
   subgraph reception_app["受付アプリ"]
     event["event<br/>交流会・要約・受付係・招待・アンケートの開閉・権限"]
@@ -73,8 +73,8 @@ flowchart TB
 | event | `event`（名前・日時・会場・参加費・GoogleフォームのURL・LINEグループの招待リンク・アンケートの開閉）・`event_staff`（受付係）・`staff_invite`（招待のリンク）・`event_discount`（割引：名前・円の額・紹介者の名前を聞くか・使うのをやめた時刻。reception-002） |
 | reception | `checkin`（名前・申し込みの媒体・知ったきっかけ・支払い方法・金額・`account_id`（LINEのとき）・入れた人（手のとき）・選んだ割引の ID とそのときの名前と額の写し・紹介者の名前（reception-002）） |
 | survey | `survey_answer`（`checkin_id`・困りごと・月いくら・テスター・仕事の立場・職種） |
-| suite **[仮決め]** | `app_setting`（アプリの key・公開の状態・売り方）・`entitlement`（契約。売り始めるとき。AD-16） |
-| account（足すとき）**[仮決め]** | `ai_credential`（利用者の API キーの暗号文。AD-20）・OAuth のクライアントとトークン（AD-21） |
+| suite | `app_setting`（アプリの key・公開の状態・売り方）・`entitlement`（契約。売り始めるとき。AD-16） |
+| account（足すとき） | `ai_credential`（利用者の API キーの暗号文。AD-20）・OAuth のクライアントとトークン（AD-21） |
 
 ### AD-4 — ログインは LINE のIDトークンを API が確かめ、自前のセッションを出す [ADOPTED]
 
@@ -87,7 +87,7 @@ flowchart TB
 - **Binds:** account・event・reception・survey、FR-3・FR-9・FR-10・FR-21
 - **Prevents:** 領域ごとに権限の確かめ方がばらばらになること。外した受付係がセッションの期限まで使えること。参加者の画面が交流会の情報を読めないこと
 - **Rule:**
-  - **主催者**は設定 `ORGANIZER_LINE_USER_ID`（秘密ではない。Terraform で Cloud Run の環境変数に渡す）と、今の利用者の LINEのユーザーIDが同じかで決める。表に印を持たない。この比べ方は account の `index.ts` が `isOrganizer` として出す。**[仮決め]** この設定の人は、スイートの**運営者**（アプリの台帳を変えられる人。AD-16）も兼ねる。受付アプリをほかの主催者に開くときは、`event` に持ち主の `account_id` を足し、交流会の主催者はそこから決める形にこの AD を直す。
+  - **主催者**は設定 `ORGANIZER_LINE_USER_ID`（秘密ではない。Terraform で Cloud Run の環境変数に渡す）と、今の利用者の LINEのユーザーIDが同じかで決める。表に印を持たない。この比べ方は account の `index.ts` が `isOrganizer` として出す。 この設定の人は、スイートの**運営者**（アプリの台帳を変えられる人。AD-16）も兼ねる。受付アプリをほかの主催者に開くときは、`event` に持ち主の `account_id` を足し、交流会の主催者はそこから決める形にこの AD を直す。
   - **受付係**は `event_staff`（交流会と account の組）で決まり、その交流会の中だけで効く。
   - 権限は、event の `index.ts` が出す1つの関数（その account がその交流会で主催者か・受付係か・どちらでもないか）を**要求のたびに**通す。セッションに写さない。受付係に許すのは PRD FR-3 の表の「受付係 ○」だけで、困りごと・書き出し・削除・交流会の作成の窓口は、主催者でなければ `403`。
   - **参加者向けの要約**：event は、ログインしていれば誰でも読める要約を1つだけ出す（`GET /api/v1/events/{eventId}/summary` と `index.ts` の `getEventSummary`）。中身は名前・日時・会場・参加費・アンケートが開いているか・GoogleフォームのURL・LINEグループの招待リンク・使っている割引（名前・額・紹介者の名前を聞くか。reception-002） だけ。
@@ -165,7 +165,7 @@ flowchart TB
 - **Prevents:** QR を作る領域と画面を作る領域で URL の形が食い違うこと。置き場所の URL を変えると、印刷した QR が使えなくなること
 - **Rule:** 参加者が外から開く画面の道（`/e/{eventId}/checkin`・`/e/{eventId}/survey`・`/invite/{inviteToken}`）と、それを LINEミニアプリの URL（パーマリンク）にする関数は、`packages/contracts/src/core` に1つだけ置く。reception・survey・event の画面はこの道で作り、event はこの関数で QR と招待のリンクを作る。QR には Cloud Run の URL を直接入れない。
 
-### AD-15 — アプリは静的な一覧に1行で登録し、key・道・表の名前を取り合わない [仮決め]
+### AD-15 — アプリは静的な一覧に1行で登録し、key・道・表の名前を取り合わない [ADOPTED]
 
 - **Binds:** すべてのアプリ・suite・画面の外枠・組み立て（`app.ts`）
 - **Prevents:** 2つのアプリが同じ key・道の頭・表の名前を取ること（`merge=union` は同じ key の2行を両方残し、Hono は同じ道の片方を黙って隠す）。どの領域がどのアプリのものかが文書ごとに食い違うこと。ナビの源が2つになること
@@ -178,7 +178,7 @@ flowchart TB
   - 管理の外枠のナビは、一覧のうち AD-16 で見えるアプリごとに、そのアプリの領域の `features.list` のナビの項目をまとめて並べる（アプリの名前を外枠に直接書かない。ナビの項目の源は今までどおり `features.list`）。
   - LINE ミニアプリのチャネルは、スイートで1つ（画面が1つなので）。アプリごとに作らない。
 
-### AD-16 — 「見えるか」と「契約があるか」は suite の2つの関数だけが決める [仮決め]
+### AD-16 — 「見えるか」と「契約があるか」は suite の2つの関数だけが決める [ADOPTED]
 
 - **Binds:** suite・すべてのアプリの API と画面・運営者の画面・組み立て（`app.ts`）
 - **Prevents:** アプリごとに公開の状態や契約の確かめ方がばらばらになること。`requireApp` の付け忘れで作りかけのアプリが本番で見えること。売り始めたときに、契約のない参加者や受付係が締め出されること
@@ -186,10 +186,10 @@ flowchart TB
   - 新しい領域 **suite** が `app_setting`（アプリごとに、公開の状態 `off`・`operator_only`・`public` と、売り方 `suite`・`individual`・`both`）を持つ。書くのは suite だけ（運営者の画面と、suite の DB の変更）。変えられるのは運営者（AD-5 の `ORGANIZER_LINE_USER_ID`）だけで、デプロイせずに切り替える。行がないアプリは `operator_only`。受付アプリは `public` の行を suite の DB の変更で入れる。
   - **見えるか**：suite の `index.ts` が `isAppVisible(db, appKey, viewer)`（ログインの前でも判定できる。運営者は `operator_only` も見える）と middleware `requireApp(appKey)` を出す。`requireApp` は各アプリが付けるのではなく、**組み立て（`app.ts`）が `apps.list.ts` の「アプリ → 属する領域」から、その領域のすべての道（参加者が外から開く道も）に自動で付ける**。見えないときは `404`。画面も同じ一覧と判定で道とナビを出し分ける。
   - **契約があるか**：売り始めたら、suite が `entitlement`（契約。持ち主は `account`＝使いたい人が払う。組織か個人かを区別しない。2026-11-19 主催者が決めた）を持ち、`hasEntitlement(db, payerAccountId, appKey)` を出す。払う人は、そのアプリの最上位の記録の持ち主（AD-19）で、参加者・受付係・共有された人は契約を要らない。売り始める前は、いつも通す。アプリは `app_setting`・`entitlement` を読まない。
-  - 支払いの会社と料金の形は売り始めるときに決める。kanaeru はカードや口座の情報を受け取らず、支払いの会社の画面に任せる（原則 I の改定が要るかは Open Questions 10）。
+  - 支払いの会社と料金の形は売り始めるときに決める。kanaeru はカードや口座の情報を受け取らず、支払いの会社の画面に任せる（Constitution I。1.1.0 で改定した）。
   - 今の `DOMAIN_FEATURES`（`kernel/features.ts`）は、領域の中の大きな機能をデプロイの設定で止める非常の切り替えとして残す。アプリ全体の公開は `app_setting` だけで決め、2つを取りかえて使わない。
 
-### AD-17 — DB の変更は develop に同時に1本だけ通し、作り忘れと順番を `pnpm check` で止める [仮決め]
+### AD-17 — DB の変更は develop に同時に1本だけ通し、作り忘れと順番を `pnpm check` で止める [ADOPTED]
 
 - **Binds:** すべての領域・`apps/api/drizzle/`
 - **Prevents:** 2つのアプリが同時に DB の変更を作り、番号と `meta/_journal.json` がぶつかって、片方の変更が当たらない・順番が入れ替わること（drizzle-orm 0.45 の当てる処理は、journal の `when` が古いものを黙って飛ばす）。`schema.ts` を直して DB の変更を作り忘れること
@@ -199,13 +199,18 @@ flowchart TB
   - `pnpm check` で、`drizzle-kit check`（壊れた snapshot と、同じ親を指す2つの snapshot を止める）・`pnpm db:generate` のあとの `git diff --exit-code apps/api/drizzle`（作り忘れを止める）・journal の `when` が順に増えるかの確かめを流す。
   - Drizzle 1.0 が安定版になったら、`drizzle-kit up` で DB の変更ごとのフォルダの形（journal なし）に移し、この AD を緩める。名前の頭を時刻にする設定（`prefix: timestamp`）は journal を残すので使わない。
 
-### AD-18 — 2つ目の領域が要る処理と共通の文書は、共通の PR で先に入れる [仮決め]
+### AD-18 — 共通にしてよいのは技術の道具だけ。業務の共通は作らない [ADOPTED]
 
-- **Binds:** すべての領域・`kernel`・`apps/web/src/lib`・`packages/ui`・`docs/`
-- **Prevents:** 同じ処理が領域ごとに写されて食い違うこと（受付アプリで CSV の作り方と返し方・画面のダウンロードが reception と survey で二重になった）。領域の PR が共通の文書を直してぶつかること
-- **Rule:** 2つ目の領域が同じ処理を要るときは、写さずに小さな共通の PR で `kernel`（API）・`apps/web/src/lib`（画面）・`packages/ui`（部品）に移し、先に入れてから使う。いまの二重は core-004 で `kernel/csv.ts` と `apps/web/src/lib/download.ts` にまとめる。`docs/decisions.md` は行を足すだけの表にして `merge=union` にし、直すときも新しい行を足す。`docs/architecture.md` は共通の PR だけが直し、領域のことは `docs/apps/<領域>.md` にだけ書く。
+- **Binds:** すべての領域・`kernel`・`packages/`・`apps/web/src/lib`・`docs/`
+- **Prevents:** 守りの処理などが領域ごとに写されて、直し忘れで食い違うこと（受付アプリで、CSV の作り方・式として読まれない守り・返し方と画面のダウンロードが reception と survey で二重になった）。業務の考え方を共通に置いて領域どうしが結びつき、あとで領域ごとに切り出せなくなること。共通の処理を直すたびに並行の作業がぶつかること
+- **Rule:**
+  - 共通にしてよいのは、**業務を知らず、状態を持たない技術の道具**だけ（例：CSV の作り方・日時・エラーの形・画面のダウンロード）。API と画面の両方から使えるもの、または API 側のものは `packages/` の小さな包み（1つの包みに1つの役目・1ファイルに1つの処理）に置き、将来に領域を別のサービスに切り出しても、そのまま取り込める形にする。画面だけの道具は `apps/web/src/lib`（画面は1つのまま）。
+  - **業務の共通は作らない**（例：「参加者」の共通の型・ほかの領域の表を読む手伝い）。ほかの領域のものが要るときは、相手の `index.ts` を通す（AD-3）。
+  - 共通に移すのは、2つ目の領域が要り、**形がもう固まったとき**。動きがまだ変わりそうなら、各領域の中に写してよく、固まってから移す。守り（入力の無害化・暗号・権限）に関わる処理は、写さずに先に移す。
+  - 移すときと直すときは、領域の PR に混ぜず、小さな共通の PR で先に入れる（[並行開発の決まり](../../docs/rules/parallel-development.md) 3-3）。いまの二重は core-004 で `packages/` の包み（CSV）と `apps/web/src/lib/download.ts` にまとめる。
+  - `docs/decisions.md` は行を足すだけの表にして `merge=union` にし、直すときも新しい行を足す。`docs/architecture.md` は共通の PR だけが直し、領域のことは `docs/apps/<領域>.md` にだけ書く。
 
-### AD-19 — 新しいアプリの記録は持ち主の account で持ち、消し方は「ほかの人が書くか」で分ける [仮決め]
+### AD-19 — 新しいアプリの記録は持ち主の account で持ち、消し方は「ほかの人が書くか」で分ける [ADOPTED]
 
 - **Binds:** 2つ目からのアプリ・account・suite
 - **Prevents:** 新しいアプリが運営者の設定（`ORGANIZER_LINE_USER_ID`）や `isOrganizer` を「持ち主」に使い、ほかの人に売れない形になること。アプリごとに「誰のものか」の持ち方が変わること。持ち主のアカウントを消すと、DB のエラーで落ちる・ほかの人の記録まで消えること
@@ -215,7 +220,7 @@ flowchart TB
   - `entitlement`・`ai_credential`・OAuth のトークンは本人のデータなので `CASCADE`。
   - 人を共有する（例：グループ）ときの形は、そのアプリの仕様で決める。
 
-### AD-20 — AI の作業は1か所で定義し、3つの段階は画面と同じ HTTP の窓口を通る [仮決め]
+### AD-20 — AI の作業は1か所で定義し、3つの段階は画面と同じ HTTP の窓口を通る [ADOPTED]
 
 - **Binds:** AI を使うすべてのアプリ・`kernel/ai`・`platform/mcp`・account
 - **Prevents:** 同じ AI の作業のプロンプトと答えの形が、貼り付け・自動・MCP でばらばらになること。権限は道の middleware（`requireSession`・`requireApp`・役割の確かめ）にあるので、領域の関数を直接呼ぶ AI の道だけ権限が抜けること。利用者の API キーが漏れること。ほかの人の情報が知らないうちに外の AI に渡ること
@@ -225,16 +230,16 @@ flowchart TB
   - 段階1（コピーして貼る）：画面がプロンプトを出し、貼り戻した答えを同じ形で確かめる。形が崩れていれば `422`・code `AI_RESPONSE_INVALID`（どこが違うかを `fields` に）で、貼った文を残したまま直してもらう。書く前に、読み取った中身を利用者に見せて確かめてもらう。kanaeru から外の AI へは何も送らない。
   - 段階2（自分の API キー）：その領域の道が、account の `index.ts` から復号したキーを受け取り、`kernel/ai` に渡して同じ作業を流す（`kernel/ai` は表を読まない。AI の会社ごとの違いは `kernel/ai` の中だけ）。AI の会社のエラーは `502`・code `AI_PROVIDER_ERROR`。書く前の確かめは段階1と同じ。費用は利用者が持つ（kanaeru の AI の利用料は0。原則 V）。
   - 利用者の API キーは account の `ai_credential` に、Secret Manager の鍵（`AI_CREDENTIAL_KEY`）で AES-256-GCM で暗号化して持つ。鍵の版の番号を暗号文と一緒に持ち、AAD に `account_id` を入れ、鍵を替えるときは新しい版で包み直す。ログに出さず、画面に戻さず（末尾だけ見せる）、本人がいつでも消せる。Cloud KMS は費用の差はほぼないが、手順を増やさないために使わない。
-  - Open Questions 7 が決まるまで、段階2と MCP で外の AI に渡してよいのは**利用者本人の記録だけ**。ほかの人の情報（参加者の名前・困りごと・人物メモなど）を返す・送るツールと作業は作らない。
+  - 段階2と MCP で外の AI に渡してよいのは**利用者本人の記録だけ**（2026-11-19 主催者が決めた。Constitution II）。ほかの人の情報（参加者の名前・困りごと・人物メモなど）を返す・送るツールと作業は作らない。
 
-### AD-21 — MCP と認可の窓口は `/api` の下に1つずつ置き、MCP の仕様の MUST を守る [仮決め]
+### AD-21 — MCP と認可の窓口は `/api` の下に1つずつ置き、MCP の仕様の MUST を守る [ADOPTED]
 
 - **Binds:** account・`platform/mcp`・`platform/web`・AI から使われるすべての領域
 - **Prevents:** アプリごとに MCP のサーバーと認証ができること。`/api` の外の道が画面（`index.html`）に吸われ、本文の上限・回数の制限・源の確かめの外に出ること。LINE ログインが MCP の接続する側の登録の仕組み（CIMD）に対応しないせいで接続できないこと。AI に広すぎる権限や、別の宛先のトークンを渡すこと
 - **Rule:**
   - MCP の窓口は `platform/mcp` の `/api/mcp`（Streamable HTTP）1つ。各領域は自分の `index.ts` から出すツールを、1行に1つの一覧（`merge=union`）で登録する。ツールは AD-20 のとおり画面と同じ窓口を呼ぶ。SDK は `@modelcontextprotocol/server` と `@modelcontextprotocol/hono` の 2.x（仕様 2026-07-28 の系列）。
   - 認可は account の領域が、自前の OAuth 2.1 の認可サーバーとして `/api/oauth/*` に出す。本人の確認だけを LINE ログイン（Web 用のチャネル。AD-2 のとおり同じプロバイダー。PKCE は S256・`state` 必須）に任せる。外部の認証のサービスは費用がかかるので使わない（原則 V）。
-  - 守る仕様：保護資源のメタデータ（RFC 9728）・認可サーバーのメタデータ（RFC 8414）・PKCE（S256）・トークンの宛先の確かめ（RFC 8707 の `resource`。kanaeru の `/api/mcp` 宛てでなければ断る）・`iss`（RFC 9207）・CIMD。DCR を残すかは Open Questions 9。
+  - 守る仕様：保護資源のメタデータ（RFC 9728）・認可サーバーのメタデータ（RFC 8414）・PKCE（S256）・トークンの宛先の確かめ（RFC 8707 の `resource`。kanaeru の `/api/mcp` 宛てでなければ断る）・`iss`（RFC 9207）・CIMD。DCR を残すかは Open Questions 6。
   - `/api` の外に置いてよいのは `/.well-known/oauth-protected-resource` と `/.well-known/oauth-authorization-server` だけ。画面に戻さない道の頭（`/api`・`/.well-known`）は `platform/web` の1つの関数に並べ、画面の CSP もそこで分ける（AD-8 を直した）。
   - `/api/mcp` は Bearer のトークンだけで確かめ（クッキーを受けない）、`Origin` を確かめ、回数の制限はトークンごと。アクセストークンはセッションと同じく SHA-256 だけを DB に持ち、期限と範囲（アプリごとの `<key>:read`・`<key>:write`）をつける。読むだけが既定で、書くツールは `write` の範囲が要る。
   - account の `requireSession` を、クッキーのセッションに加えて Bearer のトークンも受ける形に広げ（AD-12）、範囲は `requireScope` で確かめる。どちらでも `currentAccount(c)` は同じ形を返す。
@@ -244,7 +249,7 @@ flowchart TB
 | Concern | Convention |
 | --- | --- |
 | 名前 | 領域のフォルダは英語の単数（`account`・`event`・`reception`・`survey`）。表は単数の snake_case。画面と文書の言葉は PRD 3章の用語集のまま |
-| 道の頭 | account：`/api/v1/auth/*`・`/api/v1/accounts/*`／event：`/api/v1/events/*`・`/api/v1/staff-invites/*`／reception：`/api/v1/events/{eventId}/checkins/*`／survey：`/api/v1/events/{eventId}/survey-answers/*`／suite：`/api/v1/suite/*` **[仮決め]**／MCP：`/api/mcp`・認可：`/api/oauth/*` と `/.well-known/oauth-*` **[仮決め]**。新しい領域は `/api/v1/<領域>/…`（AD-15）。`operationId` は領域の名前で始める。新しいアプリの画面の道は `/<アプリのkey>/…`（AD-15） |
+| 道の頭 | account：`/api/v1/auth/*`・`/api/v1/accounts/*`／event：`/api/v1/events/*`・`/api/v1/staff-invites/*`／reception：`/api/v1/events/{eventId}/checkins/*`／survey：`/api/v1/events/{eventId}/survey-answers/*`／suite：`/api/v1/suite/*` ／MCP：`/api/mcp`・認可：`/api/oauth/*` と `/.well-known/oauth-*` 。新しい領域は `/api/v1/<領域>/…`（AD-15）。`operationId` は領域の名前で始める。新しいアプリの画面の道は `/<アプリのkey>/…`（AD-15） |
 | ID・時刻 | 主キーは `uuid`（`uuidv7()`。PostgreSQL 18 が要る）。DB は `timestamptz`。API と画面の間の日時は時差つきの ISO 8601 だけ。「日本時間の日付」と「その日の終わり」を出す関数は `packages/contracts/src/core` に1つ置き、サーバーの時刻帯に頼らない |
 | 金額 | 円の整数（`integer`）。小数を使わない |
 | 選択肢 | 値は英語の短い code（例：`paypay`・`cash`・`free`）。文言と並び順は同じ列挙の隣に持つ。持ち主の領域の contracts に置く（申し込みの媒体・知ったきっかけ・支払い方法は reception、月いくら・仕事の立場・職種は survey）。DB は `text` と CHECK の制約 |
@@ -252,7 +257,7 @@ flowchart TB
 | 領域をまたぐ処理 | 領域をまたぐトランザクションは作らない（外部キーと一意の制約で守る） |
 | エラー | テンプレートの形（`{error: {code, message, requestId, fields?}}`）。未ログインは `401 UNAUTHENTICATED`、権限なしは `403`、DB の夜間停止は `503 DB_UNAVAILABLE`。見えないアプリは `404`（AD-16）、AI の答えの形の崩れは `422 AI_RESPONSE_INVALID`、AI の会社のエラーは `502 AI_PROVIDER_ERROR`（AD-20）、ほかの人が書く記録を持つアカウントの削除は `409 ACCOUNT_OWNS_SHARED_RECORDS`（AD-19） |
 | 一覧画面の更新 | TanStack Query の読み直しを5秒おきにする（つなぎっぱなしの仕組みは使わない）。チェックインと修正の後は、その場で読み直す |
-| 書き出し | API が作る UTF-8 の BOM つきの CSV。参加者の CSV は reception、困りごとの CSV は survey（どちらも主催者だけ）。作り方と返し方は `kernel/csv.ts`、画面のダウンロードは `apps/web/src/lib/download.ts` の1つずつ（AD-18。core-004 でまとめる） |
+| 書き出し | API が作る UTF-8 の BOM つきの CSV。参加者の CSV は reception、困りごとの CSV は survey（どちらも主催者だけ）。作り方（BOM・CRLF・式として読まれない守り）は `packages/` の CSV の包み、画面のダウンロードは `apps/web/src/lib/download.ts` の1つずつ（AD-18。core-004 でまとめる） |
 | ログ | pino の JSON を標準出力へ（Cloud Logging が拾う）。困りごとの本文・IDトークン・クッキー・利用者の API キー・OAuth のトークン・AI に送ったプロンプトと答えはログに書かない |
 | 設定 | 環境の違いは環境変数で持つ（`LINE_CHANNEL_IDS`・`ORGANIZER_LINE_USER_ID`・`OPEN_CHAT_URL`・`DATABASE_URL` など。読むのは `kernel/config.ts`）。例外は組み立てのときに埋める `VITE_LIFF_ID`。秘密の値は Secret Manager から Cloud Run に渡す。アプリの公開の状態と売り方は設定にせず、suite の表に持つ（AD-16） |
 | 1行に1つの一覧 | 領域やアプリを足すたびに1行足すファイルは `merge=union`（[並行開発の決まり](../../docs/rules/parallel-development.md) 3-1）：API の領域・画面の領域・アプリの一覧（AD-15）・MCP のツールの一覧（AD-21）・`docs/decisions.md`（AD-18） |
@@ -342,11 +347,11 @@ infra/         # Terraform（GCP の資源。状態は GCS）
 .github/workflows/deploy.yml   # main のマージ：コンテナ → db:migrate → Cloud Run
 ```
 
-2つ目のアプリの前に足すもの **[仮決め]**（どれも共通の PR。仕様は `specs/core/NNN-…`）：
+2つ目のアプリの前に足すもの （どれも共通の PR。仕様は `specs/core/NNN-…`）：
 
 ```text
 apps/api/src/modules/suite/    # アプリの台帳・canUseApp・requireApp（AD-16）
-apps/api/src/kernel/csv.ts     # CSV の作り方と返し方（AD-18）
+packages/csv/                  # CSV の作り方（技術の道具の包み。AD-18）
 apps/web/src/lib/download.ts   # 画面のダウンロード（AD-18）
 apps/api/src/kernel/ai/        # 段階2の AI の会社ごとの違い（AD-20。段階2を作るとき）
 apps/api/src/platform/mcp/     # /api/mcp とツールの一覧（AD-21。MCP を作るとき）
@@ -391,13 +396,9 @@ apps/api/src/platform/mcp/     # /api/mcp とツールの一覧（AD-21。MCP �
 4. db-f1-micro の接続の上限（第三者の記事では25）と、AD-8 の「最大2台 × 5本」で足りるか。
 5. Cloud SQL の東京の実際の料金と、主催者のアカウントが新規の300ドルのクレジット（最大90日）の対象か。
 
-見直し（AD-15〜AD-21）で主催者に確かめること：
+見直し（AD-15〜AD-21）で残っていること（2026-11-19 に主催者が、仮決めの採用・外の AI は本人の記録だけ・B1 はこのリポジトリの中・Constitution の改定〈1.1.0〉を決めた）：
 
-6. **[仮決め] の全部**（AD-15〜AD-21 と、AD-1・AD-3・AD-5 の足した文）を、このままでよいか。2つ目のアプリの仕様を始める前に確かめる。
-7. 原則 II との両立：主催者が段階2・3で、ほかの人の情報（参加者の名前・困りごと・人物メモなど）を外の AI に送ってよいか。決まるまでは AD-20 の最後の文のとおり作らない。送る前の同意・名前を外す・送る量を最小にする、で足りるか、Constitution の改定が要るか。困りごとを AI で整理する機能（B2）を作る前に決める。
-8. 集客専用アプリ（B1）を、このリポジトリの中のアプリ（台帳で `individual`）にするか、別のリポジトリにするか。仮決めは中のアプリ。ブランドや独自のドメインを分けたいなら別にする。
-9. MCP を作るときに試すこと：LINE ログインの Web 用のチャネルで、MCP の接続する側（Claude・ChatGPT など）からの流れ（ブラウザでのログイン → kanaeru の認可）が通るか。チャネルを「公開」にする（開発中は Admin と Tester しかログインできない）。CIMD だけでつながるか、DCR も残すか（ChatGPT は CIMD を優先しつつ DCR も使う）。LINE の規約がこの使い方を止めていないか。
-10. **Constitution の改定**（`/speckit-constitution` の MINOR）が要るか。原則 I（アプリの中で決済しない）とサブスクの課金、原則 II（集めるのは受付と困りごとに要るものだけ）と新しいアプリの記録・API キー・OAuth のトークン、原則 IV（PRD の外は作らない）と suite の台帳。core-005（台帳）と売り始めの前に決める。台帳は小さな PRD か仕様を先に作る。
+6. MCP を作るときに試すこと：LINE ログインの Web 用のチャネルで、MCP の接続する側（Claude・ChatGPT など）からの流れ（ブラウザでのログイン → kanaeru の認可）が通るか。チャネルを「公開」にする（開発中は Admin と Tester しかログインできない）。CIMD だけでつながるか、DCR も残すか（ChatGPT は CIMD を優先しつつ DCR も使う）。LINE の規約がこの使い方を止めていないか。
 
 ## Deferred
 
@@ -405,6 +406,7 @@ apps/api/src/platform/mcp/     # /api/mcp とツールの一覧（AD-21。MCP �
 - **独自のドメイン**：最初は Cloud Run の既定の URL。QR はミニアプリの URL なので（AD-14）、あとで変えても印刷した QR は使える。ただし OAuth の `issuer`・LINE ログインの戻り先・利用者が登録する MCP の URL は源に結びつくので、**MCP を作る前に**決める。
 - **監視と知らせ**：この版は Cloud Run の既定の指標と請求の予算の知らせ（AD-9）だけ。エラーの知らせは交流会のあとに決める。
 - **Cloudflare など、ほかの置き場所への乗り換え**：運用費が問題になったら考える（DB は PostgreSQL のまま）。
+- **マイクロサービスへの分け方**：分ける理由（特定のアプリだけ負荷が大きい・別の人が持つ）が出たら考える。分けるのは領域の単位で、`index.ts` の呼び出しがネットワーク越しになる。DB の台は共有して DB（名前）を分ける（原則 V）。分けやすさは AD-3・AD-18 と「領域をまたぐトランザクションを作らない」で守る。
 - **スイートの画面の切り替え（アプリの一覧・ナビ）**：決まりは AD-15（一覧と `canUseApp` から並べる）。見た目は2つ目のアプリの UX で決める。
 - **支払いの会社と料金の形**：売り始めるときに決める（AD-16 の `entitlement` の中身）。
 - **受付アプリをほかの主催者に開くこと**：開くと決めたら、`event` に持ち主の `account_id` を足して AD-5 を直す（AD-19 の形にそろえる）。
