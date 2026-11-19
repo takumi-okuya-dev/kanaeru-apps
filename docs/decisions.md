@@ -23,3 +23,4 @@
 | 2026-11-19 | 参加者の画面は未認証の LINEミニアプリで作り、ログインは LINE のIDトークンを API が確かめて自前のセッションを出す。テンプレートの既定の Better Auth は使わない | LINE が新規はミニアプリを勧めており、LIFF からは移せないため。Better Auth は LINE でメールがない人がログインできない | `_bmad-output/architecture-kanaeru/`（AD-4） |
 | 2026-11-19 | 置き場所は Cloud Run（東京）＋ Cloud SQL for PostgreSQL（東京・db-f1-micro）。DB は夜間0時〜8時に止める。すべて Terraform で持つ | 主催者が GCP と Terraform を学びたいため。DB も東京で速い。Neon（0円・シンガポール）と Cloudflare・Supabase も比べた | `_bmad-output/architecture-kanaeru/`（AD-8〜AD-10） |
 | 2026-11-19 | 環境は本番の1つで始め、`main` のマージで本番に出す。`develop` のマージでは出さない | 2026-11-25 の交流会に間に合わせるため。ステージングは交流会のあとに足す | [開発の流れの決まり](./rules/development-flow.md) 5 |
+| 2026-11-19 | アプリのアイデアを渡したら、記録・市場と似たアプリ・低い評価のレビュー・事業性（生成AIの代替・お金の計算・値付け・法律と商標）・判断までを回すスキル `app-idea-research` を足した | 同じ指示を毎回出さずに、アイデアを同じ観点で比べられるようにするため（ユーザーが決めた）。コミットと PR は今までどおり頼まれたときだけ | [AIスキルの使い方](./ai-skills.md) 3 |
