@@ -264,10 +264,14 @@ function CheckinScreen({ eventId }: CheckinScreenProps) {
   const mineQuery = useMyCheckin(eventId);
   const [justCheckedIn, setJustCheckedIn] = useState<boolean>();
 
-  if (summaryQuery.isError || mineQuery.isError) {
+  // 失敗の画面は、まだ何も読めていないときだけ。読めたあとの読み直し（ログインし直したときなど）の失敗では、
+  // 入れかけの欄や済んだカードを消さないよう、前に読んだもので出したままにする
+  const summaryFailed = summaryQuery.isError && summaryQuery.data === undefined;
+  const mineFailed = mineQuery.isError && mineQuery.data === undefined;
+  if (summaryFailed || mineFailed) {
     return (
       <CheckinLoadFailure
-        error={summaryQuery.error ?? mineQuery.error}
+        error={summaryFailed ? summaryQuery.error : mineQuery.error}
         retry={() => {
           void summaryQuery.refetch();
           void mineQuery.refetch();
@@ -275,7 +279,7 @@ function CheckinScreen({ eventId }: CheckinScreenProps) {
       />
     );
   }
-  if (summaryQuery.isPending || mineQuery.isPending) {
+  if (summaryQuery.data === undefined || mineQuery.data === undefined) {
     return (
       <p aria-busy="true" className="text-m text-text-sub">
         読みこんでいます…

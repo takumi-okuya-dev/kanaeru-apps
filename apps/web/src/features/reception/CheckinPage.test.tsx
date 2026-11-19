@@ -1,7 +1,7 @@
 // チェックインの画面（P1）：名前の初期値・選ばずに押したときの誤り・済んだカード・チェックイン済み・アンケートと案内のリンク・
 // 交流会がないとき。API は fetch の差しかえで答える。
 import type { EventSummary } from "@workspace/contracts/event";
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expectNoAxeViolations } from "@workspace/ui/testing/axe";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -40,10 +40,11 @@ type Sent = { method: string; path: string; body: unknown };
 
 /**
  * 仮の API（今の利用者・要約・自分のチェックイン）。
- * @param options 要約（summary）・すでのチェックイン（checkin）・要約の状態の番号（summaryStatus）
+ * @param options 要約（summary）・すでのチェックイン（checkin）・要約の状態の番号（summaryStatus）・読み直しの失敗（failRefetch）
  * @param options.summary 要約に重ねる値
  * @param options.checkin すでにあるチェックイン（なければ null）
  * @param options.summaryStatus 要約の状態の番号
+ * @param options.failRefetch 要約と自分のチェックインの2回目からの読みこみを失敗（500）にするか
  * @returns 送られた要求の一覧
  */
 function stubApi(
@@ -51,6 +52,7 @@ function stubApi(
     summary?: Partial<EventSummary>;
     checkin?: typeof CHECKIN | null;
     summaryStatus?: number;
+    failRefetch?: boolean;
   } = {},
 ): Sent[] {
   const sent: Sent[] = [];
@@ -67,6 +69,15 @@ function stubApi(
           isOrganizer: false,
           registeredAt: "2026-11-19T10:00:00.000Z",
         }),
+      );
+    }
+    const sameCalls = sent.filter((item) => item.method === method && item.path === url.pathname);
+    if (options.failRefetch && method === "GET" && sameCalls.length > 1) {
+      return Promise.resolve(
+        Response.json(
+          { error: { code: "INTERNAL", message: "うまくいきませんでした。", requestId: "r" } },
+          { status: 500 },
+        ),
       );
     }
     if (url.pathname.endsWith("/summary")) {
@@ -96,6 +107,20 @@ function stubApi(
     );
   });
   return sent;
+}
+
+/** 端末がいったん切れて、つながり直したことにする（TanStack Query が古い問い合わせを読み直す）。 */
+async function reconnect(): Promise<void> {
+  await act(async () => {
+    window.dispatchEvent(new Event("offline"));
+    window.dispatchEvent(new Event("online"));
+    await Promise.resolve();
+  });
+}
+
+/** 読みこみの答えを受けきるまで、少し待つ。 */
+async function settle(): Promise<void> {
+  await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
 }
 
 afterEach(() => {
@@ -188,6 +213,38 @@ describe("チェックインの画面", () => {
     expect(screen.queryByRole("link", { name: "交流会のLINEグループに参加する" })).toBeNull();
     expect(
       screen.getByRole("link", { name: "コミュニティのオープンチャットに参加する" }),
+    ).toBeInTheDocument();
+  });
+
+  it("読めたあとの読み直しが失敗しても、入れかけの欄と済んだカードを消さない", async () => {
+    const sent = stubApi({ failRefetch: true });
+    renderWithRouter(<CheckinPage eventId={EVENT_ID} />);
+    const name = await screen.findByRole("textbox", { name: "名前" });
+    await userEvent.clear(name);
+    await userEvent.type(name, "入れかけの名前");
+    await userEvent.click(screen.getByRole("radio", { name: "Peatix" }));
+
+    // つなぎ直すと、古くなった問い合わせを読み直す（ここでは要約と自分のチェックインの読み直しが失敗する）
+    await reconnect();
+    await waitFor(() =>
+      expect(sent.filter((item) => item.path.endsWith("/summary"))).toHaveLength(2),
+    );
+    await settle();
+    expect(screen.queryByRole("heading", { name: "読みこめませんでした" })).toBeNull();
+    expect(screen.getByRole("textbox", { name: "名前" })).toHaveValue("入れかけの名前");
+    expect(screen.getByRole("radio", { name: "Peatix" })).toBeChecked();
+
+    await userEvent.click(screen.getByRole("radio", { name: "SNS" }));
+    await userEvent.click(screen.getByRole("radio", { name: "現金" }));
+    await userEvent.click(screen.getByRole("button", { name: "チェックインする" }));
+    await screen.findByRole("heading", { level: 2, name: "チェックインしました" });
+    await reconnect();
+    await waitFor(() =>
+      expect(sent.filter((item) => item.path.endsWith("/summary"))).toHaveLength(3),
+    );
+    await settle();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "チェックインしました" }),
     ).toBeInTheDocument();
   });
 
