@@ -255,6 +255,20 @@ describe("アンケートの画面", () => {
     expect(concern).toHaveValue("残したい");
   });
 
+  it("送れなかったあと、手元の誤りで止まった送り直しでは、古い「送れませんでした」を消す", async () => {
+    stubApi({ putError: "SURVEY_CLOSED" });
+    renderWithRouter(<SurveyPage eventId={EVENT_ID} />);
+    const concern = await screen.findByRole("textbox", { name: "困りごと" });
+    await userEvent.click(screen.getByRole("button", { name: "送る" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("送れませんでした");
+
+    await userEvent.click(concern);
+    await userEvent.paste("あ".repeat(2001));
+    await userEvent.click(screen.getByRole("button", { name: "送る" }));
+    expect(await screen.findByText("困りごとは2,000文字までにしてください。")).toBeInTheDocument();
+    expect(screen.queryByText(/送れませんでした/)).toBeNull();
+  });
+
   it("DB に届かない 503 は、夜間の停止の時間帯だけ夜間の画面にし、昼は「読みこめませんでした」と「もう一度」", async () => {
     stubDbUnavailable();
     vi.useFakeTimers({ toFake: ["Date"] });

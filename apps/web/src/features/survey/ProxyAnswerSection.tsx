@@ -73,6 +73,8 @@ function ProxyForm({ event, checkin, initial, onSaved, onCancel }: ProxyFormProp
   const submit = (submitEvent: React.FormEvent<HTMLFormElement>) => {
     submitEvent.preventDefault();
     if (mutation.isPending) return;
+    // 前に保存できなかった文を消してから確かめる（手元の誤りで止まったときに、古い「保存できませんでした」を残さない）
+    mutation.reset();
     const result = validateSurveyForm(values);
     if (!result.ok) {
       setErrors(result.errors);

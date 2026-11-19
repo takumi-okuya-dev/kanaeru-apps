@@ -156,6 +156,8 @@ function SurveyForm({ summary, answer, onSent }: FormProps) {
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (mutation.isPending) return;
+    // 前に送れなかった文を消してから確かめる（手元の誤りで止まったときに、古い「送れませんでした」を残さない）
+    mutation.reset();
     const result = validateSurveyForm(values);
     if (!result.ok) {
       setErrors(result.errors);
