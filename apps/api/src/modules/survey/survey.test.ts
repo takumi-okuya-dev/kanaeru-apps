@@ -238,6 +238,37 @@ describe("アンケートの窓口", () => {
       }
       expect(await countAnswers()).toBe(0);
     });
+
+    it("ない交流会の代わりの入力は event の NOT_FOUND で、窓口の文書の 404 には両方の code を書く", async () => {
+      const row = await manualCheckIn(app, organizer, eventId);
+      const missing = `/api/v1/events/${MISSING_ID}/survey-answers/checkins/${row.id}`;
+      for (const method of ["GET", "PUT"] as const) {
+        const body = method === "PUT" ? SAMPLE_ANSWER : undefined;
+        const response = await call(app, organizer, missing, method, body);
+        expect(response.status).toBe(404);
+        expect(((await response.json()) as ErrorBody).error.code).toBe("NOT_FOUND");
+      }
+
+      const documented = buildApp(
+        database,
+        testConfig({
+          organizerLineUserId: ORGANIZER_LINE_USER_ID_FOR_TEST,
+          openApiDocEnabled: true,
+        }),
+      );
+      type NotFoundDoc = {
+        content: Record<string, { examples: Record<string, { value: ErrorBody }> }>;
+      };
+      const document = (await (await documented.request("/api/openapi.json")).json()) as {
+        paths: Record<string, Record<string, { responses: Record<string, NotFoundDoc> }>>;
+      };
+      const path = document.paths["/api/v1/events/{eventId}/survey-answers/checkins/{checkinId}"];
+      for (const method of ["get", "put"]) {
+        const notFound = path?.[method]?.responses["404"]?.content["application/json"];
+        const codes = Object.values(notFound?.examples ?? {}).map((item) => item.value.error.code);
+        expect(codes.sort(), method).toEqual(["CHECKIN_NOT_FOUND", "NOT_FOUND"]);
+      }
+    });
   });
 
   describe("困りごとの一覧", () => {

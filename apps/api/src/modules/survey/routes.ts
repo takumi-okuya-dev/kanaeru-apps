@@ -77,6 +77,30 @@ const checkinNotFoundResponse = domainErrorResponse(
 );
 
 /**
+ * 交流会がないか、その交流会にチェックインがない応答（主催者の代わりの入力）。requireEventRole は event の NOT_FOUND を、
+ * チェックインを探す処理は CHECKIN_NOT_FOUND を返すので、文書には両方を例として書く（本文の形は同じ。reception と同じ形）。
+ */
+const eventOrCheckinNotFoundResponse = {
+  description:
+    "交流会がない（event の NOT_FOUND。ID の形が違うときも）か、その交流会にチェックインがない（CHECKIN_NOT_FOUND。取り消された・別の交流会の ID・ID の形が違う）",
+  content: {
+    "application/json": {
+      schema: checkinNotFoundResponse.content["application/json"].schema,
+      examples: {
+        eventNotFound: {
+          summary: "交流会がない",
+          value: eventNotFoundResponse.content["application/json"].example,
+        },
+        checkinNotFound: {
+          summary: "その交流会にチェックインがない",
+          value: checkinNotFoundResponse.content["application/json"].example,
+        },
+      },
+    },
+  },
+} as const;
+
+/**
  * JSON の応答の書き方。
  * @param schema 本文の形
  * @param description いつ返すか
@@ -152,7 +176,7 @@ function defineRoutes(deps: DomainRouteDeps) {
         200: json(ProxySurveyState, "そのチェックインの回答（まだなら null）"),
         401: unauthenticatedResponse,
         403: eventForbiddenResponse,
-        404: checkinNotFoundResponse,
+        404: eventOrCheckinNotFoundResponse,
       },
     }),
     putProxy: createRoute({
@@ -169,7 +193,7 @@ function defineRoutes(deps: DomainRouteDeps) {
         400: invalidInputResponse,
         401: unauthenticatedResponse,
         403: eventForbiddenResponse,
-        404: checkinNotFoundResponse,
+        404: eventOrCheckinNotFoundResponse,
       },
     }),
     list: createRoute({
