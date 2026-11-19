@@ -4,6 +4,10 @@
 # 環境の値を変えるのは Terraform だけにする（デプロイで --set-env-vars などを使うと、次の plan で取り合いになる）。
 
 locals {
+  # 台数の上限（AD-8）。DB の接続は「台数 × 1台のプールの上限（DATABASE_POOL_MAX）」まで増えるので、
+  # Cloud SQL（db-f1-micro）の接続の上限を超えないよう、2つを並べて決める
+  max_instances = 2
+
   # API の設定（値の意味は apps/api/src/kernel/config.ts）。秘密ではない値だけ。秘密は下の DATABASE_URL のように Secret Manager から渡す
   service_env = {
     APP_ENV                = "production"
@@ -30,13 +34,21 @@ resource "google_cloud_run_v2_service" "app" {
   ingress              = "INGRESS_TRAFFIC_ALL"
   invoker_iam_disabled = true
 
+  # 台数の上限はサービスの単位で置く（流れを受けるすべての版の合計）。版の単位だけだと、デプロイで古い版と
+  # 新しい版が重なる間に、版ごとに上限まで立ち上がり、DB の接続の数が見込みを超えうる
+  scaling {
+    min_instance_count = 0
+    max_instance_count = local.max_instances
+  }
+
   template {
     service_account = google_service_account.runtime.email
     timeout         = "60s"
 
+    # 版の単位も同じ値にそろえる（両方あると小さいほうが効く。サービスの単位の上限と食い違わないように）
     scaling {
       min_instance_count = 0
-      max_instance_count = 2 # Cloud SQL の接続の上限を超えないように（AD-8）
+      max_instance_count = local.max_instances
     }
 
     volumes {
