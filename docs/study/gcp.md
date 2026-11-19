@@ -5,7 +5,7 @@
 - 読む人：TypeScript で Web を作ってきて、GCP は初めての人（kanaeru の開発者）。
 - この文書は「学び」の文書。考え方と使い方の説明で、**今のシステムの正本でも、決まりの正本でもない**。
   - 置き場所の決めごと（台の型・台数・夜間の停止・バックアップ・予算）は[構成の決めごと](../../_bmad-output/architecture-kanaeru/architecture-kanaeru.md)の AD-8〜AD-11 が正本。
-  - デプロイの決まり（`main` のマージで出す・8時〜24時に出す）は[開発の流れの決まり](../rules/development-flow.md) 5章が正本。
+  - デプロイの決まり（`main` のマージで出す・8時15分〜23時に始める）は[開発の流れの決まり](../rules/development-flow.md) 5章が正本。
   - 資源の名前・権限の細部は、これから書く `infra/` の Terraform で決める。
 - 料金は2026-11-19に公式の文書で確かめた値。1ドル＝150円で円にした（税なし・為替は仮）。確かめられなかったものは（要確認）と書いた。
 - Terraform そのものの考え方は[Terraformの学び](./terraform.md)、LINE の側は[LINEの学び](./line.md)に分けた。
@@ -16,7 +16,7 @@
 
 1. kanaeru は、GCP の東京（`asia-northeast1`）で、**Cloud Run を1つ**（画面と `/api` を同じコンテナで返す）と **Cloud SQL を1つ**（PostgreSQL 18・いちばん小さい台）だけ使う。脇役は Artifact Registry・Secret Manager・Cloud Scheduler。
 2. お金の大半は Cloud SQL。だから **DB を夜間（0時〜8時）止める**。それでも保存の量と IP の料金は続くので、見込みは**月1,200〜1,800円ほど**。予算の知らせは月2,000円。
-3. デプロイは、`main` へのマージで GitHub Actions が**鍵を置かずに**（Direct WIF）入り、**DB の変更（Cloud Run jobs）→ 新しい版**の順に出す。
+3. デプロイは、`main` へのマージで GitHub Actions が**鍵を置かずに**（WIF で入り、デプロイ用のサービスアカウントになりすます）入り、**DB の変更（Cloud Run jobs）→ 新しい版**の順に出す。
 
 ---
 
@@ -41,7 +41,7 @@ kanaeru で考えられるサービスアカウントの例（最終は `infra/`
 |---|---|---|
 | 実行用 | Cloud Run のサービスと、`db:migrate` の jobs | Cloud SQL クライアント（`roles/cloudsql.client`）・使う秘密の値だけの読み取り（`roles/secretmanager.secretAccessor`） |
 | 夜間の停止用 | Cloud Scheduler が Cloud SQL を止める・動かす | `cloudsql.instances.update` を持つロール（例：`roles/cloudsql.editor`）。3.4 |
-| デプロイ（GitHub Actions） | Direct WIF なので、サービスアカウントを通さず **GitHub のプール（`principalSet`）に直接**ロールを付ける | Artifact Registry への書き込み・Cloud Run 開発者（`roles/run.developer`）・実行用のサービスアカウントとして振る舞う（`roles/iam.serviceAccountUser`）。4章 |
+| デプロイ（GitHub Actions）＝ `kanaeru-deployer` | GitHub のプールの身分に「`kanaeru-deployer` になりすましてよい」（`roles/iam.workloadIdentityUser`）だけを付け、ロールは `kanaeru-deployer` に付ける | Artifact Registry への書き込み・Cloud Run 開発者（`roles/run.developer`）・実行用のサービスアカウントとして振る舞う（`roles/iam.serviceAccountUser`）。4章 |
 
 ### 1.3 API を有効にする
 
@@ -71,7 +71,7 @@ flowchart LR
   run -- "Unix ソケット" --> sql
   job -- "Unix ソケット" --> sql
   sm -. "起動のときに渡す" .-> run
-  gh -- "Direct WIF でイメージを押し込む" --> ar
+  gh -- "WIF＋なりすましでイメージを押し込む" --> ar
   ar --> job
   ar --> run
   sch -. "Cloud SQL Admin API" .-> sql
@@ -91,7 +91,7 @@ gantt
   動いている                           :active, 08:00, 16h
   section できること
   自動のバックアップ（12時から始まる枠） :12:00, 4h
-  デプロイしてよい時間（8時〜24時）     :08:00, 16h
+  デプロイを始めてよい時間（8時15分〜23時） :08:15, 23:00
 ```
 
 - 止まっている間に画面を開くと、API は `503`・code `DB_UNAVAILABLE` を返し、画面は「夜間（0時〜8時）は止まっています」と出す（AD-10）。
@@ -206,11 +206,12 @@ Cloud Run のコンテナが標準出力に書いた pino の JSON は、自動�
 
 ## 4. GitHub Actions からデプロイする（鍵を置かない）
 
-### 4.1 Workload Identity Federation（WIF）と Direct WIF
+### 4.1 Workload Identity Federation（WIF）と、サービスアカウントのなりすまし
 
 - 昔のやり方は、サービスアカウントの**鍵（JSON のファイル）**を GitHub の Secrets に置くこと。期限がなく、漏れると誰でも GCP を触れるので**使わない**。
 - WIF は「GitHub Actions が発行する短い身分証（OIDC のトークン）を GCP が信じて、短い時間だけ使える権限に交換する」仕組み。AWS の「OIDC プロバイダ＋`AssumeRoleWithWebIdentity`」と同じ考え方。
-- **Direct WIF**（kanaeru の形）は、サービスアカウントを通さず、**GitHub のプールの身分（`principalSet://…/attribute.repository/<オーナー>/<リポジトリ>`）に直接ロールを付ける**。`google-github-actions/auth@v3` で `service_account` を書かなければこの形になり、action の説明でもおすすめになっている。すべての資源が `principalSet` に対応しているわけではない点と、トークンの期限が最大10分な点に気をつける。
+- WIF には2つの形がある。**Direct WIF** は、GitHub のプールの身分（`principalSet://…`）に直接ロールを付ける形で、`google-github-actions/auth@v3` のおすすめ。ただし **Cloud Run は Direct WIF に対応していない**（公式の「Cloud Run doesn't support Workload Identity Federation direct resource access」）。
+- そこで kanaeru は、**WIF で入ったあと、デプロイ用のサービスアカウント `kanaeru-deployer` になりすます**形にした（core-002 R-1）。プールの身分には「なりすましてよい」だけを付け、実際の権限は `kanaeru-deployer` が持つ。鍵（JSON）は作らない。action では `service_account` に `kanaeru-deployer` を書く。
 
 ```mermaid
 sequenceDiagram
@@ -251,7 +252,8 @@ jobs:
       - uses: actions/checkout@v7
       - uses: google-github-actions/auth@v3
         with:
-          workload_identity_provider: ${{ vars.WIF_PROVIDER }}   # service_account を書かない＝Direct WIF
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}   # kanaeru-deployer になりすます（Cloud Run は Direct WIF 非対応）
       - uses: google-github-actions/setup-gcloud@v3
       - run: gcloud auth configure-docker asia-northeast1-docker.pkg.dev --quiet
       - name: コンテナを作って押し込む
@@ -268,7 +270,7 @@ jobs:
 ```
 
 - jobs そのもの（Cloud SQL の指定・実行用のサービスアカウント・`db:migrate` のコマンド）は Terraform で作り、ワークフローはイメージだけを差し替える。jobs は既定で失敗すると3回までやり直すので、やり直しを少なくする案がある。
-- **夜間（0時〜8時）は DB が止まっているので、`db:migrate` が落ちる**。だからデプロイは8時〜24時（AD-10）。
+- **夜間（0時〜8時）は DB が止まっているので、`db:migrate` が落ちる**。だからデプロイは昼に出す（AD-10）。kanaeru の deploy.yml は、DB が起きるまでの数分と0時までに終わる余裕を見て、8時15分〜23時に始まったときだけ進む。
 - ID や名前は GitHub の「Variables」に置く（秘密ではない）。タグにコミットのハッシュを使うと、どのコードが動いているか分かる。アクションの版は使うときに確かめる。
 
 ---
@@ -322,9 +324,9 @@ jobs:
 | Scheduler のタイムゾーンを書かない | 9時間ずれて、昼に DB が止まる | `Asia/Tokyo`（3.4） |
 | バックアップの時刻を日本時間のつもりで書く | `12:00` が日本時間21時になり、4時間の枠が0時の停止とかさなる | UTC で書く。日本時間12時＝`03:00`（3.3） |
 | 起動の確かめで DB を見る | 夜間に画面まで開かなくなる | 既定の TCP のまま（3.1） |
-| 夜間に `main` にマージする | `db:migrate` が落ちる | 8時〜24時に出す（4.3） |
+| 夜間に `main` にマージする | `db:migrate` が落ちる | 8時15分〜23時に始める（4.3） |
 | 接続のプールを大きくしたまま台数が増える | `too many connections` | 最大2台 × 5本（3.3） |
-| 鍵（JSON）を GitHub に置く・WIF に条件を付けない | 漏れる・ほかのリポジトリから入られる | Direct WIF とリポジトリの条件（4章） |
+| 鍵（JSON）を GitHub に置く・WIF に条件を付けない | 漏れる・ほかのリポジトリから入られる | WIF＋なりすましと、リポジトリの条件（4章） |
 | コンソールで手で直す | Terraform の書いた形とずれる | 直すのは Terraform で（[Terraformの学び](./terraform.md)） |
 
 ---

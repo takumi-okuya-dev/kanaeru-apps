@@ -47,6 +47,7 @@ describe("設定", () => {
     expect(config.sampleDataEnabled).toBe(false);
     expect(config.openApiDocEnabled).toBe(false);
     expect(config.rateLimit).toEqual({ enabled: true, windowSeconds: 60, max: 100 });
+    expect(config.databasePoolMax).toBe(10);
     expect(config.domainFeatures).toEqual([]);
     expect(config.lineChannelIds).toEqual([]);
     expect(config.organizerLineUserId).toBeUndefined();
@@ -117,6 +118,13 @@ describe("設定", () => {
     expect(problemKeys({ ...LOCAL, APP_NAME: "  " })).toEqual(["APP_NAME"]);
     expect(problemKeys({ ...LOCAL, WEB_URL: "http://localhost:5173/path" })).toEqual(["WEB_URL"]);
     expect(problemKeys({ ...LOCAL, DOMAIN_FEATURES: "Event" })).toEqual(["DOMAIN_FEATURES"]);
+  });
+
+  it("DB の接続の数の上限（DATABASE_POOL_MAX）は1以上の整数だけを受け取る", () => {
+    expect(loadConfig({ ...LOCAL, DATABASE_POOL_MAX: "5" }).databasePoolMax).toBe(5);
+    for (const value of ["0", "-1", "1.5", "x"]) {
+      expect(problemKeys({ ...LOCAL, DATABASE_POOL_MAX: value })).toEqual(["DATABASE_POOL_MAX"]);
+    }
   });
 
   it("接続先の %xx の形が崩れていても投げず、DATABASE_URL の誤りとして止める（どの環境でも）", () => {
