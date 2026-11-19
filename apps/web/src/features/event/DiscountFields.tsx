@@ -97,13 +97,13 @@ export function DiscountFields({ rows, onChange, errors, editing }: DiscountFiel
               aria-label={`割引 ${index + 1}`}
               className="flex flex-col gap-xs rounded-md border border-border bg-surface p-xs"
             >
-              <div className="flex flex-wrap gap-xs">
+              <div className="flex flex-col gap-xs wide:flex-row">
                 <Field
                   label="割引の名前"
                   description="例：紹介割"
                   error={errors[`discounts.${index}.name`]}
                   required
-                  className="min-w-0 flex-1"
+                  className="min-w-0 wide:flex-1"
                 >
                   <Input
                     autoComplete="off"
@@ -116,7 +116,7 @@ export function DiscountFields({ rows, onChange, errors, editing }: DiscountFiel
                   description="例：1000"
                   error={errors[`discounts.${index}.amount`]}
                   required
-                  className="min-w-0 flex-1"
+                  className="min-w-0 wide:flex-1"
                 >
                   <Input
                     inputMode="numeric"
