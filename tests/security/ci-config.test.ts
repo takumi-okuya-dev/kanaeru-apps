@@ -22,6 +22,8 @@ const actions = existsSync(actionsDir)
   : [];
 /** gitleaks を入れる部品。 */
 const SETUP_GITLEAKS = "./.github/actions/setup-gitleaks";
+/** 本番へのデプロイ（GCP の短い間だけの資格を取るため、仕事の塊だけ id-token: write を許す）。 */
+const DEPLOY_WORKFLOW = "deploy.yml";
 
 /**
  * 注釈の行を除いた中身。
@@ -124,11 +126,18 @@ describe("CI が秘密の値を使わず、外の部品を固定する", () => {
     expect(workflows.length).toBeGreaterThan(0);
   });
 
-  it("permissions は contents: read だけ（どの塊も）", () => {
+  it("permissions は contents: read だけ（どの塊も）。id-token: write は deploy.yml の仕事の塊だけ", () => {
     for (const { name, source } of workflows) {
       const blocks = permissionBlocks(source);
       expect(blocks.length, `${name} に permissions がありません`).toBeGreaterThan(0);
-      for (const block of blocks) expect(block, name).toEqual(["contents: read"]);
+      expect(blocks[0], `${name} のいちばん外の permissions`).toEqual(["contents: read"]);
+      for (const block of blocks.slice(1)) {
+        const allowed =
+          name === DEPLOY_WORKFLOW
+            ? [["contents: read"], ["contents: read", "id-token: write"]]
+            : [["contents: read"]];
+        expect(allowed, `${name} の permissions：${block.join("・")}`).toContainEqual(block);
+      }
     }
   });
 
@@ -203,5 +212,57 @@ describe("CI が秘密の値を使わず、外の部品を固定する", () => {
     const code = codeLines(ci?.source ?? "").join("\n");
     expect(code).toMatch(/run:\s*pnpm check\b/);
     expect(code).not.toMatch(/security:audit|security:check/);
+  });
+});
+
+describe("deploy.yml：本番へのデプロイの守り（core-002。docs/rules/development-flow.md 5）", () => {
+  const deploy = workflows.find(({ name }) => name === DEPLOY_WORKFLOW);
+  const code = codeLines(deploy?.source ?? "").join("\n");
+
+  it("deploy.yml がある", () => {
+    expect(deploy, `${DEPLOY_WORKFLOW} がありません`).toBeDefined();
+  });
+
+  it("push で流れるのは main だけで、paths で出すものが変わるファイルに絞る", () => {
+    expect(code).toMatch(/push:\s*\n\s+branches:\s*\[main\]\s*\n\s+paths:/);
+    expect(code).toMatch(/if:\s*github\.ref == 'refs\/heads\/main'/);
+  });
+
+  it("デプロイは1つずつで、流れているものを取り消さない（DB の変更の途中で止めない）", () => {
+    expect(code).toMatch(
+      /concurrency:\s*\n\s+group:\s*deploy-production\s*\n\s+cancel-in-progress:\s*false/,
+    );
+  });
+
+  it("GCP へは WIF で入り、鍵（credentials_json）を使わない", () => {
+    expect(code).toMatch(/uses:\s*google-github-actions\/auth@/);
+    expect(code).toMatch(/workload_identity_provider:/);
+    expect(code).not.toMatch(/credentials_json/);
+  });
+
+  it("日本時間の時間帯を確かめてから、db:migrate → 新しい版の順に出す", () => {
+    const hour = code.indexOf("TZ=Asia/Tokyo");
+    const migrate = code.indexOf("gcloud run jobs execute");
+    const release = code.indexOf("gcloud run services update");
+    expect(hour, "時間帯の確かめがありません").toBeGreaterThanOrEqual(0);
+    expect(migrate, "db:migrate の job を動かしていません").toBeGreaterThan(hour);
+    expect(code).toMatch(/gcloud run jobs execute[^\n]*--wait/);
+    expect(release, "新しい版を db:migrate のあとに出していません").toBeGreaterThan(migrate);
+  });
+
+  it("始まってよいのは日本時間の8時15分〜23時だけ（8時に起こした DB の起動と、0時の停止までの余裕）", () => {
+    expect(code).toMatch(/"\$minutes" -lt \$\(\(8 \* 60 \+ 15\)\)/);
+    expect(code).toMatch(/"\$minutes" -ge \$\(\(23 \* 60\)\)/);
+    expect(code).toMatch(/timeout-minutes:\s*30\b/);
+  });
+
+  it("LIFF_ID が空ならコンテナを作る前に止め（仮の LIFF の画面を出さない）、APP_NAME を組み立てに渡す", () => {
+    const check = code.indexOf("for name in");
+    const build = code.indexOf("docker build");
+    expect(check, "リポジトリの変数を確かめていません").toBeGreaterThanOrEqual(0);
+    expect(code.slice(check, code.indexOf("\n", check))).toMatch(/\bLIFF_ID\b/);
+    expect(build).toBeGreaterThan(check);
+    expect(code).toMatch(/docker build[^\n]*--build-arg VITE_LIFF_ID="\$LIFF_ID"/);
+    expect(code).toMatch(/docker build[^\n]*--build-arg APP_NAME="\$APP_NAME"/);
   });
 });

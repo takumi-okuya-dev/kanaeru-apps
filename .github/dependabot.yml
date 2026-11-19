@@ -33,3 +33,28 @@ updates:
     cooldown:
       default-days: 1
     labels: [dependencies]
+  # 本番のコンテナの土台（Dockerfile の FROM の node。版と指紋）。Node.js の大きな版は package.json と一緒に手で上げる
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Asia/Tokyo
+    target-branch: develop
+    cooldown:
+      default-days: 1
+    ignore:
+      - dependency-name: node
+        update-types: [version-update:semver-major]
+    labels: [dependencies]
+  # Terraform のプロバイダ（infra/.terraform.lock.hcl）
+  - package-ecosystem: terraform
+    directory: /infra
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Asia/Tokyo
+    target-branch: develop
+    cooldown:
+      default-days: 1
+    labels: [dependencies]

@@ -1,5 +1,6 @@
 // API の呼び出し（Hono の RPC）。型は apps/api/src/client.ts から import type でだけ読む（lint の境界で止める）。
 // エラーの本文から code と欄ごとの理由を読み（ApiError）、通信の誤り（応答なし）は NetworkError として分けて投げる。
+// 401（未ログイン・セッション切れ）は、onUnauthenticated の受け手に知らせる（account がログインし直す。AD-12）。
 import { CORE_ERROR_MESSAGES } from "@workspace/contracts/core";
 import type { ErrorBody, FieldError } from "@workspace/contracts/core";
 import { hc } from "hono/client";
@@ -56,6 +57,21 @@ function isErrorBody(value: unknown): value is ErrorBody {
   return typeof error?.code === "string" && typeof error.message === "string";
 }
 
+/** 401 を受けたときの受け手。 */
+const unauthenticatedListeners = new Set<(error: ApiError) => void>();
+
+/**
+ * API が 401 を返したときに呼ばれる受け手を足す（account の領域がログインし直すために使う）。
+ * @param listener 受け手（401 の ApiError を受け取る）
+ * @returns 受け手を外す関数
+ */
+export function onUnauthenticated(listener: (error: ApiError) => void): () => void {
+  unauthenticatedListeners.add(listener);
+  return () => {
+    unauthenticatedListeners.delete(listener);
+  };
+}
+
 /** request が受け取る応答（Hono の RPC の応答か、ふつうの Response）。 */
 type ResponseLike = { ok: boolean; status: number; headers: Headers; json(): Promise<unknown> };
 
@@ -69,6 +85,7 @@ type SuccessBody<R> =
 
 /**
  * API を呼び、成功なら本文を返す。エラーの本文なら ApiError、応答がなければ NetworkError を投げる。
+ * 401 なら、投げる前に onUnauthenticated の受け手に知らせる。
  * @param call API を呼ぶ関数（例：() => api.api.v1.health.$get()）
  * @returns 成功したときの本文（本文がなければ undefined）
  * @throws {ApiError} API がエラーを返したとき
@@ -86,13 +103,15 @@ export async function request<R extends ResponseLike>(
   if (response.status === 204) return undefined as SuccessBody<R>;
   const body: unknown = await response.json().catch(() => undefined);
   if (!response.ok) {
-    throw isErrorBody(body)
+    const error = isErrorBody(body)
       ? new ApiError(response.status, body.error)
       : new ApiError(response.status, {
           code: "INTERNAL",
           message: CORE_ERROR_MESSAGES.INTERNAL,
           requestId: response.headers.get("x-request-id") ?? "",
         });
+    if (error.status === 401) for (const listener of unauthenticatedListeners) listener(error);
+    throw error;
   }
   return body as SuccessBody<R>;
 }

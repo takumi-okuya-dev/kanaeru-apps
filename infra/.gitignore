@@ -1,0 +1,12 @@
+# Terraform（core-002）。state と計画のファイルには秘密の値が入りうるのでコミットしない。
+# .terraform.lock.hcl（プロバイダの版の固定）はコミットする。
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+crash.*.log
+# 値を入れた変数のファイル（見本の .example だけコミットする）
+*.tfvars
+!*.tfvars.example

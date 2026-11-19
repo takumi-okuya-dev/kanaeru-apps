@@ -1,9 +1,10 @@
 // 画面の組み立て（Vite）。
-// 設定はルートの .env を読む。画面に埋めるのは APP_NAME だけ（秘密の値は渡さない）。
-// /api は API へ中継し、ブラウザから見て画面と API を同じ源にする（ログインを足したとき、クッキーを SameSite=Lax のまま使える）。
-// 守りの見出し：開発のサーバーと vite preview の両方につける。CSP は組み立てたもの（vite preview）だけ
-// （開発のサーバーは React の更新の仕組みが、中に書いた script と WebSocket を使うため）。本番の置き場所でも同じ見出しをつける。
-// 画面から外の源を読むときは、ここの CSP と本番の置き場所の見出しを一緒に直す。受け付ける宛先は localhost だけ（手元の外から届かない）。
+// 設定はルートの .env を読む。画面に埋めるのは APP_NAME と VITE_LIFF_ID（公開してよい LIFF ID）だけ（秘密の値は渡さない）。
+// /api は API へ中継し、ブラウザから見て画面と API を同じ源にする（クッキーを SameSite=Lax のまま使える）。
+// 組み立てた画面は、本番も E2E も API が返し、CSP などの守りの見出しも API が付ける（apps/api/src/platform/web。AD-8）。
+// 画面から外の源を読むときは、そこの CSP を直す。ここでは開発のサーバーと vite preview に、CSP のほかの守りの見出しだけを付ける
+// （開発のサーバーは React の更新の仕組みが、中に書いた script と WebSocket を使うため CSP を付けない）。
+// 受け付ける宛先は localhost だけ（手元の外から届かない）。
 import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
@@ -20,20 +21,6 @@ const SECURITY_HEADERS = {
   "Cross-Origin-Opener-Policy": "same-origin",
   "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
 };
-
-/** 組み立てたもの（vite preview）の CSP。index.html に中に書いた script はない（APP_NAME は題の文字に埋めるだけ）。 */
-const CONTENT_SECURITY_POLICY = [
-  "default-src 'self'",
-  "script-src 'self'",
-  "style-src 'self'",
-  "img-src 'self' data:",
-  "font-src 'self'",
-  "connect-src 'self'",
-  "object-src 'none'",
-  "base-uri 'none'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-].join("; ");
 
 /** API_HOST が空のときの宛先。 */
 const DEFAULT_API_HOST = "127.0.0.1";
@@ -85,19 +72,20 @@ function appName(appName: string): Plugin {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, envDir, "");
   const name = env.APP_NAME ?? "";
+  const liffId = env.VITE_LIFF_ID?.trim() ?? "";
   const port = Number(env.WEB_PORT || 5173);
   const proxy = { "/api": { target: apiProxyTarget(env) } };
   return {
     envDir,
     plugins: [react(), tailwindcss(), appName(name)],
-    define: { __APP_NAME__: JSON.stringify(name) },
+    define: { __APP_NAME__: JSON.stringify(name), __LIFF_ID__: JSON.stringify(liffId) },
     server: { host: "localhost", port, strictPort: true, proxy, headers: SECURITY_HEADERS },
     preview: {
       host: "localhost",
       port,
       strictPort: true,
       proxy,
-      headers: { ...SECURITY_HEADERS, "Content-Security-Policy": CONTENT_SECURITY_POLICY },
+      headers: SECURITY_HEADERS,
     },
   };
 });

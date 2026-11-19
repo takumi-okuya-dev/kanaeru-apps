@@ -37,6 +37,6 @@
 ### よく使う手順と置き場所（TypeScript。詳しくは [coding.md](docs/rules/coding.md) 6章）
 
 - 手順（リポジトリのルートで）：`pnpm local:setup`（初めての1回）・`pnpm dev`（立ち上げる）・`pnpm check`（全部の確かめ。秘密の値〈gitleaks。`brew install gitleaks`〉と依存の脆弱性を含む。PRの前に流す）・`pnpm db:generate` → できた SQL を読む → `pnpm db:migrate`（DBの変更）。
-- 領域のフォルダ：`apps/api/src/modules/<領域>/`・`apps/web/src/features/<領域>/`・`packages/contracts/src/<領域>/`（足す手順は [coding.md](docs/rules/coding.md) 6-6。見本は領域 `notes`）。
+- 領域のフォルダ：`apps/api/src/modules/<領域>/`・`apps/web/src/features/<領域>/`・`packages/contracts/src/<領域>/`（足す手順は [coding.md](docs/rules/coding.md) 6-6）。
 - 1行に1つの一覧（`merge=union`）：`apps/api/src/modules.list.ts`・`apps/web/src/features.list.ts`（全部は [parallel-development.md](docs/rules/parallel-development.md) 3-1 の表）。
-- 見た目の値は `packages/ui/src/styles/tokens.css`（[DESIGN.md](docs/design/DESIGN.md) から写したもの）の名前だけ。Tailwind の任意の値（`bg-[#…]`）は lint で止まる。
+- 見た目の値は `packages/ui/src/styles/tokens.css`（プロダクトの [DESIGN.md](_bmad-output/ux-kanaeru-reception/DESIGN.md) と、それが引き継ぐ [土台](docs/design/DESIGN.md) から写したもの）の名前だけ。Tailwind の任意の値（`bg-[#…]`）は lint で止まる。

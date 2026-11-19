@@ -23,7 +23,18 @@ export function testConfig(overrides: Partial<Config> = {}): Config {
 }
 
 /**
- * API を組み立てる（ログは捨てる）。
+ * テストの既定の外への出口（呼ぶと投げる。テストがネットワークに出ないように）。外の答えが要るテストは extra.fetch で渡す。
+ * @param input 宛先
+ * @returns 返らない（いつも投げる）
+ * @throws {Error} いつも
+ */
+export function offlineFetch(input: string | URL | Request): Promise<Response> {
+  const url = input instanceof Request ? input.url : String(input);
+  return Promise.reject(new Error(`テストから外へ出ようとしました：${url}`));
+}
+
+/**
+ * API を組み立てる（ログは捨てる。外への出口は既定で offlineFetch）。
  * @param database DB の接続
  * @param config 設定
  * @param extra そのほかの道具（領域・機能の印）
@@ -38,6 +49,7 @@ export function buildApp(
     config,
     database,
     logger: createLogger({ level: "silent", pretty: false }),
+    fetch: offlineFetch,
     ...extra,
   });
 }
