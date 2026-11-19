@@ -113,7 +113,7 @@ flowchart TB
 - **Binds:** all（運用）
 - **Prevents:** 画面で手で作った資源が残り、作り直せない・費用が分からなくなること。作り直せない交流会の記録を失うこと
 - **Rule:**
-  - Cloud Run（サービスと jobs）・Artifact Registry・Cloud SQL（台・DB・利用者）・Secret Manager・サービスアカウントと権限・GitHub からのデプロイの権限（Workload Identity Federation・Direct WIF）・Cloud Scheduler・請求の予算は `infra/` の Terraform で作る。手で作ってよいのは、Terraform の状態を置く GCS のバケット（バージョニングあり）と、最初の GCP プロジェクトだけ。
+  - Cloud Run（サービスと jobs）・Artifact Registry・Cloud SQL（台・DB・利用者）・Secret Manager・サービスアカウントと権限・GitHub からのデプロイの権限（Workload Identity Federation で入り、デプロイ用のサービスアカウントになりすます。鍵は作らない。Cloud Run は WIF の直接の権限〈Direct WIF〉に対応していないため。core-002 R-1）・Cloud Scheduler・請求の予算は `infra/` の Terraform で作る。手で作ってよいのは、Terraform の状態を置く GCS のバケット（バージョニングあり）と、最初の GCP プロジェクトだけ。
   - 秘密の値（DBのパスワード）は Secret Manager に置き、Terraform のコードとリポジトリには書かない。
   - Cloud SQL は自動のバックアップを有効にし、時間帯は DB が動いている昼（日本時間12時台）、7日分残す。`deletion_protection` を付ける。
   - 請求の予算は月2,000円で、50%・100% でメールで知らせる。
@@ -126,7 +126,7 @@ flowchart TB
   - Cloud Scheduler が毎日0時に Cloud SQL を止め、8時に動かす（日本時間。Cloud SQL Admin API の `activationPolicy` を直す）。Terraform は Cloud SQL の `activation_policy` と Scheduler の `paused` の変更を無視する（`lifecycle { ignore_changes }`）。
   - DB に届かないとき、API は `503` と code `DB_UNAVAILABLE` を返す。この読みかえは土台（`kernel`）のエラーの処理に1か所だけ置く。画面は「夜間（0時〜8時）は止まっています」と出す。
   - Cloud Run の起動の確かめ（probe）は既定のまま、DB に触る窓口を指さない。DB を定期的に起こす・叩く処理は作らない。
-  - デプロイは8時〜24時に行う。交流会が0時を越えるときは、主催者がその日の停止の仕事を `gcloud scheduler jobs pause` で止める。
+  - デプロイは日本時間の8時15分〜23時に始めたものだけを出す（DB の起動の直後と、0時の停止の前を避ける。deploy.yml が確かめる）。交流会が0時を越えるときは、主催者がその日の停止の仕事を `gcloud scheduler jobs pause` で止める。
 
 ### AD-11 — 本番へは main のマージで出す。DB の変更を先に当てる [ADOPTED]
 
@@ -191,7 +191,7 @@ flowchart TB
 | @line/liff | 2.32（2.31.1 未満は使わない） |
 | PostgreSQL（Cloud SQL・Enterprise・db-f1-micro） | 18 |
 | Terraform google provider | 8.12 |
-| google-github-actions/auth | v3（Direct WIF） |
+| google-github-actions/auth | v3（WIF ＋ サービスアカウントのなりすまし） |
 
 ## Structural Seed
 
