@@ -1,6 +1,7 @@
 // A3 一覧画面の参加者・合計（主催者・受付係。EXPERIENCE.md の A3・UJ-3・UJ-4）。
 // 上に event の EventAdminNav（「参加者・合計」「困りごと」「準備」）。タブ「参加者」「合計」。
-// 一覧・合計・内訳は5秒おきに読み直す（queries.ts）。読み直しが失敗しても前のものを出したまま「最新にできませんでした」。
+// 一覧・合計・内訳は5秒おきに読み直す（queries.ts）。読み直しが失敗しても前のものを出したまま「最新にできませんでした」
+// （夜間の停止の時間帯の 503 だけは読み直しを止め、夜間の文を出す）。初めに読めなかったときは API の文を出す。
 // 主催者には「書き出しと削除」（A5）への入口と内訳を出す。受付係には出さない（隠す。EXPERIENCE）。
 import type { EventView } from "@workspace/contracts/event";
 import { Link, getRouteApi } from "@tanstack/react-router";
@@ -111,7 +112,8 @@ function Reception({ event }: { event: EventView }) {
   const breakdown = useBreakdown(event.id, organizer);
   const queries = [list, totals, ...(organizer ? [breakdown] : [])];
   const firstError = queries.find((query) => query.isError)?.error;
-  const stale = queries.some((query) => query.isRefetchError);
+  const staleError = queries.find((query) => query.isRefetchError)?.error;
+  const stale = staleError !== undefined;
 
   return (
     <Page
@@ -132,7 +134,7 @@ function Reception({ event }: { event: EventView }) {
       <EventAdminNav eventId={event.id} role={event.myRole} />
       {stale ? (
         <p className="text-s text-text-sub">
-          {isNightStop(firstError)
+          {isNightStop(staleError)
             ? "夜間（0時〜8時）は止まっています。8時からもう一度開いてください。"
             : "最新にできませんでした。電波の良い所で、しばらく待つと読み直します。"}
         </p>

@@ -90,7 +90,7 @@
 
 ## R13. 一覧画面の読み直しと状態【仮決め】
 
-- **Decision**：一覧と合計と内訳を TanStack Query の `refetchInterval: 5000` で読み直す。エラーが 503 `DB_UNAVAILABLE` のときは止める（EXPERIENCE「自動で何度も読み直さない」）。読み直しが失敗しても前のデータを出したまま、タブの上に「最新にできませんでした」。手でのチェックイン・直す・取り消し・消すのあとは、鍵 `["reception", …]` をまとめて読み直す。読み直しは読み上げない（`aria-live` を付けない）。
+- **Decision**：一覧と合計と内訳を TanStack Query の `refetchInterval: 5000` で読み直す。夜間の停止の時間帯（日本時間 0時〜8時。`@workspace/contracts/core` の `isNightStopWindow`）に 503 `DB_UNAVAILABLE` を受けたときだけ止め、夜間の文を出す（EXPERIENCE「自動で何度も読み直さない」）。昼の 503 やほかの失敗は一時的なので読み直しを続け、つながれば次の読み直しで最新に戻る。読み直しが失敗しても前のデータを出したまま、タブの上に「最新にできませんでした」。手でのチェックイン・直す・取り消し・消すのあとは、鍵 `["reception", …]` をまとめて読み直す。読み直しは読み上げない（`aria-live` を付けない）。
 - **Rationale**：Consistency Conventions「一覧画面の更新」・FR-11（数秒以内）。
 
 ## R14. 選択肢のチップの部品（共通の変更）【仮決め】

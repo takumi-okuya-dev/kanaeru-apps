@@ -1,6 +1,9 @@
 // 受付の問い合わせ（TanStack Query）の鍵と読みこみ。鍵はどれも "reception" で始める
 // （ログインし直したときに account が読み直させる。手でのチェックイン・直す・取り消すのあとは all をまとめて読み直す）。
 // 一覧画面の問い合わせは5秒おきに読み直す（Consistency Conventions「一覧画面の更新」）。夜間の停止では止める（research R13）。
+// 止めるのは、夜間の停止の時間帯（日本時間 0時〜8時）に DB に届かない 503 を受けたときだけ。昼の 503 やほかの失敗は一時的なので、
+// 読み直しを続け、つながれば自然に最新に戻る。
+import { isNightStopWindow } from "@workspace/contracts/core";
 import { useQuery } from "@tanstack/react-query";
 import { ApiError } from "../../lib/api.ts";
 import { fetchBreakdown, fetchCheckins, fetchMyCheckin, fetchTotals } from "./api.ts";
@@ -39,21 +42,27 @@ export const RECEPTION_QUERY_KEYS = {
 };
 
 /**
- * 夜間の停止（503 DB_UNAVAILABLE）か。
+ * 夜間の停止か（夜間の停止の時間帯に、DB に届かない 503 DB_UNAVAILABLE を受けた）。昼の 503 は一時的なので false。
  * @param error 投げられたもの
+ * @param now 今（既定は今の時刻。テストで差しかえる）
  * @returns 夜間の停止なら true
  */
-export function isNightStop(error: unknown): boolean {
-  return error instanceof ApiError && error.code === "DB_UNAVAILABLE";
+export function isNightStop(error: unknown, now: Date = new Date()): boolean {
+  return error instanceof ApiError && error.code === "DB_UNAVAILABLE" && isNightStopWindow(now);
 }
 
 /**
- * 5秒おきに読み直す間（夜間の停止のあとは止める）。
+ * 5秒おきに読み直す間。夜間の停止のときだけ止め、ほかの失敗では続ける（つながれば次の読み直しで最新に戻る）。
  * @param query 問い合わせ
+ * @param query.state 問い合わせの状態（最後の失敗）
+ * @param now 今（既定は今の時刻。テストで差しかえる）
  * @returns 間（止めるなら false）
  */
-function pollInterval(query: { state: { error: unknown } }): number | false {
-  return isNightStop(query.state.error) ? false : RECEPTION_REFETCH_MS;
+export function receptionPollInterval(
+  query: { state: { error: unknown } },
+  now: Date = new Date(),
+): number | false {
+  return isNightStop(query.state.error, now) ? false : RECEPTION_REFETCH_MS;
 }
 
 /**
@@ -77,7 +86,7 @@ export function useCheckinList(eventId: string) {
   return useQuery({
     queryKey: RECEPTION_QUERY_KEYS.list(eventId),
     queryFn: () => fetchCheckins(eventId),
-    refetchInterval: pollInterval,
+    refetchInterval: (query) => receptionPollInterval(query),
   });
 }
 
@@ -90,7 +99,7 @@ export function useTotals(eventId: string) {
   return useQuery({
     queryKey: RECEPTION_QUERY_KEYS.totals(eventId),
     queryFn: () => fetchTotals(eventId),
-    refetchInterval: pollInterval,
+    refetchInterval: (query) => receptionPollInterval(query),
   });
 }
 
@@ -104,7 +113,7 @@ export function useBreakdown(eventId: string, enabled: boolean) {
   return useQuery({
     queryKey: RECEPTION_QUERY_KEYS.breakdown(eventId),
     queryFn: () => fetchBreakdown(eventId),
-    refetchInterval: pollInterval,
+    refetchInterval: (query) => receptionPollInterval(query),
     enabled,
   });
 }
