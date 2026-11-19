@@ -24,7 +24,7 @@
 
 作る順番（どれも共通の PR。仕様は `specs/core/NNN-…`）：
 
-1. **core-004 共通の手伝いをまとめる**：CSV の作り方（BOM・CRLF・式として読まれない守り）を `packages/csv`、画面のダウンロードを `apps/web/src/lib/download.ts` にまとめる。`pnpm check` に `drizzle-kit check`・`db:generate` のあとの差分の確かめ・journal の `when` の順の確かめを足す。`docs/decisions.md` の `merge=union` はこの見直しの PR で入れた（AD-17・AD-18）。
+1. ~~**core-004 共通の手伝いをまとめる**~~（2026-11-19 に作った。`specs/core/004-shared-tools`）：CSV の作り方（BOM・CRLF・式として読まれない守り）を `packages/csv`、画面のダウンロードを `apps/web/src/lib/download.ts` にまとめる。`pnpm check` に `drizzle-kit check`・`db:generate` のあとの差分の確かめ・journal の `when` の順の確かめを足す。`docs/decisions.md` の `merge=union` はこの見直しの PR で入れた（AD-17・AD-18）。
 2. **core-005 アプリの台帳**：suite の領域（`app_setting`・`isAppVisible`・`requireApp` を組み立てが自動で付ける）・アプリの一覧 `packages/contracts/src/core/apps.list.ts` とその確かめのテスト・運営者の切り替えの画面（AD-15・AD-16）。2つ目のアプリの前に入れる。Constitution IV（1.1.0）のとおり、先に小さな PRD を作る。
 3. **AI の段階1（コピーして貼る）**：最初に AI を使うアプリの仕様の中で、AI の作業の置き方（AD-20）を確かめる。
 4. **段階2・MCP**：利用者の声を見てから（AD-20・AD-21）。

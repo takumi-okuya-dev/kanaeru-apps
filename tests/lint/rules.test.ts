@@ -51,6 +51,37 @@ const CASES: { label: string; file: string; code: string; rule: string | null }[
     code: 'export const label = "メモ[1]";',
     rule: null,
   },
+  // 技術の道具の包み（AD-18）
+  {
+    label: "技術の道具の包みから、約束の包み（業務）を読む",
+    file: "packages/csv/src/x.ts",
+    code: 'import { jstDate } from "@workspace/contracts/core";\nexport const x = jstDate;',
+    rule: "no-restricted-imports",
+  },
+  {
+    label: "技術の道具の包みから、アプリを読む",
+    file: "packages/csv/src/x.ts",
+    code: 'import { csvAttachment } from "../../../apps/api/src/kernel/http.ts";\nexport const x = csvAttachment;',
+    rule: "no-restricted-imports",
+  },
+  {
+    label: "新しい技術の道具の包みも同じく止まる（包みの名前を規則に足さなくてよい）",
+    file: "packages/sometool/src/x.ts",
+    code: 'import { jstDate } from "@workspace/contracts/core";\nexport const x = jstDate;',
+    rule: "no-restricted-imports",
+  },
+  {
+    label: "約束の包みは、約束の包みどうしを読める（技術の道具の規則をかけない）",
+    file: "packages/contracts/src/alpha/x.ts",
+    code: 'import { jstDate } from "@workspace/contracts/core";\nexport const x = jstDate;',
+    rule: null,
+  },
+  {
+    label: "技術の道具の包みの中の、同じ包みのファイルは読める",
+    file: "packages/csv/src/x.ts",
+    code: 'import { csvCell } from "./index.ts";\nexport const x = csvCell;',
+    rule: null,
+  },
   // 守りの規則
   {
     label: "HTML をそのまま差しこむ",

@@ -2,7 +2,9 @@
 // 読み書きは lib/api.ts の request を通す（エラーの読み方と 401 の知らせをそろえる）。
 import type { SurveyAnswerInput, SurveyListQuery } from "@workspace/contracts/survey";
 import type { ModuleRoutes } from "../../../../api/src/client.ts";
-import { NetworkError, createApiClient, request } from "../../lib/api.ts";
+import { createApiClient, request } from "../../lib/api.ts";
+import { fetchDownload } from "../../lib/download.ts";
+import type { DownloadedFile } from "../../lib/download.ts";
 
 let client: ReturnType<typeof createApiClient<ModuleRoutes["survey"]>> | undefined;
 
@@ -73,14 +75,6 @@ export function fetchSurveyAnswers(eventId: string, query: SurveyListQuery) {
   return request(() => endpoint.$get({ param, query }));
 }
 
-/** 書き出した CSV。 */
-export type DownloadedCsv = {
-  /** 中身 */
-  blob: Blob;
-  /** 保存するファイルの名前 */
-  filename: string;
-};
-
 /**
  * 困りごとの CSV を受け取る（主催者だけ）。エラーは ApiError・NetworkError で投げる。
  * @param eventId 交流会の ID
@@ -88,17 +82,7 @@ export type DownloadedCsv = {
  * @throws {ApiError} API がエラーを返したとき
  * @throws {NetworkError} 通信が届かなかったとき
  */
-export async function downloadConcernsCsv(eventId: string): Promise<DownloadedCsv> {
+export function downloadConcernsCsv(eventId: string): Promise<DownloadedFile> {
   const { endpoint, param } = answersApi(eventId);
-  let response: Awaited<ReturnType<typeof endpoint.export.$get>>;
-  try {
-    response = await endpoint.export.$get({ param });
-  } catch (error) {
-    throw new NetworkError(error);
-  }
-  // エラーの本文の読み方は request にそろえる（エラーなら ApiError を投げる）
-  if (!response.ok) await request(() => Promise.resolve(response));
-  const disposition = response.headers.get("content-disposition") ?? "";
-  const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? "concerns.csv";
-  return { blob: await response.blob(), filename };
+  return fetchDownload(() => endpoint.export.$get({ param }), "concerns.csv");
 }

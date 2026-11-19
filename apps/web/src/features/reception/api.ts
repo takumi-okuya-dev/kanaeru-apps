@@ -4,7 +4,9 @@
 import type { CheckinInput } from "@workspace/contracts/reception";
 import { RECEPTION_ERRORS } from "@workspace/contracts/reception";
 import type { ModuleRoutes } from "../../../../api/src/client.ts";
-import { ApiError, NetworkError, createApiClient, request } from "../../lib/api.ts";
+import { ApiError, createApiClient, request } from "../../lib/api.ts";
+import { fetchDownload } from "../../lib/download.ts";
+import type { DownloadedFile } from "../../lib/download.ts";
 
 let client: ReturnType<typeof createApiClient<ModuleRoutes["reception"]>> | undefined;
 let accountClient: ReturnType<typeof createApiClient<ModuleRoutes["account"]>> | undefined;
@@ -127,14 +129,6 @@ export function fetchBreakdown(eventId: string) {
   return request(() => endpoint.breakdown.$get({ param }));
 }
 
-/** 書き出した CSV。 */
-export type DownloadedCsv = {
-  /** 中身 */
-  blob: Blob;
-  /** 保存するファイルの名前 */
-  filename: string;
-};
-
 /**
  * 参加者の CSV を受け取る（主催者だけ）。エラーは ApiError・NetworkError で投げる。
  * @param eventId 交流会の ID
@@ -142,19 +136,9 @@ export type DownloadedCsv = {
  * @throws {ApiError} API がエラーを返したとき
  * @throws {NetworkError} 通信が届かなかったとき
  */
-export async function downloadParticipantsCsv(eventId: string): Promise<DownloadedCsv> {
+export function downloadParticipantsCsv(eventId: string): Promise<DownloadedFile> {
   const { endpoint, param } = checkinsApi(eventId);
-  let response: Awaited<ReturnType<typeof endpoint.export.$get>>;
-  try {
-    response = await endpoint.export.$get({ param });
-  } catch (error) {
-    throw new NetworkError(error);
-  }
-  // エラーの本文の読み方は request にそろえる（エラーなら ApiError を投げる）
-  if (!response.ok) await request(() => Promise.resolve(response));
-  const disposition = response.headers.get("content-disposition") ?? "";
-  const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? "participants.csv";
-  return { blob: await response.blob(), filename };
+  return fetchDownload(() => endpoint.export.$get({ param }), "participants.csv");
 }
 
 /**

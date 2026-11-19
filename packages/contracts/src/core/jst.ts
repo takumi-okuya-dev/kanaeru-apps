@@ -1,4 +1,4 @@
-// 日本時間（JST。UTC+9・夏時間なし）の日付と「その日の終わり」（構成の決めごと Consistency Conventions「ID・時刻」）。
+// 日本時間（JST。UTC+9・夏時間なし）の日付・日時と「その日の終わり」（構成の決めごと Consistency Conventions「ID・時刻」）。
 // サーバーや端末の時刻帯に頼らない（UTC に9時間を足し、UTC の読み方で日付を出す）。
 // 例：招待の期限は「交流会の日時の、日本時間の日付が終わるまで」＝ now < endOfJstDate(交流会の日時)（AD-5）。
 // zod を読まない。
@@ -29,6 +29,17 @@ function toEpochMs(instant: Date | string): number {
  */
 export function jstDate(instant: Date | string): string {
   return new Date(toEpochMs(instant) + JST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/**
+ * 日本時間の日時（CSV などに出す形。秒は切り捨てる）。
+ * @param instant 時刻（Date か、時差つきの ISO 8601 の文字）
+ * @returns `YYYY-MM-DD HH:mm`（日本時間）
+ * @throws {RangeError} 時刻として読めないとき
+ */
+export function jstDateTime(instant: Date | string): string {
+  const iso = new Date(toEpochMs(instant) + JST_OFFSET_MS).toISOString();
+  return `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
 }
 
 /**

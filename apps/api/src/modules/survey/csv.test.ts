@@ -1,7 +1,9 @@
 // 困りごとの CSV：BOM・CRLF・見出し・選択肢の言葉・空欄・囲み・式の差しこみの打ち消し・日本時間。
 import { describe, expect, it } from "vitest";
 import type { CheckinRecord } from "../reception/index.ts";
-import { buildConcernsCsv, csvCell, formatJstDateTime } from "./csv.ts";
+import { jstDateTime } from "@workspace/contracts/core";
+import { csvCell } from "@workspace/csv";
+import { buildConcernsCsv } from "./csv.ts";
 import type { SurveyAnswerRecord } from "./repository.ts";
 
 /** チェックインの見本。 */
@@ -67,6 +69,6 @@ describe("困りごとの CSV", () => {
   });
 
   it("日時は日本時間", () => {
-    expect(formatJstDateTime(new Date("2026-11-25T15:05:00Z"))).toBe("2026-11-26 00:05");
+    expect(jstDateTime(new Date("2026-11-25T15:05:00Z"))).toBe("2026-11-26 00:05");
   });
 });

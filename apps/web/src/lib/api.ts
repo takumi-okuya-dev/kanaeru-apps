@@ -73,7 +73,12 @@ export function onUnauthenticated(listener: (error: ApiError) => void): () => vo
 }
 
 /** request が受け取る応答（Hono の RPC の応答か、ふつうの Response）。 */
-type ResponseLike = { ok: boolean; status: number; headers: Headers; json(): Promise<unknown> };
+export type ResponseLike = {
+  ok: boolean;
+  status: number;
+  headers: Headers;
+  json(): Promise<unknown>;
+};
 
 /** RPC の応答の型から、成功したときの本文の型を取り出す（ふつうの Response なら unknown）。 */
 type SuccessBody<R> =
@@ -100,20 +105,29 @@ export async function request<R extends ResponseLike>(
   } catch (error) {
     throw new NetworkError(error);
   }
+  if (!response.ok) throw await apiErrorFrom(response);
   if (response.status === 204) return undefined as SuccessBody<R>;
   const body: unknown = await response.json().catch(() => undefined);
-  if (!response.ok) {
-    const error = isErrorBody(body)
-      ? new ApiError(response.status, body.error)
-      : new ApiError(response.status, {
-          code: "INTERNAL",
-          message: CORE_ERROR_MESSAGES.INTERNAL,
-          requestId: response.headers.get("x-request-id") ?? "",
-        });
-    if (error.status === 401) for (const listener of unauthenticatedListeners) listener(error);
-    throw error;
-  }
   return body as SuccessBody<R>;
+}
+
+/**
+ * エラーの応答から ApiError を作る（本文がエラーの形でなければ INTERNAL）。401 なら onUnauthenticated の受け手に知らせる。
+ * request と、ファイルを受け取る fetchDownload（lib/download.ts）が同じ読み方を使う。
+ * @param response エラーの応答（ok でないもの）
+ * @returns 投げる ApiError
+ */
+export async function apiErrorFrom(response: ResponseLike): Promise<ApiError> {
+  const body: unknown = await response.json().catch(() => undefined);
+  const error = isErrorBody(body)
+    ? new ApiError(response.status, body.error)
+    : new ApiError(response.status, {
+        code: "INTERNAL",
+        message: CORE_ERROR_MESSAGES.INTERNAL,
+        requestId: response.headers.get("x-request-id") ?? "",
+      });
+  if (error.status === 401) for (const listener of unauthenticatedListeners) listener(error);
+  return error;
 }
 
 /**

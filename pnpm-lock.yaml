@@ -229,6 +229,9 @@ importers:
       '@workspace/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@workspace/csv':
+        specifier: workspace:*
+        version: link:../../packages/csv
       drizzle-orm:
         specifier: ^0.45.4
         version: 0.45.4(@types/pg@8.23.1)(pg@8.23.1)
@@ -358,6 +361,8 @@ importers:
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
+
+  packages/csv: {}
 
   packages/ui:
     dependencies:

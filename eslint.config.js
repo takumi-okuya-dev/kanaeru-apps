@@ -402,6 +402,28 @@ export default tseslint.config(
       "no-new-func": "error",
     },
   },
+  // 技術の道具の包み（構成の決めごと AD-18）：業務を知らず、ほかの包みとアプリを読まない（将来に切り出しても、そのまま取り込める）。
+  // no-restricted-imports は上のまとまりを上書きするので、OS のコマンドなどの止め方を入れ直す
+  // packages/ の下で contracts（約束）と ui（部品）のほかは、どれも技術の道具の包みとみなす（足しても、ここは直さない）
+  {
+    files: ["packages/*/src/**/*.ts"],
+    ignores: ["packages/contracts/**", "packages/ui/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: BLOCKED_IMPORTS.paths,
+          patterns: [
+            {
+              group: ["@workspace/*", "**/apps/**", "**/packages/**"],
+              message:
+                "技術の道具の包みから、ほかの包みやアプリを読めません（業務を知らない形にする。構成の決めごと AD-18）。",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // 守りの規則：画面（画面の組み立てに入る packages/ui・packages/contracts を含む）。HTML の差しこみ・環境の値を読む。
   // no-restricted-syntax は上のまとまりを上書きするので、SQL の差しこみの選び方を入れ直す
   {
