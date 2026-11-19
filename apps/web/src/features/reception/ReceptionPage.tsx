@@ -158,7 +158,13 @@ function Reception({ event }: { event: EventView }) {
           tabIndex={0}
           hidden={tab !== "totals"}
         >
-          <TotalsTab totals={totals.data} breakdown={breakdown.data} showBreakdown={organizer} />
+          <TotalsTab
+            totals={totals.data}
+            breakdown={breakdown.data}
+            showBreakdown={organizer}
+            breakdownError={breakdown.isLoadingError ? breakdown.error : undefined}
+            onRetryBreakdown={() => void breakdown.refetch()}
+          />
         </div>
       </div>
     </Page>

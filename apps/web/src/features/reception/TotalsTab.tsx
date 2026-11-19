@@ -1,5 +1,6 @@
 // A3 の合計のタブ（DESIGN.md の合計のカード・UJ-4）と、主催者だけの内訳（FR-13。合計の下に置く。EXPERIENCE Open Questions 3）。
 // 数字は桁がそろう数字で右寄せ。金額は「円」をつけ3桁ごとに区切る。現金の行も読み間違えない大きさにする。色で多い少ないを表さない。
+// 内訳を初めに読めなかったときは、内訳の節に文と「もう一度」を出す（合計は出したまま）。
 import type { CheckinBreakdown, CheckinTotals } from "@workspace/contracts/reception";
 import {
   APPLICATION_SOURCE_LABELS,
@@ -7,6 +8,9 @@ import {
   PAYMENT_METHOD_LABELS,
   REFERRAL_LABELS,
 } from "@workspace/contracts/reception";
+import { Button } from "@workspace/ui/components/button";
+import { ResponseMessage } from "@workspace/ui/components/response-message";
+import { errorMessage } from "../../lib/api.ts";
 import { formatFee } from "../event/index.ts";
 import { formatCount } from "./format.ts";
 
@@ -98,14 +102,24 @@ export type TotalsTabProps = {
   breakdown: CheckinBreakdown | undefined;
   /** 内訳を出すか（主催者） */
   showBreakdown: boolean;
+  /** 内訳を初めに読めなかったときの投げられたもの（読めた・読みこみ中は undefined） */
+  breakdownError?: unknown;
+  /** 内訳をもう一度読む */
+  onRetryBreakdown?: () => void;
 };
 
 /**
  * 合計のタブの中身。
- * @param props 合計（totals）・内訳（breakdown）・内訳を出すか（showBreakdown）
+ * @param props 合計（totals）・内訳（breakdown）・内訳を出すか（showBreakdown）・内訳の失敗（breakdownError）・もう一度（onRetryBreakdown）
  * @returns 要素
  */
-export function TotalsTab({ totals, breakdown, showBreakdown }: TotalsTabProps) {
+export function TotalsTab({
+  totals,
+  breakdown,
+  showBreakdown,
+  breakdownError,
+  onRetryBreakdown,
+}: TotalsTabProps) {
   if (!totals) {
     return (
       <p aria-busy="true" className="text-m text-text-sub">
@@ -137,6 +151,17 @@ export function TotalsTab({ totals, breakdown, showBreakdown }: TotalsTabProps) 
                   count: row.count,
                 }))}
               />
+            </div>
+          ) : breakdownError ? (
+            <div className="flex flex-col items-start gap-xxs">
+              <ResponseMessage tone="danger">
+                {`内訳を読みこめませんでした。${errorMessage(breakdownError)}`}
+              </ResponseMessage>
+              {onRetryBreakdown ? (
+                <Button type="button" className="min-h-xl" onClick={onRetryBreakdown}>
+                  もう一度
+                </Button>
+              ) : null}
             </div>
           ) : (
             <p aria-busy="true" className="text-m text-text-sub">
