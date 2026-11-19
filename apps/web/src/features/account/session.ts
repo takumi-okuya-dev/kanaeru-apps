@@ -13,7 +13,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { ApiError, onUnauthenticated } from "../../lib/api.ts";
 import { getLiff } from "../../lib/liff.ts";
-import { fetchMe, loginWithLine } from "./api.ts";
+import { deleteMe, fetchMe, loginWithLine, logout } from "./api.ts";
 
 /** 今の利用者の問い合わせの鍵（ログインしたあとに読み直させるときに使う）。 */
 export const SESSION_QUERY_KEY = ["account", "session"] as const;
@@ -191,4 +191,42 @@ export function useSession(): SessionState {
     return { status: "error", error: query.error, retry: () => void query.refetch() };
   }
   return query.data;
+}
+
+/**
+ * 今わかっている利用者（セッションの問い合わせを新しく始めない。読みこむ前・未ログインは null）。
+ * 外枠のように、ログインを求めずに「ログインしているなら」で振る舞いを変える所が使う（見えるアプリの読み直しの鍵など）。
+ * @returns 今の利用者
+ */
+export function useKnownAccount(): CurrentAccountView | null {
+  const { data } = useQuery({
+    queryKey: SESSION_QUERY_KEY,
+    queryFn: loadSession,
+    enabled: false,
+    staleTime: Number.POSITIVE_INFINITY,
+    retry: false,
+  });
+  return data?.status === "authenticated" ? data.account : null;
+}
+
+/**
+ * ログアウトする（セッションを消し、ログアウトした状態にする。前の利用者のデータを画面に残さない）。
+ * @param queryClient TanStack Query の入れ物
+ * @throws {ApiError} 消せなかったとき
+ * @throws {NetworkError} 通信が届かないとき
+ */
+export async function signOut(queryClient: QueryClient): Promise<void> {
+  await logout();
+  setSignedOut(queryClient);
+}
+
+/**
+ * 退会する（自分のアカウントとすべてのアプリの本人の記録を消し、ログアウトした状態にする）。
+ * @param queryClient TanStack Query の入れ物
+ * @throws {ApiError} ほかの人が書きこむ記録を持っているとき（409 ACCOUNT_OWNS_SHARED_RECORDS）など
+ * @throws {NetworkError} 通信が届かないとき
+ */
+export async function withdrawAccount(queryClient: QueryClient): Promise<void> {
+  await deleteMe();
+  setSignedOut(queryClient);
 }

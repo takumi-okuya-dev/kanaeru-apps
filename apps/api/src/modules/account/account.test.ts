@@ -446,6 +446,56 @@ describe("アカウントの窓口", () => {
     });
   });
 
+  describe("退会（自分のアカウントを消す）", () => {
+    it("本人が消すと、アカウントとセッションが消え、クッキーも消える。ほかの人は残る", async () => {
+      const me = await loginAs(app);
+      await loginAs(app);
+      const response = await app.request(
+        "/api/v1/accounts/me",
+        withCookie(me.cookie, { method: "DELETE" }),
+      );
+      expect(response.status).toBe(204);
+      expect(response.headers.get("set-cookie") ?? "").toMatch(/^kanaeru_session=;.*Max-Age=0/);
+      expect((await app.request("/api/v1/accounts/me", withCookie(me.cookie))).status).toBe(401);
+      expect(await countRows("account")).toBe(1);
+      expect(await countRows("session")).toBe(1);
+    });
+
+    it("ログインしていなければ 401 で、何も消えない", async () => {
+      await loginAs(app);
+      const anonymous = await app.request("/api/v1/accounts/me", {
+        method: "DELETE",
+        headers: { origin: TEST_ORIGIN },
+      });
+      expect(anonymous.status).toBe(401);
+      expect(await countRows("account")).toBe(1);
+    });
+
+    it("ほかの人が書きこむ記録（RESTRICT の外部キー）を持っていれば、409 ACCOUNT_OWNS_SHARED_RECORDS で消さない", async () => {
+      const me = await loginAs(app);
+      // 新しいアプリの「ほかの人が書きこむ記録」の代わり（このテストの間だけの表。AD-19）
+      await database.pool.query(
+        "CREATE TABLE test_shared_record (owner_id uuid NOT NULL REFERENCES account(id) ON DELETE RESTRICT)",
+      );
+      try {
+        await database.pool.query("INSERT INTO test_shared_record (owner_id) VALUES ($1)", [
+          me.account.id,
+        ]);
+        const response = await app.request(
+          "/api/v1/accounts/me",
+          withCookie(me.cookie, { method: "DELETE" }),
+        );
+        expect(response.status).toBe(409);
+        expect(((await response.json()) as ErrorBody).error.code).toBe(
+          "ACCOUNT_OWNS_SHARED_RECORDS",
+        );
+        expect((await app.request("/api/v1/accounts/me", withCookie(me.cookie))).status).toBe(200);
+      } finally {
+        await database.pool.query("DROP TABLE test_shared_record");
+      }
+    });
+  });
+
   describe("試験用のログイン", () => {
     it("入なら、LINE のユーザー ID と表示名でアカウントを作るか探し、クッキーを出す", async () => {
       const lineUserId = testLineUserId();

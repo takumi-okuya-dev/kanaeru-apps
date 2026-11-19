@@ -156,6 +156,24 @@ export function requireSession(deps: { db: Db; config: Pick<DomainConfig, "webUr
 }
 
 /**
+ * ログインしていれば今の利用者を返し、していなければ null を返す（401 にしない）。
+ * ログインの前でも答える窓口（suite の見えるアプリの一覧・requireApp。AD-16）が使う。
+ * @param deps db と config
+ * @param deps.db DB
+ * @param deps.config 領域の設定（webUrl。クッキーの名前を決める）
+ * @param c 要求の文脈
+ * @returns 今の利用者。ログインしていなければ null
+ */
+export async function findSessionViewer(
+  deps: { db: Db; config: Pick<DomainConfig, "webUrl"> },
+  c: Context,
+): Promise<SessionAccount | null> {
+  const token = readSessionToken(c, sessionCookie(deps.config));
+  const found = token ? await findSessionAccount(deps.db, hashSessionToken(token)) : null;
+  return found ? { accountId: found.id, lineUserId: found.lineUserId } : null;
+}
+
+/**
  * 今の利用者を返す（requireSession を付けた道の処理で読む。AD-12）。
  * @param c 要求の文脈
  * @returns 今の利用者

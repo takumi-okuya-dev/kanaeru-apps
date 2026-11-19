@@ -2,7 +2,7 @@
 import { DrizzleQueryError } from "drizzle-orm";
 import pg from "pg";
 import { describe, expect, it } from "vitest";
-import { isDbUnavailable, isUniqueViolation } from "./pg-errors.ts";
+import { isDbUnavailable, isForeignKeyViolation, isUniqueViolation } from "./pg-errors.ts";
 
 /**
  * code を持つエラーを作る（Node や pg が投げる形）。
@@ -148,10 +148,17 @@ describe("DB の層から来ていないエラーは、DB に届かないとし�
   });
 });
 
-describe("一意の制約の違反の見分け", () => {
+describe("制約の違反の見分け（一意・外部キー）", () => {
   it("そのままのものと、cause に包まれたもの", () => {
     expect(isUniqueViolation(withCode("23505"))).toBe(true);
     expect(isUniqueViolation(new Error("x", { cause: withCode("23505") }))).toBe(true);
     expect(isUniqueViolation(withCode("23503"))).toBe(false);
+  });
+
+  it("外部キーの違反（NO ACTION の 23503・RESTRICT の 23001）を見分ける。包まれた cause も見る", () => {
+    expect(isForeignKeyViolation(withCode("23503"))).toBe(true);
+    expect(isForeignKeyViolation(withCode("23001"))).toBe(true);
+    expect(isForeignKeyViolation(new Error("x", { cause: withCode("23001") }))).toBe(true);
+    expect(isForeignKeyViolation(withCode("23505"))).toBe(false);
   });
 });

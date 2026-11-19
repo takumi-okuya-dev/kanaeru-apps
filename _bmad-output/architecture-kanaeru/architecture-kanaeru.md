@@ -15,7 +15,7 @@ companions: ['./.memlog.md']
 
 # 構成の決めごと — kanaeru
 
-作成：2026-11-19（決めた理由は [.memlog.md](./.memlog.md)。いまのコードの形は [docs/architecture.md](../../docs/architecture.md)。点検の記録は [reviews/](./reviews/)）。2026-11-19 直した（reception-002：交流会ごとの割引。AD-3・AD-5・AD-6・AD-7・Capability map。理由は [specs/reception/002-discounts/research.md](../../specs/reception/002-discounts/research.md)）。2026-11-19 直した（スイートとして並行開発できる構成への見直し：AD-15〜AD-21 を足し、AD-1・AD-3・AD-5・AD-9 を直した）。2026-11-19 主催者が確かめた（仮決めをすべて採用。AD-18 は共通にしてよいものを技術の道具に絞り、AD-20 の外の AI は本人の記録だけに決め、B1 はこのリポジトリの中。Constitution 1.1.0）
+作成：2026-11-19（決めた理由は [.memlog.md](./.memlog.md)。いまのコードの形は [docs/architecture.md](../../docs/architecture.md)。点検の記録は [reviews/](./reviews/)）。2026-11-19 直した（reception-002：交流会ごとの割引。AD-3・AD-5・AD-6・AD-7・Capability map。理由は [specs/reception/002-discounts/research.md](../../specs/reception/002-discounts/research.md)）。2026-11-19 直した（スイートとして並行開発できる構成への見直し：AD-15〜AD-21 を足し、AD-1・AD-3・AD-5・AD-9 を直した）。2026-11-19 主催者が確かめた（仮決めをすべて採用。AD-18 は共通にしてよいものを技術の道具に絞り、AD-20 の外の AI は本人の記録だけに決め、B1 はこのリポジトリの中。Constitution 1.1.0）。2026-11-20 直した（core-005：AD-3・AD-16 の売り方の列は売り始めるときに足す〈主催者が決めた〉・AD-15 の予約語に `settings`【仮決め】）
 
 ## Design Paradigm
 
@@ -73,7 +73,7 @@ flowchart TB
 | event | `event`（名前・日時・会場・参加費・GoogleフォームのURL・LINEグループの招待リンク・アンケートの開閉）・`event_staff`（受付係）・`staff_invite`（招待のリンク）・`event_discount`（割引：名前・円の額・紹介者の名前を聞くか・使うのをやめた時刻。reception-002） |
 | reception | `checkin`（名前・申し込みの媒体・知ったきっかけ・支払い方法・金額・`account_id`（LINEのとき）・入れた人（手のとき）・選んだ割引の ID とそのときの名前と額の写し・紹介者の名前（reception-002）） |
 | survey | `survey_answer`（`checkin_id`・困りごと・月いくら・テスター・仕事の立場・職種） |
-| suite | `app_setting`（アプリの key・公開の状態・売り方）・`entitlement`（契約。売り始めるとき。AD-16） |
+| suite | `app_setting`（アプリの key・公開の状態。売り方の列は売り始めるときに足す〈core-005。主催者が決めた〉）・`entitlement`（契約。売り始めるとき。AD-16） |
 | account（足すとき） | `ai_credential`（利用者の API キーの暗号文。AD-20）・OAuth のクライアントとトークン（AD-21） |
 
 ### AD-4 — ログインは LINE のIDトークンを API が確かめ、自前のセッションを出す [ADOPTED]
@@ -171,7 +171,7 @@ flowchart TB
 - **Prevents:** 2つのアプリが同じ key・道の頭・表の名前を取ること（`merge=union` は同じ key の2行を両方残し、Hono は同じ道の片方を黙って隠す）。どの領域がどのアプリのものかが文書ごとに食い違うこと。ナビの源が2つになること
 - **Rule:**
   - アプリの静的な定義（key・名前・属する領域・使ってよいほかのアプリ）は `packages/contracts/src/core/apps.list.ts` に**1行に1つ**（`merge=union`。[並行開発の決まり](../../docs/rules/parallel-development.md) 3-1）で登録する。key は英小文字の単数。
-  - テストで次を確かめる：key が一意。key が予約語（`api`・`admin`・`e`・`invite`・`dev`・`assets`・`apps`・`oauth`・`mcp`・`well-known`）でない。**どの領域も、ちょうど1つのアプリか、スイートの共通（account・suite）に属する**。
+  - テストで次を確かめる：key が一意。key が予約語（`api`・`admin`・`e`・`invite`・`dev`・`assets`・`apps`・`oauth`・`mcp`・`well-known`・`settings`〈設定の画面。core-005 で足した【仮決め】〉）でない。**どの領域も、ちょうど1つのアプリか、スイートの共通（account・suite）に属する**。
   - 新しいアプリの画面は `/<key>/…` の下に置く。受付アプリの今の道（`/admin/events/…`・`/e/…`）と、参加者が外から開く道（AD-14）は変えない（印刷した QR を壊さない）。
   - 新しい領域の表の名前は `<領域>_` で始め、API の道は `/api/v1/<領域>/…` の下に置く。受付アプリの4つの領域の今の名前と道は、そのまま残す例外。
   - アプリの領域が読んでよいのは、スイートの共通と、一覧の「使ってよいほかのアプリ」に書いたアプリの `index.ts` だけ。アプリどうしで輪にしない。相手のアプリが使えないとき（AD-16）は、その部分を出さない。
@@ -183,7 +183,7 @@ flowchart TB
 - **Binds:** suite・すべてのアプリの API と画面・運営者の画面・組み立て（`app.ts`）
 - **Prevents:** アプリごとに公開の状態や契約の確かめ方がばらばらになること。`requireApp` の付け忘れで作りかけのアプリが本番で見えること。売り始めたときに、契約のない参加者や受付係が締め出されること
 - **Rule:**
-  - 新しい領域 **suite** が `app_setting`（アプリごとに、公開の状態 `off`・`operator_only`・`public` と、売り方 `suite`・`individual`・`both`）を持つ。書くのは suite だけ（運営者の画面と、suite の DB の変更）。変えられるのは運営者（AD-5 の `ORGANIZER_LINE_USER_ID`）だけで、デプロイせずに切り替える。行がないアプリは `operator_only`。受付アプリは `public` の行を suite の DB の変更で入れる。
+  - 新しい領域 **suite** が `app_setting`（アプリごとに、公開の状態 `off`・`operator_only`・`public` と、売り方 `suite`・`individual`・`both`。売り方の列は売り始めるときに足す〈core-005。主催者が決めた〉）を持つ。書くのは suite だけ（運営者の画面と、suite の DB の変更）。変えられるのは運営者（AD-5 の `ORGANIZER_LINE_USER_ID`）だけで、デプロイせずに切り替える。行がないアプリは `operator_only`。受付アプリは `public` の行を suite の DB の変更で入れる。
   - **見えるか**：suite の `index.ts` が `isAppVisible(db, appKey, viewer)`（ログインの前でも判定できる。運営者は `operator_only` も見える）と middleware `requireApp(appKey)` を出す。`requireApp` は各アプリが付けるのではなく、**組み立て（`app.ts`）が `apps.list.ts` の「アプリ → 属する領域」から、その領域のすべての道（参加者が外から開く道も）に自動で付ける**。見えないときは `404`。画面も同じ一覧と判定で道とナビを出し分ける。
   - **契約があるか**：売り始めたら、suite が `entitlement`（契約。持ち主は `account`＝使いたい人が払う。組織か個人かを区別しない。2026-11-19 主催者が決めた）を持ち、`hasEntitlement(db, payerAccountId, appKey)` を出す。払う人は、そのアプリの最上位の記録の持ち主（AD-19）で、参加者・受付係・共有された人は契約を要らない。売り始める前は、いつも通す。アプリは `app_setting`・`entitlement` を読まない。
   - 支払いの会社と料金の形は売り始めるときに決める。kanaeru はカードや口座の情報を受け取らず、支払いの会社の画面に任せる（Constitution I。1.1.0 で改定した）。

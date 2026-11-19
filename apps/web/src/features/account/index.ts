@@ -7,7 +7,13 @@ import { devLoginRoute } from "./routes.ts";
 export { SessionGate } from "./SessionGate.tsx";
 export type { SessionGateProps } from "./SessionGate.tsx";
 export { requestFriendship } from "./friendship.ts";
-export { SESSION_QUERY_KEY, useSession } from "./session.ts";
+export {
+  SESSION_QUERY_KEY,
+  signOut,
+  useKnownAccount,
+  useSession,
+  withdrawAccount,
+} from "./session.ts";
 export type { SessionState } from "./session.ts";
 
 /** アカウントの領域が出すもの（ナビには出さない）。 */
