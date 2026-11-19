@@ -23,14 +23,15 @@
 
 ## R3. 試験用のログインは設定 `TEST_LOGIN_ENABLED` で入・切する【仮決め】
 
-- **Decision**: 設定 `TEST_LOGIN_ENABLED`（`"true"`／`"false"`、既定は `false`）。staging・production で `true` なら起動しない（`SAMPLE_DATA_ENABLED` と同じ形）。`.env.example`（手元）・`apps/api/vitest.config.ts`・`e2e/env.ts` は `true`。窓口は常に道として登録し（画面の型のため）、切のときは 404 `NOT_FOUND` を返す。
+- **Decision**: 設定 `TEST_LOGIN_ENABLED`（`"true"`／`"false"`、既定は `false`）。staging・production で `true` なら起動しない（`SAMPLE_DATA_ENABLED` と同じ形）。`.env.example`（手元）・`apps/api/vitest.config.ts`・`e2e/env.ts` は `true`。切のときは道を登録しない（窓口の文書に出さず、入力も確かめずに土台の 404 `NOT_FOUND`）。画面の型（`ModuleRoutes["account"]`）には、切のときも道があるものとして残す（`routes.ts` で型だけ足した形にそろえる）。
 - **Rationale**: AD-12 は「`APP_ENV` が local・test のときだけ使える」。coding.md 2 は環境の名前でコードを分けず設定の値で分ける決まりなので、テンプレートの形（印の設定＋本番に近い環境で入なら起動しない）にした。結果は AD-12 と同じ（staging・production では使えない）。
-- **Alternatives**: `appEnv` を見て道を足すかを決める：決まりに反する。切のとき道を登録しない：画面の型（`ModuleRoutes["account"]`）から窓口が消え、手元のログインの画面が型で呼べない。
+- **Alternatives**: `appEnv` を見て道を足すかを決める：決まりに反する。常に道を登録して切のときに処理の中で 404：切でも窓口の文書に出て、入力の確かめ（400）が 404 より先に動く（使えない窓口があることが外から分かる）。型ごと道を外す：画面の型から窓口が消え、手元のログインの画面が型で呼べない。
 
 ## R4. セッションの札とクッキー【仮決め】
 
 - **Decision**:
   - 札は `crypto.randomBytes(32)` の base64url（43文字）。クッキーに入れるのは札だけ。DB の `session.token_hash` には札の SHA-256（16進64文字）だけを持つ（一意）。主キーは決まりどおり uuid（`uuidv7()`）。
+  - ログインのとき、ブラウザがすでにセッションのクッキーを持っていれば、そのセッションを消してから新しいセッションを出す（上書きしたクッキーの札を30日残さない）。
   - クッキー：名前は画面の源（設定 `WEB_URL`）が https なら `__Host-kanaeru_session`、http（手元・E2E）なら `kanaeru_session`。`HttpOnly`・`SameSite=Lax`・`Path=/`・`Max-Age` 30日、https なら `Secure`（`__Host-` は `Secure` と `Path=/` とドメインなしを要るので https のときだけ）。
 - **Rationale**: 構成（Constitution の認証・AD-4）。DB のバックアップや読み出しが漏れても、札がなければなりすませない。札は 256 ビットの乱数なので、遅い hash（bcrypt など）は要らず、SHA-256 で足りる（引くときに一意の索引で1回で探せる）。`Secure` を環境の名前でなく画面の源で決めるのは、HSTS と同じ形（app.ts）。
 - **Alternatives**: 札をそのまま主キーに持つ：DB が漏れるとそのまま使える。署名つきのクッキー（状態を持たない）：ログアウトと消したアカウントのセッションを即座に止められない（AD-5 の「要求のたびに引く」に合わない）。
@@ -62,8 +63,9 @@
 ## R9. 画面のログインの始め方と 401 のときのログインし直し【仮決め】
 
 - **Decision**:
-  - `useSession()`（TanStack Query の `["account", "session"]`）が `GET /api/v1/accounts/me` を読む。401 で、LIFF がログイン済みで ID トークンがあり、まだ自動で試していなければ、`POST /api/v1/auth/line` に `getIDToken()` の生の値を送り、もう一度 `me` を読む。自動で試すのは、ページを開いてから（または前に成功してから）1度だけ。
-  - ほかの API の 401：共通の `lib/api.ts` の `request()` が 401 を受けたら知らせる（`onUnauthenticated(listener)`）。account は、ログイン済みと思っているときだけセッションを読み直し、読み直してログインできていれば、ほかの読みこみも読み直す。
+  - `useSession()`（TanStack Query の `["account", "session"]`）が `GET /api/v1/accounts/me` を読む。401 で、LIFF がログイン済みで ID トークンがあり、まだ自動で試していなければ、`POST /api/v1/auth/line` に `getIDToken()` の生の値を送り、もう一度 `me` を読む。自動で試すのは、ページを開いてから（または前に成功してから）1度だけ。この問い合わせは画面の全体の読み直し（5xx を2回まで）を使わない（`retry: false`。LINE に届かない 502 で ID トークンをくり返し送らない）。
+  - ほかの API の 401：共通の `lib/api.ts` の `request()` が 401 を受けたら知らせる（`onUnauthenticated(listener)`）。account は、ログイン済みと思っているときだけセッションを読み直し、読み直してログインできていれば、ほかの読みこみも読み直す。これは30秒に1度まで（`RELOGIN_COOLDOWN_MS`。`/me` は通るのに、ほかの窓口が 401 を返しつづけるときに、読み直しをくり返さない）。
+  - ログアウト：自動のログインを止め、ほかの領域の読みこみの値を消す（前の利用者のデータを残さない）。
   - 自動でだめなとき：`SessionGate` が「LINEでログインし直してください」の見出しと「LINEでログインし直す」のボタンを出す。LINE の中は開き直す（`location.reload()`。LIFF の init でログインが済む）、外のブラウザは `liff.login()`（同じ道に戻る）。外のブラウザで LINE に未ログインのときも、自動で LINE のログインへ移さずボタンを出す（構成 Open Questions 3 が未確認で、移しつづける恐れを避ける）。
   - LIFF ID がない（手元・E2E）とき：「手元のログインへ」のリンク（`/dev/login?redirect=今の道`）。
   - `initLiff()` は組み立て（`main.tsx`）のまま。account は `getLiff()` を使う（`liff.init()` を書かない）。

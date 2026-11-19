@@ -5,7 +5,7 @@
 | 動き | 道 | 入力 | 成功 | 主なエラー |
 |---|---|---|---|---|
 | POST | `/api/v1/auth/line` | `{ idToken }`（知らない欄は 400） | 200 `CurrentAccountView`・`Set-Cookie` | 400 `INVALID_INPUT`・401 `LINE_LOGIN_FAILED`・502 `LINE_UNREACHABLE`・503 `DB_UNAVAILABLE` |
-| POST | `/api/v1/auth/test-login` | `{ lineUserId, displayName }` | 200 `CurrentAccountView`・`Set-Cookie` | 404（`TEST_LOGIN_ENABLED` が切）・400 |
+| POST | `/api/v1/auth/test-login` | `{ lineUserId, displayName }` | 200 `CurrentAccountView`・`Set-Cookie` | 404（`TEST_LOGIN_ENABLED` が切。道を登録しない）・400 |
 | POST | `/api/v1/auth/logout` | なし | 204・クッキーを消す（セッションがなくても 204） | — |
 | GET | `/api/v1/accounts/me` | クッキー | 200 `CurrentAccountView` | 401 `UNAUTHENTICATED` |
 | DELETE | `/api/v1/accounts/{accountId}` | クッキー（主催者） | 204 | 401・403 `FORBIDDEN`・404 |

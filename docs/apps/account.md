@@ -17,8 +17,8 @@ LINE の利用者のアカウントとセッションを持ち、LINE の ID ト
 
 | 動き | 道 | すること | 主なエラー |
 |---|---|---|---|
-| POST | `/api/v1/auth/line` | ID トークン（`{ idToken }` だけ）を LINE の verify で確かめ、アカウントを作るか探し、セッションのクッキーを出す | 400・401 `LINE_LOGIN_FAILED`・502 `LINE_UNREACHABLE` |
-| POST | `/api/v1/auth/test-login` | 試験用のログイン（`{ lineUserId, displayName }`）。設定 `TEST_LOGIN_ENABLED` のときだけ | 404（切）・400 |
+| POST | `/api/v1/auth/line` | ID トークン（`{ idToken }` だけ）を LINE の verify で確かめ、アカウントを作るか探し、セッションのクッキーを出す（ブラウザの前のセッションは消す） | 400・401 `LINE_LOGIN_FAILED`・502 `LINE_UNREACHABLE` |
+| POST | `/api/v1/auth/test-login` | 試験用のログイン（`{ lineUserId, displayName }`）。設定 `TEST_LOGIN_ENABLED` のときだけ道を登録する（切なら窓口の文書にも出ない） | 404（切）・400 |
 | POST | `/api/v1/auth/logout` | セッションとクッキーを消す（204） | — |
 | GET | `/api/v1/accounts/me` | 今の利用者（`id`・`displayName`・`isOrganizer`・`registeredAt`） | 401 `UNAUTHENTICATED` |
 | DELETE | `/api/v1/accounts/{accountId}` | アカウントを消す（主催者だけ。204） | 401・403 `FORBIDDEN`・404 |
@@ -63,8 +63,8 @@ if (isOrganizer(deps.config, me)) { … }
 
 | 名前 | 何か |
 |---|---|
-| `SessionGate` | ログインが要るページを包む。読みこみ中・未ログイン（LINE の中は自動でログインし直し、だめなら「LINEでログインし直す」。手元は手元のログインへ）・夜間の停止・失敗を出す |
-| `useSession()` | `loading`・`authenticated`（`account`）・`unauthenticated`・`error`（`retry`） |
+| `SessionGate` | ログインが要るページを包む。読みこみ中・未ログイン（LINE の中は自動でログインし直し、だめなら「LINEでログインし直す」。手元は手元のログインへ）・夜間の停止（503 `DB_UNAVAILABLE` で日本時間 0時〜8時のとき）・失敗を出す |
+| `useSession()` | `loading`・`authenticated`（`account`）・`unauthenticated`・`error`（`retry`）。自動では読み直さない（ID トークンを送るのは1度だけ）。ほかの API の 401 で読み直すのは30秒に1度まで |
 | `SESSION_QUERY_KEY` | 今の利用者の問い合わせの鍵 |
 | `requestFriendship()` | 公式 LINE の友だち追加の小さな画面（友だち追加はチャネルの設定で勧めるので、ふだんは使わない） |
 
@@ -74,7 +74,7 @@ E2E は、`/dev/login` で試験用のログインをするか、`page.request.p
 
 | 道 | 画面 | 振る舞い |
 |---|---|---|
-| `/dev/login` | 手元のログイン | LIFF ID のない画面だけ。LINE のユーザー ID と表示名で試験用のログイン。ログイン済みなら「ログインしています：{表示名}」とログアウト。`?redirect=/…` があれば、ログインのあとに戻る |
+| `/dev/login` | 手元のログイン | LIFF ID のない画面だけ。LINE のユーザー ID と表示名で試験用のログイン。ログイン済みなら「ログインしています：{表示名}」とログアウト（ほかの領域の読みこみの値も消す）。`?redirect=/…`（同じ源の道だけ。`//`・`\` を含むものは使わない）があれば、ログインのあとに戻る |
 
 ## 5. 置き場所
 
