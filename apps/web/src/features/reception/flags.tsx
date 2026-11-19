@@ -1,4 +1,6 @@
 // 一覧画面の行の印（DESIGN.md の flag-same-name・flag-manual）。色だけにせず、ことばとアイコンで伝える。
+// 札は @workspace/ui の Badge を使い、印ごとの地とふちと文字だけを tokens.css の名前で重ねる。
+import { Badge } from "@workspace/ui/components/badge";
 
 /**
  * 「同じ名前があります」の印（注意の黄色の地・注意のアイコン・ことば）。
@@ -6,7 +8,7 @@
  */
 export function SameNameFlag() {
   return (
-    <span className="inline-flex items-center gap-x3s rounded-sm bg-warning px-x3s text-xs font-bold text-text">
+    <Badge className="gap-x3s border-transparent bg-warning text-text">
       <svg
         aria-hidden="true"
         viewBox="0 0 20 20"
@@ -22,20 +24,20 @@ export function SameNameFlag() {
         <path d="M10 15v.2" />
       </svg>
       同じ名前があります
-    </span>
+    </Badge>
   );
 }
 
 /**
- * 手でのチェックインの印（くぼみの地に、手で入れたことと入れた人。FR-7）。
+ * 手でのチェックインの印（くぼみの地に、手で入れたことと入れた人。FR-7）。入れた人の名前が長くても折り返す。
  * @param props 入れた人の表示名（enteredByName。わからなければ null）
  * @param props.enteredByName 入れた人の表示名
  * @returns 印の要素
  */
 export function ManualFlag({ enteredByName }: { enteredByName: string | null }) {
   return (
-    <span className="inline-flex items-center rounded-sm border border-border bg-surface-sunken px-x3s text-xs text-text-sub">
+    <Badge className="shrink border-border bg-surface-sunken font-normal break-words whitespace-normal text-text-sub">
       {enteredByName ? `手でのチェックイン（入れた人：${enteredByName}）` : "手でのチェックイン"}
-    </span>
+    </Badge>
   );
 }
