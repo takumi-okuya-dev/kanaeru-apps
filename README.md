@@ -38,7 +38,7 @@ IT交流会で集めた「こんなアプリがあったらいいな」「日々
 └── docs/
     ├── README.md              文書の一覧（迷ったらここ）
     ├── architecture.md        全体の形
-    ├── apps/                  領域の地図（見本：notes.md）
+    ├── apps/                  領域の地図（領域を足したら1つずつ）
     ├── ai-skills.md           スキルの置き場所と使う順番
     ├── tech-selection.md      技術選定の候補（言語と層ごとの候補・TypeScript の既定）
     ├── design/                UI デザインの既定（SmartHR Design System を土台にした DESIGN.md・EXPERIENCE.md）
@@ -54,7 +54,7 @@ IT交流会で集めた「こんなアプリがあったらいいな」「日々
 
 ## TypeScript の骨組み
 
-API・画面・DB・テスト・lint・CI がそろった、動く最小の形。見本の領域「メモ」（一覧・追加・編集・削除）で、領域の作り方を見せる。全体の形は [docs/architecture.md](docs/architecture.md)、決まりは [コードの書き方の決まり](docs/rules/coding.md) 6章。
+API・画面・DB・テスト・lint・CI がそろった、動く最小の形（テンプレートの見本の領域「メモ」は core-001 で消した）。全体の形は [docs/architecture.md](docs/architecture.md)、決まりは [コードの書き方の決まり](docs/rules/coding.md) 6章。
 
 | 層 | 使うもの |
 |---|---|
@@ -97,7 +97,7 @@ pnpm check                                            # 全部の確かめ（秘
 1. **構想を練る**：Claude Codeを開き、`/bmad-brainstorming`や`/bmad-product-brief`から始める（迷ったら`/bmad`）。[構想メモ](_bmad-output/concept-memo.md)を材料に渡す。出力は`_bmad-output/`。
 2. **画面の見た目を決める**：`/bmad-ux`で、[UI デザインの既定](docs/design/README.md)を土台にプロダクトの DESIGN.md を作る（プロダクトの色は置きかえる）。できたら値を `packages/ui/src/styles/tokens.css` に写し、`tokens.test.ts` の読む先をその DESIGN.md に替える（[UI デザインの既定](docs/design/README.md) 2）。
 3. **原則を決める**：PRDが固まったら`/speckit-constitution`で原則を書き入れる。
-4. **最初の領域を作る**：`/speckit-specify` から（足す手順は [コードの書き方の決まり](docs/rules/coding.md) 6-6）。領域を決めたら[仕様と名前の決まり](docs/rules/specs.md) 2の表に足す。見本の領域「メモ」は、消すか作り替える（[メモの地図](docs/apps/notes.md)）。
+4. **最初の領域を作る**：`/speckit-specify` から（足す手順は [コードの書き方の決まり](docs/rules/coding.md) 6-6）。領域を決めたら[仕様と名前の決まり](docs/rules/specs.md) 2の表に足す。（見本の領域「メモ」は core-001 で消した）
 5. 以降は機能ごとに`/speckit-specify`から（[AIスキルの使い方](docs/ai-skills.md) 4）。
 
 [product-template](https://github.com/takumi-okuya-dev/product-template)の`typescript`ブランチから作った。

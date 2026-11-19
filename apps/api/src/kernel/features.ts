@@ -11,7 +11,7 @@ export const DOMAIN_FEATURE_KEY_FORMAT = /^[a-z][a-z0-9]{0,39}\.[a-z][a-zA-Z0-9]
 export type DomainFeatures = {
   /**
    * その機能が入か（設定 DOMAIN_FEATURES に並んでいれば入。なければ切）。
-   * @param key "<領域>.<名前>"（例 "notes.export"）
+   * @param key "<領域>.<名前>"（例 "event.export"）
    * @returns 入なら true
    */
   enabled(key: string): boolean;

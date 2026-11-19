@@ -2,11 +2,14 @@
 // 起動のときに process.env を zod で確かめ、合わなければ、どの値がなぜ合わないかを日本語で出して止める。
 // DB の接続先など、値そのものはエラーに出さない。
 // 環境ごとの違いはコードで分けず、設定の値で決める（docs/rules/coding.md 2）。APP_ENV は、危ない組み合わせを止めるためだけに見る：
-// - staging・production：見本のデータの手順・回数の制限を外すこと・見本の DB のパスワード・手元を指す源・http の源を止める。
+// - staging・production：見本のデータの手順・試験用のログイン・回数の制限を外すこと・見本の DB のパスワード・手元を指す源・http の源を止め、
+//   LINE のチャネル ID・主催者の LINE のユーザー ID・組み立てた画面の場所がないときも止める。
 // - production：窓口の文書（OPENAPI_DOC_ENABLED）を止める。
 // loadConfig の中で確かめるので、API の起動・手順（見本のデータ・OpenAPI の文書）のどの入口でも効く。
 // DB の先が 127.0.0.1 なのは、DB への中継（Cloud SQL Auth Proxy など）の形なので止めない。
-// ログイン（Better Auth を勧める）を足すときは、秘密の鍵の値と、その staging・production での確かめをここに足す。
+// ログインは LINE の ID トークンを API が確かめる（構成の決めごと AD-4）。確かめる client_id は LINE_CHANNEL_IDS。
+import { resolve } from "node:path";
+import { LINE_USER_ID_FORMAT } from "@workspace/contracts/account";
 import { DOMAIN_FEATURE_KEY_FORMAT } from "./features.ts";
 import { z } from "zod";
 
@@ -29,6 +32,9 @@ const LOCAL_HOSTS: ReadonlySet<string> = new Set(["localhost", "127.0.0.1", "::1
 
 /** 見本の DB のパスワード（.env.example・docker-compose.yml・CI の値。staging・production の DATABASE_URL では使えない）。 */
 const SAMPLE_DB_PASSWORD = "postgres";
+
+/** LINE のチャネル ID の形（数字だけ）。 */
+const LINE_CHANNEL_ID_FORMAT = /^\d+$/;
 
 /** 源の形が合わないときの文。 */
 const ORIGIN_FORMAT = "http:// か https:// で始まる源（道を含まない URL）にしてください。";
@@ -147,6 +153,29 @@ function isOrigin(value: string): boolean {
   );
 }
 
+/**
+ * https の URL か（利用者の名前・パスワードを持たない）。
+ * @param value 設定の値
+ * @returns https の URL なら true
+ */
+function isHttpsUrl(value: string): boolean {
+  if (!URL.canParse(value)) return false;
+  const url = new URL(value);
+  return url.protocol === "https:" && url.hostname !== "" && !url.username && !url.password;
+}
+
+/**
+ * カンマで並べた値を、前後の空白と空の要素を除いた並びにする。
+ * @param value 設定の値
+ * @returns 値の並び
+ */
+function splitList(value: string | undefined): string[] {
+  return (value ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
 const schema = z
   .object({
     APP_ENV: z.enum(APP_ENVS, { error: `${APP_ENVS.join("／")} のどれかにしてください。` }),
@@ -165,7 +194,9 @@ const schema = z
       }),
     DATABASE_CONNECT_TIMEOUT_MS: positiveInt(5000),
     DATABASE_QUERY_TIMEOUT_MS: positiveInt(10_000),
+    DATABASE_POOL_MAX: positiveInt(10),
     SAMPLE_DATA_ENABLED: flag(false),
+    TEST_LOGIN_ENABLED: flag(false),
     OPENAPI_DOC_ENABLED: flag(false),
     LOG_LEVEL: z
       .enum(LOG_LEVELS, { error: `${LOG_LEVELS.join("／")} のどれかにしてください。` })
@@ -177,21 +208,31 @@ const schema = z
     DOMAIN_FEATURES: z
       .string()
       .optional()
-      .transform((value) =>
-        (value ?? "")
-          .split(",")
-          .map((key) => key.trim())
-          .filter((key) => key.length > 0),
-      )
+      .transform(splitList)
       .refine((keys) => keys.every((key) => DOMAIN_FEATURE_KEY_FORMAT.test(key)), {
         error:
-          "「<領域>.<名前>」（例 notes.export）をカンマで並べてください（領域は英小文字で始まる英小文字・数字、名前は英小文字で始まる英数字）。",
+          "「<領域>.<名前>」（例 event.export）をカンマで並べてください（領域は英小文字で始まる英小文字・数字、名前は英小文字で始まる英数字）。",
       }),
     TRUSTED_PROXY_HOPS: z.coerce
       .number({ error: "数にしてください。" })
       .int({ error: "整数にしてください。" })
       .min(0, { error: "0以上にしてください。" })
       .default(0),
+    LINE_CHANNEL_IDS: z
+      .string()
+      .optional()
+      .transform(splitList)
+      .refine((ids) => ids.every((id) => LINE_CHANNEL_ID_FORMAT.test(id)), {
+        error: "LINE のチャネル ID（数字だけ）をカンマで並べてください。",
+      }),
+    ORGANIZER_LINE_USER_ID: optionalText().refine(
+      (value) => value === undefined || LINE_USER_ID_FORMAT.test(value),
+      { error: "LINE のユーザー ID（U と16進の32文字）にしてください。" },
+    ),
+    OPEN_CHAT_URL: optionalText().refine((value) => value === undefined || isHttpsUrl(value), {
+      error: "https:// で始まる URL にしてください。",
+    }),
+    WEB_DIST_DIR: optionalText(),
     COMPOSE_PROJECT_NAME: optionalText(),
   })
   .superRefine((env, ctx) => {
@@ -207,6 +248,13 @@ const schema = z
           message: `APP_ENV が ${name} のときは true にできません（手元とテストだけで使う設定です）。`,
         });
       }
+      if (env.TEST_LOGIN_ENABLED) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["TEST_LOGIN_ENABLED"],
+          message: `APP_ENV が ${name} のときは true にできません（試験用のログインは手元とテストだけで使います）。`,
+        });
+      }
       if (!env.RATE_LIMIT_ENABLED) {
         ctx.addIssue({
           code: "custom",
@@ -219,6 +267,27 @@ const schema = z
           code: "custom",
           path: ["DATABASE_URL"],
           message: `APP_ENV が ${name} のときは、見本の DB のパスワード（.env.example と同じ）を使えません（環境ごとに作った値にしてください）。`,
+        });
+      }
+      if (env.LINE_CHANNEL_IDS.length === 0) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["LINE_CHANNEL_IDS"],
+          message: `APP_ENV が ${name} のときは要ります（LINE のログインを確かめるため）。`,
+        });
+      }
+      if (env.ORGANIZER_LINE_USER_ID === undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["ORGANIZER_LINE_USER_ID"],
+          message: `APP_ENV が ${name} のときは要ります（主催者を決めるため）。`,
+        });
+      }
+      if (env.WEB_DIST_DIR === undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["WEB_DIST_DIR"],
+          message: `APP_ENV が ${name} のときは要ります（API が組み立てた画面を返すため）。`,
         });
       }
       if (env.WEB_URL === undefined) {
@@ -266,8 +335,12 @@ export type Config = {
   databaseUrl: string;
   /** DB の時間の上限（ミリ秒。つなぐまで・1つの命令） */
   databaseTimeouts: { connectTimeoutMs: number; queryTimeoutMs: number };
+  /** 1台（1つのプロセス）が持つ DB の接続の数の上限（DATABASE_POOL_MAX。既定は10。本番は台数 × この値が DB の接続の上限を超えないようにする） */
+  databasePoolMax: number;
   /** 見本のデータを入れる手順を許すか */
   sampleDataEnabled: boolean;
+  /** 試験用のログイン（POST /api/v1/auth/test-login。account の領域）を使えるか。staging・production では false だけ */
+  testLoginEnabled: boolean;
   /** 窓口の文書（GET /api/openapi.json）を出すか */
   openApiDocEnabled: boolean;
   /** ログの細かさ */
@@ -280,6 +353,14 @@ export type Config = {
   domainFeatures: string[];
   /** 前に置いた中継（ロードバランサーなど）の数。0 なら接続の相手を、1以上なら X-Forwarded-For の右から数えた値を、利用者の IP とする */
   trustedProxyHops: number;
+  /** LINE の ID トークンを確かめるときの client_id（LINE のチャネル ID）の並び。local・test では空のことがある */
+  lineChannelIds: string[];
+  /** 主催者の LINE のユーザー ID（秘密ではない。AD-5）。local・test ではないことがある */
+  organizerLineUserId: string | undefined;
+  /** コミュニティのオープンチャットの URL（https。PRD FR-17）。なければ案内を出さない */
+  openChatUrl: string | undefined;
+  /** 組み立てた画面のフォルダ（絶対の道）。あれば API が画面のファイルを返す（AD-8） */
+  webDistDir: string | undefined;
 };
 
 /** 設定が合わないときのエラー。文は日本語で、値そのものは入れない。 */
@@ -333,7 +414,9 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       connectTimeoutMs: value.DATABASE_CONNECT_TIMEOUT_MS,
       queryTimeoutMs: value.DATABASE_QUERY_TIMEOUT_MS,
     },
+    databasePoolMax: value.DATABASE_POOL_MAX,
     sampleDataEnabled: value.SAMPLE_DATA_ENABLED,
+    testLoginEnabled: value.TEST_LOGIN_ENABLED,
     openApiDocEnabled: value.OPENAPI_DOC_ENABLED,
     logLevel: value.LOG_LEVEL,
     logPretty: value.LOG_PRETTY,
@@ -344,5 +427,9 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     },
     domainFeatures: value.DOMAIN_FEATURES,
     trustedProxyHops: value.TRUSTED_PROXY_HOPS,
+    lineChannelIds: value.LINE_CHANNEL_IDS,
+    organizerLineUserId: value.ORGANIZER_LINE_USER_ID,
+    openChatUrl: value.OPEN_CHAT_URL,
+    webDistDir: value.WEB_DIST_DIR === undefined ? undefined : resolve(value.WEB_DIST_DIR),
   };
 }

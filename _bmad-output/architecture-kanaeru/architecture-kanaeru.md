@@ -8,14 +8,14 @@ scope: 'kanaeru 全体（日常のちょっとした課題を解決するスイ�
 status: final
 created: '2026-11-19'
 updated: '2026-11-19'
-binds: ['FR-1〜FR-21（PRD kanaeru 受付アプリ）']
+binds: ['FR-1〜FR-25（PRD kanaeru 受付アプリ）']
 sources: ['../prd-kanaeru-reception/prd-kanaeru-reception.md', '../brief-kanaeru-apps/brief-kanaeru-apps.md', '../../docs/architecture.md']
 companions: ['./.memlog.md']
 ---
 
 # 構成の決めごと — kanaeru
 
-作成：2026-11-19（決めた理由は [.memlog.md](./.memlog.md)。いまのコードの形は [docs/architecture.md](../../docs/architecture.md)。点検の記録は [reviews/](./reviews/)）
+作成：2026-11-19（決めた理由は [.memlog.md](./.memlog.md)。いまのコードの形は [docs/architecture.md](../../docs/architecture.md)。点検の記録は [reviews/](./reviews/)）。2026-11-19 直した（reception-002：交流会ごとの割引。AD-3・AD-5・AD-6・AD-7・Capability map。理由は [specs/reception/002-discounts/research.md](../../specs/reception/002-discounts/research.md)）
 
 ## Design Paradigm
 
@@ -60,8 +60,8 @@ flowchart TB
 | 領域 | 持つ表 |
 |---|---|
 | account | `account`（LINEのユーザーID・表示名・登録日）・`session`（`account_id`・期限だけ） |
-| event | `event`（名前・日時・会場・参加費・GoogleフォームのURL・LINEグループの招待リンク・アンケートの開閉）・`event_staff`（受付係）・`staff_invite`（招待のリンク） |
-| reception | `checkin`（名前・申し込みの媒体・知ったきっかけ・支払い方法・金額・`account_id`（LINEのとき）・入れた人（手のとき）） |
+| event | `event`（名前・日時・会場・参加費・GoogleフォームのURL・LINEグループの招待リンク・アンケートの開閉）・`event_staff`（受付係）・`staff_invite`（招待のリンク）・`event_discount`（割引：名前・円の額・紹介者の名前を聞くか・使うのをやめた時刻。reception-002） |
+| reception | `checkin`（名前・申し込みの媒体・知ったきっかけ・支払い方法・金額・`account_id`（LINEのとき）・入れた人（手のとき）・選んだ割引の ID とそのときの名前と額の写し・紹介者の名前（reception-002）） |
 | survey | `survey_answer`（`checkin_id`・困りごと・月いくら・テスター・仕事の立場・職種） |
 
 ### AD-4 — ログインは LINE のIDトークンを API が確かめ、自前のセッションを出す [ADOPTED]
@@ -78,14 +78,14 @@ flowchart TB
   - **主催者**は設定 `ORGANIZER_LINE_USER_ID`（秘密ではない。Terraform で Cloud Run の環境変数に渡す）と、今の利用者の LINEのユーザーIDが同じかで決める。表に印を持たない。この比べ方は account の `index.ts` が `isOrganizer` として出す。
   - **受付係**は `event_staff`（交流会と account の組）で決まり、その交流会の中だけで効く。
   - 権限は、event の `index.ts` が出す1つの関数（その account がその交流会で主催者か・受付係か・どちらでもないか）を**要求のたびに**通す。セッションに写さない。受付係に許すのは PRD FR-3 の表の「受付係 ○」だけで、困りごと・書き出し・削除・交流会の作成の窓口は、主催者でなければ `403`。
-  - **参加者向けの要約**：event は、ログインしていれば誰でも読める要約を1つだけ出す（`GET /api/v1/events/{eventId}/summary` と `index.ts` の `getEventSummary`）。中身は名前・日時・会場・参加費・アンケートが開いているか・GoogleフォームのURL・LINEグループの招待リンク だけ。
+  - **参加者向けの要約**：event は、ログインしていれば誰でも読める要約を1つだけ出す（`GET /api/v1/events/{eventId}/summary` と `index.ts` の `getEventSummary`）。中身は名前・日時・会場・参加費・アンケートが開いているか・GoogleフォームのURL・LINEグループの招待リンク・使っている割引（名前・額・紹介者の名前を聞くか。reception-002） だけ。
   - **招待**は event の窓口 `POST /api/v1/staff-invites/{inviteToken}/accept`（ログイン必須）で受け、`event_staff` を作る。招待のリンクは交流会ごとに1本・何人でも使える・作り直すと前のは使えない。期限は「交流会の日時の、日本時間の日付が終わるまで」で、受けるときに交流会の今の日時から計算する。
 
 ### AD-6 — チェックインは、そのときの名前と金額を写して持つ [ADOPTED]
 
-- **Binds:** reception・survey、FR-4・FR-7・FR-8・FR-12・FR-14・FR-15
+- **Binds:** reception・survey・event（割引の定義）、FR-4・FR-7・FR-8・FR-12・FR-14・FR-15・FR-23〜FR-25
 - **Prevents:** あとで参加費や表示名を直すと、過去の合計や名簿が変わること。支払い方法を直したときの金額が作る人しだいになること
-- **Rule:** `checkin` は名前と金額を写して持つ。金額を決めるのは、チェックインを作るときと支払い方法を直すときだけで、無料なら0円、ほかは `getEventSummary` で引いたその時の参加費。参加費を直しても、すでにあるチェックインの金額は変えない（交流会を直す画面にその旨を出す）。合計（FR-12）は `checkin` の金額の和で出す。金額は円の整数。名前の初期値は reception が出す（前回のチェックインの名前、なければ account の表示名）。困りごとの一覧と書き出しの名前は、いつも `checkin` の名前（survey は reception の `index.ts` から引く）。
+- **Rule:** `checkin` は名前と金額を写して持つ。金額を決めるのは、チェックインを作るときと、支払い方法か割引を直すときだけで、無料なら0円、ほかは `max(参加費 − 割引の額, 0)`（参加費は `getEventSummary` で引いたその時のもの。割引なしは参加費のまま）。選んだ割引は event の `findEventDiscount` で引き、その名前と額を `checkin` に写す（割引を変えずに支払い方法だけ直すときは、写した額を使う）。新しく選べるのは、その交流会の使っている割引だけ。参加費や割引を直しても、すでにあるチェックインの金額と写しは変えない（交流会を直す画面にその旨を出す）。紹介者の名前は任意で、主催者だけに返す（受付係と参加者の答えに入れない）。合計（FR-12）は `checkin` の金額の和で出す。金額は円の整数。名前の初期値は reception が出す（前回のチェックインの名前、なければ account の表示名）。困りごとの一覧と書き出しの名前は、いつも `checkin` の名前（survey は reception の `index.ts` から引く）。
 
 ### AD-7 — 消すのは本人のデータだけ。取り消しは行を消す [ADOPTED]
 
@@ -95,6 +95,7 @@ flowchart TB
   - 本人のデータを指す外部キーだけ `ON DELETE CASCADE`：`session.account_id`・`event_staff.account_id`・`checkin.account_id`・`survey_answer.checkin_id`。account を消せば、その人のセッション・受付係の割り当て・チェックイン・回答が消える。
   - 「誰がしたか」の記録（`checkin` の入れた人と、同じ種類の列）は `ON DELETE SET NULL`。
   - `event` を指す外部キーは `RESTRICT`（この版は交流会を消す機能を作らない）。
+  - 割引（`event_discount`）は消さない。外すと「使うのをやめる」（`archived_at`）だけで、新しいチェックインで選べなくなる。`checkin` の `(event_id, discount_id)` は `event_discount(event_id, id)` を指す複合の外部キーで `RESTRICT`（別の交流会の割引を指せない）。チェックインは名前と額を写しているので、割引を直しても外しても履歴は変わらない（event は reception の表を読めないので、使われたかで消すかを決められない。reception-002）。
   - チェックインの取り消し（FR-8）は行を消す（`DELETE`）。回答も一緒に消える。取り消しの確かめの枠に「アンケートの回答があれば一緒に消えます」と出す。FR-5 の重なりをまとめるときは、LINE のほうを残し、手のほうを消す。
 
 ### AD-8 — 置き場所は1つの Cloud Run と1つの Cloud SQL [ADOPTED]
@@ -113,7 +114,7 @@ flowchart TB
 - **Binds:** all（運用）
 - **Prevents:** 画面で手で作った資源が残り、作り直せない・費用が分からなくなること。作り直せない交流会の記録を失うこと
 - **Rule:**
-  - Cloud Run（サービスと jobs）・Artifact Registry・Cloud SQL（台・DB・利用者）・Secret Manager・サービスアカウントと権限・GitHub からのデプロイの権限（Workload Identity Federation・Direct WIF）・Cloud Scheduler・請求の予算は `infra/` の Terraform で作る。手で作ってよいのは、Terraform の状態を置く GCS のバケット（バージョニングあり）と、最初の GCP プロジェクトだけ。
+  - Cloud Run（サービスと jobs）・Artifact Registry・Cloud SQL（台・DB・利用者）・Secret Manager・サービスアカウントと権限・GitHub からのデプロイの権限（Workload Identity Federation で入り、デプロイ用のサービスアカウントになりすます。鍵は作らない。Cloud Run は WIF の直接の権限〈Direct WIF〉に対応していないため。core-002 R-1）・Cloud Scheduler・請求の予算は `infra/` の Terraform で作る。手で作ってよいのは、Terraform の状態を置く GCS のバケット（バージョニングあり）と、最初の GCP プロジェクトだけ。
   - 秘密の値（DBのパスワード）は Secret Manager に置き、Terraform のコードとリポジトリには書かない。
   - Cloud SQL は自動のバックアップを有効にし、時間帯は DB が動いている昼（日本時間12時台）、7日分残す。`deletion_protection` を付ける。
   - 請求の予算は月2,000円で、50%・100% でメールで知らせる。
@@ -126,7 +127,7 @@ flowchart TB
   - Cloud Scheduler が毎日0時に Cloud SQL を止め、8時に動かす（日本時間。Cloud SQL Admin API の `activationPolicy` を直す）。Terraform は Cloud SQL の `activation_policy` と Scheduler の `paused` の変更を無視する（`lifecycle { ignore_changes }`）。
   - DB に届かないとき、API は `503` と code `DB_UNAVAILABLE` を返す。この読みかえは土台（`kernel`）のエラーの処理に1か所だけ置く。画面は「夜間（0時〜8時）は止まっています」と出す。
   - Cloud Run の起動の確かめ（probe）は既定のまま、DB に触る窓口を指さない。DB を定期的に起こす・叩く処理は作らない。
-  - デプロイは8時〜24時に行う。交流会が0時を越えるときは、主催者がその日の停止の仕事を `gcloud scheduler jobs pause` で止める。
+  - デプロイは日本時間の8時15分〜23時に始めたものだけを出す（DB の起動の直後と、0時の停止の前を避ける。deploy.yml が確かめる）。交流会が0時を越えるときは、主催者がその日の停止の仕事を `gcloud scheduler jobs pause` で止める。
 
 ### AD-11 — 本番へは main のマージで出す。DB の変更を先に当てる [ADOPTED]
 
@@ -191,7 +192,7 @@ flowchart TB
 | @line/liff | 2.32（2.31.1 未満は使わない） |
 | PostgreSQL（Cloud SQL・Enterprise・db-f1-micro） | 18 |
 | Terraform google provider | 8.12 |
-| google-github-actions/auth | v3（Direct WIF） |
+| google-github-actions/auth | v3（WIF ＋ サービスアカウントのなりすまし） |
 
 ## Structural Seed
 
@@ -265,6 +266,8 @@ infra/         # Terraform（GCP の資源。状態は GCS）
 | Capability / Area | Lives in | Governed by |
 | --- | --- | --- |
 | FR-1・FR-2 交流会・QR | event | AD-3・AD-5・AD-14 |
+| FR-23 割引の登録 | event（`event_discount`・A2） | AD-3・AD-5・AD-7 |
+| FR-24・FR-25 割引を選ぶ・紹介者の名前・金額・内訳・書き出し | reception（チェックインの写し・金額・内訳・CSV）・event（割引の定義を `findEventDiscount`・`listEventDiscounts` で出す） | AD-5・AD-6・AD-7 |
 | FR-3・FR-21 管理の画面の権限・受付係 | event（権限・招待）・account（主催者か） | AD-5・AD-12 |
 | FR-4〜FR-6 LINEでのチェックイン・二重防止・友だち追加 | reception・account・`lib/liff.ts` | AD-2・AD-4・AD-6・AD-12 |
 | FR-7・FR-8 手でのチェックイン・修正・取り消し | reception | AD-5・AD-6・AD-7 |

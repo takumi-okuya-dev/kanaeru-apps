@@ -9,6 +9,7 @@
 | BMAD（`bmad*`・`bmod-*`） | `.agents/skills/` | `.claude/skills/`の相対シンボリックリンク | `.agents/skills/`の実体 |
 | spec-kit（`speckit-*`） | `.claude/skills/` | `.claude/skills/`の実体 | `.agents/skills/`の相対シンボリックリンク |
 | セキュリティ監査（`security-audit`） | `.claude/skills/` | `.claude/skills/`の実体 | — |
+| アプリのアイデアの調べもの（`app-idea-research`） | `.claude/skills/` | `.claude/skills/`の実体 | `.agents/skills/`の相対シンボリックリンク |
 
 - リンクなので、更新は両方に反映され、コピーの同期は要らない。
 - BMADの設定は`_bmad/config.toml`、出力先は`_bmad-output/`。spec-kitの設定とテンプレートは`.specify/`。
@@ -34,6 +35,7 @@ flowchart LR
 | どれを使えばよいか分からない・案内してほしい | `/bmad`（入口）・`/bmad-walkthrough` |
 | アイデアを出す・広げる | `/bmad-brainstorming`・`/bmad-forge-idea` |
 | 市場・競合・技術を調べる | `/bmad-deep-recon`・`/bmad-agent-analyst` |
+| アプリのアイデアを渡して、記録・市場と似たアプリ・低い評価のレビュー・事業性（生成AIの代替・お金の計算・値付け・法律と商標）・判断までを一度に回す | `/app-idea-research`（kanaeru 用。アイデアを渡すだけで動く） |
 | 構想を1枚にまとめる | `/bmad-product-brief` |
 | 発売の発表とFAQの形で、価値を確かめる | `/bmad-prfaq` |
 | 要件をまとめる | `/bmad-prd`・`/bmad-agent-pm` |
