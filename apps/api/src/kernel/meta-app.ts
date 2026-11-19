@@ -67,10 +67,8 @@ export function createMetaApp(
       }
       if (typeof payload !== "object" || payload === null) return null;
       const record = payload as Record<string, unknown>;
-      if (
-        record.algorithm !== undefined &&
-        (typeof record.algorithm !== "string" || record.algorithm.toUpperCase() !== "HMAC-SHA256")
-      )
+      // Meta はいつも algorithm を入れる。ない・違うものは読まない
+      if (typeof record.algorithm !== "string" || record.algorithm.toUpperCase() !== "HMAC-SHA256")
         return null;
       const userId = record.user_id;
       if (typeof userId !== "string" && typeof userId !== "number") return null;

@@ -136,13 +136,13 @@ function resolveApps(
  * 機械の道（定期の仕事・外のサービスの Webhook）。見る人がいないので、requireApp の代わりに requireAppNotOff を付ける
  * （アプリが切のときだけ 404。道が自分で合言葉・署名を確かめる。AD-16）。
  */
-const MACHINE_PATH = /^\/api\/v1\/[a-z]+\/(?:jobs|webhooks)\//;
+const MACHINE_PATH = /^\/api\/v1\/[a-z][a-z0-9]*\/(?:jobs|webhooks)\//;
 
 /** 状態を変えない動き。 */
 const SAFE_METHODS = /^(GET|HEAD|OPTIONS)$/;
 
 /** 領域の Webhook の道（外のサービスが送る。クッキーを使わず、領域が署名で確かめる）。 */
-const WEBHOOK_PATH = /^\/api\/v1\/[a-z]+\/webhooks\//;
+const WEBHOOK_PATH = /^\/api\/v1\/[a-z][a-z0-9]*\/webhooks\//;
 
 /** /api/v1 の本文の大きさの上限（バイト）。ファイルを受け取る窓口を足すときは、その窓口だけ別に決める。 */
 const MAX_BODY_BYTES = 100 * 1024;

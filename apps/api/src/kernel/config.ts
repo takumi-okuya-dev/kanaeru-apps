@@ -249,11 +249,14 @@ const schema = z
     }),
     WEB_DIST_DIR: optionalText(),
     TOKEN_ENCRYPTION_KEYS: optionalText(),
-    TOKEN_ENCRYPTION_KEY_VERSION: z.coerce
-      .number({ error: "数にしてください。" })
-      .int({ error: "整数にしてください。" })
-      .min(1, { error: "1以上にしてください。" })
-      .optional(),
+    // 空は「ない」とみなす（.env.example を写したままの空の値で、起動を止めない）
+    TOKEN_ENCRYPTION_KEY_VERSION: optionalText().pipe(
+      z.coerce
+        .number<string | undefined>({ error: "数にしてください。" })
+        .int({ error: "整数にしてください。" })
+        .min(1, { error: "1以上にしてください。" })
+        .optional(),
+    ),
     JOB_TRIGGER_SECRET: optionalText().refine(
       (value) => value === undefined || value.length >= JOB_TRIGGER_SECRET_MIN,
       { error: `${JOB_TRIGGER_SECRET_MIN}文字以上の値にしてください。` },

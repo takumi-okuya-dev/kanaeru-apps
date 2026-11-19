@@ -28,6 +28,8 @@ describe("Meta のアプリの道具", () => {
       app?.verifySignedRequest(signRequestForTest(SECRET, { algorithm: "MD5", user_id: "1" })),
     ).toBeNull();
     expect(app?.verifySignedRequest(signRequestForTest(SECRET, { foo: 1 }))).toBeNull();
+    // algorithm のないものは読まない
+    expect(app?.verifySignedRequest(signRequestForTest(SECRET, { user_id: "1" }))).toBeNull();
   });
 
   it("トークンの交換の値に、アプリの ID と秘密の値を足す", () => {

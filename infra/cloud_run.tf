@@ -138,6 +138,10 @@ resource "google_cloud_run_v2_service" "app" {
     google_project_iam_member.runtime_sql_client,
     google_secret_manager_secret_iam_member.runtime_database_url,
     google_secret_manager_secret_version.database_url,
+    # Threads を入にしたとき（threads.tf）：秘密を読む権限と合言葉の版ができてから、新しい版を立ち上げる
+    google_secret_manager_secret_iam_member.runtime_threads_token_keys,
+    google_secret_manager_secret_iam_member.runtime_job_trigger,
+    google_secret_manager_secret_version.job_trigger,
   ]
 }
 

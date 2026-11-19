@@ -63,10 +63,8 @@ describe("秘密の箱", () => {
 
   it("エラーの文に鍵の値を入れない", () => {
     const secret = key(7);
-    try {
-      createSecretBox(JSON.stringify({ "1": secret }), 9);
-    } catch (error) {
-      expect((error as Error).message).not.toContain(secret);
-    }
+    expect(() => createSecretBox(JSON.stringify({ "1": secret }), 9)).toThrow(
+      expect.objectContaining({ message: expect.not.stringContaining(secret) as string }),
+    );
   });
 });

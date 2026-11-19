@@ -152,3 +152,4 @@ Cloud SQL は `prevent_destroy`・`deletion_protection`・`deletion_protection_e
 
 3. 鍵を替えるとき：今の鍵を残したまま新しい版を足した JSON（`{"1":"<古い鍵>","2":"<新しい鍵>"}`）を新しい版として足し、`threads_token_key_version = 2` にして apply する。古い鍵で包んだトークンも開ける（新しく包むときだけ新しい鍵を使う）。古い鍵は、すべてのトークンが延長で包み直された（最長60日）あとに外す。
 4. 定期の仕事（`kanaeru-threads-tick`）は日本時間 8時〜23時台の5分おき。DB の夜間の停止（7章）の間は動かさない。止めたいときは `gcloud scheduler jobs pause kanaeru-threads-tick --location=asia-northeast1`。
+5. OAuth の接続と Meta の Webhook（threads-010。機能の印 `threads.oauth`）は、まだこの Terraform で設定しない。使うときは、Meta のアプリの ID（`THREADS_APP_ID`）と秘密の値（`THREADS_APP_SECRET`。Secret Manager）・`DOMAIN_FEATURES=threads.oauth` を Cloud Run に足す変更を、別に入れる（Meta のアプリの審査のあと）。それまでは、トークンを貼り付けてつなぐ。

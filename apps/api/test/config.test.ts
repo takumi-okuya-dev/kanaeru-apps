@@ -217,15 +217,18 @@ describe("設定", () => {
     expect(problemKeys({ ...LOCAL, THREADS_API_BASE_URL: "graph.threads.net" })).toEqual([
       "THREADS_API_BASE_URL",
     ]);
-    try {
+    expect(() =>
       loadConfig({
         ...LOCAL,
         TOKEN_ENCRYPTION_KEYS: `{"1":"${key}x"}`,
         TOKEN_ENCRYPTION_KEY_VERSION: "1",
-      });
-    } catch (error) {
-      expect((error as Error).message).not.toContain(key);
-    }
+      }),
+    ).toThrow(expect.objectContaining({ message: expect.not.stringContaining(key) as string }));
+    // .env.example を写したままの空の値は「ない」とみなす（起動を止めない）
+    expect(
+      loadConfig({ ...LOCAL, TOKEN_ENCRYPTION_KEYS: "", TOKEN_ENCRYPTION_KEY_VERSION: "" })
+        .tokenEncryption,
+    ).toBeUndefined();
     expect(problemKeys({ ...STAGING, THREADS_API_BASE_URL: "http://127.0.0.1:9790" })).toEqual([
       "THREADS_API_BASE_URL",
     ]);
