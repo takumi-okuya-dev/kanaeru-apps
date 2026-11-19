@@ -23,3 +23,4 @@
 | 2026-11-19 | 参加者の画面は未認証の LINEミニアプリで作り、ログインは LINE のIDトークンを API が確かめて自前のセッションを出す。テンプレートの既定の Better Auth は使わない | LINE が新規はミニアプリを勧めており、LIFF からは移せないため。Better Auth は LINE でメールがない人がログインできない | `_bmad-output/architecture-kanaeru/`（AD-4） |
 | 2026-11-19 | 置き場所は Cloud Run（東京）＋ Cloud SQL for PostgreSQL（東京・db-f1-micro）。DB は夜間0時〜8時に止める。すべて Terraform で持つ | 主催者が GCP と Terraform を学びたいため。DB も東京で速い。Neon（0円・シンガポール）と Cloudflare・Supabase も比べた | `_bmad-output/architecture-kanaeru/`（AD-8〜AD-10） |
 | 2026-11-19 | 環境は本番の1つで始め、`main` のマージで本番に出す。`develop` のマージでは出さない | 2026-11-25 の交流会に間に合わせるため。ステージングは交流会のあとに足す | [開発の流れの決まり](./rules/development-flow.md) 5 |
+| 2026-11-19 | 作業場所（git worktree）は、リポジトリの名前の親フォルダの中に、もとのクローン（`base`）と並べて領域ごとに作る | 並行して作るとフォルダが散らかり、どれが何か分からなくなるため（主催者が決めた） | [並行開発の決まり](./rules/parallel-development.md) 1 |
