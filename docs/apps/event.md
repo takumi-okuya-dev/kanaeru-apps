@@ -85,7 +85,7 @@ const summary = await getEventSummary(deps.db, deps.config, eventId); // 参加�
 | 名前 | 何か |
 |---|---|
 | `EventAdminNav` | `<EventAdminNav eventId={id} role={event.myRole} />`。「参加者・合計」（受付係も）・「困りごと」（主催者）・「準備」（主催者）。**道が道の木に登録されている項目だけ**出す（reception・survey が `ADMIN_ROUTE_PATTERNS` の道を足すと自然に出る）。項目が1つ以下なら何も出さない |
-| `EventAccessGate` | `<EventAccessGate eventId={id} roles={["organizer", "staff"]}>{(event) => …}</EventAccessGate>`。交流会を読み、読みこみ中・403（「この交流会の一覧画面は使えません」）・404・夜間の停止・役目が合わない（「この画面は主催者だけが使えます」）を出す。`SessionGate` の中に置く |
+| `EventAccessGate` | `<EventAccessGate eventId={id} roles={["organizer", "staff"]}>{(event) => …}</EventAccessGate>`。交流会を読み、読みこみ中・403（「この交流会の一覧画面は使えません」）・404・夜間の停止（DB に届かない 503 で、`isNightStopWindow()` のときだけ。昼の 503 は「読みこめませんでした」と API の文と「もう一度」）・役目が合わない（「この画面は主催者だけが使えます」）を出す。`SessionGate` の中に置く |
 | `useEvent(eventId)`・`useEventSummary(eventId)`・`EVENT_QUERY_KEYS` | 交流会（`myRole` つき）と要約の問い合わせ・鍵 |
 | `formatEventDateTime`・`formatJstDate`・`formatFee` | 日本時間の日時（2026年11月25日（水）19:00）・参加費（1,000円） |
 | `InternalLink` | 道の木にまだない道（ほかの領域の画面）へのリンク |

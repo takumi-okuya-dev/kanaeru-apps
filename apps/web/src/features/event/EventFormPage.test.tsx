@@ -1,6 +1,6 @@
 // 交流会の作成の画面：誤りは欄のそばに出し、日本時間の日付と時刻を時差つきの日時にして送る。主催者でなければ使えない。
 // API は fetch の差しかえで答える。
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderWithRouter } from "../../lib/testing.tsx";
@@ -38,6 +38,24 @@ function stubApi(organizer: boolean): Sent[] {
     );
   });
   return sent;
+}
+
+/**
+ * 描いた input の要素から、React が持つ onChange を取り出す（テストだけ。描き直しを挟まずに続けて呼ぶため）。
+ * @param element input の要素
+ * @returns その描きの onChange
+ * @throws {Error} React の props が見つからないとき
+ */
+function reactOnChange(element: HTMLElement): (value: string) => void {
+  const key = Object.keys(element).find((name) => name.startsWith("__reactProps$"));
+  const props = key
+    ? (element as unknown as Record<string, { onChange?: (change: unknown) => void }>)[key]
+    : undefined;
+  const onChange = props?.onChange;
+  if (!onChange) throw new Error("React の onChange が見つかりません。");
+  // 部品（Base UI）は currentTarget と nativeEvent も読む
+  return (value) =>
+    onChange({ target: { value }, currentTarget: { value }, nativeEvent: new Event("change") });
 }
 
 afterEach(() => {
@@ -120,6 +138,25 @@ describe("交流会の作成の画面", () => {
         },
       ]),
     );
+  });
+
+  it("描き直す前に2つの欄が続けて変わっても（自動の入力など）、どちらの値も残る", async () => {
+    stubApi(true);
+    renderWithRouter(<EventNewPage />);
+    await screen.findByRole("heading", { level: 1, name: "交流会を追加" });
+    const name = screen.getByRole("textbox", { name: /交流会の名前/ });
+    const venue = screen.getByRole("textbox", { name: /会場/ });
+
+    // 同じ描きの onChange を2つ、間に描き直しを挟まずに呼ぶ（描いたときの値から作ると、前の変更が消える）
+    const onChangeName = reactOnChange(name);
+    const onChangeVenue = reactOnChange(venue);
+    act(() => {
+      onChangeName(VALUES.name);
+      onChangeVenue(VALUES.venue);
+    });
+
+    expect(name).toHaveValue(VALUES.name);
+    expect(venue).toHaveValue(VALUES.venue);
   });
 
   it("主催者でなければ、使えない旨を出す", async () => {

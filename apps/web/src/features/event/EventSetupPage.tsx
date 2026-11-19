@@ -203,7 +203,15 @@ function InviteSection({ event }: { event: EventView }) {
           </p>
           <div className="flex flex-wrap gap-xxs">
             <Button onClick={() => void copy()}>リンクを写す</Button>
-            <Button onClick={() => setConfirming(true)}>作り直す</Button>
+            <Button
+              onClick={() => {
+                // 前に失敗したときの誤りを、開いたばかりの確かめの枠に残さない
+                mutation.reset();
+                setConfirming(true);
+              }}
+            >
+              作り直す
+            </Button>
           </div>
           {copied === "done" ? (
             <ResponseMessage tone="success">写しました。</ResponseMessage>

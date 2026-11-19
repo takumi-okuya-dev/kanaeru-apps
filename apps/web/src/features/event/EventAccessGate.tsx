@@ -1,6 +1,7 @@
 // 交流会の管理の画面の入口の確かめ（AD-5・EXPERIENCE の「権限なし（403）」「交流会が見つからない」「夜間の停止」）。
 // 交流会を読み（useEvent。自分の役目つき）、役目が合うときだけ中身を出す。reception・survey の管理の画面も使う。
 // ログインの確かめは account の SessionGate（このまわりを包む）。
+import { isNightStopWindow } from "@workspace/contracts/core";
 import type { EventRole, EventView } from "@workspace/contracts/event";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
@@ -78,7 +79,8 @@ export function EventLoadFailure({ error, retry }: LoadFailureProps) {
       </Page>
     );
   }
-  if (error instanceof ApiError && error.code === "DB_UNAVAILABLE") {
+  // 夜間の見出しは、日本時間 0時〜8時の DB に届かない 503 だけ。昼の 503 は下の「読みこめませんでした」と API の文
+  if (error instanceof ApiError && error.code === "DB_UNAVAILABLE" && isNightStopWindow()) {
     return <Page title="夜間（0時〜8時）は止まっています" lead="8時からもう一度開いてください。" />;
   }
   return (

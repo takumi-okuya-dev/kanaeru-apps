@@ -1,6 +1,7 @@
-// 準備の画面：受付係を外すと、招待のリンクも作り直すことを確かめの枠と知らせで伝え、リンクを読み直す（research R3）。
+// 準備の画面：招待のリンクを作り直す確かめの枠は、前の失敗の誤りを残さずに開く。
+// 受付係を外すと、招待のリンクも作り直すことを確かめの枠と知らせで伝え、リンクを読み直す（research R3）。
 // API は fetch の差しかえで答える。
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderWithRouter } from "../../lib/testing.tsx";
@@ -107,6 +108,25 @@ afterEach(() => {
 });
 
 describe("準備の画面", () => {
+  it("作り直しに失敗したあと、もう一度「作り直す」を押すと、前の誤りを出さずに確かめの枠を開く", async () => {
+    stubApi({ failCreateInvite: 1 });
+    renderWithRouter(<EventSetupPage eventId={EVENT_ID} />);
+    await screen.findByText(/a{43}/);
+
+    await userEvent.click(screen.getByRole("button", { name: "作り直す" }));
+    let dialog = await screen.findByRole("alertdialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "作り直す" }));
+    expect(await within(dialog).findByText("試しの失敗です。")).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "キャンセル" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("button", { name: "作り直す" }));
+    dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).queryByText("試しの失敗です。")).not.toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "作り直す" }));
+    expect(await screen.findByText(/b{43}/)).toBeInTheDocument();
+  });
+
   it("受付係を外す前と外したあとに、招待のリンクも作り直すことを伝え、新しいリンクを出す", async () => {
     const sent = stubApi();
     renderWithRouter(<EventSetupPage eventId={EVENT_ID} />);

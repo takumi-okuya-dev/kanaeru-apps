@@ -123,8 +123,11 @@ function EventForm({ event }: EventFormProps) {
   const bind = (name: keyof FormValues) => ({
     name,
     value: values[name],
-    onChange: (change: React.ChangeEvent<HTMLInputElement>) =>
-      setValues({ ...values, [name]: change.target.value }),
+    onChange: (change: React.ChangeEvent<HTMLInputElement>) => {
+      const value = change.target.value;
+      // 自動の入力などで、描き直す前に2つの欄が続けて変わっても、前の変更を消さない
+      setValues((current) => ({ ...current, [name]: value }));
+    },
   });
 
   /**
