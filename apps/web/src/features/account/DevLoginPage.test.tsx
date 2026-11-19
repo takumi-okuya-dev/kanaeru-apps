@@ -1,5 +1,7 @@
 // 手元のログインの画面：誤りは欄のそばに出し、試験用のログインで入り、今の利用者を出す。ログアウトで戻る。
 // LINE の画面では使えない旨だけを出す。API は fetch の差しかえで答える。
+import { useQueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -99,6 +101,28 @@ describe("手元のログインの画面", () => {
     );
     await user.click(screen.getByRole("button", { name: "ログアウト" }));
     expect(await screen.findByRole("button", { name: "ログイン" })).toBeInTheDocument();
+  });
+
+  it("ログアウトすると、ほかの領域の読みこみの値（前の利用者のデータ）を消す", async () => {
+    const user = userEvent.setup();
+    stubApi();
+    let queryClient: QueryClient | undefined;
+    /**
+     * 画面を描き、使っている QueryClient を受け取る。
+     * @returns 画面の要素
+     */
+    function Capture() {
+      queryClient = useQueryClient();
+      return <DevLoginPage />;
+    }
+    renderWithRouter(<Capture />);
+    await user.type(await screen.findByRole("textbox", { name: /表示名/ }), "試験の佐藤");
+    await user.click(screen.getByRole("button", { name: "ログイン" }));
+    await screen.findByRole("heading", { name: "ログインしています：試験の佐藤" });
+    queryClient?.setQueryData(["event", "list"], [{ title: "前の利用者のイベント" }]);
+    await user.click(screen.getByRole("button", { name: "ログアウト" }));
+    expect(await screen.findByRole("button", { name: "ログイン" })).toBeInTheDocument();
+    expect(queryClient?.getQueryData(["event", "list"])).toBeUndefined();
   });
 
   it("LINE の画面では、使えない旨だけを出す", async () => {

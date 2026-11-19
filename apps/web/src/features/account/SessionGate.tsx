@@ -3,8 +3,10 @@
 // - 読みこみ中：読みこみの印
 // - 未ログイン：LINE なら「LINEでログインし直す」（LINE の中は開き直し、外のブラウザは LINE のログインへ）、
 //   LIFF ID のない手元・テストなら手元のログインへの案内
-// - 失敗：夜間の停止は見出しで「夜間（0時〜8時）は止まっています」、ほかは「読みこめませんでした」と「もう一度」
+// - 失敗：夜間の停止（DB に届かない 503 で、日本時間 0時〜8時）は見出しで「夜間（0時〜8時）は止まっています」、
+//   ほか（昼の DB に届かないを含む）は「読みこめませんでした」と API の文と「もう一度」
 import { Link, useLocation } from "@tanstack/react-router";
+import { isNightStopWindow } from "@workspace/contracts/core";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
 import type * as React from "react";
 import { ApiError, errorMessage } from "../../lib/api.ts";
@@ -80,7 +82,11 @@ export function SessionGate({ children }: SessionGateProps) {
   }
   if (session.status === "unauthenticated") return <LoginRequired />;
   if (session.status === "error") {
-    const night = session.error instanceof ApiError && session.error.code === "DB_UNAVAILABLE";
+    // DB に届かない（503）うち、夜間の停止の時間帯だけ夜間の画面にする（昼は一時的なので、文と「もう一度」）
+    const night =
+      session.error instanceof ApiError &&
+      session.error.code === "DB_UNAVAILABLE" &&
+      isNightStopWindow();
     return night ? (
       <Page title="夜間（0時〜8時）は止まっています" lead="8時からもう一度開いてください。" />
     ) : (

@@ -4,12 +4,16 @@ import { createRoute, lazyRouteComponent } from "@tanstack/react-router";
 import { rootRoute } from "../../lib/router.ts";
 
 /**
- * 戻る道として使えるか（/ で始まる同じ源の道だけ。// で始まる外の源は使わない）。
+ * 戻る道として使えるか（/ で始まる同じ源の道だけ）。// で始まるもの・\ を含むもの（ブラウザが / に読みかえ、
+ * /\evil.example が //evil.example になる）・今の源で読んだときに源が変わるもの（タブや改行を除くと // になるなど）は使わない。
  * @param value 問い合わせの redirect
  * @returns 使えるなら true
  */
 export function isSafeRedirect(value: unknown): value is string {
-  return typeof value === "string" && value.startsWith("/") && !value.startsWith("//");
+  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) return false;
+  if (value.includes("\\")) return false;
+  const origin = window.location.origin;
+  return URL.canParse(value, origin) && new URL(value, origin).origin === origin;
 }
 
 /** 手元のログイン（/dev/login?redirect=…）。 */

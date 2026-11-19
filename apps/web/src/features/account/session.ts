@@ -2,8 +2,10 @@
 // - useSession() が GET /api/v1/accounts/me を読む。401 で、LINE にログイン済みで ID トークンがあれば、
 //   POST /api/v1/auth/line に getIDToken() の生の値を送ってから、ログインした状態にする。
 //   自動で試すのは、ページを開いてから（または前に成功してから）1度だけ（LINE が断りつづけるときに、くり返さない）。
+//   この問い合わせは読み直さない（retry: false。LINE に届かないときに ID トークンをくり返し送らない）。
 // - ほかの API の 401（lib/api.ts の onUnauthenticated）を受けたら、セッションを読み直してログインし直し、
-//   できたら、ほかの読みこみも読み直す。
+//   できたら、ほかの読みこみも読み直す。これは RELOGIN_COOLDOWN_MS に1度まで（/me は通るのに、ほかの窓口が
+//   401 を返しつづけるときに、読み直し → 401 → 読み直し をくり返さない）。
 // - LINE の始め方（liff.init()）は lib/liff.ts。ここは getLiff() を使うだけ。
 import type { CurrentAccountView } from "@workspace/contracts/account";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -79,18 +81,39 @@ export async function loadSession(): Promise<SessionData> {
   }
 }
 
+/** ほかの API の 401 で読み直すのは、この時間（ミリ秒）に1度まで。 */
+export const RELOGIN_COOLDOWN_MS = 30_000;
+
+/** QueryClient ごとの、ほかの API の 401 で最後に読み直した時刻。 */
+const lastReloginAt = new WeakMap<QueryClient, number>();
+
+/**
+ * ログインしていない問い合わせ（account のほか）か。
+ * @param query 問い合わせ
+ * @param query.queryKey 問い合わせの鍵
+ * @returns account の問い合わせでなければ true
+ */
+function isOtherQuery(query: { queryKey: readonly unknown[] }): boolean {
+  return query.queryKey[0] !== "account";
+}
+
 /**
  * ほかの API が 401 を返したとき：ログイン済みと思っていたら、セッションを読み直し（ログインし直し）、
- * できたら、ほかの読みこみも読み直す。セッションを読んでいる途中・未ログインのときは何もしない（くり返さない）。
+ * できたら、ほかの読みこみも読み直す。セッションを読んでいる途中・未ログインのとき・前に読み直してから
+ * RELOGIN_COOLDOWN_MS たっていないときは何もしない（くり返さない）。
  * @param queryClient TanStack Query の入れ物
  */
 async function handleUnauthenticated(queryClient: QueryClient): Promise<void> {
   const state = queryClient.getQueryState<SessionData>(SESSION_QUERY_KEY);
   if (state?.fetchStatus === "fetching" || state?.data?.status !== "authenticated") return;
+  const now = Date.now();
+  const last = lastReloginAt.get(queryClient);
+  if (last !== undefined && now - last < RELOGIN_COOLDOWN_MS) return;
+  lastReloginAt.set(queryClient, now);
   await queryClient.refetchQueries({ queryKey: SESSION_QUERY_KEY, exact: true });
   const after = queryClient.getQueryData<SessionData>(SESSION_QUERY_KEY);
   if (after?.status === "authenticated") {
-    await queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] !== "account" });
+    await queryClient.invalidateQueries({ predicate: isOtherQuery });
   }
 }
 
@@ -134,7 +157,19 @@ export async function setAuthenticated(
 ): Promise<void> {
   const data: SessionData = { status: "authenticated", account };
   queryClient.setQueryData(SESSION_QUERY_KEY, data);
-  await queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] !== "account" });
+  await queryClient.invalidateQueries({ predicate: isOtherQuery });
+}
+
+/**
+ * ログアウトした状態を問い合わせに入れ、ほかの読みこみの値を消す（前の利用者のデータを残さない）。
+ * LINE の中ですぐにログインし直さないよう、自動のログインも止める。
+ * @param queryClient TanStack Query の入れ物
+ */
+export function setSignedOut(queryClient: QueryClient): void {
+  blockAutoLogin();
+  queryClient.removeQueries({ predicate: isOtherQuery });
+  const data: SessionData = { status: "unauthenticated" };
+  queryClient.setQueryData(SESSION_QUERY_KEY, data);
 }
 
 /**
@@ -148,6 +183,8 @@ export function useSession(): SessionState {
     queryKey: SESSION_QUERY_KEY,
     queryFn: loadSession,
     staleTime: Number.POSITIVE_INFINITY,
+    // 全体の読み直し（5xx を2回まで）を使わない。LINE に届かない（502）ときに ID トークンを送るのは1度だけ（R9）
+    retry: false,
   });
   if (query.isPending) return { status: "loading" };
   if (query.isError) {

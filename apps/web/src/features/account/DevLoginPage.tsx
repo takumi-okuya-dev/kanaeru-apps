@@ -16,8 +16,7 @@ import type { FieldErrors } from "../../lib/form.ts";
 import { getLiff } from "../../lib/liff.ts";
 import { Page } from "../../lib/page.tsx";
 import { logout, testLogin } from "./api.ts";
-import { SESSION_QUERY_KEY, blockAutoLogin, setAuthenticated, useSession } from "./session.ts";
-import type { SessionData } from "./session.ts";
+import { setAuthenticated, setSignedOut, useSession } from "./session.ts";
 
 /** 見本の LINE のユーザー ID（U と16進の32文字）。 */
 export const SAMPLE_LINE_USER_ID = `U${"0".repeat(31)}1`;
@@ -91,9 +90,7 @@ export function DevLoginPage({ redirect }: DevLoginPageProps) {
     setFailure(undefined);
     try {
       await logout();
-      blockAutoLogin();
-      const data: SessionData = { status: "unauthenticated" };
-      queryClient.setQueryData(SESSION_QUERY_KEY, data);
+      setSignedOut(queryClient);
     } catch (error) {
       setFailure(`ログアウトできませんでした。${errorMessage(error)}`);
     }
