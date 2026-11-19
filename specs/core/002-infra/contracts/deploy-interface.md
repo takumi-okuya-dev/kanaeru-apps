@@ -25,6 +25,7 @@
 | `LOG_LEVEL` | `info` | 固定 |
 | `TRUSTED_PROXY_HOPS` | `1` | 固定（AD-8） |
 | `RATE_LIMIT_MAX` | `600` | 固定（AD-8） |
+| `DATABASE_POOL_MAX` | `5` | 固定（AD-8。台数の上限 `local.max_instances` = 2 の隣で決める。2台 × 5本） |
 | `LINE_CHANNEL_IDS` | チャネルIDのカンマ区切り | 変数 `line_channel_ids` |
 | `ORGANIZER_LINE_USER_ID` | 主催者の LINE のユーザーID | 変数 `organizer_line_user_id` |
 | `OPEN_CHAT_URL` | オープンチャットの URL | 変数 `open_chat_url` |

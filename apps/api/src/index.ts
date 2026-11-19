@@ -19,7 +19,8 @@ try {
 }
 
 const logger = createLogger({ level: config.logLevel, pretty: config.logPretty });
-const database = createDatabase(config.databaseUrl, config.databaseTimeouts, (error) => {
+const databaseOptions = { ...config.databaseTimeouts, poolMax: config.databasePoolMax };
+const database = createDatabase(config.databaseUrl, databaseOptions, (error) => {
   logger.warn(
     { err: { name: error.name, message: error.message } },
     "待っている DB の接続が切れました。",

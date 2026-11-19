@@ -53,7 +53,7 @@
 ## R-7 Cloud Run
 
 - サービス `kanaeru`：最大2・最小0（台数の上限は**サービスの単位**の `scaling`〈google 8.12 の `google_cloud_run_v2_service.scaling.max_instance_count`。「流れを受けるすべての版の合計」〉に置き、版の単位〈`template.scaling`〉も同じ2にそろえる。両方あると小さいほうが効く。公式の https://docs.cloud.google.com/run/docs/configuring/max-instances も、版の単位でなくサービスの単位をすすめる。版の単位だけだと、デプロイで古い版と新しい版が重なる間に版ごとに2台ずつ立ち、DB の接続が見込み〈2台×5本〉を超えうる。自分の点検で直した。公式によると、急な山などで短い間は上限を超えることがある）、CPU 1・メモリ 512Mi、`cpu_idle = true`・`startup_cpu_boost = true`、要求の時間切れ 60 秒【仮決め】、同時の要求は既定（80）。`invoker_iam_disabled = true`（誰でも開ける。組織のポリシーで `allUsers` が止められても通る）。probe は既定（TCP）。
-- 環境の値：`APP_ENV=production`・`APP_NAME`・`WEB_URL`・`API_HOST=0.0.0.0`・`API_PORT=8080`・`WEB_DIST_DIR=/app/apps/web/dist`・`LOG_LEVEL=info`・`TRUSTED_PROXY_HOPS=1`・`RATE_LIMIT_MAX=600`・`LINE_CHANNEL_IDS`・`ORGANIZER_LINE_USER_ID`・`OPEN_CHAT_URL`・`DATABASE_URL`（秘密）。
+- 環境の値：`APP_ENV=production`・`APP_NAME`・`WEB_URL`・`API_HOST=0.0.0.0`・`API_PORT=8080`・`WEB_DIST_DIR=/app/apps/web/dist`・`LOG_LEVEL=info`・`TRUSTED_PROXY_HOPS=1`・`RATE_LIMIT_MAX=600`・`DATABASE_POOL_MAX=5`・`LINE_CHANNEL_IDS`・`ORGANIZER_LINE_USER_ID`・`OPEN_CHAT_URL`・`DATABASE_URL`（秘密）。
 - 【仮決め】`WEB_URL` は Cloud Run の決まった形の URL（`https://kanaeru-<プロジェクト番号>.asia-northeast1.run.app`。公式の形 `https://[TAG---]SERVICE_NAME-PROJECT_NUMBER.REGION.run.app`）を、サービスを作る前に Terraform が組み立てる。サービスにはもう1つの URL（`*.a.run.app`）もあるが、そちらから開くと書く操作が源の確かめで 403 になるので、LINE のエンドポイントは `terraform output web_url` に合わせる。独自のドメインにしたら変数 `web_url` で上書きする。
 - イメージは仮（`us-docker.pkg.dev/cloudrun/container/hello`・`.../job`）で作り、`ignore_changes` で GitHub Actions に任せる。`client`・`client_version` も無視する（gcloud が書く印）。
 
@@ -92,7 +92,7 @@
 | LINE とオープンチャットの設定 | `LINE_CHANNEL_IDS`（カンマ区切り）・`ORGANIZER_LINE_USER_ID`・`OPEN_CHAT_URL` を Cloud Run に渡す | `kernel/config.ts` で読み、確かめる |
 | API の口 | `API_HOST=0.0.0.0`・`API_PORT=8080`（Cloud Run の `PORT` は読まない） | 今の `config.ts` のまま |
 | DB の接続先 | R-4 の形（`@localhost/...?host=/cloudsql/...`） | 今の `config.ts` のまま通る（確かめた） |
-| 接続のプール | 最大2台 | AD-8 の「1台あたり5本まで」は `kernel/db.ts` の `pg.Pool` の `max`（今は既定の10） |
+| 接続のプール | 最大2台・1台5本（`infra/cloud_run.tf` の `local.max_instances`・`local.db_pool_max` を並べて決め、設定 `DATABASE_POOL_MAX=5` で渡す） | `kernel/config.ts` の `DATABASE_POOL_MAX`（1以上の整数。既定は10）を `kernel/db.ts` の `pg.Pool` の `max` に渡す（済み） |
 | DB の変更 | `apps/api/scripts/migrate.ts`（drizzle-orm の migrator）が `apps/api/drizzle/` を当てる | notes を消す DB の変更も、ここから当たる |
 | 夜間の停止 | 0時〜8時は DB に届かない | `DB_UNAVAILABLE`（503）の読みかえ |
 

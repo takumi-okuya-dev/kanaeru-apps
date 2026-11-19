@@ -196,6 +196,7 @@ const schema = z
       }),
     DATABASE_CONNECT_TIMEOUT_MS: positiveInt(5000),
     DATABASE_QUERY_TIMEOUT_MS: positiveInt(10_000),
+    DATABASE_POOL_MAX: positiveInt(10),
     SAMPLE_DATA_ENABLED: flag(false),
     OPENAPI_DOC_ENABLED: flag(false),
     LOG_LEVEL: z
@@ -328,6 +329,8 @@ export type Config = {
   databaseUrl: string;
   /** DB の時間の上限（ミリ秒。つなぐまで・1つの命令） */
   databaseTimeouts: { connectTimeoutMs: number; queryTimeoutMs: number };
+  /** 1台（1つのプロセス）が持つ DB の接続の数の上限（DATABASE_POOL_MAX。既定は10。本番は台数 × この値が DB の接続の上限を超えないようにする） */
+  databasePoolMax: number;
   /** 見本のデータを入れる手順を許すか */
   sampleDataEnabled: boolean;
   /** 窓口の文書（GET /api/openapi.json）を出すか */
@@ -403,6 +406,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       connectTimeoutMs: value.DATABASE_CONNECT_TIMEOUT_MS,
       queryTimeoutMs: value.DATABASE_QUERY_TIMEOUT_MS,
     },
+    databasePoolMax: value.DATABASE_POOL_MAX,
     sampleDataEnabled: value.SAMPLE_DATA_ENABLED,
     openApiDocEnabled: value.OPENAPI_DOC_ENABLED,
     logLevel: value.LOG_LEVEL,

@@ -4,9 +4,10 @@
 # 環境の値を変えるのは Terraform だけにする（デプロイで --set-env-vars などを使うと、次の plan で取り合いになる）。
 
 locals {
-  # 台数の上限（AD-8）。DB の接続は「台数 × 1台のプールの上限（DATABASE_POOL_MAX）」まで増えるので、
-  # Cloud SQL（db-f1-micro）の接続の上限を超えないよう、2つを並べて決める
+  # 台数の上限と、1台の DB の接続の上限（AD-8）。DB の接続は「台数 × 1台の上限」まで増えるので、
+  # Cloud SQL（db-f1-micro。max_connections は25ほど）の上限を超えないよう、2つを並べて決める（2台 × 5本 ＝ 10本。migrate の job の分も残す）
   max_instances = 2
+  db_pool_max   = 5
 
   # API の設定（値の意味は apps/api/src/kernel/config.ts）。秘密ではない値だけ。秘密は下の DATABASE_URL のように Secret Manager から渡す
   service_env = {
@@ -19,6 +20,7 @@ locals {
     LOG_LEVEL              = "info"
     TRUSTED_PROXY_HOPS     = "1"
     RATE_LIMIT_MAX         = "600"
+    DATABASE_POOL_MAX      = tostring(local.db_pool_max)
     LINE_CHANNEL_IDS       = var.line_channel_ids
     ORGANIZER_LINE_USER_ID = var.organizer_line_user_id
     OPEN_CHAT_URL          = var.open_chat_url
