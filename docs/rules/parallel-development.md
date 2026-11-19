@@ -79,6 +79,7 @@ flowchart LR
 |---|---|
 | `apps/api/src/modules.list.ts` | API の領域（`export * as <領域> from "./modules/<領域>/index.ts";`） |
 | `apps/web/src/features.list.ts` | 画面の領域（`export * as <領域> from "./features/<領域>/index.ts";`） |
+| `docs/decisions.md` | 決めたことの記録の表の行（表の最後に1行足すだけ。前の行は直さず、覆すときも新しい行を足す。構成の決めごと AD-18） |
 
 ### 3-2. テストに領域の数を書かない
 
@@ -92,7 +93,9 @@ flowchart LR
 ## 4. DBの変更
 
 - DBの変更の番号の取り合いは避けられない。**DBの変更のあるPRは小さく切り、先に`develop`へ入れる**（表を作るPRと、画面・処理を足すPRを分ける）。
-- 番号がぶつかったら、**先に`develop`へ入った方がその番号を使い、後の方が作り直す**（番号を手で直さない）。`develop`を取り込み、自分のDBの変更のファイルを消して、道具で作り直す。
+- **DBの変更のあるPRは、`develop`に向けて同時に1本だけ開く**（構成の決めごと AD-17）。ほかのセッションが開いていたら、そのPRが入るまで自分の`pnpm db:generate`を待つか、作ったファイルをPRに入れずにおく。開く前にユーザーに伝える。
+- 番号がぶつかったら、**先に`develop`へ入った方がその番号を使い、後の方が作り直す**（番号を手で直さない）。`develop`を取り込み、自分のDBの変更のファイルを消して、道具で作り直す。`meta/_journal.json`と`meta/*_snapshot.json`も手で直さず、`develop`の側を取ってから作り直す。
+- Drizzle 1.0 が安定版になって DB の変更ごとのフォルダの形（journal なし）に移したら、この章を直す。
 
 ## 5. develop を早めに取り込む
 
