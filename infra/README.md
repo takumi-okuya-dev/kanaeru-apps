@@ -17,7 +17,7 @@
 | `cloud_sql.tf` | Cloud SQL（ENTERPRISE・db-f1-micro・PostgreSQL 18）・DB・利用者 |
 | `secrets.tf` | DB の接続先（`DATABASE_URL`）の秘密。パスワードは Terraform の中で作り、state に残さない |
 | `service_accounts.tf` | 身分（Cloud Run・デプロイ・夜間の停止）と権限 |
-| `wif.tf` | GitHub Actions から鍵なしで入る仕組み（このリポジトリの `main` だけ） |
+| `wif.tf` | GitHub Actions から鍵なしで入る仕組み（このリポジトリの `main` だけ。名前と数字の ID の両方で絞る） |
 | `cloud_run.tf` | Cloud Run のサービス（画面と `/api`）と、DB の変更を当てる job |
 | `scheduler.tf` | 毎日0時に DB を止め、8時に動かす（日本時間） |
 | `budget.tf` | 請求の予算（月2,000円・50%と100%でメール） |
@@ -71,6 +71,16 @@ LINE Developers のコンソールで（どれも秘密ではない。AD-4・AD-
 | LIFF ID | ミニアプリのチャネル | GitHub の変数 `LIFF_ID`（5章） |
 
 ミニアプリのエンドポイント URL は、apply のあとの `terraform output web_url` にする（ほかの URL から開くと、書く操作が源の確かめで 403 になる）。
+
+GitHub のリポジトリの値（どれも秘密ではない）も集める。WIF（GitHub Actions から入る仕組み）は、付け直せる名前だけでなく、変わらない数字の ID でも入れる相手を絞る（名前を付け直したり、消したあとに別の人が同じ名前を取ったりしても、入れない）：
+
+| 値 | どう見るか | 入れる先 |
+|---|---|---|
+| リポジトリの名前（`owner/repo`） | GitHub の画面 | `github_repository` |
+| リポジトリの数字の ID | `gh api repos/<owner>/<repo> --jq .id`（`gh` がなければ `curl -s https://api.github.com/repos/<owner>/<repo>` の `id`。非公開のリポジトリは `gh auth login` のあとの `gh` で） | `github_repository_id` |
+| 持ち主（人か組織）の数字の ID | `gh api repos/<owner>/<repo> --jq .owner.id`（上の `owner.id`） | `github_repository_owner_id` |
+
+リポジトリを別の持ち主に移したり、作り直したりしたら、ID が変わるので、値を直して apply する（そのままだとデプロイが GCP に入れない）。
 
 ## 5. 作る（init → plan → 読む → apply）
 

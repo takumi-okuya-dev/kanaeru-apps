@@ -27,6 +27,27 @@ variable "github_repository" {
   }
 }
 
+# 名前（owner/repo）は付け直せ、消したあとに別の人が同じ名前を取れる。数字の ID は変わらないので、両方で絞る（wif.tf）
+variable "github_repository_id" {
+  type        = string
+  description = "github_repository の数字の ID（変わらない値）。`gh api repos/<owner>/<repo> --jq .id` で見る（README の 4）"
+
+  validation {
+    condition     = can(regex("^[0-9]+$", var.github_repository_id))
+    error_message = "数字だけにしてください。"
+  }
+}
+
+variable "github_repository_owner_id" {
+  type        = string
+  description = "github_repository の持ち主（人か組織）の数字の ID（変わらない値）。`gh api repos/<owner>/<repo> --jq .owner.id` で見る（README の 4）"
+
+  validation {
+    condition     = can(regex("^[0-9]+$", var.github_repository_owner_id))
+    error_message = "数字だけにしてください。"
+  }
+}
+
 variable "app_name" {
   type        = string
   description = "画面に出すアプリの名前（設定 APP_NAME。コンテナの組み立ての APP_NAME と同じにする）"

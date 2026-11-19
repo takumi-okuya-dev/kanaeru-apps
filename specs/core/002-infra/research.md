@@ -13,7 +13,7 @@
 
 ## R-2 GitHub Actions の入り方（構成の決めごとからの外れ）
 
-- **Decision**：【仮決め】WIF（Workload Identity Federation）で入り、デプロイ用のサービスアカウント `kanaeru-deployer` になりすます（`auth` の `service_account`）。鍵（JSON）は作らない。プロバイダの条件で「このリポジトリ」かつ「`refs/heads/main`」だけを受け入れ、なりすましの権限（`roles/iam.workloadIdentityUser`）はこのリポジトリの `principalSet` にだけ付ける。
+- **Decision**：【仮決め】WIF（Workload Identity Federation）で入り、デプロイ用のサービスアカウント `kanaeru-deployer` になりすます（`auth` の `service_account`）。鍵（JSON）は作らない。プロバイダの条件で「このリポジトリ」かつ「`refs/heads/main`」だけを受け入れ、なりすましの権限（`roles/iam.workloadIdentityUser`）はこのリポジトリの `principalSet` にだけ付ける。リポジトリは名前（`assertion.repository`）だけでなく、変わらない数字の ID（`repository_id`・`repository_owner_id`）でも条件で絞り、`principalSet` は `attribute.repository_id/<ID>` で指す（自分の点検で直した。名前は付け直せ、消したあとに別の人が同じ名前を取れるため。google-github-actions/auth の説明もすすめる形）。ID は変数 `github_repository_id`・`github_repository_owner_id`（見方は infra/README.md 4）。
 - **Rationale**：Google の「identity federation に対応するサービス」の頁に **「Cloud Run doesn't support Workload Identity Federation direct resource access. To allow access, use service account impersonation.」** とある（https://docs.cloud.google.com/iam/docs/federated-identity-supported-services ）。Direct WIF のままだと Cloud Run の更新ができない。依頼にあった「deployer のサービスアカウント」はこのために使う。
 - **構成の決めごとの直し**：AD-9 と Stack の「Direct WIF」を「WIF（サービスアカウントのなりすまし。鍵なし）」に直す必要がある（spine は BMAD の文書なので、この PR では直さず、開発者に伝える）。
 - **Alternatives**：Artifact Registry だけ Direct WIF にして2回入る（手順が増えるだけで得がない）・サービスアカウントの鍵（漏れたら終わり。不採用）。

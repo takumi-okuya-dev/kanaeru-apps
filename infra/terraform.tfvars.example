@@ -5,6 +5,9 @@
 project_id         = "kanaeru-prod-xxxx"
 billing_account_id = "000000-000000-000000"
 github_repository  = "owner/kanaeru-apps"
+# 上のリポジトリと持ち主の数字の ID（変わらない値。README の 4）：gh api repos/<owner>/<repo> --jq '.id, .owner.id'
+github_repository_id       = "123456789"
+github_repository_owner_id = "12345678"
 
 # LINE の値（どれも秘密ではない。LINE Developers のコンソールで見る。README の 4）
 line_channel_ids       = "1234567890"
