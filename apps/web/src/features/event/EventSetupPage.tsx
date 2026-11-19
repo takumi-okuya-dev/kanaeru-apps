@@ -13,7 +13,6 @@ import { errorMessage } from "../../lib/api.ts";
 import { Page } from "../../lib/page.tsx";
 import { SessionGate } from "../account/index.ts";
 import { EventAccessGate, Loading } from "./EventAccessGate.tsx";
-import { EventAdminNav } from "./EventAdminNav.tsx";
 import { QrCode } from "./QrCode.tsx";
 import {
   createStaffInvite,
@@ -365,7 +364,6 @@ function Setup({ event }: { event: EventView }) {
         </Link>
       }
     >
-      <EventAdminNav eventId={event.id} role={event.myRole} />
       <QrSection event={event} />
       <SurveySection event={event} />
       <InviteSection event={event} />

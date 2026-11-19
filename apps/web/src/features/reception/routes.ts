@@ -10,6 +10,8 @@ import { rootRoute } from "../../lib/router.ts";
 export const checkinRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: PARTICIPANT_ROUTE_PATTERNS.checkin,
+  // 参加者が開く画面なので、外枠のナビを出さない（core-003）
+  staticData: { layout: "bare" },
   component: lazyRouteComponent(() => import("./CheckinPage.tsx"), "CheckinRoute"),
 });
 

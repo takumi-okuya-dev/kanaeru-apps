@@ -1,5 +1,5 @@
 // A3 一覧画面の参加者・合計（主催者・受付係。EXPERIENCE.md の A3・UJ-3・UJ-4）。
-// 上に event の EventAdminNav（「参加者・合計」「困りごと」「準備」）。タブ「参加者」「合計」。
+// 交流会の中の行き来（参加者・合計・困りごと・準備）は外枠のナビ（core-003）。タブ「参加者」「合計」。
 // 一覧・合計・内訳は5秒おきに読み直す（queries.ts）。読み直しが失敗しても前のものを出したまま「最新にできませんでした」
 // （夜間の停止の時間帯の 503 だけは読み直しを止め、夜間の文を出す）。初めに読めなかったときは API の文を出す。
 // 主催者には「書き出しと削除」（A5）への入口と内訳を出す。受付係には出さない（隠す。EXPERIENCE）。
@@ -13,7 +13,7 @@ import type * as React from "react";
 import { errorMessage } from "../../lib/api.ts";
 import { Page } from "../../lib/page.tsx";
 import { SessionGate } from "../account/index.ts";
-import { EventAccessGate, EventAdminNav, formatEventDateTime } from "../event/index.ts";
+import { EventAccessGate, formatEventDateTime } from "../event/index.ts";
 import { ParticipantsTab } from "./ParticipantsTab.tsx";
 import { TotalsTab } from "./TotalsTab.tsx";
 import { isNightStop, useBreakdown, useCheckinList, useTotals } from "./queries.ts";
@@ -131,7 +131,6 @@ function Reception({ event }: { event: EventView }) {
         ) : undefined
       }
     >
-      <EventAdminNav eventId={event.id} role={event.myRole} />
       {stale ? (
         <p className="text-s text-text-sub">
           {isNightStop(staleError)

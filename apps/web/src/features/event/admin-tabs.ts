@@ -1,8 +1,9 @@
-// 交流会の管理の画面どうしの行き来の項目（EventAdminNav と交流会の一覧の行き先が使う。research R9）。
+// 交流会の管理の画面どうしの行き来の項目（外枠のナビ〈nav-items.ts〉と交流会の一覧の行き先が使う。research R9・core-003）。
 // 道の形は @workspace/contracts/event の ADMIN_ROUTE_PATTERNS。項目は、その道が道の木に登録されているときだけ出す
 // （reception・survey が道を足すと、event を直さずに出る。並行開発の決まり 3-1 の差しこみの場所）。
 import { ADMIN_ROUTE_PATTERNS, adminPaths } from "@workspace/contracts/event";
 import type { EventRole } from "@workspace/contracts/event";
+import type { NavIcon } from "../../lib/feature.ts";
 
 /** 管理の画面の行き来の項目。 */
 export type EventAdminTab = {
@@ -10,6 +11,8 @@ export type EventAdminTab = {
   id: "reception" | "concerns" | "setup";
   /** 見える名前 */
   label: string;
+  /** ナビのアイコン */
+  icon: NavIcon;
   /** 道の形（TanStack Router の path） */
   pattern: string;
   /** 値を入れた道を作る */
@@ -23,6 +26,7 @@ export const EVENT_ADMIN_TABS: readonly EventAdminTab[] = [
   {
     id: "reception",
     label: "参加者・合計",
+    icon: "people",
     pattern: ADMIN_ROUTE_PATTERNS.eventReception,
     path: adminPaths.eventReception,
     roles: ["organizer", "staff"],
@@ -30,6 +34,7 @@ export const EVENT_ADMIN_TABS: readonly EventAdminTab[] = [
   {
     id: "concerns",
     label: "困りごと",
+    icon: "concerns",
     pattern: ADMIN_ROUTE_PATTERNS.eventConcerns,
     path: adminPaths.eventConcerns,
     roles: ["organizer"],
@@ -37,6 +42,7 @@ export const EVENT_ADMIN_TABS: readonly EventAdminTab[] = [
   {
     id: "setup",
     label: "準備",
+    icon: "setup",
     pattern: ADMIN_ROUTE_PATTERNS.eventSetup,
     path: adminPaths.eventSetup,
     roles: ["organizer"],

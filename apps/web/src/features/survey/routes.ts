@@ -10,10 +10,12 @@ import { rootRoute } from "../../lib/router.ts";
 export const surveyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: PARTICIPANT_ROUTE_PATTERNS.survey,
+  // 参加者が開く画面なので、外枠のナビを出さない（core-003）
+  staticData: { layout: "bare" },
   component: lazyRouteComponent(() => import("./SurveyPage.tsx"), "SurveyRoute"),
 });
 
-/** 困りごと（主催者だけ。EventAdminNav の「困りごと」）。 */
+/** 困りごと（主催者だけ。外枠のナビの「困りごと」）。 */
 export const concernsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: ADMIN_ROUTE_PATTERNS.eventConcerns,

@@ -20,6 +20,8 @@ export function isSafeRedirect(value: unknown): value is string {
 export const devLoginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/dev/login",
+  // ログインの前の画面なので、外枠のナビを出さない（core-003）
+  staticData: { layout: "bare" },
   validateSearch: (search: Record<string, unknown>): { redirect?: string } =>
     isSafeRedirect(search.redirect) ? { redirect: search.redirect } : {},
   component: lazyRouteComponent(() => import("./DevLoginRoute.tsx"), "DevLoginRoute"),

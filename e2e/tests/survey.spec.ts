@@ -289,7 +289,7 @@ test("主催者が代わりに回答を入れ、困りごとを絞りこみ・�
 
   // 困りごと：回答の新しい順 → テスターに「はい」だけ → 月いくらの高い順
   await page
-    .getByRole("navigation", { name: "交流会の管理" })
+    .getByRole("navigation", { name: "メイン" })
     .getByRole("link", { name: "困りごと" })
     .click();
   await expect(page.getByRole("heading", { level: 1, name: "困りごと" })).toBeVisible();

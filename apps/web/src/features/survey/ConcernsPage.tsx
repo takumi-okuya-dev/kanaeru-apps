@@ -1,4 +1,4 @@
-// 困りごとの画面（主催者だけ。EXPERIENCE.md の A3 の困りごと・FR-14・UJ-4）。上に event の EventAdminNav。
+// 困りごとの画面（主催者だけ。EXPERIENCE.md の A3 の困りごと・FR-14・UJ-4）。管理の画面の行き来は外枠のナビ（core-003）。
 // 回答ごとに、名前（チェックインの名前。AD-6）・困りごと・月いくら・テスター・仕事の立場・職種。
 // 表の上に「絞りこみ」（すべて／テスターに「はい」だけ）と「並べ方」（回答の新しい順／月いくらの高い順）のチップ。
 // 広い画面は表、狭い画面はカード。5秒おきに読み直す（queries.ts）。読み直しが失敗しても前のものを出したまま。
@@ -31,7 +31,7 @@ import { useState } from "react";
 import { errorMessage } from "../../lib/api.ts";
 import { Page } from "../../lib/page.tsx";
 import { SessionGate } from "../account/index.ts";
-import { EventAccessGate, EventAdminNav, formatEventDateTime } from "../event/index.ts";
+import { EventAccessGate, formatEventDateTime } from "../event/index.ts";
 import { isNightStop, useSurveyAnswers } from "./queries.ts";
 
 /** 絞りこみの値。 */
@@ -174,7 +174,6 @@ function Concerns({ event }: { event: EventView }) {
         </Link>
       }
     >
-      <EventAdminNav eventId={event.id} role={event.myRole} />
       <div className="flex flex-col gap-xs wide:flex-row wide:gap-m">
         <ChoiceChips
           label="絞りこみ"
