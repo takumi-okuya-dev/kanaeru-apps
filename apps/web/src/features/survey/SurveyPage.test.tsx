@@ -2,7 +2,7 @@
 // チェックインしていない・送ったときに閉じていた。API は fetch の差しかえで答える。
 import type { EventSummary } from "@workspace/contracts/event";
 import type { SurveyAnswer } from "@workspace/contracts/survey";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expectNoAxeViolations } from "@workspace/ui/testing/axe";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -123,8 +123,11 @@ describe("アンケートの画面", () => {
     expect(
       screen.getByRole("radiogroup", { name: "実現したら月いくらなら使うか" }),
     ).toHaveAccessibleDescription("答えるだけで、実際には払いません");
-    const role = screen.getByRole("radiogroup", { name: "仕事の立場" });
-    expect(role.querySelector('[aria-checked="true"]')).toHaveTextContent("答えない");
+    // 選択肢の設問は、どれも「答えない」が最初に選ばれている（必須にしない。A7）
+    for (const name of ["実現したら月いくらなら使うか", "テスターになる", "仕事の立場", "職種"]) {
+      const group = screen.getByRole("radiogroup", { name });
+      expect(group.querySelector('[aria-checked="true"]')).toHaveTextContent("答えない");
+    }
     await expectNoAxeViolations(container);
 
     await userEvent.click(screen.getByRole("button", { name: "送る" }));
@@ -169,6 +172,23 @@ describe("アンケートの画面", () => {
     });
     expect(screen.queryByRole("link", { name: "続けて交流会のアンケートへ" })).toBeNull();
     expect(screen.queryByRole("link", { name: "交流会のLINEグループに参加する" })).toBeNull();
+  });
+
+  it("選んだ月いくら・テスターも「答えない」に戻せ、送ると null になる", async () => {
+    const sent = stubApi();
+    renderWithRouter(<SurveyPage eventId={EVENT_ID} />);
+    const price = await screen.findByRole("radiogroup", { name: "実現したら月いくらなら使うか" });
+    const tester = screen.getByRole("radiogroup", { name: "テスターになる" });
+    await userEvent.click(within(price).getByRole("radio", { name: "500円" }));
+    await userEvent.click(within(tester).getByRole("radio", { name: "はい" }));
+    await userEvent.click(within(price).getByRole("radio", { name: "答えない" }));
+    await userEvent.click(within(tester).getByRole("radio", { name: "答えない" }));
+    await userEvent.click(screen.getByRole("button", { name: "送る" }));
+    await screen.findByRole("heading", { level: 2 });
+    expect(sent.find((request) => request.method === "PUT")?.body).toMatchObject({
+      monthlyPrice: null,
+      tester: null,
+    });
   });
 
   it("回答済みなら前の答えが入っていて「送り直す」", async () => {

@@ -169,9 +169,11 @@ test("主催者がアンケートを開いたあと、参加者が答えてお�
     page.getByRole("heading", { level: 1, name: "仕事の困りごとを聞かせてください" }),
   ).toBeVisible();
   await expect(page.getByText("答えるだけで、実際には払いません")).toBeVisible();
-  await expect(
-    page.getByRole("radiogroup", { name: "仕事の立場" }).getByRole("radio", { name: "答えない" }),
-  ).toHaveAttribute("aria-checked", "true");
+  for (const question of ["実現したら月いくらなら使うか", "テスターになる", "仕事の立場"]) {
+    await expect(
+      page.getByRole("radiogroup", { name: question }).getByRole("radio", { name: "答えない" }),
+    ).toHaveAttribute("aria-checked", "true");
+  }
   await expectNoA11yViolations(page, "アンケートの画面");
   await expectNoHorizontalScroll(page, "アンケートの画面");
 

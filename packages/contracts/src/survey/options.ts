@@ -88,7 +88,7 @@ export const JOB_TYPE_LABELS = {
   other: "その他",
 } as const satisfies Record<JobType, string>;
 
-/** 任意の設問の「答えない」の言葉（API と DB では null）。 */
+/** 選択肢の設問（月いくら・テスター・仕事の立場・職種）の「答えない」の言葉（API と DB では null）。 */
 export const NOT_ANSWERED_LABEL = "答えない";
 
 /**

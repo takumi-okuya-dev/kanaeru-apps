@@ -16,6 +16,7 @@
   - 仕事の立場 `JOB_ROLES`：`executive`（経営者）・`manager`（管理職）・`employee`（会社員）・`freelance`（フリーランス）・`student`（学生）・`other`（その他）。
   - 職種 `JOB_TYPES`：`engineer`（エンジニア）・`designer`（デザイナー）・`sales`（営業）・`marketing`（マーケティング）・`planning`（企画・PM）・`backoffice`（事務・管理部門（人事・経理・総務など））・`management`（経営）・`other`（その他）。
   - 「答えない」`NOT_ANSWERED_LABEL`。API と DB では空（null）。画面のチップだけ `none` の値で持ち、送るときに null にする（`ChoiceChips` は1つ選ぶ形なので、選んだ状態で「答えない」を出すため）。
+  - 「答えない」のチップは、選択肢の4つの設問（月いくら・テスター・仕事の立場・職種）のどれにも最後に置き、新しい回答では最初に選んでおく（前の回答で空の設問も「答えない」で出す）。どの設問も必須にしない（A7）ので、いちど選んだ月いくら・テスターも、答えないに戻せるようにする（`ChoiceChips` は選んだものを外せないため）。
 - **Rationale**：Conventions のとおり英語の短い code と言葉と並びを隣に持つ。言葉は PRD FR-10・EXPERIENCE のまま。
 
 ## R3. 入力の形：どれも任意で、全部を送り直す

@@ -1,5 +1,5 @@
 // アンケートの欄の値と入力の行き来（P2 と主催者の代わりの入力で同じ）。
-// 任意の設問は「答えない」（none）を最初に選んでおき、送るときに null にする。困りごとの確かめは約束（SurveyAnswerInput）で行う。
+// 選択肢の設問（月いくら・テスター・仕事の立場・職種）は「答えない」（none）を最初に選んでおき、送るときに null にする。困りごとの確かめは約束（SurveyAnswerInput）で行う。
 import { SurveyAnswerInput, normalizeSurveyAnswer } from "@workspace/contracts/survey";
 import type {
   JobRole,
@@ -13,25 +13,25 @@ import type { FieldErrors } from "../../lib/form.ts";
 import { NOT_ANSWERED } from "./format.ts";
 import type { NotAnswered } from "./format.ts";
 
-/** 欄の値（まだ選んでいない設問は null、任意の設問の「答えない」は none）。 */
+/** 欄の値（選択肢の設問の「答えない」は none）。 */
 export type SurveyFormValues = {
   /** 困りごと */
   concern: string;
   /** 月いくら */
-  monthlyPrice: MonthlyPrice | null;
+  monthlyPrice: MonthlyPrice | NotAnswered;
   /** テスターになるか */
-  tester: TesterAnswer | null;
+  tester: TesterAnswer | NotAnswered;
   /** 仕事の立場 */
   jobRole: JobRole | NotAnswered;
   /** 職種 */
   jobType: JobType | NotAnswered;
 };
 
-/** 初めの欄の値（任意の設問は「答えない」）。 */
+/** 初めの欄の値（選択肢の設問は「答えない」）。 */
 export const EMPTY_SURVEY_FORM: SurveyFormValues = {
   concern: "",
-  monthlyPrice: null,
-  tester: null,
+  monthlyPrice: NOT_ANSWERED,
+  tester: NOT_ANSWERED,
   jobRole: NOT_ANSWERED,
   jobType: NOT_ANSWERED,
 };
@@ -45,8 +45,8 @@ export function surveyFormFromAnswer(answer: SurveyAnswer | null): SurveyFormVal
   if (!answer) return EMPTY_SURVEY_FORM;
   return {
     concern: answer.concern ?? "",
-    monthlyPrice: answer.monthlyPrice,
-    tester: answer.tester,
+    monthlyPrice: answer.monthlyPrice ?? NOT_ANSWERED,
+    tester: answer.tester ?? NOT_ANSWERED,
     jobRole: answer.jobRole ?? NOT_ANSWERED,
     jobType: answer.jobType ?? NOT_ANSWERED,
   };
@@ -65,8 +65,8 @@ export type SurveyFormResult =
 export function validateSurveyForm(values: SurveyFormValues): SurveyFormResult {
   const parsed = SurveyAnswerInput.safeParse({
     concern: values.concern,
-    monthlyPrice: values.monthlyPrice,
-    tester: values.tester,
+    monthlyPrice: values.monthlyPrice === NOT_ANSWERED ? null : values.monthlyPrice,
+    tester: values.tester === NOT_ANSWERED ? null : values.tester,
     jobRole: values.jobRole === NOT_ANSWERED ? null : values.jobRole,
     jobType: values.jobType === NOT_ANSWERED ? null : values.jobType,
   });

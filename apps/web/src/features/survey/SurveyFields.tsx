@@ -1,6 +1,7 @@
 // アンケートの設問の欄（困りごと・月いくら・テスター・任意〈仕事の立場・職種〉）。P2 と主催者の代わりの入力で同じものを使う。
 // どれも必須にしない（決定 A7）。月いくらには「答えるだけで、実際には払いません」を書く（FR-10）。
-// 任意の設問は「任意」の見出し（fieldset の legend）でまとめ、どちらも「答えない」を最初に選んでおく（EXPERIENCE）。
+// 任意の設問は「任意」の見出し（fieldset の legend）でまとめる（EXPERIENCE）。選択肢の設問（月いくら・テスター・仕事の立場・職種）は
+// どれも「答えない」を最後に置いて最初に選んでおき、選んだあとでも答えないに戻せる（A7）。
 import { SURVEY_QUESTION_LABELS } from "@workspace/contracts/survey";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { Field } from "@workspace/ui/components/field";

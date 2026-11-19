@@ -95,9 +95,9 @@ const isoDateTime = z.iso.datetime({ offset: true });
 export const SurveyAnswer = z.object({
   /** 困りごと（なければ null） */
   concern: z.string().nullable(),
-  /** 月いくら（答えていなければ null） */
+  /** 月いくら（答えていない・「答えない」なら null） */
   monthlyPrice: MonthlyPriceSchema.nullable(),
-  /** テスターになるか（答えていなければ null） */
+  /** テスターになるか（答えていない・「答えない」なら null） */
   tester: TesterAnswerSchema.nullable(),
   /** 仕事の立場（「答えない」なら null） */
   jobRole: JobRoleSchema.nullable(),
