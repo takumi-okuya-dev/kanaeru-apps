@@ -51,10 +51,9 @@ test("CSP を効かせたまま、画面を出して道を変えても、違反�
   await expect(
     page.getByRole("heading", { level: 1, name: "ページが見つかりません" }),
   ).toBeVisible();
+  // はじめの画面（/）は、ナビの最初の項目へ移る（どの画面になるかは書かない。並行開発の決まり 3-2）
   await page.getByRole("link", { name: "はじめの画面へ戻る" }).click();
-  await expect(page).toHaveURL("/");
-  await expect(
-    page.getByRole("heading", { level: 1, name: "ページが見つかりません" }),
-  ).toBeVisible();
+  await expect(page).not.toHaveURL(/\/no\/such\/page$/);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   expect(await violations()).toEqual([]);
 });

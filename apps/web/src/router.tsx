@@ -53,10 +53,13 @@ const indexRoute = createRoute({
   component: NotFoundPage,
 });
 
+/** 登録された領域の道の型の和（領域が2つ以上のとき、flatMap が最初の領域の道の型だけに決めないように書く）。 */
+type RegisteredRoute = RegisteredFeature["routes"][number];
+
 /** 道の木。 */
 export const routeTree = rootRoute.addChildren([
   indexRoute,
-  ...registeredFeatures.flatMap((feature) => feature.routes),
+  ...registeredFeatures.flatMap((feature): readonly RegisteredRoute[] => feature.routes),
 ]);
 
 /**

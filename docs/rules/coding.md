@@ -118,6 +118,7 @@
 - LINE（`@line/liff`）を読むのは `apps/web/src/lib/liff.ts` だけ。画面と領域は `initLiff`・`getLiff` を使い、`liff.init()` を書かない（構成の決めごと AD-4）。サーバーに送るのは `getIDToken()` の生の値だけ。
 - 参加者が開く画面の道・ミニアプリの URL・日本時間の日付と「その日の終わり」・夜間の停止の時間帯と DB に届かないときの文は、`@workspace/contracts/core` のもの（`participantPaths`・`PARTICIPANT_ROUTE_PATTERNS`・`miniAppPermalink`・`jstDate`・`endOfJstDate`・`isNightStopWindow`・`dbUnavailableMessage`）を使い、領域の中で作り直さない（AD-10・AD-14・Consistency Conventions）。
 - ログインが要る API の道は、account の `requireSession(deps)` を `createRoute` の `middleware` に付け、今の利用者は `currentAccount(c)`、主催者かは `isOrganizer(deps.config, …)` で読む。クッキーと `session`・`account` の表を領域で読まない（AD-3・AD-12）。ログインが要る画面は account の `SessionGate` で包み、今の利用者は `useSession()` で読む。
+- 交流会ごとの権限が要る API の道は、event の `requireEventRole(deps, roles)` を `requireSession(deps)` のあとに付け、役目は `currentEventRole(c)`、参加者に見せてよい交流会の欄は `getEventSummary(db, config, eventId)` で読む。`event`・`event_staff` の表を領域で読まない（AD-3・AD-5）。管理の画面（`/admin/events/…`）の道は `@workspace/contracts/event` の `ADMIN_ROUTE_PATTERNS`・`adminPaths` を使って作り直さず、画面の上に event の `EventAdminNav` を置き、交流会の読みこみと役目の確かめは `EventAccessGate`（か `useEvent`）で行う。
 - DB に届かないときの 503（`DB_UNAVAILABLE`）は土台（`kernel/errors.ts` の `toAppError`）が返す。領域で DB の接続のエラーを捕まえて読みかえない（AD-10）。
 - DB の命令を文字のつなぎで作らない・`sql.raw` を使わない・HTML をそのまま差しこまない・アプリのコードから OS のコマンドを動かさない（どれも lint で止める）。
 
@@ -133,8 +134,8 @@
 
 - 単体と結合は Vitest（ルートの `vitest.config.ts` がワークスペースをまとめて流す）、通しは Playwright（アクセシビリティは `@axe-core/playwright`。1440px と 375px の2つの幅）。
 - API の結合のテストは本物の PostgreSQL に当てる。テストの始めに `<DB名>_test_template` に DB の変更を当て、Vitest の働き手ごとに写した DB を使う（`apps/api/test/helpers/db.ts` の `useTestDatabase()`）。表の名前を書き並べず、`truncateAllTables` で空にする。
-- 領域の窓口を足したら、`modules/<領域>/` に結合のテスト（作る・読む・直す・消すと、入力の誤り・ない ID）を足す。ログインした要求は `test/helpers/account.ts` の `loginAs`・`withCookie` で作る（試験用のログイン）。外のサービスの答えは `buildApp` の `fetch` で差しかえる（既定はテストから外へ出ない）。画面を足したら、`e2e/tests/` に通しの流れとアクセシビリティの確かめを足す。
-- E2E は E2E 専用の DB（`<DB名>_e2e`）と、`.env` の口の番号に 1000 を足した口を使い、1つずつ順に流す（テストの始めに DB を決まった状態にする）。E2E の API と画面に渡す設定は `e2e/env.ts` で決める（手元の `.env` からは DB の接続先と口の番号だけを読む）。
+- 領域の窓口を足したら、`modules/<領域>/` に結合のテスト（作る・読む・直す・消すと、入力の誤り・ない ID）を足す。ログインした要求は `test/helpers/account.ts` の `loginAs`・`withCookie` で作る（試験用のログイン）。交流会と受付係は `test/helpers/event.ts` の `createEvent`・`makeStaff` で作る。外のサービスの答えは `buildApp` の `fetch` で差しかえる（既定はテストから外へ出ない）。画面を足したら、`e2e/tests/` に通しの流れとアクセシビリティの確かめを足す。
+- E2E は E2E 専用の DB（`<DB名>_e2e`）と、`.env` の口の番号に 1000 を足した口を使い、1つずつ順に流す（テストの始めに DB を決まった状態にする）。E2E の API と画面に渡す設定は `e2e/env.ts` で決める（手元の `.env` からは DB の接続先と口の番号だけを読む）。E2E の主催者は `e2e/env.ts` の `E2E_ORGANIZER_LINE_USER_ID` で試験用のログインをする。
 - テストの設定（`apps/api/vitest.config.ts`・`e2e/env.ts`）は、手元の `.env` からは DB の接続先と口の番号だけを読み、機能の印などはテストの中で決める（2章）。
 
 ### 6-6. 領域を足す手順

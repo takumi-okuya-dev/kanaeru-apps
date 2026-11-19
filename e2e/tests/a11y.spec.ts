@@ -17,13 +17,17 @@ async function expectNoHorizontalScroll(page: Page, label: string): Promise<void
 }
 
 test("はじめの画面・見つからない画面", async ({ page }) => {
-  // 領域がまだないので、はじめの画面（/）は見つからない画面を外枠の中に出す
-  for (const path of ["/", "/no/such/page"]) {
-    await page.goto(path);
-    await expect(
-      page.getByRole("heading", { level: 1, name: "ページが見つかりません" }),
-    ).toBeVisible();
-    await expectNoA11yViolations(page, path);
-    await expectNoHorizontalScroll(page, path);
-  }
+  // はじめの画面（/）は、ナビの最初の項目へ移る（ナビを出す領域がなければ見つからない画面）。
+  // どの領域の画面になるかは書かない（並行開発の決まり 3-2）。どちらも外枠の中に h1 を出す
+  await page.goto("/");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expectNoA11yViolations(page, "/");
+  await expectNoHorizontalScroll(page, "/");
+
+  await page.goto("/no/such/page");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "ページが見つかりません" }),
+  ).toBeVisible();
+  await expectNoA11yViolations(page, "/no/such/page");
+  await expectNoHorizontalScroll(page, "/no/such/page");
 });
