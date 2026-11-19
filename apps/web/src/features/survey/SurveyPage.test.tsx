@@ -23,6 +23,7 @@ const SUMMARY: EventSummary = {
   googleFormUrl: "https://forms.gle/example",
   lineGroupUrl: "https://line.me/R/ti/g/example",
   openChatUrl: null,
+  discounts: [],
 };
 
 /** 回答の見本。 */

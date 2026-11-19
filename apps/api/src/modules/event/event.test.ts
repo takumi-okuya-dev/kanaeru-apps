@@ -171,6 +171,7 @@ describe("交流会の窓口", () => {
         googleFormUrl: null,
         lineGroupUrl: "https://line.me/R/ti/g/x",
         openChatUrl: "https://line.me/ti/g2/example",
+        discounts: [],
       });
       expect((await app.request(`/api/v1/events/${created.id}/summary`)).status).toBe(401);
       const missing = await call(app, participant.cookie, `/api/v1/events/${MISSING_ID}/summary`);

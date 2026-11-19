@@ -29,6 +29,12 @@ export const EVENT_ERRORS = {
     message:
       "この招待のリンクは使えません。交流会の日が終わりました。主催者に新しいリンクをもらってください。",
   },
+  /** 割引の並びの id が、その交流会の割引でない（reception-002） */
+  DISCOUNT_NOT_FOUND: {
+    code: "DISCOUNT_NOT_FOUND",
+    status: 400,
+    message: "直そうとした割引が見つかりません。画面を読み直してから、もう一度保存してください。",
+  },
 } as const;
 
 /** 領域のエラーのキー。 */

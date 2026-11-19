@@ -43,6 +43,13 @@
       "when": 1795036945397,
       "tag": "0005_survey",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795058321413,
+      "tag": "0006_event_discount",
+      "breakpoints": true
     }
   ]
 }

@@ -22,6 +22,7 @@ const SUMMARY: EventSummary = {
   googleFormUrl: null,
   lineGroupUrl: null,
   openChatUrl: null,
+  discounts: [],
 };
 
 /** チェックインの見本。 */

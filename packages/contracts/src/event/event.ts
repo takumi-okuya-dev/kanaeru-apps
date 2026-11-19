@@ -16,6 +16,12 @@ export const EVENT_FEE_MAX = 1_000_000;
 /** URL の文字数の上限。 */
 export const EVENT_URL_MAX = 2000;
 
+/** 割引の名前の文字数の上限（チップに「紹介割（−1,000円）」と出すので短く。reception-002 research R3）。 */
+export const EVENT_DISCOUNT_NAME_MAX = 30;
+
+/** 1つの交流会に置ける割引の数の上限。 */
+export const EVENT_DISCOUNTS_MAX = 10;
+
 /**
  * https の URL か（参加者の画面のリンクに javascript: などを入れさせない）。
  * @param value 文字
@@ -47,6 +53,51 @@ function optionalHttpsUrl(label: string) {
     .optional();
 }
 
+/**
+ * 割引の1行の入力（reception-002）。id があればその割引を直し、なければ足す。
+ * 額は円の整数（1円以上）。紹介者の名前を聞くかは、送らなければ聞かない。
+ */
+export const EventDiscountInput = z.strictObject({
+  id: z.guid({ error: "割引の ID の形が違います。" }).nullable().optional(),
+  name: z
+    .string({ error: "割引の名前を入れてください。" })
+    .trim()
+    .min(1, { error: "割引の名前を入れてください。" })
+    .max(EVENT_DISCOUNT_NAME_MAX, {
+      error: `割引の名前は${EVENT_DISCOUNT_NAME_MAX}文字までにしてください。`,
+    }),
+  amount: z
+    .number({ error: "割引の額を数字で入れてください。" })
+    .int({ error: "割引の額は円の整数で入れてください。" })
+    .min(1, { error: "割引の額は1円以上にしてください。" })
+    .max(EVENT_FEE_MAX, { error: "割引の額は1,000,000円までにしてください。" }),
+  asksReferrer: z.boolean({ error: "紹介者の名前を聞くかを送ってください。" }).optional(),
+});
+
+/** 割引の1行の入力の型（確かめたあと）。 */
+export type EventDiscountInput = z.infer<typeof EventDiscountInput>;
+
+/**
+ * 割引の並び（10まで・同じ名前を重ねない。重なりは2つ目の名前の欄の誤りにする）。
+ * 送った並びが、その交流会で使う割引のすべて（並びにない割引は使うのをやめる。reception-002 research R2）。
+ */
+export const EventDiscountsInput = z
+  .array(EventDiscountInput, { error: "割引の並びを送ってください。" })
+  .max(EVENT_DISCOUNTS_MAX, { error: `割引は${EVENT_DISCOUNTS_MAX}個までにしてください。` })
+  .superRefine((discounts, ctx) => {
+    const seen = new Set<string>();
+    discounts.forEach((discount, index) => {
+      if (seen.has(discount.name)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "同じ名前の割引があります。別の名前にしてください。",
+          path: [index, "name"],
+        });
+      }
+      seen.add(discount.name);
+    });
+  });
+
 /** 交流会を作る・直すときの入力（知らない欄は誤り）。アンケートの開閉は別の窓口。 */
 export const EventInput = z.strictObject({
   name: z
@@ -67,6 +118,8 @@ export const EventInput = z.strictObject({
     .max(EVENT_FEE_MAX, { error: "参加費は1,000,000円までにしてください。" }),
   googleFormUrl: optionalHttpsUrl("GoogleフォームのURL"),
   lineGroupUrl: optionalHttpsUrl("LINEグループの招待リンク"),
+  /** 割引（任意。送らなければ割引は変えない。reception-002） */
+  discounts: EventDiscountsInput.optional(),
 });
 
 /** 交流会を作る・直すときの入力の型（確かめたあと）。 */
@@ -77,6 +130,21 @@ export const EventRoleSchema = z.enum(EVENT_ROLES);
 
 /** 時差つきの ISO 8601。 */
 const isoDateTime = z.iso.datetime({ offset: true });
+
+/** 使っている割引（交流会・要約に出す。作った順。参加者に見せてよい欄だけ）。 */
+export const EventDiscountView = z.object({
+  /** 割引の ID */
+  id: z.guid(),
+  /** 名前 */
+  name: z.string(),
+  /** 額（円の整数） */
+  amount: z.number().int(),
+  /** 紹介者の名前を聞くか */
+  asksReferrer: z.boolean(),
+});
+
+/** 使っている割引の型。 */
+export type EventDiscountView = z.infer<typeof EventDiscountView>;
 
 /** 交流会（主催者と受付係が読む形。自分の役目つき）。 */
 export const EventView = z.object({
@@ -96,6 +164,8 @@ export const EventView = z.object({
   lineGroupUrl: z.string().nullable(),
   /** アンケートが開いているか */
   surveyOpen: z.boolean(),
+  /** 使っている割引（作った順。reception-002） */
+  discounts: z.array(EventDiscountView),
   /** 作った時刻 */
   createdAt: isoDateTime,
   /** 直した時刻 */
@@ -136,6 +206,8 @@ export const EventSummary = z.object({
   lineGroupUrl: z.string().nullable(),
   /** コミュニティのオープンチャットの URL（設定 OPEN_CHAT_URL。なければ null。FR-17・A22） */
   openChatUrl: z.string().nullable(),
+  /** 使っている割引（作った順。チェックインの画面のチップ。reception-002） */
+  discounts: z.array(EventDiscountView),
 });
 
 /** 交流会の要約の型。 */
