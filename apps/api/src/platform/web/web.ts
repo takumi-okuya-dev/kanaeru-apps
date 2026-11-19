@@ -1,8 +1,9 @@
 // 画面のファイルを返す（構成の決めごと AD-8）。
 // 設定 WEB_DIST_DIR（組み立てた画面のフォルダ）があるとき、組み立て（app.ts）が /api 以外の道につなぐ。
 // - ファイルがあれば返す（@hono/node-server の serveStatic。.. や %2e などの道は中で止まる）
-// - ファイルがなく、最後の部分に拡張子のない道は index.html（SPA。画面の道は画面の道具が決める）
-// - 拡張子のある道（/assets/ない.js）は返さず、次（API の 404）へ渡す（壊れた JS を HTML で返さない）
+// - /assets/ の下でファイルがなければ、返さずに次（API の 404）へ渡す（壊れた JS を HTML で返さない）
+// - ほかの道でファイルがなければ index.html（SPA。画面の道は画面の道具が決める。参加者の道に . があってもよい）
+// - キャッシュの見出しは、ファイルを返せた応答（200・206）だけに付ける（416 などに長いキャッシュを付けない）
 // 守りの見出しは、/api は API の CSP（app.ts）、ほかは画面の CSP（ここ）。
 // 画面の CSP は、自分の源と、LINE の SDK（@line/liff 2.32）が使う源だけを許す
 // （どの源を何に使うかは specs/core/001-foundation/research.md R7。'unsafe-inline'・'unsafe-eval' は入れない）。
@@ -75,16 +76,6 @@ export function webSecureHeaders(webUrl: string): MiddlewareHandler {
 }
 
 /**
- * 道の最後の部分に拡張子があるか（/assets/app.js・/favicon.ico など）。
- * @param path 要求の道
- * @returns 拡張子があれば true
- */
-function hasExtension(path: string): boolean {
-  const last = path.slice(path.lastIndexOf("/") + 1);
-  return last.includes(".");
-}
-
-/**
  * 組み立てた画面のファイルを返す middleware を作る。index.html は作るときに1度だけ読む。
  * @param options 画面のフォルダ
  * @param options.distDir 組み立てた画面のフォルダ（絶対の道。設定の WEB_DIST_DIR）
@@ -105,22 +96,19 @@ export function serveWeb(options: { distDir: string }): MiddlewareHandler {
     if (isApiPath(c.req.path) || (c.req.method !== "GET" && c.req.method !== "HEAD")) {
       return next();
     }
-    c.header(
-      "Cache-Control",
-      c.req.path.startsWith(IMMUTABLE_PREFIX) ? IMMUTABLE_CACHE : REVALIDATE_CACHE,
-    );
-    let missing = false;
-    const found = await files(c, async () => {
-      missing = true;
-      await Promise.resolve();
-    });
-    if (!missing && found) return found;
-    if (hasExtension(c.req.path)) {
-      // ないファイルの 404 を長く持たせない（API の 404 の no-store にする）
-      c.header("Cache-Control", undefined);
-      c.header("Content-Type", undefined);
-      return next();
+    // ファイルがなければ、serveStatic は次（ここでは何も返さない関数）を呼び、undefined を返す
+    const found = await files(c, () => Promise.resolve());
+    if (found) {
+      if (found.status === 200 || found.status === 206) {
+        found.headers.set(
+          "Cache-Control",
+          c.req.path.startsWith(IMMUTABLE_PREFIX) ? IMMUTABLE_CACHE : REVALIDATE_CACHE,
+        );
+      }
+      return found;
     }
+    // /assets/ の下のないファイルは、index.html を返さず API の 404（no-store）にする
+    if (c.req.path.startsWith(IMMUTABLE_PREFIX)) return next();
     c.header("Cache-Control", REVALIDATE_CACHE);
     if (c.req.method === "HEAD") {
       c.header("Content-Type", "text/html; charset=UTF-8");

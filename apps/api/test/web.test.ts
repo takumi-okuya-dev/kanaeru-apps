@@ -47,6 +47,9 @@ describe("画面のファイル", () => {
       "/",
       "/e/0193a1b2-0000-7000-8000-000000000000/checkin",
       "/invite/abc",
+      // 参加者の道に . があっても画面の道（拡張子として扱わない）
+      "/invite/abc.def",
+      "/e/x/survey/v1.2",
       "/apifoo",
     ]) {
       const response = await app.request(path);
@@ -75,11 +78,30 @@ describe("画面のファイル", () => {
     expect(await response.text()).toBe("console.log(1);");
   });
 
-  it("拡張子のある道でファイルがなければ、index.html を返さず 404（長く持たせない）", async () => {
-    const response = await appWithWeb().request("/assets/nothing-here.js");
-    expect(response.status).toBe(404);
-    expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(((await response.json()) as { error: { code: string } }).error.code).toBe("NOT_FOUND");
+  it("/assets/ の下でファイルがなければ、index.html を返さず 404（長く持たせない）", async () => {
+    const app = appWithWeb();
+    for (const path of ["/assets/nothing-here.js", "/assets/nothing-here"]) {
+      const response = await app.request(path);
+      expect(response.status, path).toBe(404);
+      expect(response.headers.get("cache-control"), path).toBe("no-store");
+      expect(((await response.json()) as { error: { code: string } }).error.code, path).toBe(
+        "NOT_FOUND",
+      );
+    }
+  });
+
+  it("範囲の要求：206 は長く持たせ、範囲が合わない 416 には長いキャッシュを付けない", async () => {
+    const app = appWithWeb();
+    const partial = await app.request("/assets/app-abc123.js", { headers: { range: "bytes=0-6" } });
+    expect(partial.status).toBe(206);
+    expect(partial.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+    expect(await partial.text()).toBe("console");
+    const unsatisfiable = await app.request("/assets/app-abc123.js", {
+      headers: { range: "bytes=9999-" },
+    });
+    expect(unsatisfiable.status).toBe(416);
+    expect(unsatisfiable.headers.get("cache-control") ?? "").not.toContain("immutable");
+    expect(unsatisfiable.headers.get("cache-control") ?? "").not.toContain("max-age");
   });
 
   it("画面のフォルダの外のファイルは読ませない", async () => {
