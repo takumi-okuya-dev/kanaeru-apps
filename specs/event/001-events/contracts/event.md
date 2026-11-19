@@ -41,7 +41,7 @@
 
 | 名前 | 形 | 使い方 |
 |---|---|---|
-| `getEventRole(db, config, eventId, account)` | `→ Promise<"organizer" \| "staff" \| null>` | 交流会がなければ `null` |
+| `getEventRole(db, config, eventId, account)` | `→ Promise<"organizer" \| "staff" \| null>` | 交流会がない・役目がないときは `null`（2つは見分けられない。404 と 403 を分けるときは `requireEventRole`） |
 | `requireEventRole(deps, roles)` | `(deps: { db, config }, roles: readonly EventRole[]) => MiddlewareHandler` | `middleware: [requireSession(deps), requireEventRole(deps, ["organizer", "staff"])] as const`。道に `{eventId}` が要る。404・403 |
 | `currentEventRole(c)` | `(c) => "organizer" \| "staff"` | `requireEventRole` のあとの処理で読む |
 | `getEventSummary(db, config, eventId)` | `→ Promise<EventSummary \| null>` | survey が回答のたびに開閉を読む（AD-13）・reception が参加費を読む（AD-6） |

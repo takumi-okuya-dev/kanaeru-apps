@@ -37,7 +37,7 @@ import {
   upsertInvite,
 } from "./repository.ts";
 import type { EventRecord, EventValues, StaffInviteRecord } from "./repository.ts";
-import { toEventSummary, toEventView } from "./summary.ts";
+import { getEventSummary, toEventView } from "./summary.ts";
 
 /** 交流会の入力（文書の名前と例つき）。 */
 const EventInput = contract.EventInput.openapi("EventInput", {
@@ -418,9 +418,9 @@ export function eventRoutes(deps: DomainRouteDeps) {
       return c.json(toEventView(record, "organizer"), 200);
     })
     .openapi(routes.summary, async (c) => {
-      const record = await findEventById(db, c.req.valid("param").eventId);
-      if (!record) throw new AppError(EVENT_ERRORS.NOT_FOUND);
-      return c.json(toEventSummary(config, record), 200);
+      const summary = await getEventSummary(db, config, c.req.valid("param").eventId);
+      if (!summary) throw new AppError(EVENT_ERRORS.NOT_FOUND);
+      return c.json(summary, 200);
     })
     .openapi(routes.survey, async (c) => {
       const record = await setSurveyOpen(
@@ -443,6 +443,8 @@ export function eventRoutes(deps: DomainRouteDeps) {
     })
     .openapi(routes.listStaff, async (c) => {
       const rows = await listStaff(db, c.req.valid("param").eventId);
+      // 表示名は account の findAccountById で1人ずつ（同時に）引く。account の表とは結ばない（AD-3）。
+      // 受付係は1つの交流会に数人なので足りる。まとめて引く関数が account に増えたら、それに替える（research R7）
       const staff = await Promise.all(
         rows.map(async (row) => ({
           accountId: row.accountId,
@@ -466,7 +468,11 @@ export function eventRoutes(deps: DomainRouteDeps) {
     .openapi(routes.previewInvite, async (c) => {
       const record = await findInvitedEvent(deps, c.req.valid("param").inviteToken);
       const me = currentAccount(c);
-      const membership = await findEventMembership(db, record.id, me.accountId);
+      const myRole = isOrganizer(config, me)
+        ? "organizer"
+        : (await findEventMembership(db, record.id, me.accountId))?.isStaff
+          ? "staff"
+          : null;
       const expiresAt = endOfJstDate(record.startsAt);
       const preview: contract.InvitePreview = {
         eventId: record.id,
@@ -474,7 +480,7 @@ export function eventRoutes(deps: DomainRouteDeps) {
         startsAt: record.startsAt.toISOString(),
         expiresAt: expiresAt.toISOString(),
         expired: Date.now() >= expiresAt.getTime(),
-        myRole: isOrganizer(config, me) ? "organizer" : membership?.isStaff ? "staff" : null,
+        myRole,
       };
       return c.json(preview, 200);
     })

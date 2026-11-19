@@ -22,11 +22,13 @@ type RoleEnv = { Variables: { [CONTEXT_KEY]: EventRole } };
 
 /**
  * その account の、その交流会での役目を引く（要求のたびに呼ぶ。AD-5）。
+ * null は「交流会がない（ID の形が違うときも）」と「主催者でも受付係でもない」の両方で、見分けられない。
+ * 道で 404（ない）と 403（権限がない）を分けるときは、これで決めずに requireEventRole を付ける。
  * @param db DB
  * @param config 領域の設定（organizerLineUserId。道の deps.config を渡す）
- * @param eventId 交流会の ID（uuid の形でなければ null）
+ * @param eventId 交流会の ID
  * @param account 今の利用者（currentAccount(c) の値）
- * @returns 主催者・受付係・どちらでもない（交流会がなければ null）
+ * @returns "organizer"・"staff"。交流会がない・役目がないときは null
  */
 export async function getEventRole(
   db: Executor,

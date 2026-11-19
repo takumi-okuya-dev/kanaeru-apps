@@ -64,7 +64,7 @@ const summary = await getEventSummary(deps.db, deps.config, eventId); // 参加�
 |---|---|
 | `requireEventRole(deps, roles)` | `requireSession` のあとに付ける。道の `{eventId}` を読み、形の違う ID・ない交流会は 404、役目が `roles` になければ 403。要求のたびに DB を引く |
 | `currentEventRole(c)` | `requireEventRole` が通した役目 |
-| `getEventRole(db, config, eventId, account)` | `"organizer"`・`"staff"`・`null`（交流会がなくても `null`）。`account` は `currentAccount(c)` |
+| `getEventRole(db, config, eventId, account)` | `"organizer"`・`"staff"`・`null`。`null` は「交流会がない（ID の形が違うときも）」と「役目がない」の両方で見分けられない。404 と 403 を分ける道は `requireEventRole` を付ける。`account` は `currentAccount(c)` |
 | `getEventSummary(db, config, eventId)` | 要約（`EventSummary`）か `null`。survey は回答のたびに開閉を読む（AD-13）、reception は参加費を読む（AD-6） |
 | `eventTable` | 外部キーのためだけ |
 | `eventForbiddenResponse`・`eventNotFoundResponse` | `createRoute` の 403・404 の応答 |
