@@ -1,10 +1,12 @@
 // API の結合のテストの DB。
 // Vitest の働き手ごとに、雛形の DB から CREATE DATABASE … TEMPLATE … で写す。
 // テストのファイルの始めに、pg_catalog から表を読んで全部を空にする（表の名前を書き並べない）。
+// 空にしたあと、DB の変更が入れた初めの行（suite の台帳：受付アプリは公開）を戻す（本番と同じ初めの状態にする）。
 import { afterAll, beforeAll, inject } from "vitest";
 import { databaseNameOf, withAdminClient, withDatabaseName } from "../../scripts/lib/database.ts";
 import { createDatabase } from "../../src/kernel/db.ts";
 import type { Database } from "../../src/kernel/db.ts";
+import { restoreInitialAppSettings } from "../../src/modules/suite/index.ts";
 
 /** 空にしない schema（PostgreSQL の中と、DB の変更の記録）。 */
 export const KEPT_SCHEMAS = ["pg_catalog", "information_schema", "drizzle"];
@@ -28,7 +30,7 @@ async function ensureWorkerDatabase(): Promise<string> {
 }
 
 /**
- * DB のアプリの表を全部空にする（表は pg_catalog から読む）。
+ * DB のアプリの表を全部空にし、DB の変更が入れた初めの行を戻す（表は pg_catalog から読む）。
  * @param database DB の接続
  */
 export async function truncateAllTables(database: Database): Promise<void> {
@@ -46,6 +48,7 @@ export async function truncateAllTables(database: Database): Promise<void> {
     .map(({ schema, name }) => `"${schema.replaceAll('"', '""')}"."${name.replaceAll('"', '""')}"`)
     .join(", ");
   await database.pool.query(`TRUNCATE ${names} RESTART IDENTITY CASCADE`);
+  await restoreInitialAppSettings(database.db);
 }
 
 /** テストのファイルで使う DB。beforeAll のあとに読む。 */

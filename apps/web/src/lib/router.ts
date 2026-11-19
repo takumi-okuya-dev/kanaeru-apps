@@ -18,10 +18,19 @@ export type RouterContext = {
  */
 export type ShellLayout = "admin" | "bare";
 
+/**
+ * 外枠の画面（どのアプリにも属さない画面。core-005）。
+ * - "apps"：すべてのアプリ（ナビの項目を出さない）
+ * - "settings"：設定（ナビは設定の項目。スマホは一覧の画面から入る）
+ */
+export type ShellSection = "apps" | "settings";
+
 declare module "@tanstack/react-router" {
   interface StaticDataRouteOption {
     /** 外枠の形（書かなければ "admin"） */
     layout?: ShellLayout;
+    /** 外枠の画面か（書かなければ、道を出した領域が属するアプリの画面） */
+    section?: ShellSection;
   }
 }
 

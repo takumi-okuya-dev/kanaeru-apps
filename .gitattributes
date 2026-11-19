@@ -6,3 +6,4 @@
 apps/api/src/modules.list.ts merge=union
 apps/web/src/features.list.ts merge=union
 docs/decisions.md merge=union
+packages/contracts/src/core/apps.list.ts merge=union

@@ -21,6 +21,13 @@ export const ACCOUNT_ERRORS = {
     status: 502,
     message: "LINEにつながりませんでした。電波の良い所で、もう一度試してください。",
   },
+  /** ほかの人が書きこむ記録を持っているので、退会できない（先に記録を消すか渡す。AD-19） */
+  ACCOUNT_OWNS_SHARED_RECORDS: {
+    code: "ACCOUNT_OWNS_SHARED_RECORDS",
+    status: 409,
+    message:
+      "ほかの人も使っている記録があるため、退会できません。先にその記録を消すか、ほかの人に渡してから、もう一度お試しください。",
+  },
 } as const;
 
 /** 領域のエラーの code。 */

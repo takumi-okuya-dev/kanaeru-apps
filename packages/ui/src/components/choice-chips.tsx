@@ -31,6 +31,8 @@ export type ChoiceChipsProps<V extends string> = {
   description?: React.ReactNode;
   /** 誤りの文（あれば設問の下に出し、まとまりに aria-invalid を付ける） */
   error?: string | undefined;
+  /** 設問の名前を、読み上げだけにするか（表の行のように、名前が見出しや列で分かるとき。既定 false） */
+  labelHidden?: boolean;
   /** まとまりの追加の class */
   className?: string;
 };
@@ -65,7 +67,7 @@ function CheckMark() {
 
 /**
  * 選択肢のチップ（1つの設問）。
- * @param props 設問の名前（label）・選択肢（options）・選んだ値（value）・選んだとき（onValueChange）・説明・誤り
+ * @param props 設問の名前（label）・選択肢（options）・選んだ値（value）・選んだとき（onValueChange）・説明・誤り・名前を隠すか
  * @returns 設問のまとまりの要素
  */
 export function ChoiceChips<V extends string>({
@@ -75,6 +77,7 @@ export function ChoiceChips<V extends string>({
   onValueChange,
   description,
   error,
+  labelHidden = false,
   className,
 }: ChoiceChipsProps<V>) {
   const id = useId();
@@ -86,7 +89,7 @@ export function ChoiceChips<V extends string>({
     .join(" ");
   return (
     <div data-slot="choice-chips" className={cn("flex flex-col gap-x3s", className)}>
-      <p id={labelId} className="text-m font-bold text-text">
+      <p id={labelId} className={cn("text-m font-bold text-text", labelHidden && "sr-only")}>
         {label}
       </p>
       {description ? (

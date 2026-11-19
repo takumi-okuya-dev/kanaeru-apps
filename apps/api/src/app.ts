@@ -5,10 +5,19 @@
 // 窓口の文書（GET /api/openapi.json）は、設定 OPENAPI_DOC_ENABLED が true のときだけ出す（production では止める）。
 // 設定 WEB_DIST_DIR があれば、/api 以外の道に組み立てた画面を返す（platform/web。AD-8）。守りの見出しは /api と画面で分ける。
 // ログインは account の領域が持つ（AD-12。道ごとに account の requireSession を付ける）。領域には、秘密でない設定（DomainConfig）と
-// 外への出口（fetch）を渡す。
+// 外への出口（fetch）と、登録されたアプリ（apps）を渡す。
+// アプリが見えるか（AD-16）：packages/contracts/src/core/apps.list.ts の「アプリ → 属する領域」から、アプリに属する領域の
+// すべての道に suite の requireApp を付ける（各アプリは付けない。見えなければ 404）。どのアプリにも共通にも属さない領域があれば、
+// 起動を止める（requireApp の付け忘れで、作りかけのアプリが見えないように）。
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import type { Hook } from "@hono/zod-openapi";
-import type { FieldError } from "@workspace/contracts/core";
+import {
+  appOfDomain,
+  appRegistryProblems,
+  listApps,
+  unassignedDomains,
+} from "@workspace/contracts/core";
+import type { AppDefinition, FieldError } from "@workspace/contracts/core";
 import type { Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { csrf } from "hono/csrf";
@@ -24,6 +33,7 @@ import type { ApiEnv, DomainRouteDeps } from "./kernel/http.ts";
 import type { Logger } from "./kernel/logger.ts";
 import { REQUEST_ID_HEADER, requestIdMiddleware } from "./kernel/request-id.ts";
 import * as modules from "./modules.list.ts";
+import { requireApp } from "./modules/suite/index.ts";
 import { healthRoutes } from "./platform/health/index.ts";
 import { createRateLimiter } from "./platform/rate-limit/index.ts";
 import {
@@ -46,8 +56,13 @@ export type AppDeps = {
   database: Database;
   /** ログ */
   logger: Logger;
-  /** modules.list.ts のほかに足す領域（テストだけで使う） */
-  extraModules?: DomainModule[];
+  /**
+   * modules.list.ts のほかに足す領域（テストだけで使う）。並びなら "extra:<番号>"、名前つきならその名前を領域の名前にする
+   * （extraApps のアプリの領域にするときは名前つきで渡す）
+   */
+  extraModules?: DomainModule[] | Readonly<Record<string, DomainModule>>;
+  /** apps.list.ts のほかに足すアプリ（テストだけで使う。E2E の見本のアプリなど） */
+  extraApps?: AppDefinition[];
   /** 領域の機能の印の差しかえ（テストだけ。なければ設定の DOMAIN_FEATURES で作る） */
   features?: DomainFeatures;
   /** 領域が外のサービスへ出る HTTP の出口の差しかえ（テストだけ。なければ globalThis.fetch） */
@@ -75,13 +90,35 @@ export type ModuleRoutes = ModuleRoutesOf<typeof modules>;
  */
 function listDomains(deps: Pick<AppDeps, "extraModules">): [name: string, module: DomainModule][] {
   const listed: Record<string, DomainModule> = modules;
+  const extra = deps.extraModules ?? [];
   return [
     ...Object.entries(listed),
-    ...(deps.extraModules ?? []).map((module, index): [string, DomainModule] => [
-      `extra:${index}`,
-      module,
-    ]),
+    ...(Array.isArray(extra)
+      ? extra.map((module, index): [string, DomainModule] => [`extra:${index}`, module])
+      : Object.entries(extra)),
   ];
+}
+
+/**
+ * 登録されたアプリ（apps.list.ts の順のあとに、テストの extraApps）を決まりで確かめて返す。
+ * modules.list.ts の領域が、どれもちょうど1つのアプリか共通に属することも確かめる（AD-15）。
+ * @param deps 組み立てに使う道具
+ * @returns アプリの並び
+ * @throws {Error} 決まりに合わないアプリの一覧・どこにも属さない領域があるとき（起動を止める）
+ */
+function resolveApps(deps: Pick<AppDeps, "extraApps">): readonly AppDefinition[] {
+  const apps = [...listApps(), ...(deps.extraApps ?? [])];
+  const problems = [
+    ...appRegistryProblems(apps),
+    ...unassignedDomains(Object.keys(modules), apps).map(
+      (domain) =>
+        `領域 ${domain} がどのアプリにも属していません（packages/contracts/src/core/apps.list.ts に足してください）`,
+    ),
+  ];
+  if (problems.length > 0) {
+    throw new Error(`アプリの登録が決まりに合いません：${problems.join("、")}`);
+  }
+  return apps;
 }
 
 /** 状態を変えない動き。 */
@@ -253,13 +290,14 @@ export function assertDocumentedRoutes(app: OpenAPIHono<AppEnv>): void {
  * @param deps 組み立てに使う道具
  * @returns 組み立てた API
  * @throws {Error} createRoute を通さない道があるとき・DOMAIN_FEATURES に登録されていない領域の名前があるとき・
- *   WEB_DIST_DIR に index.html がないとき（起動を止める）
+ *   WEB_DIST_DIR に index.html がないとき・アプリの登録が決まりに合わないとき（起動を止める）
  */
 export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
   const { config, logger } = deps;
   const { db } = deps.database;
   const allowedOrigin = new URL(config.webUrl).origin;
   const domains = listDomains(deps);
+  const apps = resolveApps(deps);
   // 設定 DOMAIN_FEATURES の領域の名前は、登録された領域だけ（書き違いで黙って切のままにしない）
   assertKnownDomainFeatures(
     config.domainFeatures,
@@ -361,9 +399,24 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
       testLoginEnabled: config.testLoginEnabled,
     },
     fetch: deps.fetch ?? globalThis.fetch.bind(globalThis),
+    apps,
   };
-  for (const [, domain] of domains) {
-    if (domain.routes) app.route("/", domain.routes(routeDeps));
+  for (const [name, domain] of domains) {
+    if (!domain.routes) continue;
+    const domainRoutes = domain.routes(routeDeps);
+    const owner = appOfDomain(name, apps);
+    if (owner) {
+      // アプリに属する領域のすべての道の前に、suite の requireApp を置く（同じ動きと道に先に足した処理が先に動く。AD-16）
+      const guard = requireApp(routeDeps, owner.key);
+      const seen = new Set<string>();
+      for (const route of domainRoutes.routes) {
+        const key = `${route.method} ${route.path}`;
+        if (route.method === "ALL" || seen.has(key)) continue;
+        seen.add(key);
+        app.on(route.method, route.path, guard);
+      }
+    }
+    app.route("/", domainRoutes);
   }
 
   // 窓口の文書は、すべての道を足したあとに1度だけ作る（要求ごとに作り直さない）

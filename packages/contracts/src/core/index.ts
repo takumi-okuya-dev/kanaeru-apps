@@ -16,3 +16,14 @@ export {
   miniAppPermalink,
   participantPaths,
 } from "./participant-paths.ts";
+export { APP_ICONS, defineApp } from "./app-definition.ts";
+export type { AppDefinition, AppIcon } from "./app-definition.ts";
+export {
+  APP_KEY_FORMAT,
+  COMMON_DOMAINS,
+  RESERVED_APP_KEYS,
+  appOfDomain,
+  appRegistryProblems,
+  listApps,
+  unassignedDomains,
+} from "./apps.ts";

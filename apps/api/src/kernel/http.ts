@@ -2,6 +2,7 @@
 // 組み立て（app.ts）と領域（modules/<領域>/）が同じ型を使う。領域は組み立てを読めない（境界の決まり）ので、ここに置く。
 import { z } from "@hono/zod-openapi";
 import { jstDate } from "@workspace/contracts/core";
+import type { AppDefinition } from "@workspace/contracts/core";
 import type { RequestIdVariables } from "hono/request-id";
 import type { Config } from "./config.ts";
 import type { Db } from "./db.ts";
@@ -35,6 +36,8 @@ export type DomainRouteDeps = {
   config: DomainConfig;
   /** 外のサービス（LINE など）への HTTP の出口。テストでは差しかえる（既定は外へ出ない） */
   fetch: typeof fetch;
+  /** 登録されたアプリ（apps.list.ts の順。テストでは組み立ての extraApps も足す。suite の台帳が読む。AD-15） */
+  apps: readonly AppDefinition[];
 };
 
 /**

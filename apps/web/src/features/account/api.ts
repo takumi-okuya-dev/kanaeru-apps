@@ -48,3 +48,12 @@ export function testLogin(input: TestLoginInput) {
 export function logout() {
   return request(() => api().api.v1.auth.logout.$post());
 }
+
+/**
+ * 自分のアカウントを消す（退会。すべてのアプリの本人の記録も消える）。
+ * @returns 終わり
+ * @throws {ApiError} ほかの人が書きこむ記録を持っているとき（409 ACCOUNT_OWNS_SHARED_RECORDS）など
+ */
+export function deleteMe() {
+  return request(() => api().api.v1.accounts.me.$delete());
+}

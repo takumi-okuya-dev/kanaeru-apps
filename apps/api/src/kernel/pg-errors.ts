@@ -5,17 +5,40 @@ import pg from "pg";
 /** PostgreSQL の一意の制約の違反の code。 */
 const UNIQUE_VIOLATION = "23505";
 
+/** PostgreSQL の外部キーの制約の違反の code（NO ACTION の外部キーが指す行を消そうとしたときなど）。 */
+const FOREIGN_KEY_VIOLATION = "23503";
+
+/** PostgreSQL の RESTRICT の違反の code（ON DELETE RESTRICT の外部キーが指す行を消そうとしたとき）。 */
+const RESTRICT_VIOLATION = "23001";
+
+/**
+ * 投げられたもの（か、drizzle が包んだ cause）の SQLSTATE が、その code か。
+ * @param error 投げられたもの
+ * @param code SQLSTATE
+ * @returns 同じなら true
+ */
+function hasSqlState(error: unknown, code: string): boolean {
+  const cause = (error as { cause?: { code?: string } } | null)?.cause;
+  return (error as { code?: string } | null)?.code === code || cause?.code === code;
+}
+
 /**
  * 一意の制約の違反か（drizzle が包んだ違反は cause に入る）。
  * @param error 投げられたもの
  * @returns 違反なら true
  */
 export function isUniqueViolation(error: unknown): boolean {
-  const cause = (error as { cause?: { code?: string } } | null)?.cause;
-  return (
-    (error as { code?: string } | null)?.code === UNIQUE_VIOLATION ||
-    cause?.code === UNIQUE_VIOLATION
-  );
+  return hasSqlState(error, UNIQUE_VIOLATION);
+}
+
+/**
+ * 外部キーの制約の違反か（ほかの表の RESTRICT・NO ACTION の外部キーが指している行を消そうとしたときなど。
+ * drizzle が包んだ違反は cause に入る）。
+ * @param error 投げられたもの
+ * @returns 違反なら true
+ */
+export function isForeignKeyViolation(error: unknown): boolean {
+  return hasSqlState(error, FOREIGN_KEY_VIOLATION) || hasSqlState(error, RESTRICT_VIOLATION);
 }
 
 /**

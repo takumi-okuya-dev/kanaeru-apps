@@ -8,7 +8,13 @@ import { accountRoutes } from "./routes.ts";
 export { account as accountTable } from "./schema.ts";
 export { deleteAccount, findAccountById } from "./repository.ts";
 export type { AccountRecord } from "./repository.ts";
-export { currentAccount, isOrganizer, requireOrganizer, requireSession } from "./session.ts";
+export {
+  currentAccount,
+  findSessionViewer,
+  isOrganizer,
+  requireOrganizer,
+  requireSession,
+} from "./session.ts";
 export type { SessionAccount } from "./session.ts";
 export { forbiddenResponse, unauthenticatedResponse } from "./routes.ts";
 
