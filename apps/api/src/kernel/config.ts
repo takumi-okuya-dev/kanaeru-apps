@@ -8,8 +8,11 @@
 // loadConfig の中で確かめるので、API の起動・手順（見本のデータ・OpenAPI の文書）のどの入口でも効く。
 // DB の先が 127.0.0.1 なのは、DB への中継（Cloud SQL Auth Proxy など）の形なので止めない。
 // ログインは LINE の ID トークンを API が確かめる（構成の決めごと AD-4）。確かめる client_id は LINE_CHANNEL_IDS。
+// 秘密の値（外のサービスのトークンを包む鍵の束・定期の仕事の合言葉・Meta のアプリの秘密の値）は、ここで形を確かめ、領域には値を渡さない
+// （組み立てが秘密の箱と合言葉の確かめの道具にして渡す。kernel/http.ts の DomainRouteDeps）。
 import { resolve } from "node:path";
 import { LINE_USER_ID_FORMAT } from "@workspace/contracts/account";
+import { KeyRingError, createSecretBox } from "@workspace/secret-box";
 import { DOMAIN_FEATURE_KEY_FORMAT } from "./features.ts";
 import { z } from "zod";
 
@@ -35,6 +38,18 @@ const SAMPLE_DB_PASSWORD = "postgres";
 
 /** LINE のチャネル ID の形（数字だけ）。 */
 const LINE_CHANNEL_ID_FORMAT = /^\d+$/;
+
+/** 定期の仕事の合言葉の最短の長さ。 */
+const JOB_TRIGGER_SECRET_MIN = 32;
+
+/** Threads の API の既定の宛先。 */
+const DEFAULT_THREADS_API_BASE_URL = "https://graph.threads.net";
+
+/** Meta のアプリの ID の形（数字だけ）。 */
+const META_APP_ID_FORMAT = /^\d+$/;
+
+/** Meta のアプリの秘密の値の最短の長さ（Meta が出す値は32文字）。 */
+const META_APP_SECRET_MIN = 16;
 
 /** 源の形が合わないときの文。 */
 const ORIGIN_FORMAT = "http:// か https:// で始まる源（道を含まない URL）にしてください。";
@@ -233,6 +248,27 @@ const schema = z
       error: "https:// で始まる URL にしてください。",
     }),
     WEB_DIST_DIR: optionalText(),
+    TOKEN_ENCRYPTION_KEYS: optionalText(),
+    TOKEN_ENCRYPTION_KEY_VERSION: z.coerce
+      .number({ error: "数にしてください。" })
+      .int({ error: "整数にしてください。" })
+      .min(1, { error: "1以上にしてください。" })
+      .optional(),
+    JOB_TRIGGER_SECRET: optionalText().refine(
+      (value) => value === undefined || value.length >= JOB_TRIGGER_SECRET_MIN,
+      { error: `${JOB_TRIGGER_SECRET_MIN}文字以上の値にしてください。` },
+    ),
+    THREADS_API_BASE_URL: optionalText().refine((value) => value === undefined || isOrigin(value), {
+      error: ORIGIN_FORMAT,
+    }),
+    THREADS_APP_ID: optionalText().refine(
+      (value) => value === undefined || META_APP_ID_FORMAT.test(value),
+      { error: "Meta のアプリの ID（数字）にしてください。" },
+    ),
+    THREADS_APP_SECRET: optionalText().refine(
+      (value) => value === undefined || value.length >= META_APP_SECRET_MIN,
+      { error: `${META_APP_SECRET_MIN}文字以上の値にしてください。` },
+    ),
     COMPOSE_PROJECT_NAME: optionalText(),
   })
   .superRefine((env, ctx) => {
@@ -240,7 +276,48 @@ const schema = z
     if (env.WEB_URL !== undefined && !isOrigin(env.WEB_URL)) {
       ctx.addIssue({ code: "custom", path: ["WEB_URL"], message: ORIGIN_FORMAT });
     }
+    if (env.TOKEN_ENCRYPTION_KEYS !== undefined || env.TOKEN_ENCRYPTION_KEY_VERSION !== undefined) {
+      if (env.TOKEN_ENCRYPTION_KEYS === undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["TOKEN_ENCRYPTION_KEYS"],
+          message: "TOKEN_ENCRYPTION_KEY_VERSION を入れるときは、鍵の束も入れてください。",
+        });
+      } else if (env.TOKEN_ENCRYPTION_KEY_VERSION === undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["TOKEN_ENCRYPTION_KEY_VERSION"],
+          message: "鍵の束を入れるときは、今の鍵の版も入れてください。",
+        });
+      } else {
+        try {
+          createSecretBox(env.TOKEN_ENCRYPTION_KEYS, env.TOKEN_ENCRYPTION_KEY_VERSION);
+        } catch (error) {
+          if (!(error instanceof KeyRingError)) throw error;
+          ctx.addIssue({ code: "custom", path: ["TOKEN_ENCRYPTION_KEYS"], message: error.message });
+        }
+      }
+    }
+    if ((env.THREADS_APP_ID === undefined) !== (env.THREADS_APP_SECRET === undefined)) {
+      ctx.addIssue({
+        code: "custom",
+        path: [env.THREADS_APP_ID === undefined ? "THREADS_APP_ID" : "THREADS_APP_SECRET"],
+        message:
+          "THREADS_APP_ID と THREADS_APP_SECRET は、両方入れるか、両方入れないかにしてください。",
+      });
+    }
     if (PROTECTED_ENVS.has(name)) {
+      if (
+        env.THREADS_API_BASE_URL !== undefined &&
+        (new URL(env.THREADS_API_BASE_URL).protocol !== "https:" ||
+          pointsToLocal(env.THREADS_API_BASE_URL))
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["THREADS_API_BASE_URL"],
+          message: `APP_ENV が ${name} のときは、手元でない https:// の源にしてください。`,
+        });
+      }
       if (env.SAMPLE_DATA_ENABLED) {
         ctx.addIssue({
           code: "custom",
@@ -361,6 +438,20 @@ export type Config = {
   openChatUrl: string | undefined;
   /** 組み立てた画面のフォルダ（絶対の道）。あれば API が画面のファイルを返す（AD-8） */
   webDistDir: string | undefined;
+  /**
+   * 外のサービスのトークンを包む鍵の束（TOKEN_ENCRYPTION_KEYS。秘密）と今の鍵の版（TOKEN_ENCRYPTION_KEY_VERSION）。
+   * なければ undefined（トークンを持つ機能は「準備ができていない」と断る）。領域には値を渡さず、組み立てが秘密の箱にして渡す
+   */
+  tokenEncryption: { keyRing: string; currentVersion: number } | undefined;
+  /** 定期の仕事（Cloud Scheduler）が API を呼ぶときの合言葉（JOB_TRIGGER_SECRET。秘密）。なければ定期の仕事の窓口は断る */
+  jobTriggerSecret: string | undefined;
+  /** Threads の API の宛先（THREADS_API_BASE_URL。末尾の / なし。既定は https://graph.threads.net。手元と E2E は偽のサーバー） */
+  threadsApiBaseUrl: string;
+  /**
+   * アプリの Meta のアプリ（THREADS_APP_ID と THREADS_APP_SECRET。秘密）。OAuth の接続と Meta の Webhook の署名の確かめに使う。
+   * なければ undefined（その機能は使えない）。領域には値を渡さず、組み立てが道具（kernel/meta-app.ts）にして渡す
+   */
+  threadsApp: { appId: string; appSecret: string } | undefined;
 };
 
 /** 設定が合わないときのエラー。文は日本語で、値そのものは入れない。 */
@@ -431,5 +522,18 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     organizerLineUserId: value.ORGANIZER_LINE_USER_ID,
     openChatUrl: value.OPEN_CHAT_URL,
     webDistDir: value.WEB_DIST_DIR === undefined ? undefined : resolve(value.WEB_DIST_DIR),
+    tokenEncryption:
+      value.TOKEN_ENCRYPTION_KEYS !== undefined && value.TOKEN_ENCRYPTION_KEY_VERSION !== undefined
+        ? {
+            keyRing: value.TOKEN_ENCRYPTION_KEYS,
+            currentVersion: value.TOKEN_ENCRYPTION_KEY_VERSION,
+          }
+        : undefined,
+    jobTriggerSecret: value.JOB_TRIGGER_SECRET,
+    threadsApiBaseUrl: new URL(value.THREADS_API_BASE_URL ?? DEFAULT_THREADS_API_BASE_URL).origin,
+    threadsApp:
+      value.THREADS_APP_ID !== undefined && value.THREADS_APP_SECRET !== undefined
+        ? { appId: value.THREADS_APP_ID, appSecret: value.THREADS_APP_SECRET }
+        : undefined,
   };
 }

@@ -92,3 +92,15 @@ variable "budget_currency" {
   description = "予算の通貨（請求先アカウントの通貨と同じにする）"
   default     = "JPY"
 }
+
+variable "threads_enabled" {
+  type        = bool
+  description = "Threads の運用アプリの秘密と定期の仕事を作るか。true にする前に、鍵の束の秘密に版を足す（README の 9）"
+  default     = false
+}
+
+variable "threads_token_key_version" {
+  type        = number
+  description = "Threads のトークンを包む今の鍵の版（TOKEN_ENCRYPTION_KEY_VERSION。鍵の束の JSON にある版）"
+  default     = 1
+}

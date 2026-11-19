@@ -232,6 +232,9 @@ importers:
       '@workspace/csv':
         specifier: workspace:*
         version: link:../../packages/csv
+      '@workspace/secret-box':
+        specifier: workspace:*
+        version: link:../../packages/secret-box
       drizzle-orm:
         specifier: ^0.45.4
         version: 0.45.4(@types/pg@8.23.1)(pg@8.23.1)
@@ -363,6 +366,8 @@ importers:
         version: 26.6.6
 
   packages/csv: {}
+
+  packages/secret-box: {}
 
   packages/ui:
     dependencies:

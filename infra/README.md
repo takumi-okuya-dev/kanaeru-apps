@@ -1,7 +1,7 @@
 # infra（GCP の資源の Terraform）
 
 - 作成日：2026-11-19（core-002）
-- 直した日：—
+- 直した日：2026-11-20（threads-002：`threads.tf` と9章）
 - 読む人：本番の置き場所を作る・直す人（主催者）。Terraform と GCP の考え方は [Terraformの学び](../docs/study/terraform.md)・[GCPの学び](../docs/study/gcp.md)。
 - 決めごとの正本は[構成の決めごと](../_bmad-output/architecture-kanaeru/architecture-kanaeru.md) AD-8〜AD-11、デプロイの決まりは[開発の流れの決まり](../docs/rules/development-flow.md) 5章。なぜこの形にしたかは [specs/core/002-infra/research.md](../specs/core/002-infra/research.md)。
 
@@ -21,6 +21,7 @@
 | `cloud_run.tf` | Cloud Run のサービス（画面と `/api`）と、DB の変更を当てる job |
 | `scheduler.tf` | 毎日0時に DB を止め、8時に動かす（日本時間） |
 | `budget.tf` | 請求の予算（月2,000円・50%と100%でメール） |
+| `threads.tf` | Threads の運用アプリ（`threads_enabled` が true のときだけ）：トークンを包む鍵の束と定期の仕事の合言葉の秘密・5分おきの定期の仕事（9章） |
 
 Terraform は**手元から**流す（GitHub Actions からは流さない）。GitHub Actions が変えるのはイメージだけで、ほかの設定（台数・環境の値・権限）は Terraform だけが変える。
 
@@ -135,3 +136,19 @@ GitHub のリポジトリの **Variables**（Settings → Secrets and variables 
 ## 8. 消さないための仕組み
 
 Cloud SQL は `prevent_destroy`・`deletion_protection`・`deletion_protection_enabled` の3段で守っている。`terraform destroy` は使わない。データの最後の守りは毎日のバックアップ（12時・7日分）。
+
+## 9. Threads の運用アプリを入にする（threads-002）
+
+本番は切（`threads_enabled = false`）のまま出す。入にするときは、次の順で行う（鍵の値を state とリポジトリに残さないため、鍵の束だけは手で入れる）。
+
+1. `threads_enabled = true` にして apply する（秘密の入れ物・合言葉・定期の仕事ができる。Cloud Run の設定 `TOKEN_ENCRYPTION_KEY_VERSION`・`TOKEN_ENCRYPTION_KEYS`・`JOB_TRIGGER_SECRET` も足される）。だれに見せるかは、アプリの台帳（設定 → アプリの台帳）で決める（はじめは運営者だけ。定期の仕事は、切でなければ動く）。
+   - 鍵の束に版がないと Cloud Run の新しい版が立ち上がらないので、apply の前に入れ物だけ先に作る：`terraform apply -target=google_secret_manager_secret.threads_token_keys` → 2 → 全体の apply。
+2. 鍵の束を作って版を足す（手元で作り、ファイルや履歴に残さない）：
+
+   ```bash
+   printf '{"1":"%s"}' "$(openssl rand -base64 32)" | \
+     gcloud secrets versions add kanaeru-token-encryption-keys --data-file=-
+   ```
+
+3. 鍵を替えるとき：今の鍵を残したまま新しい版を足した JSON（`{"1":"<古い鍵>","2":"<新しい鍵>"}`）を新しい版として足し、`threads_token_key_version = 2` にして apply する。古い鍵で包んだトークンも開ける（新しく包むときだけ新しい鍵を使う）。古い鍵は、すべてのトークンが延長で包み直された（最長60日）あとに外す。
+4. 定期の仕事（`kanaeru-threads-tick`）は日本時間 8時〜23時台の5分おき。DB の夜間の停止（7章）の間は動かさない。止めたいときは `gcloud scheduler jobs pause kanaeru-threads-tick --location=asia-northeast1`。

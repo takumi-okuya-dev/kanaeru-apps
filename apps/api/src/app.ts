@@ -5,10 +5,11 @@
 // 窓口の文書（GET /api/openapi.json）は、設定 OPENAPI_DOC_ENABLED が true のときだけ出す（production では止める）。
 // 設定 WEB_DIST_DIR があれば、/api 以外の道に組み立てた画面を返す（platform/web。AD-8）。守りの見出しは /api と画面で分ける。
 // ログインは account の領域が持つ（AD-12。道ごとに account の requireSession を付ける）。領域には、秘密でない設定（DomainConfig）と
-// 外への出口（fetch）を渡す。
+// 外への出口（fetch）と、秘密の値を使う道具（秘密の箱・定期の仕事の合言葉の確かめ。値そのものは渡さない）を渡す。
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import type { Hook } from "@hono/zod-openapi";
 import type { FieldError } from "@workspace/contracts/core";
+import { createSecretBox } from "@workspace/secret-box";
 import type { Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { csrf } from "hono/csrf";
@@ -21,6 +22,8 @@ import { AppError, toAppError, toErrorBody } from "./kernel/errors.ts";
 import { assertKnownDomainFeatures, createDomainFeatures } from "./kernel/features.ts";
 import type { DomainFeatures } from "./kernel/features.ts";
 import type { ApiEnv, DomainRouteDeps } from "./kernel/http.ts";
+import { createJobRequestCheck } from "./kernel/job-auth.ts";
+import { createMetaApp } from "./kernel/meta-app.ts";
 import type { Logger } from "./kernel/logger.ts";
 import { REQUEST_ID_HEADER, requestIdMiddleware } from "./kernel/request-id.ts";
 import * as modules from "./modules.list.ts";
@@ -86,6 +89,9 @@ function listDomains(deps: Pick<AppDeps, "extraModules">): [name: string, module
 
 /** 状態を変えない動き。 */
 const SAFE_METHODS = /^(GET|HEAD|OPTIONS)$/;
+
+/** 領域の Webhook の道（外のサービスが送る。クッキーを使わず、領域が署名で確かめる）。 */
+const WEBHOOK_PATH = /^\/api\/v1\/[a-z]+\/webhooks\//;
 
 /** /api/v1 の本文の大きさの上限（バイト）。ファイルを受け取る窓口を足すときは、その窓口だけ別に決める。 */
 const MAX_BODY_BYTES = 100 * 1024;
@@ -299,7 +305,15 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
 
   // 状態を変える道の源の確かめ：Hono の csrf（フォームの形）と、画面の源と違う Origin を止める（Origin のない要求は通す）。
   // ログインを足したら、クッキーを守るために、この確かめが要る
-  app.use("/api/v1/*", csrf({ origin: allowedOrigin }));
+  // 領域の Webhook の道（/api/v1/<領域>/webhooks/…）は、外のサービスがクッキーなしで送り、領域が署名で確かめるので、フォームの形の確かめを通さない
+  const formCsrf = csrf({ origin: allowedOrigin });
+  app.use(
+    "/api/v1/*",
+    createMiddleware<AppEnv>(async (c, next) => {
+      if (WEBHOOK_PATH.test(c.req.path)) return next();
+      return formCsrf(c, next);
+    }),
+  );
   app.use(
     "/api/v1/*",
     createMiddleware<AppEnv>(async (c, next) => {
@@ -359,8 +373,14 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
       organizerLineUserId: config.organizerLineUserId,
       openChatUrl: config.openChatUrl,
       testLoginEnabled: config.testLoginEnabled,
+      threadsApiBaseUrl: config.threadsApiBaseUrl,
     },
     fetch: deps.fetch ?? globalThis.fetch.bind(globalThis),
+    secretBox: config.tokenEncryption
+      ? createSecretBox(config.tokenEncryption.keyRing, config.tokenEncryption.currentVersion)
+      : undefined,
+    isJobRequest: createJobRequestCheck(config.jobTriggerSecret),
+    metaApp: createMetaApp(config.threadsApp),
   };
   for (const [, domain] of domains) {
     if (domain.routes) app.route("/", domain.routes(routeDeps));

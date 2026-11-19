@@ -25,6 +25,16 @@ locals {
     ORGANIZER_LINE_USER_ID = var.organizer_line_user_id
     OPEN_CHAT_URL          = var.open_chat_url
   }
+
+  # Threads の運用アプリ（threads.tf）を入にしたときだけ足す設定と秘密
+  # （アプリを見せるかは、アプリの台帳〈設定 → アプリの台帳〉で決める。AD-16）
+  threads_env = var.threads_enabled ? {
+    TOKEN_ENCRYPTION_KEY_VERSION = tostring(var.threads_token_key_version)
+  } : {}
+  threads_secret_env = var.threads_enabled ? {
+    TOKEN_ENCRYPTION_KEYS = google_secret_manager_secret.threads_token_keys[0].secret_id
+    JOB_TRIGGER_SECRET    = google_secret_manager_secret.job_trigger[0].secret_id
+  } : {}
 }
 
 resource "google_cloud_run_v2_service" "app" {
@@ -78,10 +88,23 @@ resource "google_cloud_run_v2_service" "app" {
       }
 
       dynamic "env" {
-        for_each = local.service_env
+        for_each = merge(local.service_env, local.threads_env)
         content {
           name  = env.key
           value = env.value
+        }
+      }
+
+      dynamic "env" {
+        for_each = local.threads_secret_env
+        content {
+          name = env.key
+          value_source {
+            secret_key_ref {
+              secret  = env.value
+              version = "latest"
+            }
+          }
         }
       }
 
