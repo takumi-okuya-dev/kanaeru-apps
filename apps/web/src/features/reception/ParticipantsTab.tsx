@@ -1,4 +1,4 @@
-// A3 の参加者のタブ（EXPERIENCE.md：名前・チェックインの時刻・申し込みの媒体・知ったきっかけ・支払い方法と印）。
+// A3 の参加者のタブ（EXPERIENCE.md：名前・チェックインの時刻・申し込みの媒体・知ったきっかけ・支払い方法〈割引の名前を添える〉と印）。
 // 広い画面は表、狭い画面はカードの形。名前を押すと直す・取り消すの枠を開く。上に「手でチェックイン」（タブの中に欄を開く）。
 // 5秒おきの読み直しで、画面の位置・フォーカス・開いている枠を動かさない（枠は開いたときの行を持つ）。
 import type { EventView } from "@workspace/contracts/event";
@@ -26,6 +26,16 @@ import { ManualCheckinForm } from "./ManualCheckinForm.tsx";
 import { ManualFlag, SameNameFlag } from "./flags.tsx";
 import { formatCheckinTime, formatCount } from "./format.ts";
 import { RECEPTION_QUERY_KEYS } from "./queries.ts";
+
+/**
+ * 支払い方法の言葉（割引を選んでいれば名前を添える。例：PayPay・紹介割。reception-002）。
+ * @param checkin チェックイン
+ * @returns 言葉
+ */
+function paymentLabel(checkin: CheckinView): string {
+  const payment = PAYMENT_METHOD_LABELS[checkin.paymentMethod];
+  return checkin.discountName ? `${payment}・${checkin.discountName}` : payment;
+}
 
 /** 名前のボタンの見た目（文字だけのボタンは下線つき。押せる高さを取る）。 */
 const nameButtonClassName =
@@ -103,6 +113,7 @@ export function ParticipantsTab({ event, list }: ParticipantsTabProps) {
       {adding ? (
         <ManualCheckinForm
           eventId={event.id}
+          discounts={event.discounts}
           onCancel={() => setAdding(false)}
           onDone={(created) => {
             setAdding(false);
@@ -158,7 +169,7 @@ export function ParticipantsTab({ event, list }: ParticipantsTabProps) {
                     </TableCell>
                     <TableCell>{APPLICATION_SOURCE_LABELS[checkin.applicationSource]}</TableCell>
                     <TableCell>{REFERRAL_LABELS[checkin.referral]}</TableCell>
-                    <TableCell>{PAYMENT_METHOD_LABELS[checkin.paymentMethod]}</TableCell>
+                    <TableCell>{paymentLabel(checkin)}</TableCell>
                     <TableCell>
                       <RowFlags checkin={checkin} />
                     </TableCell>
@@ -183,7 +194,7 @@ export function ParticipantsTab({ event, list }: ParticipantsTabProps) {
                   </span>
                 </div>
                 <p className="text-s">
-                  {`${PAYMENT_METHOD_LABELS[checkin.paymentMethod]}・${APPLICATION_SOURCE_LABELS[checkin.applicationSource]}・${REFERRAL_LABELS[checkin.referral]}`}
+                  {`${paymentLabel(checkin)}・${APPLICATION_SOURCE_LABELS[checkin.applicationSource]}・${REFERRAL_LABELS[checkin.referral]}`}
                 </p>
                 <RowFlags checkin={checkin} />
               </li>

@@ -55,6 +55,43 @@ describe("チェックインの入力", () => {
   });
 });
 
+describe("割引と紹介者の入力（reception-002）", () => {
+  const discountId = "0193a1b2-0000-7000-8000-000000000001";
+
+  it("割引と紹介者は送らなくてもよい（割引なし）", () => {
+    const parsed = CheckinInput.parse(VALID);
+    expect(parsed.discountId).toBeUndefined();
+    expect(parsed.referrerName).toBeUndefined();
+  });
+
+  it("割引の ID と、紹介者の名前（前後の空白を除く）を受ける。null も受ける", () => {
+    expect(CheckinInput.parse({ ...VALID, discountId, referrerName: " 田中 花子 " })).toMatchObject(
+      { discountId, referrerName: "田中 花子" },
+    );
+    expect(CheckinInput.parse({ ...VALID, discountId: null, referrerName: null })).toMatchObject({
+      discountId: null,
+      referrerName: null,
+    });
+  });
+
+  it("割引の ID の形が違う・紹介者の名前が長すぎるのは、欄の道つきの日本語の誤り", () => {
+    expect(issuesOf({ ...VALID, discountId: "x" })).toEqual([
+      ["discountId", "割引を選び直してください。"],
+    ]);
+    expect(issuesOf({ ...VALID, discountId, referrerName: "あ".repeat(51) })).toEqual([
+      ["referrerName", "紹介してくれた人の名前は50文字までにしてください。"],
+    ]);
+  });
+
+  it("選べない割引は 400 と日本語の文", () => {
+    expect(RECEPTION_ERRORS.DISCOUNT_UNAVAILABLE).toMatchObject({
+      code: "DISCOUNT_UNAVAILABLE",
+      status: 400,
+    });
+    expect(RECEPTION_ERRORS.DISCOUNT_UNAVAILABLE.message).toMatch(/[ぁ-ん]/);
+  });
+});
+
 describe("選択肢", () => {
   it("PRD FR-4 の順と言葉", () => {
     expect(APPLICATION_SOURCES.map((code) => APPLICATION_SOURCE_LABELS[code])).toEqual([

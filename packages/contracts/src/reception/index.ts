@@ -11,6 +11,7 @@ export {
   MyCheckinResult,
   MyCheckinState,
   PaymentMethodSchema,
+  REFERRER_NAME_MAX,
   ReferralSchema,
 } from "./checkin.ts";
 export { RECEPTION_ERRORS } from "./errors.ts";
@@ -21,6 +22,7 @@ export {
   APPLICATION_SOURCE_LABELS,
   CHECKIN_METHODS,
   CHECKIN_QUESTION_LABELS,
+  DISCOUNT_NONE_LABEL,
   PAYMENT_METHODS,
   PAYMENT_METHOD_LABELS,
   REFERRALS,

@@ -1,10 +1,13 @@
 // A3 の合計のタブ（DESIGN.md の合計のカード・UJ-4）と、主催者だけの内訳（FR-13。合計の下に置く。EXPERIENCE Open Questions 3）。
 // 数字は桁がそろう数字で右寄せ。金額は「円」をつけ3桁ごとに区切る。現金の行も読み間違えない大きさにする。色で多い少ないを表さない。
 // 内訳を初めに読めなかったときは、内訳の節に文と「もう一度」を出す（合計は出したまま）。
+// 割引（reception-002）：割引があった交流会では、内訳に「割引の内訳」（人数・割引の額の合計）と、紹介者がいれば「紹介者」（人数）を足す。
+// 紹介者の名前は主催者だけが読む（内訳は主催者だけの窓口）。
 import type { CheckinBreakdown, CheckinTotals } from "@workspace/contracts/reception";
 import {
   APPLICATION_SOURCE_LABELS,
   CHECKIN_QUESTION_LABELS,
+  DISCOUNT_NONE_LABEL,
   PAYMENT_METHOD_LABELS,
   REFERRAL_LABELS,
 } from "@workspace/contracts/reception";
@@ -94,6 +97,49 @@ function BreakdownTable({ title, rows }: BreakdownTableProps) {
   );
 }
 
+/**
+ * 割引の内訳の表（割引ごとの人数と割引の額の合計。最後に割引なし）。
+ * @param props 割引の内訳（rows）
+ * @param props.rows 割引の内訳の行
+ * @returns 要素
+ */
+function DiscountBreakdownTable({ rows }: { rows: CheckinBreakdown["discounts"] }) {
+  return (
+    <table className="w-full border-collapse rounded-md border border-border bg-surface text-m">
+      <caption className="pb-xxs text-left text-m font-bold">{`${CHECKIN_QUESTION_LABELS.discount}の内訳`}</caption>
+      <thead>
+        <tr className="text-s text-text-sub">
+          <th scope="col" className="px-xs py-x3s text-left font-normal">
+            {CHECKIN_QUESTION_LABELS.discount}
+          </th>
+          <th scope="col" className="px-xs py-x3s text-right font-normal">
+            人数
+          </th>
+          <th scope="col" className="px-xs py-x3s text-right font-normal">
+            割引の額の合計
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.discountId ?? "none"} className="border-t border-border">
+            <th scope="row" className="px-xs py-xxs text-left font-normal break-words">
+              {row.name ?? DISCOUNT_NONE_LABEL}
+              {row.active ? null : (
+                <span className="text-s text-text-sub">（使うのをやめた割引）</span>
+              )}
+            </th>
+            <td className="px-xs py-xxs text-right tabular-nums">{formatCount(row.count)}</td>
+            <td className="px-xs py-xxs text-right tabular-nums">
+              {row.discountId === null ? "—" : formatFee(row.discountTotal)}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 /** TotalsTab が受け取るもの。 */
 export type TotalsTabProps = {
   /** 合計（読みこみ中は undefined） */
@@ -136,22 +182,38 @@ export function TotalsTab({
             内訳
           </h2>
           {breakdown ? (
-            <div className="flex flex-col gap-xs wide:flex-row">
-              <BreakdownTable
-                title={`${CHECKIN_QUESTION_LABELS.applicationSource}の内訳`}
-                rows={breakdown.applicationSource.map((row) => ({
-                  label: APPLICATION_SOURCE_LABELS[row.value],
-                  count: row.count,
-                }))}
-              />
-              <BreakdownTable
-                title={`${CHECKIN_QUESTION_LABELS.referral}の内訳`}
-                rows={breakdown.referral.map((row) => ({
-                  label: REFERRAL_LABELS[row.value],
-                  count: row.count,
-                }))}
-              />
-            </div>
+            <>
+              <div className="flex flex-col gap-xs wide:flex-row">
+                <BreakdownTable
+                  title={`${CHECKIN_QUESTION_LABELS.applicationSource}の内訳`}
+                  rows={breakdown.applicationSource.map((row) => ({
+                    label: APPLICATION_SOURCE_LABELS[row.value],
+                    count: row.count,
+                  }))}
+                />
+                <BreakdownTable
+                  title={`${CHECKIN_QUESTION_LABELS.referral}の内訳`}
+                  rows={breakdown.referral.map((row) => ({
+                    label: REFERRAL_LABELS[row.value],
+                    count: row.count,
+                  }))}
+                />
+              </div>
+              {breakdown.discounts.some((row) => row.discountId !== null) ? (
+                <div className="flex flex-col gap-xs wide:flex-row wide:items-start">
+                  <DiscountBreakdownTable rows={breakdown.discounts} />
+                  {breakdown.referrers.length > 0 ? (
+                    <BreakdownTable
+                      title="紹介者（主催者だけが読めます）"
+                      rows={breakdown.referrers.map((row) => ({
+                        label: row.name,
+                        count: row.count,
+                      }))}
+                    />
+                  ) : null}
+                </div>
+              ) : null}
+            </>
           ) : breakdownError ? (
             <div className="flex flex-col items-start gap-xxs">
               <ResponseMessage tone="danger">

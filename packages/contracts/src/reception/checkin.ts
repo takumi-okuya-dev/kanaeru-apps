@@ -13,6 +13,9 @@ import {
 /** 名前の文字数の上限（account の表示名と同じ。research R9）。 */
 export const CHECKIN_NAME_MAX = 50;
 
+/** 紹介者の名前の文字数の上限（チェックインの名前と同じ。reception-002）。 */
+export const REFERRER_NAME_MAX = 50;
+
 /** 申し込みの媒体の形。 */
 export const ApplicationSourceSchema = z.enum(APPLICATION_SOURCES, {
   error: `${CHECKIN_QUESTION_LABELS.applicationSource}を選んでください。`,
@@ -30,7 +33,10 @@ export const PaymentMethodSchema = z.enum(PAYMENT_METHODS, {
 
 /**
  * チェックインの入力（自分でのチェックイン・手でのチェックイン・直すで同じ。知らない欄は誤り）。
- * 金額は送らない（API が支払い方法と参加費から決める。AD-6）。
+ * 金額は送らない（API が支払い方法・参加費・割引から決める。AD-6・reception-002）。
+ * 割引（discountId）は送らないか null なら割引なし。紹介者の名前（referrerName）は任意で、割引を選んだときだけ記録する。
+ * 直すとき referrerName を送らなければ、割引が同じなら前の名前を残す（受付係は前の名前を読めないため。research R7）。
+ * null か空の文字なら消す。
  */
 export const CheckinInput = z.strictObject({
   name: z
@@ -41,6 +47,18 @@ export const CheckinInput = z.strictObject({
   applicationSource: ApplicationSourceSchema,
   referral: ReferralSchema,
   paymentMethod: PaymentMethodSchema,
+  discountId: z
+    .guid({ error: `${CHECKIN_QUESTION_LABELS.discount}を選び直してください。` })
+    .nullable()
+    .optional(),
+  referrerName: z
+    .string({ error: `${CHECKIN_QUESTION_LABELS.referrerName}は文字で入れてください。` })
+    .trim()
+    .max(REFERRER_NAME_MAX, {
+      error: `${CHECKIN_QUESTION_LABELS.referrerName}は${REFERRER_NAME_MAX}文字までにしてください。`,
+    })
+    .nullable()
+    .optional(),
 });
 
 /** チェックインの入力の型（確かめたあと）。 */
@@ -61,8 +79,14 @@ export const MyCheckin = z.object({
   referral: ReferralSchema,
   /** 支払い方法 */
   paymentMethod: PaymentMethodSchema,
-  /** 金額（円の整数。チェックインのときと支払い方法を直したときに決めたもの） */
+  /** 金額（円の整数。チェックインのときと、支払い方法か割引を直したときに決めたもの） */
   amount: z.number().int(),
+  /** 選んだ割引の ID（割引なしは null。reception-002） */
+  discountId: z.guid().nullable(),
+  /** 選んだときの割引の名前の写し（割引なしは null） */
+  discountName: z.string().nullable(),
+  /** 選んだときの割引の額の写し（円の整数。割引なしは null） */
+  discountAmount: z.number().int().nullable(),
   /** チェックインの時刻 */
   checkedInAt: isoDateTime,
 });
@@ -107,6 +131,8 @@ export const CheckinView = MyCheckin.extend({
   enteredByName: z.string().nullable(),
   /** 同じ名前の手でのチェックインがあるか（research R4） */
   sameName: z.boolean(),
+  /** 紹介者の名前（主催者のときだけ値。受付係・なければ null。reception-002 research R7） */
+  referrerName: z.string().nullable(),
 });
 
 /** 一覧画面の行の型。 */
@@ -145,6 +171,26 @@ export const CheckinBreakdown = z.object({
   referral: z.array(z.object({ value: ReferralSchema, count: z.number().int() })),
   /** チェックインの数 */
   total: z.number().int(),
+  /**
+   * 割引ごとの人数と割引の額の合計（使っている割引と使われた割引を作った順・最後に割引なし。reception-002 research R8）。
+   * 割引の額の合計は、無料でないチェックインの写した割引の額の和
+   */
+  discounts: z.array(
+    z.object({
+      /** 割引の ID（割引なしは null） */
+      discountId: z.guid().nullable(),
+      /** 割引の今の名前（割引なしは null） */
+      name: z.string().nullable(),
+      /** 使っているか（使うのをやめた割引は false。割引なしは true） */
+      active: z.boolean(),
+      /** 人数 */
+      count: z.number().int(),
+      /** 割引の額の合計（円の整数） */
+      discountTotal: z.number().int(),
+    }),
+  ),
+  /** 紹介者ごとの人数（そろえた名前で数え、多い順） */
+  referrers: z.array(z.object({ name: z.string(), count: z.number().int() })),
 });
 
 /** 内訳の型。 */

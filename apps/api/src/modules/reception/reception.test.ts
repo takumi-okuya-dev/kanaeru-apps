@@ -418,6 +418,8 @@ describe("受付の窓口", () => {
           { value: "other", count: 0 },
         ],
         total: 3,
+        discounts: [{ discountId: null, name: null, active: true, count: 3, discountTotal: 0 }],
+        referrers: [],
       });
     });
 
@@ -436,12 +438,12 @@ describe("受付の窓口", () => {
       expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
       const lines = new TextDecoder().decode(bytes.slice(3)).split("\r\n");
       expect(lines[0]).toBe(
-        "名前,チェックインの時刻,申し込みの媒体,知ったきっかけ,支払い方法,金額,入れ方,入れた人",
+        "名前,チェックインの時刻,申し込みの媒体,知ったきっかけ,支払い方法,金額,割引,割引の額,紹介者,入れ方,入れた人",
       );
       expect(lines[1]).toMatch(
-        /^LINE の人,\d{4}-\d{2}-\d{2} \d{2}:\d{2},connpass,知人の紹介,PayPay,1000,LINE,$/,
+        /^LINE の人,\d{4}-\d{2}-\d{2} \d{2}:\d{2},connpass,知人の紹介,PayPay,1000,,,,LINE,$/,
       );
-      expect(lines[2]).toMatch(/^'=手の人,.+,無料（招待など）,0,手,受付係$/);
+      expect(lines[2]).toMatch(/^'=手の人,.+,無料（招待など）,0,,,,手,受付係$/);
     });
 
     it("受付係は内訳と CSV を読めない（403）", async () => {

@@ -4,12 +4,24 @@
 // 手で入れた人は SET NULL（AD-7）。選択肢は text と CHECK（Consistency Conventions「選択肢」）。
 // CHECK の code は約束（@workspace/contracts/reception の options.ts）と同じ並びを文字で書く（DB の変更の SQL に値を埋めるため。
 // sql.raw は使わない）。列の型は同じ定数で絞る（{ enum }。SQL は変わらない）。食い違いは reception.test.ts の「選択肢の code はどれも DB に入る」が見張る。
+// 割引（reception-002）：選んだ割引の ID と、そのときの名前と額を写す。(event_id, discount_id) は event の割引の
+// (event_id, id) を指す複合の外部キー（別の交流会の割引を指せない。割引は消さないので RESTRICT）。紹介者の名前は任意で、主催者だけが読む。
+// 足した4つの列はどれも空を許す（前の版のアプリの INSERT は4つとも空で、CHECK を満たす。coding.md 3）。
 import { sql } from "drizzle-orm";
-import { check, index, integer, pgTable, text, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import {
+  check,
+  foreignKey,
+  index,
+  integer,
+  pgTable,
+  text,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { APPLICATION_SOURCES, PAYMENT_METHODS, REFERRALS } from "@workspace/contracts/reception";
 import { primaryId, timestamps } from "../../kernel/columns.ts";
 import { accountTable } from "../account/index.ts";
-import { eventTable } from "../event/index.ts";
+import { eventDiscountTable, eventTable } from "../event/index.ts";
 
 /** チェックイン（参加者がその交流会に来た記録。1つの交流会で参加者1人につき1回）。 */
 export const checkin = pgTable(
@@ -31,8 +43,16 @@ export const checkin = pgTable(
     referral: text("referral", { enum: REFERRALS }).notNull(),
     /** 支払い方法 */
     paymentMethod: text("payment_method", { enum: PAYMENT_METHODS }).notNull(),
-    /** 金額（円の整数。作るときと支払い方法を直すときだけ決める） */
+    /** 金額（円の整数。作るときと、支払い方法か割引を直すときだけ決める） */
     amount: integer("amount").notNull(),
+    /** 選んだ割引（割引なしは null） */
+    discountId: uuid("discount_id"),
+    /** 選んだときの割引の名前の写し */
+    discountName: text("discount_name"),
+    /** 選んだときの割引の額の写し（円の整数） */
+    discountAmount: integer("discount_amount"),
+    /** 紹介者の名前（任意。割引を選んだときだけ。主催者だけが読む） */
+    referrerName: text("referrer_name"),
     ...timestamps(),
   },
   (table) => [
@@ -54,6 +74,16 @@ export const checkin = pgTable(
     check(
       "checkin_payment_method_check",
       sql`${table.paymentMethod} in ('paypay', 'cash', 'free')`,
+    ),
+    foreignKey({
+      name: "checkin_discount_fk",
+      columns: [table.eventId, table.discountId],
+      foreignColumns: [eventDiscountTable.eventId, eventDiscountTable.id],
+    }).onDelete("restrict"),
+    check("checkin_discount_amount_check", sql`${table.discountAmount} >= 0`),
+    check(
+      "checkin_discount_check",
+      sql`(${table.discountId} is null and ${table.discountName} is null and ${table.discountAmount} is null and ${table.referrerName} is null) or (${table.discountId} is not null and ${table.discountName} is not null and ${table.discountAmount} is not null)`,
     ),
   ],
 );

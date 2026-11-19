@@ -38,6 +38,10 @@ const CHECKIN: CheckinView = {
   accountId: null,
   enteredByName: "受付係の山田",
   sameName: false,
+  discountId: null,
+  discountName: null,
+  discountAmount: null,
+  referrerName: null,
 };
 
 /**
@@ -94,5 +98,79 @@ describe("直す・取り消すの枠", () => {
     );
     expect(await screen.findByText("取り消せませんでした。見つかりません。")).toBeInTheDocument();
     expect(onDone).not.toHaveBeenCalled();
+  });
+});
+
+describe("直す枠の割引と紹介者（reception-002）", () => {
+  const referralId = "0193a1b2-0000-7000-8000-00000000000a";
+  const withDiscount = {
+    ...CHECKIN,
+    amount: 4000,
+    discountId: referralId,
+    discountName: "紹介割",
+    discountAmount: 1000,
+  };
+  const discounts = [{ id: referralId, name: "紹介割", amount: 1000, asksReferrer: true }];
+
+  /**
+   * 保存の答えを決めて枠を描き、保存を押して送った本文を返す。
+   * @param event 交流会
+   * @param checkin チェックイン
+   * @param before 保存の前にすること
+   * @returns 送った本文
+   */
+  async function saveWith(
+    event: EventView,
+    checkin: CheckinView,
+    before: () => Promise<void> = () => Promise.resolve(),
+  ): Promise<unknown> {
+    let body: unknown;
+    vi.stubGlobal("fetch", (_input: RequestInfo | URL, init?: RequestInit) => {
+      body = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
+      return Promise.resolve(Response.json({ ...checkin, ...(body as object) }));
+    });
+    const onDone = vi.fn();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <CheckinEditDialog event={event} checkin={checkin} onClose={vi.fn()} onDone={onDone} />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole("radio", { name: "紹介割（−1,000円）" });
+    await before();
+    await userEvent.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    return body;
+  }
+
+  it("受付係は紹介者の欄が空で、空のまま保存すると紹介者を送らない（前の名前を残す）", async () => {
+    const body = await saveWith({ ...EVENT, discounts }, withDiscount, () => {
+      const referrer = screen.getByRole("textbox", { name: /紹介してくれた人の名前/ });
+      expect(referrer).toHaveValue("");
+      expect(referrer).toHaveAccessibleDescription(/空のままなら変えません/);
+      return Promise.resolve();
+    });
+    expect(body).toMatchObject({ discountId: referralId });
+    expect(body).not.toHaveProperty("referrerName");
+  });
+
+  it("主催者は今の紹介者の名前を読めて、空にすると null を送る（消す）", async () => {
+    const body = await saveWith(
+      { ...EVENT, myRole: "organizer", discounts },
+      { ...withDiscount, referrerName: "田中 花子" },
+      async () => {
+        const referrer = screen.getByRole("textbox", { name: /紹介してくれた人の名前/ });
+        expect(referrer).toHaveValue("田中 花子");
+        await userEvent.clear(referrer);
+      },
+    );
+    expect(body).toMatchObject({ discountId: referralId, referrerName: null });
+  });
+
+  it("使うのをやめた割引のチェックインは、写した名前と額のチップで選ばれた状態になる", async () => {
+    await saveWith({ ...EVENT, discounts: [] }, withDiscount, () => {
+      expect(screen.getByRole("radio", { name: "紹介割（−1,000円）" })).toBeChecked();
+      expect(screen.getByRole("radio", { name: "割引なし" })).not.toBeChecked();
+      return Promise.resolve();
+    });
   });
 });

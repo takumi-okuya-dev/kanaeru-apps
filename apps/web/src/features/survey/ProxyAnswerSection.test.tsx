@@ -37,6 +37,10 @@ const CHECKIN: CheckinView = {
   accountId: null,
   enteredByName: "主催者",
   sameName: false,
+  discountId: null,
+  discountName: null,
+  discountAmount: null,
+  referrerName: null,
 };
 
 /** 送られた要求。 */

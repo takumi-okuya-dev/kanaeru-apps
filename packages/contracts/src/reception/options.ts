@@ -48,7 +48,14 @@ export const CHECKIN_QUESTION_LABELS = {
   applicationSource: "申し込みの媒体",
   referral: "知ったきっかけ",
   paymentMethod: "支払い方法",
+  /** 交流会に割引があるときだけ出す（reception-002） */
+  discount: "割引",
+  /** 選んだ割引が紹介者の名前を聞くときだけ出す（任意。reception-002） */
+  referrerName: "紹介してくれた人の名前",
 } as const;
+
+/** 割引の設問の「割引なし」のチップの言葉（既定で選ばれている。reception-002）。 */
+export const DISCOUNT_NONE_LABEL = "割引なし";
 
 /** チェックインの入れ方（LINE ログイン・手）。 */
 export const CHECKIN_METHODS = ["line", "manual"] as const;

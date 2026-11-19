@@ -50,6 +50,13 @@
       "when": 1795058321413,
       "tag": "0006_event_discount",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795058634744,
+      "tag": "0007_checkin_discount",
+      "breakpoints": true
     }
   ]
 }

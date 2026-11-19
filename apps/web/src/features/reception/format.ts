@@ -9,7 +9,9 @@ import {
   REFERRAL_LABELS,
 } from "@workspace/contracts/reception";
 import type { ApplicationSource, PaymentMethod, Referral } from "@workspace/contracts/reception";
+import { DISCOUNT_NONE_LABEL } from "@workspace/contracts/reception";
 import type { ChoiceOption } from "@workspace/ui/components/choice-chips";
+import { formatFee } from "../event/index.ts";
 
 /** 申し込みの媒体のチップ。 */
 export const APPLICATION_SOURCE_OPTIONS: readonly ChoiceOption<ApplicationSource>[] =
@@ -50,4 +52,42 @@ export function formatCheckinTime(iso: string): string {
  */
 export function formatCount(count: number): string {
   return `${count.toLocaleString("ja-JP")}人`;
+}
+
+/** 割引の設問の「割引なし」のチップの値（チップの値は文字なので、null の代わりに使う。reception-002）。 */
+export const NO_DISCOUNT_VALUE = "none";
+
+/** 割引のチップに要る欄（交流会の割引・チェックインの写し）。 */
+export type DiscountChoice = {
+  /** 割引の ID */
+  id: string;
+  /** 名前 */
+  name: string;
+  /** 額（円の整数） */
+  amount: number;
+  /** 紹介者の名前を聞くか */
+  asksReferrer: boolean;
+};
+
+/**
+ * 割引の言葉（例：紹介割（−1,000円））。
+ * @param discount 割引の名前と額
+ * @param discount.name 名前
+ * @param discount.amount 額（円の整数）
+ * @returns 言葉
+ */
+export function formatDiscount(discount: { name: string; amount: number }): string {
+  return `${discount.name}（−${formatFee(discount.amount)}）`;
+}
+
+/**
+ * 割引のチップ（最初は「割引なし」。並びは交流会の割引の順）。
+ * @param discounts 選べる割引
+ * @returns チップ
+ */
+export function discountOptions(discounts: readonly DiscountChoice[]): ChoiceOption<string>[] {
+  return [
+    { value: NO_DISCOUNT_VALUE, label: DISCOUNT_NONE_LABEL },
+    ...discounts.map((discount) => ({ value: discount.id, label: formatDiscount(discount) })),
+  ];
 }
