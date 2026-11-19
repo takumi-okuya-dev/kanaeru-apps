@@ -80,6 +80,7 @@ flowchart LR
 | `apps/api/src/modules.list.ts` | API の領域（`export * as <領域> from "./modules/<領域>/index.ts";`） |
 | `apps/web/src/features.list.ts` | 画面の領域（`export * as <領域> from "./features/<領域>/index.ts";`） |
 | `docs/decisions.md` | 決めたことの記録の表の行（表の最後に1行足すだけ。前の行は直さず、覆すときも新しい行を足す。構成の決めごと AD-18） |
+| `packages/contracts/src/core/apps.list.ts` | アプリ（`export const <key> = defineApp({ … });`。属する領域・道の頭・名前など。構成の決めごと AD-15。新しい領域を足すときは、属するアプリの行も同じ PR で足すか直す） |
 
 ### 3-2. テストに領域の数を書かない
 

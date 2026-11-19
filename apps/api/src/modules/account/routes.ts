@@ -1,4 +1,4 @@
-// アカウントの窓口（LINE のログイン・試験用のログイン・ログアウト・今の利用者・アカウントを消す）。
+// アカウントの窓口（LINE のログイン・試験用のログイン・ログアウト・今の利用者・退会・アカウントを消す）。
 // 道はすべて createRoute で書き、入力は約束（@workspace/contracts/account）で確かめる。名前と例は、ここで .openapi() で付ける。
 // 本人は、LINE が確かめた ID トークンの sub だけで決める（画面から名前や ID を受け取らない。AD-4・Constitution II）。
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
@@ -10,6 +10,7 @@ import { invalidInputResponse, notFoundResponse, uuidParam } from "../../kernel/
 import type { ApiEnv, DomainRouteDeps } from "../../kernel/http.ts";
 import { createLineIdTokenVerifier } from "./line-verifier.ts";
 import type { LineIdTokenVerifier } from "./line-verifier.ts";
+import { isForeignKeyViolation } from "../../kernel/pg-errors.ts";
 import { deleteAccount, deleteSessionByTokenHash, upsertAccount } from "./repository.ts";
 import type { AccountRecord } from "./repository.ts";
 import {
@@ -142,6 +143,33 @@ function deleteRoute(deps: DomainRouteDeps) {
 }
 
 /**
+ * 自分のアカウントを消す道（退会。本人のデータはすべての領域の CASCADE で消える。AD-7・AD-19）。
+ * @param deps 土台が渡す道具
+ * @returns 道の定義
+ */
+function deleteMeRoute(deps: DomainRouteDeps) {
+  return createRoute({
+    method: "delete",
+    path: "/api/v1/accounts/me",
+    tags: ["account"],
+    operationId: "accountDeleteMe",
+    summary:
+      "自分のアカウントを消す（退会。すべてのアプリの本人の記録とセッションも消える。元に戻せない）",
+    description:
+      "ほかの人が書きこむ記録（RESTRICT の外部キー）を持っていれば消さずに 409 ACCOUNT_OWNS_SHARED_RECORDS（AD-19）。消したらクッキーも消す。",
+    middleware: [requireSession(deps)] as const,
+    responses: {
+      204: { description: "消した（セッションのクッキーも消した）" },
+      401: unauthenticatedResponse,
+      409: domainErrorResponse(
+        ACCOUNT_ERRORS.ACCOUNT_OWNS_SHARED_RECORDS,
+        "ほかの人が書きこむ記録を持っている（先に消すか渡す）",
+      ),
+    },
+  });
+}
+
+/**
  * アカウントの行を、今の利用者の答えの形にする。
  * @param config 領域の設定（主催者）
  * @param record アカウント
@@ -211,17 +239,32 @@ export function accountRoutes(
     ? withTestLogin(routes)
     : (routes as unknown as ReturnType<typeof withTestLogin>);
 
-  return withTest
-    .openapi(logoutRoute, async (c) => {
-      const token = readSessionToken(c, cookie);
-      if (token) await deleteSessionByTokenHash(db, hashSessionToken(token));
-      clearSessionCookie(c, cookie);
-      return c.body(null, 204);
-    })
-    .openapi(meRoute(deps), (c) => c.json(present(config, currentAccountRecord(c)), 200))
-    .openapi(deleteRoute(deps), async (c) => {
-      const deleted = await deleteAccount(db, c.req.valid("param").accountId);
-      if (!deleted) throw new AppError("NOT_FOUND");
-      return c.body(null, 204);
-    });
+  return (
+    withTest
+      .openapi(logoutRoute, async (c) => {
+        const token = readSessionToken(c, cookie);
+        if (token) await deleteSessionByTokenHash(db, hashSessionToken(token));
+        clearSessionCookie(c, cookie);
+        return c.body(null, 204);
+      })
+      .openapi(meRoute(deps), (c) => c.json(present(config, currentAccountRecord(c)), 200))
+      // /me は /{accountId} より先に足す（道の値の形の確かめで 404 にならないように）
+      .openapi(deleteMeRoute(deps), async (c) => {
+        try {
+          await deleteAccount(db, currentAccountRecord(c).id);
+        } catch (error) {
+          if (isForeignKeyViolation(error)) {
+            throw new AppError(ACCOUNT_ERRORS.ACCOUNT_OWNS_SHARED_RECORDS);
+          }
+          throw error;
+        }
+        clearSessionCookie(c, cookie);
+        return c.body(null, 204);
+      })
+      .openapi(deleteRoute(deps), async (c) => {
+        const deleted = await deleteAccount(db, c.req.valid("param").accountId);
+        if (!deleted) throw new AppError("NOT_FOUND");
+        return c.body(null, 204);
+      })
+  );
 }

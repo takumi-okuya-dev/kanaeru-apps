@@ -57,6 +57,13 @@
       "when": 1795058634744,
       "tag": "0007_checkin_discount",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795106197845,
+      "tag": "0008_suite",
+      "breakpoints": true
     }
   ]
 }

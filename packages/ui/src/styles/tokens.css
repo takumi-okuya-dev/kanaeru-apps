@@ -97,6 +97,8 @@
   --container-page: 1040px;
   /* ダイアログの幅の上限 */
   --container-dialog: 480px;
+  /* メニュー（PC のアプリの切り替え。core-005）の幅。サイドバーより広く、名前と短い説明と札が1行に入る */
+  --container-menu: 304px;
   /*
    * 入力のフォームの幅の上限（max-w-form。欄を読みやすい長さに止める）。
    * Tailwind の max-w-xl などは、ここに名前がないと余白の段（--spacing-xl＝48px）に落ちるので使わない

@@ -32,8 +32,9 @@ export default defineConfig({
   webServer: [
     {
       // DB の変更を当てて（DB がなければ作って）から、API を立ち上げる（組み立てた画面も API が返す）。
-      // API は本番と同じ NODE_ENV=production で動かす（ふるまいは設定の値で決め、NODE_ENV に頼らない）
-      command: "pnpm --filter api db:migrate && pnpm --filter api exec tsx src/index.ts",
+      // API は本番と同じ NODE_ENV=production で動かす（ふるまいは設定の値で決め、NODE_ENV に頼らない）。
+      // 立ち上げは本番と同じ手順（src/server.ts）に、テストだけの見本のアプリを足したもの（apps/api/test/e2e-server.ts。core-005）
+      command: "pnpm --filter api db:migrate && pnpm --filter api exec tsx test/e2e-server.ts",
       cwd: "..",
       env: { ...E2E_ENV, NODE_ENV: "production" },
       url: `${E2E_WEB_URL}/api/v1/health`,

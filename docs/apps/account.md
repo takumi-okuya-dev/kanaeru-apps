@@ -1,6 +1,6 @@
 # アカウント（account）の地図
 
-2026-11-19 作成（account-001。決めた理由は [specs/account/001-line-login/research.md](../../specs/account/001-line-login/research.md)）。
+2026-11-19 作成（account-001。決めた理由は [specs/account/001-line-login/research.md](../../specs/account/001-line-login/research.md)）。2026-11-20 直した（core-005：退会の窓口・ログインの前でも今の利用者を読む `findSessionViewer`・画面の `signOut`・`withdrawAccount`・`useKnownAccount`）。
 
 LINE の利用者のアカウントとセッションを持ち、LINE の ID トークンを API が確かめて自前のセッションを出す。ほかの領域は、今の利用者をここの1つの仕組みで受け取る（構成の決めごと AD-2・AD-3・AD-4・AD-5・AD-12）。
 
@@ -21,6 +21,7 @@ LINE の利用者のアカウントとセッションを持ち、LINE の ID ト
 | POST | `/api/v1/auth/test-login` | 試験用のログイン（`{ lineUserId, displayName }`）。設定 `TEST_LOGIN_ENABLED` のときだけ道を登録する（切なら窓口の文書にも出ない） | 404（切）・400 |
 | POST | `/api/v1/auth/logout` | セッションとクッキーを消す（204） | — |
 | GET | `/api/v1/accounts/me` | 今の利用者（`id`・`displayName`・`isOrganizer`・`registeredAt`） | 401 `UNAUTHENTICATED` |
+| DELETE | `/api/v1/accounts/me` | 退会（自分のアカウントを消す。本人のデータはすべての領域の CASCADE で消える。クッキーも消す。204）。ほかの人が書きこむ記録（RESTRICT の外部キー）を持っていれば消さない（AD-19） | 401・409 `ACCOUNT_OWNS_SHARED_RECORDS` |
 | DELETE | `/api/v1/accounts/{accountId}` | アカウントを消す（主催者だけ。204） | 401・403 `FORBIDDEN`・404 |
 
 - LINE の verify：ID トークンの `aud` が `LINE_CHANNEL_IDS` にあるときだけ、その値を `client_id` にして1度だけ呼ぶ（5秒で打ち切る。`line-verifier.ts`）。外への出口は土台の `deps.fetch`（テストでは差しかえ）。
@@ -53,6 +54,7 @@ if (isOrganizer(deps.config, me)) { … }
 | `requireSession(deps)` | 未ログインなら 401 `UNAUTHENTICATED`。`createRoute` の `middleware` に付ける（`app.use("/api/v1/…/*")` は、同じ道の頭のほかの領域の道にも効くので使わない） |
 | `currentAccount(c)` | 今の利用者（`accountId`・`lineUserId`）。`requireSession` のあとだけ |
 | `isOrganizer(deps.config, account)`・`requireOrganizer(deps)` | 主催者か・主催者だけ通す（403） |
+| `findSessionViewer(deps, c)` | ログインしていれば今の利用者、していなければ `null`（401 にしない。suite の見えるアプリの一覧と `requireApp` が使う） |
 | `findAccountById(db, id)`・`deleteAccount(db, id)` | アカウントを読む（表示名の初期値など）・消す（FR-16） |
 | `accountTable` | 外部キーのためだけ |
 | `unauthenticatedResponse`・`forbiddenResponse` | `createRoute` の 401・403 の応答 |
@@ -66,6 +68,8 @@ if (isOrganizer(deps.config, me)) { … }
 | `SessionGate` | ログインが要るページを包む。読みこみ中・未ログイン（LINE の中は自動でログインし直し、だめなら「LINEでログインし直す」。手元は手元のログインへ）・夜間の停止（503 `DB_UNAVAILABLE` で日本時間 0時〜8時のとき）・失敗を出す |
 | `useSession()` | `loading`・`authenticated`（`account`）・`unauthenticated`・`error`（`retry`）。自動では読み直さない（ID トークンを送るのは1度だけ）。ほかの API の 401 で読み直すのは30秒に1度まで |
 | `SESSION_QUERY_KEY` | 今の利用者の問い合わせの鍵 |
+| `useKnownAccount()` | 今わかっている利用者（セッションの問い合わせを新しく始めない。未ログイン・読む前は `null`） |
+| `signOut(queryClient)`・`withdrawAccount(queryClient)` | ログアウト・退会して、ログアウトした状態にする（ほかの読みこみの値も消す）。設定 › アカウント（suite の画面）が使う |
 | `requestFriendship()` | 公式 LINE の友だち追加の小さな画面（友だち追加はチャネルの設定で勧めるので、ふだんは使わない） |
 
 E2E は、`/dev/login` で試験用のログインをするか、`page.request.post("/api/v1/auth/test-login", { data: { lineUserId, displayName } })` でクッキーを作ってから画面を開く。

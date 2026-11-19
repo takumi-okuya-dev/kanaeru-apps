@@ -2,6 +2,7 @@
 // 組み立て（app.ts）と領域（modules/<領域>/）が同じ型を使う。領域は組み立てを読めない（境界の決まり）ので、ここに置く。
 import { z } from "@hono/zod-openapi";
 import { jstDate } from "@workspace/contracts/core";
+import type { AppDefinition } from "@workspace/contracts/core";
 import type { SecretBox } from "@workspace/secret-box";
 import type { RequestIdVariables } from "hono/request-id";
 import type { Config } from "./config.ts";
@@ -57,6 +58,8 @@ export type DomainRouteDeps = {
    * 設定 THREADS_APP_ID・THREADS_APP_SECRET がなければ undefined（その機能は使えない）。手で組み立てるテストは書かなくてよい
    */
   metaApp?: MetaApp | undefined;
+  /** 登録されたアプリ（apps.list.ts の順。テストでは組み立ての extraApps も足す。suite の台帳が読む。AD-15） */
+  apps: readonly AppDefinition[];
 };
 
 /**

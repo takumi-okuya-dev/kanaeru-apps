@@ -1,6 +1,6 @@
 # 全体の形（アーキテクチャ）
 
-2026-11-18 作成（TypeScript の骨組み。`typescript` ブランチ）。2026-11-19 直した（core-001：見本の領域を消し、画面を API から返す形・LIFF の始め方・DB の夜間停止の 503・参加者の道と日本時間の関数・プロダクトの見た目の値を足した。account-001：アカウントとセッション・LINE のログイン・今の利用者の受け取り方を足した。event-001：交流会・受付係・招待・交流会ごとの権限・管理の画面の道とナビを足した。reception-001：チェックイン・一覧画面・合計と内訳・参加者の CSV と、選択肢のチップの部品を足した。survey-001：アンケートの回答・困りごとの一覧と CSV と、reception の差しこみの場所への節を足した。reception-002：交流会ごとの割引〈event〉と、チェックインの割引の写し・紹介者の名前〈reception〉を足した）。
+2026-11-18 作成（TypeScript の骨組み。`typescript` ブランチ）。2026-11-19 直した（core-001：見本の領域を消し、画面を API から返す形・LIFF の始め方・DB の夜間停止の 503・参加者の道と日本時間の関数・プロダクトの見た目の値を足した。account-001：アカウントとセッション・LINE のログイン・今の利用者の受け取り方を足した。event-001：交流会・受付係・招待・交流会ごとの権限・管理の画面の道とナビを足した。reception-001：チェックイン・一覧画面・合計と内訳・参加者の CSV と、選択肢のチップの部品を足した。survey-001：アンケートの回答・困りごとの一覧と CSV と、reception の差しこみの場所への節を足した。reception-002：交流会ごとの割引〈event〉と、チェックインの割引の写し・紹介者の名前〈reception〉を足した）。2026-11-20 直した（core-005：アプリの一覧と suite の台帳・組み立てが付ける `requireApp`・外枠のアプリの切り替えと設定・退会の窓口）。
 
 今のシステムの形。選んだ技術の候補と目安は [技術選定の候補](./tech-selection.md)、守る決まりは [コードの書き方の決まり](./rules/coding.md) 6章。
 
@@ -32,7 +32,7 @@ flowchart LR
 |---|---|
 | `apps/api` | API（Hono を Node の上で動かす）。設定 `WEB_DIST_DIR` があれば、組み立てた画面のファイルも返す（`platform/web`。1つのコンテナで画面と `/api` を同じ源にする）。DB の定義（`src/modules/<領域>/schema.ts`）・DB の変更（`drizzle/`）・見本のデータの手順（`scripts/`）もここに置く。DB を読み書きするのは API だけ |
 | `apps/web` | 画面（Vite＋React の SPA。TanStack Router〈コードで書く形〉と TanStack Query）。API は `/api` を同じ源で呼ぶ。LINE（`@line/liff` 2.32）は `lib/liff.ts` だけが始める |
-| `packages/contracts` | API の約束（ふつうの zod）。入力の形・答えの形・エラーの code と日本語の文言。API の入力の確かめ・窓口の文書（OpenAPI。名前は API の側で付ける）・画面の入力の確かめが、同じ形を使う。領域ごとのフォルダ（`src/<領域>/`）に分ける。`src/core/` には、参加者が開く道とミニアプリの URL（`participantPaths`・`PARTICIPANT_ROUTE_PATTERNS`・`miniAppPermalink`）と日本時間の関数（`jstDate`・`jstDateTime`・`endOfJstDate`）もある |
+| `packages/contracts` | API の約束（ふつうの zod）。入力の形・答えの形・エラーの code と日本語の文言。API の入力の確かめ・窓口の文書（OpenAPI。名前は API の側で付ける）・画面の入力の確かめが、同じ形を使う。領域ごとのフォルダ（`src/<領域>/`）に分ける。`src/core/` には、参加者が開く道とミニアプリの URL（`participantPaths`・`PARTICIPANT_ROUTE_PATTERNS`・`miniAppPermalink`）と日本時間の関数（`jstDate`・`jstDateTime`・`endOfJstDate`）と、アプリの一覧（`apps.list.ts`。1行に1つ。`listApps`・`appOfDomain`。構成の決めごと AD-15）もある |
 | `packages/csv` | CSV の作り方（BOM・CRLF・式として読まれない守り・`"` の囲み）。業務を知らず、ほかの包みとアプリを読まない技術の道具（構成の決めごと AD-18）。参加者の CSV（reception）と困りごとの CSV（survey）が使う |
 | `packages/ui` | 見た目の値（`src/styles/tokens.css`。プロダクトの DESIGN.md と、それが引き継ぐ土台から写したもの。プロダクトの色は墨）と部品（shadcn/ui の Base UI の形を、値だけ直したもの） |
 | `e2e` | Playwright の通しのテスト（キーボードだけ・アクセシビリティ〈axe〉・守りの見出しと CSP）。本番と同じく、API が組み立てた画面を返す形で流す |
@@ -40,7 +40,7 @@ flowchart LR
 | `scripts/security`・`security` | 秘密の値（gitleaks）と依存の脆弱性（`pnpm audit`）の確かめの手順と、依存の例外の一覧 |
 | `.githooks`・`.github` | コミットの前の秘密の値の確かめ（`pre-commit`）・CI（`workflows/ci.yml`・`security-weekly.yml`）・Dependabot |
 
-ログインは account の領域が持つ（LINE の ID トークンを API が LINE の verify で確かめ、自前のセッション〈DB の `session` の表と `HttpOnly; SameSite=Lax` のクッキー〉を出す。構成の決めごと AD-4・AD-12。地図は [apps/account.md](./apps/account.md)）。交流会ごとの権限（主催者・受付係）と、参加者に見せてよい交流会の要約は event の領域が持ち、要求のたびに引く（AD-5。地図は [apps/event.md](./apps/event.md)）。チェックインと、そのときの名前と金額（AD-6）は reception の領域が持ち、survey は reception の入口から引く（地図は [apps/reception.md](./apps/reception.md)）。アンケートの回答はチェックインだけを指して survey の領域が持ち、開閉は書くたびに event の要約から読む（AD-13。地図は [apps/survey.md](./apps/survey.md)）。置き場所（Cloud Run と Cloud SQL・Terraform）は、インフラの仕様で足す（AD-8〜AD-11）。
+ログインは account の領域が持つ（LINE の ID トークンを API が LINE の verify で確かめ、自前のセッション〈DB の `session` の表と `HttpOnly; SameSite=Lax` のクッキー〉を出す。構成の決めごと AD-4・AD-12。地図は [apps/account.md](./apps/account.md)）。交流会ごとの権限（主催者・受付係）と、参加者に見せてよい交流会の要約は event の領域が持ち、要求のたびに引く（AD-5。地図は [apps/event.md](./apps/event.md)）。アプリ（売る・公開する単位。領域の束）は `packages/contracts/src/core/apps.list.ts` に1行ずつ登録し、どの領域もちょうど1つのアプリか、スイートの共通（account・suite）に属する。アプリが見えるか（台帳の公開の状態）は suite の領域が決め、組み立て（`app.ts`）がアプリに属する領域のすべての道に suite の `requireApp` を付ける（AD-15・AD-16。地図は [apps/suite.md](./apps/suite.md)）。チェックインと、そのときの名前と金額（AD-6）は reception の領域が持ち、survey は reception の入口から引く（地図は [apps/reception.md](./apps/reception.md)）。アンケートの回答はチェックインだけを指して survey の領域が持ち、開閉は書くたびに event の要約から読む（AD-13。地図は [apps/survey.md](./apps/survey.md)）。置き場所（Cloud Run と Cloud SQL・Terraform）は、インフラの仕様で足す（AD-8〜AD-11）。
 
 ### 設定（`apps/api/src/kernel/config.ts`）
 
@@ -94,6 +94,7 @@ flowchart TB
 | `packages/contracts/src/<領域>/` | 入出力の形（zod）と、領域のエラーの code と文言 |
 | `apps/api/src/modules/<領域>/` | 表（`schema.ts`）・読み書き（`repository.ts`）・道（`routes.ts`。`createRoute`）。入口は `index.ts` の `routes(deps)`。土台が渡すのは `db`・`logger`・`features`（機能の印）・`config`（秘密でない設定だけの `DomainConfig`）・`fetch`（外のサービスへの出口。テストでは差しかえる）だけ。ログインが要る道は account の `requireSession(deps)` を `createRoute` の `middleware` に付け、`currentAccount(c)` で今の利用者を読む |
 | `apps/api/src/modules.list.ts` | 1行足す（`merge=union`。[並行開発の決まり](./rules/parallel-development.md) 3-1） |
+| `packages/contracts/src/core/apps.list.ts` | 属するアプリの1行を足すか、その行の `domains` に足す（`merge=union`。足し忘れるとテストが落ち、API は起動しない） |
 | `apps/web/src/features/<領域>/` | 画面と道（`createRoute({ getParentRoute: () => rootRoute })`）。入口は `index.ts` の `feature`（`id`・`routes`・任意で `nav`） |
 | `apps/web/src/features.list.ts` | 1行足す（`merge=union`） |
 | `apps/api/drizzle/` | DB の変更（`pnpm db:generate` で作り、SQL を読んでからコミットする） |
@@ -113,6 +114,7 @@ sequenceDiagram
   B->>V: POST /api/v1/…（同じ源）
   V->>A: /api（本番は同じ API の中。手元は Vite が中継）
   Note over A: 要求の ID → 守りの見出し → 要求ごとのログ1行<br/>→ 源の確かめ（Origin が画面の源と違えば 403）<br/>→ 本文の大きさ（100KB まで）→ 回数の制限（書く操作。IP ごと・IPv6 は /64 ごと）
+  Note over A: アプリに属する領域の道は、組み立てが付けた suite の requireApp が<br/>app_setting の公開の状態を引く（見えなければ 404。運営者だけのアプリのときだけセッションも引く）
   Note over A: ログインが要る道は account の requireSession が<br/>クッキーの札の SHA-256 で session を引く（なければ 401 UNAUTHENTICATED）
   Note over A: 交流会ごとの権限が要る道は event の requireEventRole が<br/>event と event_staff を引く（ない交流会は 404・役目が合わなければ 403）
   Note over A: 道（createRoute）が約束（zod）で入力を確かめる<br/>道の ID が合わなければ 404、本文が合わなければ 400 と欄ごとの日本語の理由
@@ -131,20 +133,22 @@ sequenceDiagram
 - PostgreSQL 18 の DB を1つ使い、読み書きするのは API だけ。つなぐ時間と1つの命令の時間に上限があり（設定）、DB が答えないときは待ち続けずに `503 DB_UNAVAILABLE` で失敗する。本番の DB は夜間（0時〜8時）に止まる（AD-10）。動いているかの窓口（`GET /api/v1/health`）は DB に触るので、置き場所の起動の確かめ（probe）には使わない（Cloud Run の既定の TCP の確かめのまま）。接続先と DB の名前は設定の `DATABASE_URL` で決める（手元は Docker の `postgres:18` を1つ共通に使い、作業場所ごとに DB の名前で分ける。[並行開発の決まり](./rules/parallel-development.md) 1）。
 - アプリの表は `public` スキーマ、DB の変更の記録は `drizzle` スキーマにある。DB の変更は `apps/api/drizzle/` の1列の SQL で、`meta/_journal.json` の順に当てる。当てた記録が残り、もう一度当てても何もしない。
 - 表の名前は単数の snake_case。主キーは `uuid`（既定値 `uuidv7()`）、時刻は `timestamptz`（[コードの書き方の決まり](./rules/coding.md) 6-4）。
-- 今あるアプリの表は account の `account`・`session`（[apps/account.md](./apps/account.md)）と、event の `event`・`event_staff`・`staff_invite`・`event_discount`（[apps/event.md](./apps/event.md)）と、reception の `checkin`（[apps/reception.md](./apps/reception.md)）と、survey の `survey_answer`（[apps/survey.md](./apps/survey.md)）。表は領域を足すときに、その領域の `schema.ts` で足す（見本の領域の `note` は core-001 の DB の変更で消した）。
+- 今あるアプリの表は account の `account`・`session`（[apps/account.md](./apps/account.md)）と、suite の `app_setting`（[apps/suite.md](./apps/suite.md)）と、event の `event`・`event_staff`・`staff_invite`・`event_discount`（[apps/event.md](./apps/event.md)）と、reception の `checkin`（[apps/reception.md](./apps/reception.md)）と、survey の `survey_answer`（[apps/survey.md](./apps/survey.md)）。表は領域を足すときに、その領域の `schema.ts` で足す（見本の領域の `note` は core-001 の DB の変更で消した）。
 
 ## 6. 画面の骨格
 
 - 外枠（`apps/web/src/shell/AppShell.tsx`）は、道ごとの形で描き分ける（core-003）。形は、持ち主の領域が道の静かな値 `staticData.layout`（`lib/router.ts`）に書き、外枠は今の道のいちばん深い当たりの値を読む。
   - **管理の形**（書かない道。`/admin/events/…` など）：上に帯（「メニュー」ボタンとアプリの名前）。752px 以上は左にサイドバー（「メニュー」ボタン〈`aria-expanded`・`aria-controls`〉で出す・隠す。見ている人のブラウザの localStorage に覚え、はじめは出す。読み書きが投げても出した状態で動く）。751px 以下は画面の下のタブバー（アイコンと名前・高さ 56px・端末の下の安全な余白。帯の下にナビの行はない）。このとき外枠は画面の高さで、帯と本文だけが1つの枠の中でスクロールする（本文がタブバーの下に潜らない。道が変わったら枠を上に戻す）。どちらも `<nav aria-label="メイン">` で、今の項目は `aria-current`（同じ道は `page`、下の道は一番長く当たる項目に `true`）と墨の印。
   - **ナビなしの形**（`"bare"`。チェックイン・アンケート・招待・手元のログイン）：上の帯はアプリの名前だけ（リンクにしない）。サイドバー・タブバー・メニューのボタンを出さない。
-  - ナビの項目は、組み立て（`router.tsx`）が領域の `useNavItems`（なければ決まった `nav`）を `features.list.ts` の順に並べ、外枠に渡す。交流会の中では event が「交流会の一覧」「参加者・合計」「困りごと」（主催者だけ）「準備」（主催者だけ）を出す（役目は、画面が読んだ交流会から読み、ナビのために問い合わせない）。外では「交流会の一覧」だけ。
+  - ナビの項目は、組み立て（`router.tsx`）が領域の `useNavItems`（なければ決まった `nav`）を `features.list.ts` の順に並べ、**今のアプリ**（今の道を出した領域が属するアプリ）の領域の項目だけを外枠に渡す（core-005）。今のアプリがない画面（見つからない画面など）は、最後に使ったアプリか見える最初のアプリの項目。交流会の中では event が「交流会の一覧」「参加者・合計」「困りごと」（主催者だけ）「準備」（主催者だけ）を出す（役目は、画面が読んだ交流会から読み、ナビのために問い合わせない）。外では「交流会の一覧」だけ。
   - 先頭に「本文へ移る」。道が変わったら、新しい画面の h1 にフォーカスを移す（ログインの確かめなどで h1 があとから出る画面は、出たときに移す。その間に利用者がフォーカスを動かしたら動かさない）。
 - ページ（`lib/page.tsx` の `Page`）：題（h1）→ リード文 → 中身。ブラウザの題は「{ページの題}｜{APP_NAME}」。
 - 状態と結果の出し方は EXPERIENCE.md の型：入力の誤りは欄のそば・送った結果はボタンの近く・画面が切り替わるときだけ画面の上の知らせの帯・消す前は確かめの枠・読みこみ中と空と失敗の状態。
 - 見た目の値は `packages/ui/src/styles/tokens.css` だけ（Tailwind の初期の値は消してある）。組み立てた画面は CSP（`script-src 'self' https://static.line-scdn.net`・`style-src 'self'`。`'unsafe-inline'`・`'unsafe-eval'` なし）で動き、Base UI の部品にも `<style>` を書き足させない（`UiProvider`）。
 - 画面の入口（`main.tsx`）は、`lib/liff.ts` の `initLiff()` を待ってからルーターを作る（LIFF の init の前に URL を変えないため）。LIFF ID（組み立てのときの `VITE_LIFF_ID`）がなければ、LINE につながない仮の形（未ログイン・ID トークンなし）で動く。始められなければ「読みこめませんでした」の画面（`shell/StartupErrorPage.tsx`）を出す。
-- はじめの画面（`/`）は、ナビの最初の項目へ移る（今は event の「交流会の一覧」〈`/admin/events`〉。受付係と主催者がミニアプリを開き直すと一覧に来る）。ナビを出す領域がなければ「ページが見つかりません」。
+- はじめの画面（`/`）は、この端末で最後に使ったアプリ（localStorage。見えるもの）、なければ見える最初のアプリの、最初のナビの項目へ移る（今は受付アプリの「交流会の一覧」〈`/admin/events`〉。受付係と主催者がミニアプリを開き直すと一覧に来る）。見えるアプリを読めなければ登録されたアプリから選び、見えるアプリが1つもなければ「すべてのアプリ」（`/apps`）。
+- **アプリの切り替え**（core-005。AD-15・AD-16）：見えるアプリ（suite の `useVisibleApps`。組み立てが `useShellApps` で外枠に渡す）が2つ以上のときだけ、PC はサイドバーの上のボタンとメニュー（使えるアプリ・運営者だけの札・すべてのアプリ）、スマホは上の帯の右のボタンと下から出す枠（同じ並び・すべてのアプリ・設定）。1つなら出さない。外枠はアプリの名前を書かない。今の道のアプリが見えないときは、外枠が「ページが見つかりません」を出す（窓口は API の `requireApp` が 404）。アプリの中にいるときは、そのアプリをこの端末に覚える。
+- **外枠の画面**（どのアプリにも属さない。道の `staticData.section`）：すべてのアプリ（`/apps`。ナビの項目なし）と設定（`/settings/…`。ナビは領域の `feature.settings` を「個人の設定・アプリの設定・運営（運営者だけ）」の見出しごとに並べたもの。見えないアプリの項目は出さない。スマホはタブバーを出さず、一覧の画面から入る）。入口は、PC は上の帯の右の「設定」、スマホは切り替えの枠の一番下（切り替えがないときは上の帯の右）。画面は suite の領域が持つ（地図は [apps/suite.md](./apps/suite.md)）。
 - 管理の画面（`/admin/events/…`）の道の形は `@workspace/contracts/event` の `ADMIN_ROUTE_PATTERNS` の1か所にあり、画面どうしの行き来は外枠のナビ（event の `useNavItems`。道が登録されている項目だけを出す。「書き出しと削除」はナビに出さず、A3 と困りごとのボタンから開く）。QR は画面で作る（`uqr` で点の並びを作り、React の SVG で描く。中身は `miniAppPermalink`）。
 - 一覧画面（A3）と困りごとの画面は TanStack Query の読み直しを5秒おきにする（つなぎっぱなしの仕組みは使わない。夜間の停止では止める）。書いたあとは、その場で読み直す。参加者と困りごとの CSV は API が UTF-8 の BOM つきで作り、画面は受け取って保存する。
 - ほかの領域の画面に節を足すときは、持ち主の「差しこみの場所」に登録する（今は reception の A5 の節と A3 の直す枠の節。`registerEventDataSection`・`registerCheckinPanelSection`。survey が困りごとの CSV と代わりの入力を登録している）。

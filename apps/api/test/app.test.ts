@@ -99,6 +99,7 @@ describe("組み立て", () => {
     expect(received?.fetch).toBe(fakeFetch);
     // 秘密の値は、値ではなく道具（秘密の箱・合言葉の確かめ）にして渡す。設定がなければ箱はなく、合言葉はいつも合わない
     expect(Object.keys(received ?? {}).sort()).toEqual([
+      "apps",
       "config",
       "db",
       "features",
