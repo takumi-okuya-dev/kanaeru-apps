@@ -28,9 +28,11 @@ const ROW: SurveyAnswerRow = {
 /**
  * 仮の API（今の利用者・交流会・困りごとの一覧）。
  * @param rows 一覧の行
+ * @param failWhen この問い合わせの文字の一覧を読んだら、held を待ってから 500 を返す（任意）
+ * @param held failWhen の答えを待たせる約束（任意。なければすぐ返す）
  * @returns 一覧を読んだ問い合わせの文字の並び
  */
-function stubApi(rows: SurveyAnswerRow[]): string[] {
+function stubApi(rows: SurveyAnswerRow[], failWhen?: string, held?: Promise<void>): string[] {
   const searches: string[] = [];
   vi.stubGlobal("fetch", (input: RequestInfo | URL) => {
     const url = new URL(input instanceof Request ? input.url : input.toString());
@@ -62,6 +64,14 @@ function stubApi(rows: SurveyAnswerRow[]): string[] {
       );
     }
     searches.push(url.search);
+    if (url.search === failWhen) {
+      return (held ?? Promise.resolve()).then(() =>
+        Response.json(
+          { error: { code: "INTERNAL", message: "うまくいきませんでした。", requestId: "r" } },
+          { status: 500 },
+        ),
+      );
+    }
     return Promise.resolve(Response.json({ answers: rows }));
   });
   return searches;
@@ -87,6 +97,29 @@ describe("困りごとの画面", () => {
     await userEvent.click(screen.getByRole("radio", { name: "月いくらの高い順" }));
     await waitFor(() => expect(searches).toContain("?tester=yes&sort=price"));
     expect(searches[0]).toBe("?sort=newest");
+  });
+
+  it("絞りこみを変えたら、読めるまで前の絞りこみの行を出さず、初めの読みこみが失敗したら誤りを出す", async () => {
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    stubApi([{ ...ROW, tester: "no" }], "?tester=yes&sort=newest", held);
+    renderWithRouter(<ConcernsPage eventId={EVENT_ID} />);
+    await screen.findByRole("table", { name: "困りごと" });
+    expect(screen.getByText("1件の回答があります。")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("radio", { name: "テスターに「はい」だけ" }));
+    // 読みこみ中（読み直しの間も含む）に、「いいえ」の行を「はい」だけの結果として出さない
+    expect(await screen.findByText("読みこんでいます…")).toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: "困りごと" })).toBeNull();
+    expect(screen.queryByText("1件の回答があります。")).toBeNull();
+
+    release();
+    expect(await screen.findByRole("alert")).toHaveTextContent("うまくいきませんでした。");
+    expect(screen.queryByRole("table", { name: "困りごと" })).toBeNull();
+    expect(screen.queryByText("1件の回答があります。")).toBeNull();
+    expect(screen.queryByText(ROW.name)).toBeNull();
   });
 
   it("回答がなく閉じていれば「まだ困りごとはありません」と準備の画面への入口", async () => {

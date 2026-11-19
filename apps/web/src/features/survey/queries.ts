@@ -1,6 +1,11 @@
 // アンケートの問い合わせ（TanStack Query）の鍵と読みこみ。鍵はどれも "survey" で始める
 // （ログインし直したときに account が読み直させる。回答を書いたあとは all をまとめて読み直す）。
 // 困りごとの一覧は5秒おきに読み直す（Consistency Conventions「一覧画面の更新」）。夜間の停止では止める。
+// 止めるのは、夜間の停止の時間帯（日本時間 0時〜8時）に DB に届かない 503 を受けたときだけ（reception・event と同じ）。
+// 昼の 503 やほかの失敗は一時的なので、読み直しを続け、つながれば自然に最新に戻る。
+// 絞りこみ・並べ方を変えたときに前の鍵の行を仮に出さない（placeholderData を使わない）。前の行が新しい絞りこみの結果に見え、
+// 新しい鍵の初めの読みこみが失敗しても誤りが出ないため。
+import { isNightStopWindow } from "@workspace/contracts/core";
 import type { SurveyListQuery } from "@workspace/contracts/survey";
 import { useQuery } from "@tanstack/react-query";
 import { ApiError } from "../../lib/api.ts";
@@ -36,12 +41,27 @@ export const SURVEY_QUERY_KEYS = {
 };
 
 /**
- * 夜間の停止（503 DB_UNAVAILABLE）か。
+ * 夜間の停止か（夜間の停止の時間帯に、DB に届かない 503 DB_UNAVAILABLE を受けた）。昼の 503 は一時的なので false。
  * @param error 投げられたもの
+ * @param now 今（既定は今の時刻。テストで差しかえる）
  * @returns 夜間の停止なら true
  */
-export function isNightStop(error: unknown): boolean {
-  return error instanceof ApiError && error.code === "DB_UNAVAILABLE";
+export function isNightStop(error: unknown, now: Date = new Date()): boolean {
+  return error instanceof ApiError && error.code === "DB_UNAVAILABLE" && isNightStopWindow(now);
+}
+
+/**
+ * 困りごとの一覧を5秒おきに読み直す間。夜間の停止のときだけ止め、ほかの失敗では続ける。
+ * @param query 問い合わせ
+ * @param query.state 問い合わせの状態（最後の失敗）
+ * @param now 今（既定は今の時刻。テストで差しかえる）
+ * @returns 間（止めるなら false）
+ */
+export function surveyPollInterval(
+  query: { state: { error: unknown } },
+  now: Date = new Date(),
+): number | false {
+  return isNightStop(query.state.error, now) ? false : SURVEY_REFETCH_MS;
 }
 
 /**
@@ -79,7 +99,6 @@ export function useSurveyAnswers(eventId: string, query: SurveyListQuery) {
   return useQuery({
     queryKey: SURVEY_QUERY_KEYS.list(eventId, query),
     queryFn: () => fetchSurveyAnswers(eventId, query),
-    refetchInterval: (current) => (isNightStop(current.state.error) ? false : SURVEY_REFETCH_MS),
-    placeholderData: (previous) => previous,
+    refetchInterval: (current) => surveyPollInterval(current),
   });
 }

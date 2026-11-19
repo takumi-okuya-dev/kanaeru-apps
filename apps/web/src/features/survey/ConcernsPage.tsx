@@ -2,6 +2,7 @@
 // 回答ごとに、名前（チェックインの名前。AD-6）・困りごと・月いくら・テスター・仕事の立場・職種。
 // 表の上に「絞りこみ」（すべて／テスターに「はい」だけ）と「並べ方」（回答の新しい順／月いくらの高い順）のチップ。
 // 広い画面は表、狭い画面はカード。5秒おきに読み直す（queries.ts）。読み直しが失敗しても前のものを出したまま。
+// 絞りこみ・並べ方を変えたら、その鍵で読めるまで前の行を出さない（読みこみ中・読めなければ誤りを出す）。
 import type { EventView } from "@workspace/contracts/event";
 import type { SurveyAnswerRow, SurveyListQuery, SurveySort } from "@workspace/contracts/survey";
 import {

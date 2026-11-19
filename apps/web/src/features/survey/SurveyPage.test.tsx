@@ -101,8 +101,34 @@ function stubApi(
   return sent;
 }
 
+/**
+ * 仮の API（今の利用者は読め、要約と自分の回答は DB に届かない 503）。
+ */
+function stubDbUnavailable(): void {
+  vi.stubGlobal("fetch", (input: RequestInfo | URL) => {
+    const url = new URL(input instanceof Request ? input.url : input.toString());
+    if (url.pathname === "/api/v1/accounts/me") {
+      return Promise.resolve(
+        Response.json({
+          id: "0193a1b2-0000-7000-8000-000000000009",
+          displayName: "佐藤",
+          isOrganizer: false,
+          registeredAt: "2026-11-19T10:00:00.000Z",
+        }),
+      );
+    }
+    return Promise.resolve(
+      Response.json(
+        { error: { code: "DB_UNAVAILABLE", message: "一時的につながりません。", requestId: "r" } },
+        { status: 503 },
+      ),
+    );
+  });
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe("アンケートの画面", () => {
@@ -227,5 +253,19 @@ describe("アンケートの画面", () => {
     await userEvent.click(screen.getByRole("button", { name: "送る" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("アンケートは閉じています");
     expect(concern).toHaveValue("残したい");
+  });
+
+  it("DB に届かない 503 は、夜間の停止の時間帯だけ夜間の画面にし、昼は「読みこめませんでした」と「もう一度」", async () => {
+    stubDbUnavailable();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-25T03:00:00+09:00"));
+    const night = renderWithRouter(<SurveyPage eventId={EVENT_ID} />);
+    await screen.findByRole("heading", { level: 1, name: "夜間（0時〜8時）は止まっています" });
+    night.unmount();
+
+    vi.setSystemTime(new Date("2026-11-25T19:00:00+09:00"));
+    renderWithRouter(<SurveyPage eventId={EVENT_ID} />);
+    await screen.findByRole("heading", { level: 1, name: "読みこめませんでした" });
+    expect(screen.getByRole("button", { name: "もう一度" })).toBeInTheDocument();
   });
 });
