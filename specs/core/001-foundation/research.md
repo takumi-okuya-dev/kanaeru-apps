@@ -21,19 +21,19 @@
 
 ## R3. `UNAVAILABLE` を `DB_UNAVAILABLE` に置きかえる【仮決め】
 
-- **Decision**: 土台の code の `UNAVAILABLE`（503）を `DB_UNAVAILABLE`（503）に名前を変える。文言は EXPERIENCE.md の言葉「夜間（0時〜8時）は止まっています。8時からもう一度開いてください。」。
+- **Decision**: 土台の code の `UNAVAILABLE`（503）を `DB_UNAVAILABLE`（503）に名前を変える。文言は、起きた時刻の日本時間で選ぶ（code は1つ）：0時〜8時は EXPERIENCE.md の言葉「夜間（0時〜8時）は止まっています。8時からもう一度開いてください。」、ほかは「一時的につながりません。少し待ってから、もう一度開いてください。」。選ぶのは `@workspace/contracts/core` の `dbUnavailableMessage(now)`（`coreErrorMessage`）の1か所で、時間帯は `isNightStopWindow(now)`（画面も同じものを使える）。
 - **Rationale**: 503 を返す理由は DB に届かないことだけ。組み立ては投げられた `HTTPException` の状態の番号から code を逆に引くので、1つの番号に code が2つあると決められない。画面はエラーの文をそのまま出すので、文言は EXPERIENCE.md の Voice and Tone（決めた言葉＋仮に決めた言葉の続き）にした。
 - **Alternatives**: 両方を残す。逆引きの表に例外が要り、どちらを返すかが場所しだいになるので選ばなかった。
-- **Note**: 昼に Cloud SQL が別の理由で止まったときも、同じ文になる（AD-10 の決めた文を優先した）。
+- **Note**: 昼に Cloud SQL が別の理由（保守の再起動など）で止まったとき、交流会の最中の人に「8時から」と出さないよう、昼は一時的な文にした。
 
 ## R4. DB に届かないことの見分けと、読みかえの1か所
 
-- **Decision**: `kernel/pg-errors.ts` の `isDbUnavailable(error)` が、エラーと、その `cause`・`errors`（`AggregateError`）を5段まで見て、次のどれかなら true：
-  - Node のつなぐ時のエラーの code：`ECONNREFUSED`・`ECONNRESET`・`ETIMEDOUT`・`EHOSTUNREACH`・`ENETUNREACH`・`ENOTFOUND`・`EAI_AGAIN`・`ENOENT`（Cloud SQL の Unix ソケットがない）・`EPIPE`
-  - PostgreSQL の SQLSTATE：クラス `08`（接続の例外）・`57P01`・`57P02`・`57P03`（止める途中・起動の途中）
-  - pg の文：`Connection terminated`（時間切れ・途中で切れた）・`timeout exceeded when trying to connect`・`Query read timeout`
+- **Decision**: `kernel/pg-errors.ts` の `isDbUnavailable(error)` は、**DB の層から来たエラーだけ**を見る（LINE への fetch の `ENOTFOUND` やファイルの `ENOENT` を 503 にしないため）：
+  - Drizzle の命令のエラー（`DrizzleQueryError`）なら、その `cause`・`errors`（`AggregateError`）を5段まで開き、次のどれかがあれば true
+  - 包まれずに届いた pg のエラー（`db.transaction` の `pool.connect()` など）なら、pg の `DatabaseError` の SQLSTATE・pg の決まった文・ソケットのつなぐときのエラー（`syscall` が `connect`・`getaddrinfo`。`ENOENT` は道が `.s.PGSQL.` のときだけ）・それだけを束ねた `AggregateError` なら true。fetch の失敗は `TypeError`（fetch failed）に包まれるので当たらない
+  - 見るもの：Node のソケットの code `ECONNREFUSED`・`ECONNRESET`・`ETIMEDOUT`・`EHOSTUNREACH`・`ENETUNREACH`・`ENOTFOUND`・`EAI_AGAIN`・`ENOENT`（Cloud SQL の Unix ソケットがない）・`EPIPE`／PostgreSQL の SQLSTATE クラス `08`（接続の例外）・`57P01`・`57P02`・`57P03`（止める途中・起動の途中）／pg の文 `Connection terminated unexpectedly`（DB に切られた）・`Connection terminated due to connection timeout`（DB の口につなぐのが時間切れ）
   - `kernel/errors.ts` の `toAppError(error)` が、`AppError`・`HTTPException`・DB に届かない、を `AppError` に読みかえる。組み立ての `onError` はこれを呼ぶだけ。
-- **Rationale**: AD-10「この読みかえは土台のエラーの処理に1か所だけ」。Drizzle は pg のエラーを `cause` に包むので、包みを開いて見る。`statement_timeout`（`57014`）・制約の違反（`23xxx`）・`53300`（接続が多すぎる）は DB に届いているので含めない。
+- **Rationale**: AD-10「この読みかえは土台のエラーの処理に1か所だけ」。Drizzle は pg のエラーを `cause` に包むので、包みを開いて見る。`statement_timeout`（`57014`）・制約の違反（`23xxx`）・`53300`（接続が多すぎる）・pg-pool の空き待ちの時間切れ（`timeout exceeded when trying to connect`）・答えが遅い命令（`Query read timeout`）は DB に届いている（混んでいる・遅い）ので含めない（昼の混雑を 503 にしない。500 の INTERNAL になる）。
 - **Alternatives**: 動いているかの窓口だけで見分ける。領域の窓口が 500 になるので選ばなかった。
 
 ## R5. 起動の確かめ（probe）に DB に触る窓口を使わない
@@ -45,9 +45,9 @@
 ## R6. 画面のファイルを API が返す（`WEB_DIST_DIR`）
 
 - **Decision**:
-  - 設定 `WEB_DIST_DIR`（組み立てた画面のフォルダ。相対ならその時の作業のフォルダから）があれば、`platform/web` が `/api` 以外の GET・HEAD に、ファイル（`@hono/node-server` の `serveStatic`。`..` などは中で止まる）を返す。ファイルがなく、最後の部分に拡張子のない道は `index.html`（起動のときに1度読む。なければ起動を止める）。拡張子のある道（`/assets/ない.js`）は 404。
+  - 設定 `WEB_DIST_DIR`（組み立てた画面のフォルダ。相対ならその時の作業のフォルダから）があれば、`platform/web` が `/api` 以外の GET・HEAD に、ファイル（`@hono/node-server` の `serveStatic`。`..` などは中で止まる）を返す。ファイルがなければ、`/assets/` の下は 404（壊れた JS を HTML で返さない）、ほかの道は `.` を含んでも `index.html`（起動のときに1度読む。なければ起動を止める）。
   - staging・production では `WEB_DIST_DIR` が要る（なければ起動しない）。手元の `pnpm dev` は今までどおり Vite が画面を返し、`/api` を中継する。
-  - キャッシュ：`/assets/`（Vite がファイルの名前に中身の印を付ける）は `public, max-age=31536000, immutable`、`index.html` などは `no-cache`、API は今までどおり `no-store`。
+  - キャッシュ：`/assets/`（Vite がファイルの名前に中身の印を付ける）は `public, max-age=31536000, immutable`、`index.html` などは `no-cache`、API は今までどおり `no-store`。キャッシュの見出しは、ファイルを返せた応答（200・206）だけに付ける（範囲が合わない 416 などには付けない）。
   - `/api`・`/api/…` だけが API（`/apifoo` は画面の道）。
 - **Rationale**: AD-8（1つのコンテナが画面と `/api` を同じ源で返す）。環境の名前でなく設定の値で分ける（coding.md 2）。
 - **Alternatives**: 環境の名前（production）で返すかを決める。決まりに反するので選ばなかった。画面を別のサービス（Cloud Storage など）に置く。源が分かれ、クッキーが使えないので選ばなかった。

@@ -16,9 +16,9 @@ account・event・reception・survey の領域は、ここの名前を使い、�
 
 ## エラー
 
-| code | 状態 | 文言（`CORE_ERROR_MESSAGES`） | いつ |
+| code | 状態 | 文言（`coreErrorMessage(code, now)`） | いつ |
 |---|---|---|---|
-| `DB_UNAVAILABLE` | 503 | 夜間（0時〜8時）は止まっています。8時からもう一度開いてください。 | DB に届かない（土台が読みかえる。領域は何もしなくてよい） |
+| `DB_UNAVAILABLE` | 503 | 日本時間 0時〜8時：夜間（0時〜8時）は止まっています。8時からもう一度開いてください。／ほか：一時的につながりません。少し待ってから、もう一度開いてください。 | DB の層（Drizzle の命令・pg の接続）から来た、DB に届かないエラー（土台が読みかえる。領域は何もしなくてよい） |
 
 （`UNAVAILABLE` は無くなった。）
 
@@ -35,6 +35,11 @@ account・event・reception・survey の領域は、ここの名前を使い、�
 | `miniAppPermalink(liffId, path)` | `https://miniapp.line.me/{liffId}{path}`。形が違えば `RangeError` |
 | `jstDate(instant)` | `"YYYY-MM-DD"`（日本時間） |
 | `endOfJstDate(instant)` | `Date`（翌日の日本時間 0時。`now < endOfJstDate(x)` ならその日のうち） |
+| `isNightStopWindow(now?)` | `boolean`（日本時間 0時〜8時の夜間の停止の時間帯なら true。8時ちょうどは false）。画面が問い合わせのくり返しを止めるかを決めるのに使う |
+| `NIGHT_STOP_END_HOUR_JST` | `8` |
+| `dbUnavailableMessage(now?)` | `DB_UNAVAILABLE` の文（夜間の停止の時間帯なら夜間の文、ほかは一時的な文） |
+| `coreErrorMessage(code, now?)` | 土台の code の、その時刻に出す文（`DB_UNAVAILABLE` だけ時刻で変わる） |
+| `DB_UNAVAILABLE_MESSAGES` | `{ nightStop, temporary }`（2つの文）。`CORE_ERROR_MESSAGES.DB_UNAVAILABLE` は時刻によらない `temporary`（窓口の文書の例など） |
 
 ## 画面の LIFF（`apps/web/src/lib/liff.ts`）
 
@@ -48,4 +53,4 @@ account・event・reception・survey の領域は、ここの名前を使い、�
 ## 画面のファイルと CSP（`apps/api/src/platform/web/`）
 
 - `/api`・`/api/…` は API の CSP（`default-src 'none'`）。それ以外は画面の CSP（[research.md](../research.md) R7 の源）。
-- 画面の道を足しても、API は直さない（ファイルのない拡張子なしの道は `index.html`）。
+- 画面の道を足しても、API は直さない（`/assets/` の下でないファイルのない道は、`.` を含んでも `index.html`）。

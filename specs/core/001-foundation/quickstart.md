@@ -15,8 +15,10 @@ E2E は、API が組み立てた画面（`apps/web/dist`）を返す形で流れ
 
 ```bash
 pnpm --filter web build
-WEB_DIST_DIR=apps/web/dist pnpm --filter api exec tsx --env-file-if-exists=../../.env src/index.ts
+WEB_DIST_DIR=../web/dist pnpm --filter api exec tsx --env-file-if-exists=../../.env src/index.ts
 ```
+
+- `pnpm --filter api exec` は `apps/api` で動くので、相対の `WEB_DIST_DIR` は `apps/api` から見た道（`../web/dist`）にする（絶対の道でもよい）。
 
 - `http://localhost:8787/` と `/e/x/checkin` で画面（今は「ページが見つかりません」）が出る。見出しの `Content-Security-Policy` に `https://static.line-scdn.net` などがある。
 - `http://localhost:8787/api/v1/health` は `{"status":"ok"}`。DB の容器を止める（`docker compose stop`）と、503・`DB_UNAVAILABLE`。
