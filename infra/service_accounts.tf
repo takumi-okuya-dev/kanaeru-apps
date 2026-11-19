@@ -73,6 +73,8 @@ resource "google_project_iam_custom_role" "sql_activation" {
     "cloudsql.instances.get",
     "cloudsql.instances.update",
   ]
+  # 自前の役割は IAM の API（iam.googleapis.com）で作る。ほかの資源と違い何も参照しないので、有効にするのを待つよう書く
+  depends_on = [google_project_service.apis]
 }
 
 resource "google_project_iam_member" "db_scheduler_sql_activation" {
