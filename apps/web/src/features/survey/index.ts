@@ -12,7 +12,7 @@ export { SURVEY_QUERY_KEYS } from "./queries.ts";
 registerCheckinPanelSection({ id: "survey-proxy-answer", Component: ProxyAnswerSection });
 registerEventDataSection({ id: "survey-concerns-csv", Component: ConcernsCsvSection });
 
-/** アンケートの領域が出すもの（ナビには出さない。管理の画面の行き来は event の EventAdminNav）。 */
+/** アンケートの領域が出すもの（ナビには出さない。管理の画面の行き来は外枠のナビ。event が出す）。 */
 export const feature = {
   id: "survey",
   routes: [surveyRoute, concernsRoute],

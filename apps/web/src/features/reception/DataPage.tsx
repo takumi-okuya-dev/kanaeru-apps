@@ -15,7 +15,7 @@ import type * as React from "react";
 import { errorMessage } from "../../lib/api.ts";
 import { Page } from "../../lib/page.tsx";
 import { SessionGate, useSession } from "../account/index.ts";
-import { EventAccessGate, EventAdminNav, formatEventDateTime } from "../event/index.ts";
+import { EventAccessGate, formatEventDateTime } from "../event/index.ts";
 import { deleteCheckin, deleteParticipantAccount, downloadParticipantsCsv } from "./api.ts";
 import { formatCheckinTime } from "./format.ts";
 import { RECEPTION_QUERY_KEYS, useCheckinList } from "./queries.ts";
@@ -213,7 +213,6 @@ function DeleteSection({ event }: { event: EventView }) {
 function DataScreen({ event }: { event: EventView }) {
   return (
     <Page title="書き出しと削除" lead={`${event.name}（${formatEventDateTime(event.startsAt)}）`}>
-      <EventAdminNav eventId={event.id} role={event.myRole} />
       <ExportSection event={event} />
       {eventDataSections().map(({ id, Component }) => (
         <Component key={id} event={event} />

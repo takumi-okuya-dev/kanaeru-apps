@@ -8,7 +8,7 @@ export { RECEPTION_QUERY_KEYS } from "./queries.ts";
 export { registerCheckinPanelSection, registerEventDataSection } from "./slots.ts";
 export type { CheckinPanelSection, EventDataSection } from "./slots.ts";
 
-/** 受付の領域が出すもの（ナビには出さない。管理の画面の行き来は event の EventAdminNav）。 */
+/** 受付の領域が出すもの（ナビには出さない。管理の画面の行き来は外枠のナビ。event が出す）。 */
 export const feature = {
   id: "reception",
   routes: [checkinRoute, receptionRoute, dataRoute],

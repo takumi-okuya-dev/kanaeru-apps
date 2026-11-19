@@ -126,7 +126,7 @@ export function DevLoginPage({ redirect }: DevLoginPageProps) {
           ref={formRef}
           noValidate
           onSubmit={(event) => void submit(event)}
-          className="flex max-w-xl flex-col gap-s"
+          className="flex max-w-form flex-col gap-s"
         >
           <Field
             label="LINE のユーザー ID"

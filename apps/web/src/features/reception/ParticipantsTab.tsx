@@ -149,7 +149,8 @@ export function ParticipantsTab({ event, list }: ParticipantsTabProps) {
               <TableBody>
                 {checkins.map((checkin) => (
                   <TableRow key={checkin.id}>
-                    <TableCell>
+                    {/* 名前は途中で折り返さない（「佐藤 一 / 郎」にしない。印の列が残りの幅を使う） */}
+                    <TableCell className="whitespace-nowrap">
                       <NameButton checkin={checkin} onOpen={setTarget} />
                     </TableCell>
                     <TableCell className="tabular-nums">

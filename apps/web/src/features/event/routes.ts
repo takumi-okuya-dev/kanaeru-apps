@@ -64,5 +64,7 @@ export const eventQrPrintRoute = createRoute({
 export const inviteAcceptRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: PARTICIPANT_ROUTE_PATTERNS.invite,
+  // 参加者が開く画面なので、外枠のナビを出さない（core-003）
+  staticData: { layout: "bare" },
   component: lazyRouteComponent(() => import("./InviteAcceptPage.tsx"), "InviteAcceptRoute"),
 });

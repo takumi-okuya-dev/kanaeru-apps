@@ -5,3 +5,17 @@
 
 /* packages/ui の部品のクラスも、Tailwind に読ませる */
 @source "../../../packages/ui/src";
+
+/*
+ * 端末の安全な余白（ホームの印・角の丸み・切り欠き）。値は端末が決めるので、DESIGN.md の値ではない（core-003 research R4）。
+ * index.html の viewport に viewport-fit=cover があるときだけ効く（ないときは 0）。
+ * pb-safe：スマホのタブバーの下。px-safe：外枠の左右（横向きの切り欠き）。
+ */
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@utility px-safe {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}

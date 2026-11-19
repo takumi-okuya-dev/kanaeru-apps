@@ -84,7 +84,7 @@ const summary = await getEventSummary(deps.db, deps.config, eventId); // 参加�
 
 | 名前 | 何か |
 |---|---|
-| `EventAdminNav` | `<EventAdminNav eventId={id} role={event.myRole} />`。「参加者・合計」（受付係も）・「困りごと」（主催者）・「準備」（主催者）。**道が道の木に登録されている項目だけ**出す（reception・survey が `ADMIN_ROUTE_PATTERNS` の道を足すと自然に出る）。項目が1つ以下なら何も出さない |
+| `feature.nav`・`feature.useNavItems` | 外枠のナビの項目（core-003）。交流会の外は「交流会の一覧」だけ。交流会の中（`/admin/events/$eventId…`）は「交流会の一覧」「参加者・合計」（受付係も）・「困りごと」（主催者）・「準備」（主催者。交流会を直すも含む）。**道が道の木に登録されている項目だけ**出す（reception・survey が `ADMIN_ROUTE_PATTERNS` の道を足すと自然に出る）。役目は画面が読んだ交流会から読み、ナビのために問い合わせない（読む前は一覧だけ）。`nav-items.ts`。ほかの領域の画面の上に行き来のタブを置かない |
 | `EventAccessGate` | `<EventAccessGate eventId={id} roles={["organizer", "staff"]}>{(event) => …}</EventAccessGate>`。交流会を読み、読みこみ中・403（「この交流会の一覧画面は使えません」）・404・夜間の停止（DB に届かない 503 で、`isNightStopWindow()` のときだけ。昼の 503 は「読みこめませんでした」と API の文と「もう一度」）・役目が合わない（「この画面は主催者だけが使えます」）を出す。`SessionGate` の中に置く |
 | `useEvent(eventId)`・`useEventSummary(eventId)`・`EVENT_QUERY_KEYS` | 交流会（`myRole` つき）と要約の問い合わせ・鍵 |
 | `formatEventDateTime`・`formatJstDate`・`formatFee` | 日本時間の日時（2026年11月25日（水）19:00）・参加費（1,000円） |
@@ -96,11 +96,11 @@ const summary = await getEventSummary(deps.db, deps.config, eventId); // 参加�
 
 | 道 | 画面 | 振る舞い |
 |---|---|---|
-| `/admin/events` | A1 交流会の一覧 | 主催者はすべて、受付係は自分の交流会だけ。主催者には「交流会を追加」と行ごとの「準備」「直す」。名前は、その役目の最初の管理の画面へのリンク（なければ文字だけ）。ナビの「交流会」・はじめの画面（`/`）から来る |
+| `/admin/events` | A1 交流会の一覧 | 主催者はすべて、受付係は自分の交流会だけ。主催者には「交流会を追加」と行ごとの「準備」「直す」。名前は、その役目の最初の管理の画面へのリンク（なければ文字だけ）。ナビの「交流会の一覧」・はじめの画面（`/`）から来る |
 | `/admin/events/new`・`/admin/events/$eventId/edit` | A2 作成・編集（主催者だけ） | 名前・日付と時刻（日本時間）・会場・参加費・GoogleフォームのURL（任意）・LINEグループの招待リンク（任意）。直すときは「参加費を直しても、すでにあるチェックインの金額は変わりません」。作ったら準備へ、直したら一覧へ |
 | `/admin/events/$eventId/setup` | A4 準備（主催者だけ） | 受付QR・アンケートQR（並べる。中身の URL も出す）と印刷の画面への入口・アンケートの開閉・招待のリンク（写す・作り直す〈確かめ〉・期限）・受付係の一覧（外す〈確かめ。招待のリンクも作り直すと伝える〉） |
 | `/admin/events/$eventId/setup/qr/$kind` | QR の印刷（主催者だけ） | 「受付QR」「アンケートQR」の見出し・交流会の名前・大きな QR。「印刷する」。印刷では外枠と操作を隠す（`print.css`） |
-| `/invite/$inviteToken` | P3 受付係の招待 | 交流会の名前と「受ける」。受けたら一覧画面（なければ交流会の一覧）へ。すでに受付係・主催者ならそのまま移る。使えないリンクは「この招待のリンクは使えません。主催者に新しいリンクをもらってください」 |
+| `/invite/$inviteToken` | P3 受付係の招待（外枠のナビなし。`staticData: { layout: "bare" }`） | 交流会の名前と「受ける」。受けたら一覧画面（なければ交流会の一覧）へ。すでに受付係・主催者ならそのまま移る。使えないリンクは「この招待のリンクは使えません。主催者に新しいリンクをもらってください」 |
 
 - QR の中身は `miniAppPermalink(LIFF ID, participantPaths.checkin|survey(eventId))`。LIFF ID のない手元・E2E だけ、画面の源＋道（画面にその旨を書く）。
 
@@ -111,6 +111,6 @@ const summary = await getEventSummary(deps.db, deps.config, eventId); // 参加�
 | 約束 | `packages/contracts/src/event/`（`event.ts`・`roles.ts`・`admin-paths.ts`・`errors.ts`・`index.ts`） |
 | API | `apps/api/src/modules/event/`（`schema.ts`・`repository.ts`・`access.ts`・`summary.ts`・`ids.ts`・`routes.ts`・`index.ts`・テスト） |
 | DB の変更 | `apps/api/drizzle/0003_event.sql` |
-| 画面 | `apps/web/src/features/event/`（`api.ts`・`queries.ts`・`format.ts`・`links.ts`・`admin-tabs.ts`・`navigation.tsx`・`EventAdminNav.tsx`・`EventAccessGate.tsx`・`QrCode.tsx`・`EventListPage.tsx`・`EventFormPage.tsx`・`EventSetupPage.tsx`・`QrPrintPage.tsx`・`print.css`・`InviteAcceptPage.tsx`・`routes.ts`・`index.ts`） |
+| 画面 | `apps/web/src/features/event/`（`api.ts`・`queries.ts`・`format.ts`・`links.ts`・`admin-tabs.ts`・`nav-items.ts`・`navigation.tsx`・`EventAccessGate.tsx`・`QrCode.tsx`・`EventListPage.tsx`・`EventFormPage.tsx`・`EventSetupPage.tsx`・`QrPrintPage.tsx`・`print.css`・`InviteAcceptPage.tsx`・`routes.ts`・`index.ts`） |
 | テストの手伝い | `apps/api/test/helpers/event.ts` |
 | 通しのテスト | `e2e/tests/event.spec.ts` |

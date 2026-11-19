@@ -1,13 +1,13 @@
 // 道の組み立て（TanStack Router。コードで書く形）。features.list.ts の領域の道とナビをつなぐ。
 // 領域を足しても、このファイルは直さない（features.list.ts に1行足す。docs/rules/coding.md 6-6）。
-// はじめの画面（/）は、ナビの最初の項目へ移す。
+// はじめの画面（/）は、ナビの最初の項目（領域の nav）へ移す。外枠のナビは、領域の useNavItems（なければ nav）を並べる。
 import type { QueryClient } from "@tanstack/react-query";
 import { createRoute, createRouter, redirect } from "@tanstack/react-router";
 import * as features from "./features.list.ts";
 import type { WebFeature } from "./lib/feature.ts";
 import { rootRoute } from "./lib/router.ts";
+import type { NavItem } from "./lib/feature.ts";
 import { AppShell } from "./shell/AppShell.tsx";
-import type { NavItem } from "./shell/AppShell.tsx";
 import { ErrorPage } from "./shell/ErrorPage.tsx";
 import { NotFoundPage } from "./shell/NotFoundPage.tsx";
 
@@ -29,13 +29,40 @@ export const registeredFeatures = Object.values<{ feature: RegisteredFeature }>(
   (module) => module.feature,
 );
 
-/** ナビの項目（features.list.ts の順）。 */
+/** 領域の決まったナビの項目（features.list.ts の順。はじめの画面の行き先）。 */
 export const navItems: readonly NavItem[] = registeredFeatures.flatMap((feature: WebFeature) =>
-  feature.nav ? [{ id: feature.id, label: feature.nav.label, to: feature.nav.to }] : [],
+  feature.nav
+    ? [
+        {
+          id: feature.id,
+          label: feature.nav.label,
+          to: feature.nav.to,
+          icon: feature.nav.icon ?? "list",
+        },
+      ]
+    : [],
 );
 
+/** 領域ごとのナビの項目の出し方（features.list.ts の順。useNavItems があればそれ、なければ決まった項目）。 */
+const navSources: readonly (() => readonly NavItem[])[] = registeredFeatures.flatMap(
+  (feature: WebFeature) => {
+    if (feature.useNavItems) return [feature.useNavItems];
+    const item = navItems.find((nav) => nav.id === feature.id);
+    return item ? [() => [item]] : [];
+  },
+);
+
+/**
+ * 外枠のナビの項目（今の道に合わせる）。領域の並びと数は起動のときに決まり、描くたびに変わらないので、
+ * 領域のフックを毎回同じ順に呼べる（React のフックの決まりを守る）。
+ * @returns ナビの項目
+ */
+export function useNavItems(): readonly NavItem[] {
+  return navSources.flatMap((source) => source());
+}
+
 rootRoute.update({
-  component: () => <AppShell navItems={navItems} />,
+  component: () => <AppShell useNavItems={useNavItems} />,
   notFoundComponent: NotFoundPage,
   errorComponent: ErrorPage,
 });

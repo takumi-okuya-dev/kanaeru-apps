@@ -33,7 +33,7 @@
 |---|---|---|
 | [全体の形](./architecture.md) | 構成図・フォルダの役目・依存の向き・領域を足すときに触る所・要求の流れ・DB の全体・画面の骨格 | 全体の構成 |
 | [アカウント（account）の地図](./apps/account.md) | アカウントとセッションの表・LINE のログインの窓口・ほかの領域が今の利用者を受け取る形（`requireSession`・`useSession`）・テストの手伝い | account の領域 |
-| [交流会（event）の地図](./apps/event.md) | 交流会・受付係・招待のリンクの表・窓口・交流会ごとの権限（`requireEventRole`）と要約（`getEventSummary`）・管理の画面の道と `EventAdminNav`・テストの手伝い | event の領域 |
+| [交流会（event）の地図](./apps/event.md) | 交流会・受付係・招待のリンクの表・窓口・交流会ごとの権限（`requireEventRole`）と要約（`getEventSummary`）・管理の画面の道と外枠のナビの項目・テストの手伝い | event の領域 |
 | [受付（reception）の地図](./apps/reception.md) | チェックインの表・窓口（自分のチェックイン・一覧・手でのチェックイン・直す・取り消す・合計・内訳・CSV）・金額と同じ名前の決まり・survey が使う `findCheckin`・`listCheckins` と画面の差しこみの場所・テストの手伝い | reception の領域 |
 | [アンケート（survey）の地図](./apps/survey.md) | アンケートの回答の表・窓口（自分の回答・主催者の代わりの入力・困りごとの一覧と CSV）・開閉と権限の決まり・選択肢と高い順・画面（P2・困りごと）と reception の差しこみの場所への節・テストの手伝い | survey の領域 |
 

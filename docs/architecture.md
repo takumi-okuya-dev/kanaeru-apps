@@ -133,13 +133,17 @@ sequenceDiagram
 
 ## 6. 画面の骨格
 
-- 外枠（`apps/web/src/shell/AppShell.tsx`）：上に帯（アプリの名前）、752px 以上は左にサイドバー、751px 以下は1列（ナビは帯の下に横に並べる）。先頭に「本文へ移る」。道が変わったら、新しい画面の h1 にフォーカスを移す（ログインの確かめなどで h1 があとから出る画面は、出たときに移す。その間に利用者がフォーカスを動かしたら動かさない）。
+- 外枠（`apps/web/src/shell/AppShell.tsx`）は、道ごとの形で描き分ける（core-003）。形は、持ち主の領域が道の静かな値 `staticData.layout`（`lib/router.ts`）に書き、外枠は今の道のいちばん深い当たりの値を読む。
+  - **管理の形**（書かない道。`/admin/events/…` など）：上に帯（「メニュー」ボタンとアプリの名前）。752px 以上は左にサイドバー（「メニュー」ボタン〈`aria-expanded`・`aria-controls`〉で出す・隠す。見ている人のブラウザの localStorage に覚え、はじめは出す。読み書きが投げても出した状態で動く）。751px 以下は画面の下のタブバー（アイコンと名前・高さ 56px・端末の下の安全な余白。帯の下にナビの行はない）。このとき外枠は画面の高さで、帯と本文だけが1つの枠の中でスクロールする（本文がタブバーの下に潜らない。道が変わったら枠を上に戻す）。どちらも `<nav aria-label="メイン">` で、今の項目は `aria-current`（同じ道は `page`、下の道は一番長く当たる項目に `true`）と墨の印。
+  - **ナビなしの形**（`"bare"`。チェックイン・アンケート・招待・手元のログイン）：上の帯はアプリの名前だけ（リンクにしない）。サイドバー・タブバー・メニューのボタンを出さない。
+  - ナビの項目は、組み立て（`router.tsx`）が領域の `useNavItems`（なければ決まった `nav`）を `features.list.ts` の順に並べ、外枠に渡す。交流会の中では event が「交流会の一覧」「参加者・合計」「困りごと」（主催者だけ）「準備」（主催者だけ）を出す（役目は、画面が読んだ交流会から読み、ナビのために問い合わせない）。外では「交流会の一覧」だけ。
+  - 先頭に「本文へ移る」。道が変わったら、新しい画面の h1 にフォーカスを移す（ログインの確かめなどで h1 があとから出る画面は、出たときに移す。その間に利用者がフォーカスを動かしたら動かさない）。
 - ページ（`lib/page.tsx` の `Page`）：題（h1）→ リード文 → 中身。ブラウザの題は「{ページの題}｜{APP_NAME}」。
 - 状態と結果の出し方は EXPERIENCE.md の型：入力の誤りは欄のそば・送った結果はボタンの近く・画面が切り替わるときだけ画面の上の知らせの帯・消す前は確かめの枠・読みこみ中と空と失敗の状態。
 - 見た目の値は `packages/ui/src/styles/tokens.css` だけ（Tailwind の初期の値は消してある）。組み立てた画面は CSP（`script-src 'self' https://static.line-scdn.net`・`style-src 'self'`。`'unsafe-inline'`・`'unsafe-eval'` なし）で動き、Base UI の部品にも `<style>` を書き足させない（`UiProvider`）。
 - 画面の入口（`main.tsx`）は、`lib/liff.ts` の `initLiff()` を待ってからルーターを作る（LIFF の init の前に URL を変えないため）。LIFF ID（組み立てのときの `VITE_LIFF_ID`）がなければ、LINE につながない仮の形（未ログイン・ID トークンなし）で動く。始められなければ「読みこめませんでした」の画面（`shell/StartupErrorPage.tsx`）を出す。
-- はじめの画面（`/`）は、ナビの最初の項目へ移る（今は event の「交流会」＝交流会の一覧 `/admin/events`。受付係と主催者がミニアプリを開き直すと一覧に来る）。ナビを出す領域がなければ「ページが見つかりません」。
-- 管理の画面（`/admin/events/…`）の道の形は `@workspace/contracts/event` の `ADMIN_ROUTE_PATTERNS` の1か所にあり、画面どうしの行き来は event の `EventAdminNav`（道が登録されている項目だけを出す）。QR は画面で作る（`uqr` で点の並びを作り、React の SVG で描く。中身は `miniAppPermalink`）。
+- はじめの画面（`/`）は、ナビの最初の項目へ移る（今は event の「交流会の一覧」〈`/admin/events`〉。受付係と主催者がミニアプリを開き直すと一覧に来る）。ナビを出す領域がなければ「ページが見つかりません」。
+- 管理の画面（`/admin/events/…`）の道の形は `@workspace/contracts/event` の `ADMIN_ROUTE_PATTERNS` の1か所にあり、画面どうしの行き来は外枠のナビ（event の `useNavItems`。道が登録されている項目だけを出す。「書き出しと削除」はナビに出さず、A3 と困りごとのボタンから開く）。QR は画面で作る（`uqr` で点の並びを作り、React の SVG で描く。中身は `miniAppPermalink`）。
 - 一覧画面（A3）と困りごとの画面は TanStack Query の読み直しを5秒おきにする（つなぎっぱなしの仕組みは使わない。夜間の停止では止める）。書いたあとは、その場で読み直す。参加者と困りごとの CSV は API が UTF-8 の BOM つきで作り、画面は受け取って保存する。
 - ほかの領域の画面に節を足すときは、持ち主の「差しこみの場所」に登録する（今は reception の A5 の節と A3 の直す枠の節。`registerEventDataSection`・`registerCheckinPanelSection`。survey が困りごとの CSV と代わりの入力を登録している）。
 - ログインが要るページは account の `SessionGate` で包む。LINE の中では、セッションがなければ `getIDToken()` を `POST /api/v1/auth/line` に1度だけ送ってログインする。LIFF ID のない手元・E2E は、手元のログイン（`/dev/login`。試験用のログイン）で入る。
