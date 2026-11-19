@@ -96,9 +96,10 @@ GitHub のリポジトリの **Variables**（Settings → Secrets and variables 
 | `GCP_REGION` | 同上（`asia-northeast1`） |
 | `GCP_WIF_PROVIDER` | 同上（`projects/<番号>/locations/global/workloadIdentityPools/github/providers/github`） |
 | `GCP_DEPLOYER_SA` | 同上（`kanaeru-deployer@<プロジェクトID>.iam.gserviceaccount.com`） |
-| `LIFF_ID` | LINE のミニアプリの LIFF ID |
+| `LIFF_ID` | LINE のミニアプリの LIFF ID（空だとデプロイは止まる） |
+| `APP_NAME`（任意） | 同上（`app_name`。既定の `kanaeru` のままなら入れなくてよい）。画面の題に埋める名前で、Cloud Run の `APP_NAME` とそろえる |
 
-そのあと、GitHub の Actions で `deploy` を `main` から手で流す（Run workflow）か、`develop`→`main` のリリースの PR をマージする。
+そのあと、日本時間の8時15分〜23時に（デプロイはこの間に始まったときだけ進む）、GitHub の Actions で `deploy` を `main` から手で流す（Run workflow）か、`develop`→`main` のリリースの PR をマージする。
 
 ## 6. ふだんの直し
 

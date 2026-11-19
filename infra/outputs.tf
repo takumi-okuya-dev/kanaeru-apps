@@ -33,5 +33,7 @@ output "github_variables" {
     GCP_REGION       = var.region
     GCP_WIF_PROVIDER = google_iam_workload_identity_pool_provider.github.name
     GCP_DEPLOYER_SA  = google_service_account.deployer.email
+    # 画面の題に埋める名前（既定の kanaeru のままなら、変数を入れなくてよい）
+    APP_NAME = var.app_name
   }
 }

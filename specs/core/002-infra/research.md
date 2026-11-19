@@ -67,10 +67,11 @@
 ## R-9 デプロイの流れ（deploy.yml）
 
 - 流れる時：`main` への push で、`paths` に並べたもの（`apps/**`・`packages/**`・`package.json`・`pnpm-lock.yaml`・`pnpm-workspace.yaml`・`.node-version`・`Dockerfile`・`.dockerignore`・`deploy.yml`。`**/*.md` は除く）が変わったときと、手での実行。【仮決め】除く一覧より、並べる一覧のほうが「出すものが変わるときだけ」に近い（tests・e2e・infra・docs が変わっても出さない）。
-- 時間帯：GitHub Actions は時刻で止められないので、最初の一歩で `TZ=Asia/Tokyo date +%-H` が8未満なら理由を出して落とす。【仮決め】手での実行に `skip_hour_check`（交流会で停止を止めた夜だけ）。
-- 順番：変数の確かめ → checkout → auth（WIF・なりすまし）→ setup-gcloud → `docker build`（`VITE_LIFF_ID`）と push（タグはコミットの SHA）→ `gcloud run jobs update --image` → `gcloud run jobs execute --wait` → `gcloud run services update --image` → `/api/v1/health` の確かめ。
+- 時間帯：GitHub Actions は時刻で止められないので、最初の一歩で日本時間（`TZ=Asia/Tokyo`）を見て、**8時15分〜23時に始まったときだけ**進める。始まる時刻だけを見るので両端に余裕を持たせた（自分の点検で直した。前は「8時より前なら止める」だけで、23時55分に始まると db:migrate が0時の停止のあとになり、8時すぐに始まると起動中の DB に当たっていた）：8時15分は、8時に起こした DB が動き出すまでの数分。23時は、仕事の上限（`timeout-minutes: 30`）を足しても0時より前に終わる時刻。【仮決め】手での実行に `skip_hour_check`（交流会で停止を止めた夜だけ）。
+- 変数の確かめ：`LIFF_ID` が空（空白だけも）なら、コンテナを作る前に止める（空のまま組み立てると、画面は LINE につながない仮の LIFF の形で黙って出る）。画面の題の `APP_NAME` はリポジトリの変数（任意。既定 `kanaeru`）から組み立ての引数に渡し、Terraform の `app_name`（Cloud Run の `APP_NAME`）とそろえる。
+- 順番：変数の確かめ → checkout → auth（WIF・なりすまし）→ setup-gcloud → `docker build`（`VITE_LIFF_ID`・`APP_NAME`）と push（タグはコミットの SHA）→ `gcloud run jobs update --image` → `gcloud run jobs execute --wait` → `gcloud run services update --image` → `/api/v1/health` の確かめ。
 - `concurrency: deploy-production`・`cancel-in-progress: false`。権限はいちばん外が `contents: read`、仕事だけ `id-token: write` を足す（`tests/security/ci-config.test.ts` を直して、deploy.yml の仕事の塊だけ許す）。
-- リポジトリの変数（Secrets ではない）：`GCP_PROJECT_ID`・`GCP_REGION`・`GCP_WIF_PROVIDER`・`GCP_DEPLOYER_SA`・`LIFF_ID`。
+- リポジトリの変数（Secrets ではない）：`GCP_PROJECT_ID`・`GCP_REGION`・`GCP_WIF_PROVIDER`・`GCP_DEPLOYER_SA`・`LIFF_ID`・`APP_NAME`（任意）。
 - 【仮決め】GitHub の environment（承認つき）は使わない（1人で回すので、承認はリリースの PR のマージで足りる）。
 - 【仮決め】Dependabot に docker（Node の大きな版は除く）と terraform を足した。
 

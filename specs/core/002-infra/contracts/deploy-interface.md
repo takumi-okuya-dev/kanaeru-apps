@@ -40,7 +40,8 @@
 | `GCP_REGION` | `asia-northeast1` | 同上 |
 | `GCP_WIF_PROVIDER` | `projects/<番号>/locations/global/workloadIdentityPools/github/providers/github` | 同上 |
 | `GCP_DEPLOYER_SA` | `kanaeru-deployer@<プロジェクトID>.iam.gserviceaccount.com` | 同上 |
-| `LIFF_ID` | `1234567890-abcdefgh` | LINE のミニアプリのチャネル |
+| `LIFF_ID` | `1234567890-abcdefgh` | LINE のミニアプリのチャネル。空ならデプロイはコンテナを作る前に止まる（空のまま組み立てると、LINE につながない仮の LIFF の画面が出るため） |
+| `APP_NAME`（任意） | `kanaeru` | 画面の題に埋める名前（組み立ての引数 `APP_NAME`）。ないときは `kanaeru`。Terraform の変数 `app_name` と同じにする（`terraform output github_variables`） |
 
 ## 4. デプロイの入口（`deploy.yml`）
 
@@ -48,5 +49,7 @@
 |---|---|
 | `push` | `main`。`paths` に並べたファイルが変わったときだけ |
 | `workflow_dispatch` | `main` から。入力 `skip_hour_check`（既定 false） |
+
+どちらも、日本時間の8時15分〜23時に始まったときだけ進む（`skip_hour_check` が入のときを除く）。
 
 GCP の資源の名前（固定）：サービス `kanaeru`・job `kanaeru-migrate`・置き場所 `<リージョン>-docker.pkg.dev/<プロジェクト>/kanaeru/app:<コミットの SHA>`。

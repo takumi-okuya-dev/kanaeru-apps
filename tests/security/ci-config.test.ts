@@ -249,4 +249,20 @@ describe("deploy.yml：本番へのデプロイの守り（core-002。docs/rules
     expect(code).toMatch(/gcloud run jobs execute[^\n]*--wait/);
     expect(release, "新しい版を db:migrate のあとに出していません").toBeGreaterThan(migrate);
   });
+
+  it("始まってよいのは日本時間の8時15分〜23時だけ（8時に起こした DB の起動と、0時の停止までの余裕）", () => {
+    expect(code).toMatch(/"\$minutes" -lt \$\(\(8 \* 60 \+ 15\)\)/);
+    expect(code).toMatch(/"\$minutes" -ge \$\(\(23 \* 60\)\)/);
+    expect(code).toMatch(/timeout-minutes:\s*30\b/);
+  });
+
+  it("LIFF_ID が空ならコンテナを作る前に止め（仮の LIFF の画面を出さない）、APP_NAME を組み立てに渡す", () => {
+    const check = code.indexOf("for name in");
+    const build = code.indexOf("docker build");
+    expect(check, "リポジトリの変数を確かめていません").toBeGreaterThanOrEqual(0);
+    expect(code.slice(check, code.indexOf("\n", check))).toMatch(/\bLIFF_ID\b/);
+    expect(build).toBeGreaterThan(check);
+    expect(code).toMatch(/docker build[^\n]*--build-arg VITE_LIFF_ID="\$LIFF_ID"/);
+    expect(code).toMatch(/docker build[^\n]*--build-arg APP_NAME="\$APP_NAME"/);
+  });
 });

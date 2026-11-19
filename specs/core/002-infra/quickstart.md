@@ -53,7 +53,7 @@ docker rm -f api-test pg-test && docker volume rm cloudsql-test
 | 夜間の停止 | `gcloud scheduler jobs run kanaeru-db-stop --location=asia-northeast1` → `gcloud sql instances describe kanaeru-db --format='value(settings.activationPolicy,state)'` | `NEVER`。`kanaeru-db-start` で `ALWAYS`・`RUNNABLE` |
 | 秘密が state にない | `terraform state pull \| grep -c <パスワードの一部>` | 0 |
 | デプロイ | Actions の deploy を main から手で流す | migrate の job が成功 → 新しい版 → health が 200 |
-| 夜のデプロイ | 0時〜8時に流す | 最初の一歩で理由を出して止まる |
+| 夜のデプロイ | 23時〜翌8時15分に流す | 最初の一歩で理由を出して止まる |
 | 文書だけのマージ | `docs/` だけを変えて main に入れる | deploy が動かない |
 | 予算 | 請求の画面の「予算とアラート」 | `kanaeru-monthly`・2,000円・50%・100% |
 
@@ -63,7 +63,7 @@ docker rm -f api-test pg-test && docker volume rm cloudsql-test
 2. state のバケットを作る（同 3）。
 3. LINE：同じプロバイダーの下にミニアプリと LINE ログインのチャネルを作り、チャネルID・主催者のユーザーID・LIFF ID・オープンチャットの URL を集める（同 4）。ミニアプリのエンドポイント URL は `terraform output web_url`。
 4. `terraform.tfvars` を書き、昼に `init`・`plan`・`apply`（同 5）。
-5. GitHub のリポジトリの変数を5つ入れる（同 5。[contracts](./contracts/deploy-interface.md) 3）。
+5. GitHub のリポジトリの変数を5つ（と、`app_name` を変えたときは `APP_NAME`）入れる（同 5。[contracts](./contracts/deploy-interface.md) 3）。
 6. 最初のデプロイ（手で流す）と、2章の確かめ。
 7. 構成の決めごと AD-9・Stack の「Direct WIF」を「WIF（サービスアカウントのなりすまし。鍵なし）」に直す（[research.md](./research.md) R-2）。
 
@@ -71,7 +71,7 @@ docker rm -f api-test pg-test && docker volume rm cloudsql-test
 
 `docs/architecture.md` は別のセッション（画面のファイルを返す・notes を消す）も直すので、この PR では触らない。両方が入ったあと、1章の「ログインと置き場所（インフラ）はまだない。…」を次に置きかえる。
 
-> 本番は GCP 東京の Cloud Run を1つ（`Dockerfile` の1つのコンテナが画面の組み立てたファイルと `/api` を返す。最大2台）と Cloud SQL for PostgreSQL 18 を1つ（ENTERPRISE・db-f1-micro。毎日0時〜8時は止まる）。資源はすべて `infra/` の Terraform（手元から流す。手順は [infra/README.md](../infra/README.md)）。`main` へのマージで `.github/workflows/deploy.yml` が、コンテナを作る → 同じコンテナで DB の変更（Cloud Run の job `kanaeru-migrate`。`apps/api/scripts/migrate.ts`）→ 新しい版 の順に出す（日本時間の8時〜24時だけ）。GitHub Actions は WIF でデプロイ用のサービスアカウントになりすまして入る（鍵なし）。DB の接続先は Secret Manager から渡す（core-002）。
+> 本番は GCP 東京の Cloud Run を1つ（`Dockerfile` の1つのコンテナが画面の組み立てたファイルと `/api` を返す。最大2台）と Cloud SQL for PostgreSQL 18 を1つ（ENTERPRISE・db-f1-micro。毎日0時〜8時は止まる）。資源はすべて `infra/` の Terraform（手元から流す。手順は [infra/README.md](../infra/README.md)）。`main` へのマージで `.github/workflows/deploy.yml` が、コンテナを作る → 同じコンテナで DB の変更（Cloud Run の job `kanaeru-migrate`。`apps/api/scripts/migrate.ts`）→ 新しい版 の順に出す（日本時間の8時15分〜23時に始まったときだけ）。GitHub Actions は WIF でデプロイ用のサービスアカウントになりすまして入る（鍵なし）。DB の接続先は Secret Manager から渡す（core-002）。
 
 表の行（1章）にも足す：
 
