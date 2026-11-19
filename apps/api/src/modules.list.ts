@@ -4,3 +4,4 @@
 export {};
 export * as account from "./modules/account/index.ts";
 export * as event from "./modules/event/index.ts";
+export * as reception from "./modules/reception/index.ts";

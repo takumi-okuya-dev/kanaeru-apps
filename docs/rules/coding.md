@@ -112,13 +112,14 @@
 - 入力の形とエラーの文言は `packages/contracts` の領域のフォルダに日本語で置く（API と画面が同じ形で確かめる）。約束は**ふつうの `zod`** で書き、`@hono/zod-openapi` を読まない（画面の組み立てに OpenAPI の道具を入れないため）。窓口の文書の名前と例は、API の道の側で `.openapi("名前")` を付ける（例：`platform/health/routes.ts`）。文言だけの定数は zod を読まないファイルに置く（例：`core/messages.ts`。画面が文言だけを読んでも zod が束に入らない）。zod の誤りの文は、欄のそばにそのまま出せる日本語で書く（日本語でない文は、API が決まった文に置きかえる）。領域のエラーは `{ code, status, message }` の一覧（例：`ACCOUNT_ERRORS`）にして `AppError` に渡す。
 - ログに要求と応答の本文・利用者の入れた値・名前・メールを出さない（`kernel/logger.ts` が名前・メール・通行証を消すのは二重目の守り）。
 - 画面の見た目の値は `packages/ui/src/styles/tokens.css`（DESIGN.md から写したもの）の名前だけを使う（`bg-primary`・`text-text-sub`・`p-xs`・`rounded-sm` など。角だけは Tailwind の名前とぶつかるので `sm`・`md`・`lg` と呼ぶ）。Tailwind の任意の値（`bg-[#…]`・`p-[13px]`）を書かない（lint で止める）。足りない値は、DESIGN.md と `tokens.css` に足す（`tokens.test.ts` が食い違いを止める）。
-- 部品は `@workspace/ui` のもの（Button・Field・Input・Textarea・Table・Badge・Dialog・ConfirmDialog・ResponseMessage・NotificationBar）を使い、領域の中で作り直さない。新しい部品は shadcn/ui（Base UI の形。`packages/ui/components.json`）から持ってきて、値を `tokens.css` の名前に直してから使う。
+- 部品は `@workspace/ui` のもの（Button・Field・Input・Textarea・Table・Badge・Dialog・ConfirmDialog・ResponseMessage・NotificationBar・ChoiceChips〈選択肢のチップ〉）を使い、領域の中で作り直さない。新しい部品は shadcn/ui（Base UI の形。`packages/ui/components.json`）から持ってきて、値を `tokens.css` の名前に直してから使う。
 - 画面の振る舞いは EXPERIENCE.md に従う：入力の誤りは欄のそば（`Field` の `error`）、送った結果は押したボタンの近く（`ResponseMessage`）、画面が切り替わるときだけ画面の上の知らせの帯（`lib/notice.ts` の `showNotice`）、消す前は `ConfirmDialog`。ページは `lib/page.tsx` の `Page`（題は h1。外枠が道の変わり目にフォーカスを移す）。
 - 画面の `index.html` に中に書いた script を置かず、`eval`・`new Function` を使わない（組み立てた画面の CSP が止める。E2E が CSP の違反を落とす）。組み立てた画面の CSP は、本番も E2E も API が付ける（`apps/api/src/platform/web/web.ts` の `WEB_CSP_DIRECTIVES` の1か所）。画面から外の源を読むときは、そこを直し、源ごとに何に使うかを書く。画面のコードで環境の値（`process.env`・`import.meta.env.VITE_*`）を読まない（lint で止める。要る値は `vite.config.ts` の `define` で、秘密でないものだけ埋める）。
 - LINE（`@line/liff`）を読むのは `apps/web/src/lib/liff.ts` だけ。画面と領域は `initLiff`・`getLiff` を使い、`liff.init()` を書かない（構成の決めごと AD-4）。サーバーに送るのは `getIDToken()` の生の値だけ。
 - 参加者が開く画面の道・ミニアプリの URL・日本時間の日付と「その日の終わり」・夜間の停止の時間帯と DB に届かないときの文は、`@workspace/contracts/core` のもの（`participantPaths`・`PARTICIPANT_ROUTE_PATTERNS`・`miniAppPermalink`・`jstDate`・`endOfJstDate`・`isNightStopWindow`・`dbUnavailableMessage`）を使い、領域の中で作り直さない（AD-10・AD-14・Consistency Conventions）。
 - ログインが要る API の道は、account の `requireSession(deps)` を `createRoute` の `middleware` に付け、今の利用者は `currentAccount(c)`、主催者かは `isOrganizer(deps.config, …)` で読む。クッキーと `session`・`account` の表を領域で読まない（AD-3・AD-12）。ログインが要る画面は account の `SessionGate` で包み、今の利用者は `useSession()` で読む。
 - 交流会ごとの権限が要る API の道は、event の `requireEventRole(deps, roles)` を `requireSession(deps)` のあとに付け、役目は `currentEventRole(c)`、参加者に見せてよい交流会の欄は `getEventSummary(db, config, eventId)` で読む。`event`・`event_staff` の表を領域で読まない（AD-3・AD-5）。管理の画面（`/admin/events/…`）の道は `@workspace/contracts/event` の `ADMIN_ROUTE_PATTERNS`・`adminPaths` を使って作り直さず、画面の上に event の `EventAdminNav` を置き、交流会の読みこみと役目の確かめは `EventAccessGate`（か `useEvent`）で行う。
+- チェックインと、そのときの名前（困りごとの一覧と書き出しの名前）は reception の `findCheckin`・`getCheckin`・`listCheckins` で読み、`checkin` の表を領域で読まない（外部キーは `checkinTable` にだけ。AD-3・AD-6）。申し込みの媒体・知ったきっかけ・支払い方法の選択肢と同じ名前の比べ方は `@workspace/contracts/reception` のものを使う。
 - DB に届かないときの 503（`DB_UNAVAILABLE`）は土台（`kernel/errors.ts` の `toAppError`）が返す。領域で DB の接続のエラーを捕まえて読みかえない（AD-10）。
 - DB の命令を文字のつなぎで作らない・`sql.raw` を使わない・HTML をそのまま差しこまない・アプリのコードから OS のコマンドを動かさない（どれも lint で止める）。
 
@@ -134,7 +135,7 @@
 
 - 単体と結合は Vitest（ルートの `vitest.config.ts` がワークスペースをまとめて流す）、通しは Playwright（アクセシビリティは `@axe-core/playwright`。1440px と 375px の2つの幅）。
 - API の結合のテストは本物の PostgreSQL に当てる。テストの始めに `<DB名>_test_template` に DB の変更を当て、Vitest の働き手ごとに写した DB を使う（`apps/api/test/helpers/db.ts` の `useTestDatabase()`）。表の名前を書き並べず、`truncateAllTables` で空にする。
-- 領域の窓口を足したら、`modules/<領域>/` に結合のテスト（作る・読む・直す・消すと、入力の誤り・ない ID）を足す。ログインした要求は `test/helpers/account.ts` の `loginAs`・`withCookie` で作る（試験用のログイン）。交流会と受付係は `test/helpers/event.ts` の `createEvent`・`makeStaff` で作る。外のサービスの答えは `buildApp` の `fetch` で差しかえる（既定はテストから外へ出ない）。画面を足したら、`e2e/tests/` に通しの流れとアクセシビリティの確かめを足す。
+- 領域の窓口を足したら、`modules/<領域>/` に結合のテスト（作る・読む・直す・消すと、入力の誤り・ない ID）を足す。ログインした要求は `test/helpers/account.ts` の `loginAs`・`withCookie` で作る（試験用のログイン）。交流会と受付係は `test/helpers/event.ts` の `createEvent`・`makeStaff`、チェックインは `test/helpers/reception.ts` の `checkIn`・`manualCheckIn` で作る。外のサービスの答えは `buildApp` の `fetch` で差しかえる（既定はテストから外へ出ない）。画面を足したら、`e2e/tests/` に通しの流れとアクセシビリティの確かめを足す。
 - E2E は E2E 専用の DB（`<DB名>_e2e`）と、`.env` の口の番号に 1000 を足した口を使い、1つずつ順に流す（テストの始めに DB を決まった状態にする）。E2E の API と画面に渡す設定は `e2e/env.ts` で決める（手元の `.env` からは DB の接続先と口の番号だけを読む）。E2E の主催者は `e2e/env.ts` の `E2E_ORGANIZER_LINE_USER_ID` で試験用のログインをする。
 - テストの設定（`apps/api/vitest.config.ts`・`e2e/env.ts`）は、手元の `.env` からは DB の接続先と口の番号だけを読み、機能の印などはテストの中で決める（2章）。
 
