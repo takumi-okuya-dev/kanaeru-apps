@@ -115,7 +115,7 @@ flowchart TB
 - **Rule:**
   - 本人のデータを指す外部キーだけ `ON DELETE CASCADE`：`session.account_id`・`event_staff.account_id`・`checkin.account_id`・`survey_answer.checkin_id`。account を消せば、その人のセッション・受付係の割り当て・チェックイン・回答が消える。
   - 「誰がしたか」の記録（`checkin` の入れた人と、同じ種類の列）は `ON DELETE SET NULL`。
-  - `event` を指す外部キーは `RESTRICT`（この版は交流会を消す機能を作らない）。
+  - `event` を指す外部キーは `RESTRICT`（この版は交流会を消す機能を作らない）。〈2026-11-20 足した：booking の表〈`booking_`〉が `event` を指す外部キーは `ON DELETE CASCADE`。持ち主の退会で event が交流会を消す段〈AD-23〉が booking より先に流れるので、RESTRICT だと名簿のある交流会の持ち主が退会できないため。名簿は交流会の持ち主のデータ〈AD-19〉。理由は [specs/booking/001-roster/research.md](../../specs/booking/001-roster/research.md) R11〉
   - 割引（`event_discount`）は消さない。外すと「使うのをやめる」（`archived_at`）だけで、新しいチェックインで選べなくなる。`checkin` の `(event_id, discount_id)` は `event_discount(event_id, id)` を指す複合の外部キーで `RESTRICT`（別の交流会の割引を指せない）。チェックインは名前と額を写しているので、割引を直しても外しても履歴は変わらない（event は reception の表を読めないので、使われたかで消すかを決められない。reception-002）。
   - チェックインの取り消し（FR-8）は行を消す（`DELETE`）。回答も一緒に消える。取り消しの確かめの枠に「アンケートの回答があれば一緒に消えます」と出す。FR-5 の重なりをまとめるときは、LINE のほうを残し、手のほうを消す。
 
