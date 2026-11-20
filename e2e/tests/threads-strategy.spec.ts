@@ -7,6 +7,7 @@ import type { APIRequest, Page } from "@playwright/test";
 import { E2E_ORGANIZER_LINE_USER_ID, E2E_WEB_URL } from "../env.ts";
 import { expectNoA11yViolations } from "../helpers/axe.ts";
 import { collectCspViolations } from "../helpers/csp.ts";
+import { clickNavLink } from "../helpers/nav.ts";
 
 /** 書く要求に付ける見出し（画面の源）。 */
 const ORIGIN = { origin: E2E_WEB_URL };
@@ -148,11 +149,7 @@ test("戦略の進み・活動の軸・変更の守り・上書き（threads-012
 
   // 保存していない変更があるまま離れようとすると確かめる
   await expect(page.getByText("保存していない変更があります。")).toBeVisible();
-  await page
-    .getByRole("navigation", { name: "メイン" })
-    .getByRole("link", { name: "設定", exact: true })
-    .first()
-    .click();
+  await clickNavLink(page, "設定");
   const leave = page.getByRole("alertdialog", { name: "保存していない変更があります" });
   await expect(leave).toBeVisible();
   await leave.getByRole("button", { name: "この画面に残る" }).click();

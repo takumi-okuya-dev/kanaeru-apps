@@ -15,6 +15,7 @@ import {
 } from "../env.ts";
 import { expectNoA11yViolations } from "../helpers/axe.ts";
 import { collectCspViolations } from "../helpers/csp.ts";
+import { clickNavLink } from "../helpers/nav.ts";
 
 /** 書く要求に付ける見出し（画面の源）。 */
 const ORIGIN = { origin: E2E_WEB_URL };
@@ -38,18 +39,6 @@ async function expectNoHorizontalScroll(page: Page, label: string): Promise<void
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   );
   expect(overflow, `${label} が横に動きます`).toBeLessThanOrEqual(0);
-}
-
-/**
- * Threads のナビの「設定」（外枠の右上のアプリ全体の「設定」とは別。見えているナビの中から選ぶ）。
- * @param page Playwright の画面
- * @returns リンク
- */
-function threadsSettingsLink(page: Page) {
-  return page
-    .getByRole("navigation", { name: "メイン" })
-    .getByRole("link", { name: "設定", exact: true })
-    .first();
 }
 
 /**
@@ -118,7 +107,7 @@ test("運用アカウントを作り、案をためて承認・却下する", as
   await page.getByRole("button", { name: "作る" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "ホーム" })).toBeVisible();
   await expect(page.getByText("「AI部」を作りました（登録済み 1/10件）。")).toBeVisible();
-  await page.getByRole("link", { name: "戦略", exact: true }).first().click();
+  await clickNavLink(page, "戦略");
   await expect(page.getByRole("heading", { level: 1, name: "戦略" })).toBeVisible();
   await checkPage(page, "戦略");
 
@@ -128,7 +117,7 @@ test("運用アカウントを作り、案をためて承認・却下する", as
   await expect(page.getByText("戦略を保存しました。")).toBeVisible();
 
   // 設定：NG ワードを足す
-  await threadsSettingsLink(page).click();
+  await clickNavLink(page, "設定");
   await expect(page.getByRole("heading", { level: 1, name: "設定" })).toBeVisible();
   await page.getByRole("textbox", { name: /足すNGワード/ }).fill("必ず儲かる");
   await page.getByRole("button", { name: "NGワードを足す" }).click();
@@ -136,7 +125,7 @@ test("運用アカウントを作り、案をためて承認・却下する", as
   await checkPage(page, "設定");
 
   // 案を作る：開くとプロンプトができ、答えを貼ると何件に分かれるかが出る
-  await page.getByRole("link", { name: "案を作る" }).first().click();
+  await clickNavLink(page, "案を作る", false);
   await expect(page.getByRole("heading", { level: 1, name: "案を作る" })).toBeVisible();
   await expect(page.getByText(/NGワード 1個/)).toBeVisible();
   await page.getByText("プロンプトに入っている情報").click();
@@ -155,7 +144,7 @@ test("運用アカウントを作り、案をためて承認・却下する", as
   ).toBeVisible();
   await expect(page.getByRole("textbox", { name: /AI の答え/ })).toHaveValue(AI_ANSWER);
   // 貼った文があるまま離れようとすると確かめる
-  await page.getByRole("link", { name: "投稿の案" }).first().click();
+  await clickNavLink(page, "投稿の案", false);
   const leaveDialog = page.getByRole("alertdialog");
   await expect(leaveDialog.getByText("貼った文が、まだためていません")).toBeVisible();
   await leaveDialog.getByRole("button", { name: "この画面に残る" }).click();
@@ -214,7 +203,7 @@ test("運用アカウントを作り、案をためて承認・却下する", as
   await expect(page.getByRole("radio", { name: "承認済み（1）" })).toBeVisible();
 
   // 一覧：数が出る
-  await page.getByRole("link", { name: "アカウント" }).first().click();
+  await clickNavLink(page, "アカウント", false);
   await expect(page.getByRole("link", { name: "AI部" })).toBeVisible();
   await checkPage(page, "アカウントの一覧");
 
@@ -247,13 +236,13 @@ test("Threads につなぎ、自動投稿の時刻を決める（threads-002）"
   await page.getByRole("textbox", { name: /アカウントの名前/ }).fill("自動投稿部");
   await page.getByRole("button", { name: "作る" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "ホーム" })).toBeVisible();
-  await page.getByRole("link", { name: "投稿の案", exact: true }).first().click();
+  await clickNavLink(page, "投稿の案");
   await expect(page.getByText("Threads にまだつないでいません。")).toBeVisible();
   await expect(page.getByText("自動投稿はオフです。")).toBeVisible();
   await checkPage(page, "投稿の案（未接続）");
 
   // 設定：トークンを貼ってつなぐ
-  await threadsSettingsLink(page).click();
+  await clickNavLink(page, "設定");
   await expect(page.getByRole("heading", { level: 2, name: "Threads への接続" })).toBeVisible();
   // 題の上の切り替えにも「未接続」が出るので、接続の節の中で探す
   await expect(
@@ -284,12 +273,12 @@ test("Threads につなぎ、自動投稿の時刻を決める（threads-002）"
   await checkPage(page, "設定（自動投稿）");
 
   // 投稿の案：オンになり、承認済みがないと知らせる
-  await page.getByRole("link", { name: "投稿の案" }).first().click();
+  await clickNavLink(page, "投稿の案", false);
   await expect(page.getByText(/承認済みの案がありません。/)).toBeVisible();
   await checkPage(page, "投稿の案（自動投稿オン）");
 
   // 反応（threads-003）：まだ投稿がない。CSV は書き出せる
-  await page.getByRole("link", { name: "反応" }).first().click();
+  await clickNavLink(page, "反応", false);
   await expect(page.getByRole("heading", { level: 1, name: "反応" })).toBeVisible();
   await expect(page.getByText(/確定した投稿が5件たまると/)).toBeVisible();
   await expect(page.getByText(/まだ投稿済みの投稿はありません。/)).toBeVisible();
@@ -317,7 +306,7 @@ test("Threads につなぎ、自動投稿の時刻を決める（threads-002）"
   expect(ran.status()).toBe(200);
 
   // 接続を切る前は確かめる
-  await threadsSettingsLink(page).click();
+  await clickNavLink(page, "設定");
   await page.getByRole("button", { name: "接続を切る" }).click();
   const confirm = page.getByRole("alertdialog");
   await expect(confirm.getByText("Threads への接続を切ります")).toBeVisible();
@@ -341,7 +330,7 @@ test("宣伝とリサーチを足し、プロンプトに入れる（threads-004
   await page.getByRole("textbox", { name: /アカウントの名前/ }).fill("リサーチ部");
   await page.getByRole("button", { name: "作る" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "ホーム" })).toBeVisible();
-  await page.getByRole("link", { name: "リサーチ", exact: true }).first().click();
+  await clickNavLink(page, "リサーチ");
   await expect(page.getByRole("heading", { level: 1, name: "宣伝とリサーチ" })).toBeVisible();
   await checkPage(page, "宣伝とリサーチ（空）");
 
@@ -401,7 +390,7 @@ test("宣伝とリサーチを足し、プロンプトに入れる（threads-004
   await expect(page.getByText("1個のキーワードを足しました。")).toBeVisible();
 
   // 案を作る：宣伝と参考の投稿がプロンプトに入る
-  await page.getByRole("link", { name: "案を作る" }).first().click();
+  await clickNavLink(page, "案を作る", false);
   await expect(page.getByRole("heading", { level: 1, name: "案を作る" })).toBeVisible();
   // 開くとプロンプトができる（threads-011）
   await expect(page.getByText(/宣伝 1件・参考の投稿 1件/)).toBeVisible();
@@ -431,7 +420,7 @@ async function loginAndCreateAccount(page: Page, tag: string, name: string): Pro
 test("分析の画面で、テーマと傾向の設定を保存する（threads-006）", async ({ page }, testInfo) => {
   const readCspViolations = await collectCspViolations(page);
   await loginAndCreateAccount(page, testInfo.project.name === "mobile" ? "e2" : "e1", "分析部");
-  await page.getByRole("link", { name: "分析" }).first().click();
+  await clickNavLink(page, "分析", false);
   await expect(page.getByRole("heading", { level: 1, name: "分析" })).toBeVisible();
   await expect(page.getByText("確定した投稿が、あと20件たまると見られます。")).toBeVisible();
   await expect(page.getByText("分類がまだの確定した投稿はありません。").first()).toBeVisible();
@@ -456,7 +445,7 @@ test("分析の画面で、テーマと傾向の設定を保存する（threads-
   await checkPage(page, "分析（設定あり）");
 
   // 操作の記録に残る
-  await threadsSettingsLink(page).click();
+  await clickNavLink(page, "設定");
   await expect(
     page.getByRole("list", { name: "操作の記録" }).getByText("分析の設定を保存した"),
   ).toBeVisible();
@@ -475,7 +464,7 @@ test("時間差のメンションの人を足し、案に付けて承認する�
   );
 
   // 設定：ひとことと時間差・メンションする人（形が違えば欄のそばに誤り）
-  await threadsSettingsLink(page).click();
+  await clickNavLink(page, "設定");
   await expect(page.getByRole("heading", { level: 2, name: "時間差のメンション" })).toBeVisible();
   await page.getByRole("textbox", { name: /ひとこと/ }).fill("よければシェアお願いします");
   await page.getByRole("radio", { name: "1時間後" }).click();
@@ -495,7 +484,7 @@ test("時間差のメンションの人を足し、案に付けて承認する�
   await checkPage(page, "設定（時間差のメンション）");
 
   // 案をためて、カードでメンションを付ける
-  await page.getByRole("link", { name: "案を作る" }).first().click();
+  await clickNavLink(page, "案を作る", false);
   await page.getByRole("textbox", { name: /AI の答え/ }).fill("週末のイベントのお知らせです。");
   await page.getByRole("button", { name: "案をためる" }).click();
   await page.getByRole("link", { name: "投稿の案で確かめる" }).click();
@@ -563,7 +552,7 @@ test("宣伝から外部メディアの掲載文を作り、コピーして状�
   expect(created.status()).toBe(201);
 
   // 一覧：宣伝と5つの媒体
-  await page.getByRole("link", { name: "外部メディア" }).first().click();
+  await clickNavLink(page, "外部メディア", false);
   await expect(page.getByRole("heading", { level: 1, name: "外部メディア" })).toBeVisible();
   await expect(page.getByRole("heading", { level: 3, name: "IT交流会" })).toBeVisible();
   await checkPage(page, "外部メディア");
@@ -603,7 +592,7 @@ test("戦略をヒントと AI の答えで埋める（threads-009）", async ({
   const readCspViolations = await collectCspViolations(page);
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await loginAndCreateAccount(page, testInfo.project.name === "mobile" ? "a4" : "a3", "壁打ち部");
-  await page.getByRole("link", { name: "戦略", exact: true }).first().click();
+  await clickNavLink(page, "戦略");
   await expect(page.getByRole("heading", { level: 1, name: "戦略" })).toBeVisible();
   await expect(page.getByRole("button", { name: /^次におすすめ：/ })).toBeVisible();
   await page.getByText("「どんな人に投稿を届けたいか」の考えるヒント").click();
@@ -666,7 +655,7 @@ test("Meta のアプリでつなぎ、データの削除の要求の状況を見
     data: { userId: threadsUserId },
   });
 
-  await threadsSettingsLink(page).click();
+  await clickNavLink(page, "設定");
   await expect(page.getByRole("button", { name: "Meta のアプリでつなぐ" })).toBeVisible();
   await checkPage(page, "設定（Meta のアプリでつなぐ）");
   await page.getByRole("button", { name: "Meta のアプリでつなぐ" }).click();
