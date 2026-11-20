@@ -172,7 +172,7 @@ flowchart TB
 
 - **Binds:** event・reception・survey・画面、FR-2・FR-21
 - **Prevents:** QR を作る領域と画面を作る領域で URL の形が食い違うこと。置き場所の URL を変えると、印刷した QR が使えなくなること
-- **Rule:** 参加者が外から開く画面の道（`/e/{eventId}/checkin`・`/e/{eventId}/survey`・`/invite/{inviteToken}`。2026-11-20 に予約の申込みのページ `/e/{eventId}` と、メールで申し込んだ人が開く `/e/{eventId}/entry/{entryToken}` を足した【仮決め】。AD-23。2026-11-20 に LINE 公式アカウントとの紐づけ `/line-link/{linkToken}` を足した【仮決め】。booking-002・AD-24。`-` を含むのでアプリの key とぶつからない。友だち追加のあいさつに入れる URL は、API が LIFF ID を知らないので画面の源＋道）と、それを LINEミニアプリの URL（パーマリンク）にする関数は、`packages/contracts/src/core` に1つだけ置く。reception・survey・event の画面はこの道で作り、event はこの関数で QR と招待のリンクを作る。QR には Cloud Run の URL を直接入れない。
+- **Rule:** 参加者が外から開く画面の道（`/e/{eventId}/checkin`・`/e/{eventId}/survey`・`/invite/{inviteToken}`。2026-11-20 に予約の申込みのページ `/e/{eventId}` と、メールで申し込んだ人が開く `/e/{eventId}/entry/{entryToken}` を足した【仮決め】。AD-23。2026-11-20 に LINE 公式アカウントとの紐づけ `/line-link/{linkToken}` を足した【仮決め】。booking-002・AD-24。2026-11-20 に自分の申込み `/my-bookings`（部の予定のタブつき）を足し、`/e/{eventId}` と `/e/{eventId}/entry/{entryToken}` を `participantPaths.apply`・`entry` として置いた【仮決め】。booking-003。`-` を含むのでアプリの key とぶつからない。友だち追加のあいさつに入れる URL は、API が LIFF ID を知らないので画面の源＋道）と、それを LINEミニアプリの URL（パーマリンク）にする関数は、`packages/contracts/src/core` に1つだけ置く。reception・survey・event の画面はこの道で作り、event はこの関数で QR と招待のリンクを作る。QR には Cloud Run の URL を直接入れない。
 
 ### AD-15 — アプリは静的な一覧に1行で登録し、key・道・表の名前を取り合わない [ADOPTED]
 

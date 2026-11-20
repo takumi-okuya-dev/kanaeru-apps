@@ -1,5 +1,7 @@
 // 参加者が外から開く画面の道と、それを LINEミニアプリの URL（パーマリンク）にする関数（構成の決めごと AD-14）。
 // 組織の招待（/join/{token}）も、外から開く道としてここに置く（AD-22）。予約の知らせの紐づけ（/line-link/{token}。booking-002・AD-24）も。
+// 予約の申込みページ（/e/{eventId}）・メールで申し込んだ人の札のページ（/e/{eventId}/entry/{token}）・自分の申込み（/my-bookings）も
+// （booking-003・AD-14）。
 // reception・survey・event の画面はこの道で作り、event はこの関数で QR と招待のリンクを作る。QR に置き場所の URL を入れない。
 // パーマリンク ＝ LIFF URL ＋（ページの URL − エンドポイントの URL）。エンドポイントは源の直下に置くので、LIFF URL ＋ 道になる
 // （https://developers.line.biz/en/docs/line-mini-app/develop/permanent-links/。specs/core/001-foundation/research.md R9）。
@@ -24,6 +26,12 @@ export const PARTICIPANT_ROUTE_PATTERNS = {
   join: "/join/$joinToken",
   /** LINE 公式アカウントとの紐づけ（友だち追加のあいさつのリンク。booking-002・AD-24。- を含むのでアプリの key とぶつからない） */
   lineLink: "/line-link/$linkToken",
+  /** 予約の申込みページ（ログインなしで見られる。booking-003・AD-14） */
+  apply: "/e/$eventId",
+  /** メールで申し込んだ人の札のページ（確認・見る・取り消す。booking-003・AD-14） */
+  entry: "/e/$eventId/entry/$entryToken",
+  /** 自分の申込み（部の予定のタブつき。booking-003。- を含むのでアプリの key とぶつからない） */
+  myBookings: "/my-bookings",
 } as const;
 
 /**
@@ -69,6 +77,25 @@ export const participantPaths = {
    * @returns `/line-link/{linkToken}`
    */
   lineLink: (linkToken: string): string => `/line-link/${segment(linkToken)}`,
+  /**
+   * 予約の申込みページの道（booking-003）。
+   * @param eventId 交流会の ID
+   * @returns `/e/{eventId}`
+   */
+  apply: (eventId: string): string => `/e/${segment(eventId)}`,
+  /**
+   * メールで申し込んだ人の札のページの道（booking-003）。
+   * @param eventId 交流会の ID
+   * @param entryToken 札
+   * @returns `/e/{eventId}/entry/{entryToken}`
+   */
+  entry: (eventId: string, entryToken: string): string =>
+    `/e/${segment(eventId)}/entry/${segment(entryToken)}`,
+  /**
+   * 自分の申込みの道（booking-003）。
+   * @returns `/my-bookings`
+   */
+  myBookings: (): string => "/my-bookings",
 };
 
 /**
