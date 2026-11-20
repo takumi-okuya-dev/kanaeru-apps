@@ -134,6 +134,54 @@ describe("外枠", () => {
     expect(router.state.location.pathname).toBe("/admin/events");
     await expect.poll(() => document.activeElement).toBe(heading);
   });
+
+  it("タブバーの項目が6つ以上なら、最初の4つと「その他」を並べ、残りは下から出す枠に出す", async () => {
+    const many: NavItem[] = [
+      { id: "list", label: "交流会の一覧", to: "/admin/events", icon: "list" },
+      { id: "reception", label: "参加者・合計", to: "/admin/events/e1", icon: "people" },
+      { id: "a", label: "項目A", to: "/apps", icon: "list" },
+      { id: "b", label: "項目B", to: "/settings", icon: "list" },
+      { id: "c", label: "項目C", to: "/sample", icon: "list" },
+      { id: "d", label: "項目D", to: "/settings/account", icon: "list" },
+    ];
+    const router = await renderShell("/sample", many);
+    const [sidebar, tabBar] = screen.getAllByRole("navigation", { name: "メイン" });
+    if (!sidebar || !tabBar) throw new Error("ナビがありません");
+    // サイドバーはすべて、タブバーは4つと「その他」（今の項目 C は「その他」の中）
+    expect(within(sidebar).getAllByRole("link")).toHaveLength(6);
+    expect(
+      within(tabBar)
+        .getAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual(["交流会の一覧", "参加者・合計", "項目A", "項目B"]);
+    const more = within(tabBar).getByRole("button", { name: /その他/ });
+    expect(more).toHaveTextContent("（今の画面を含む）");
+    await userEvent.click(more);
+    const sheet = await screen.findByRole("dialog", { name: "その他のメニュー" });
+    expect(within(sheet).getByRole("link", { name: "項目C" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await userEvent.click(within(sheet).getByRole("link", { name: "項目D" }));
+    await screen.findByRole("heading", { name: "アカウントの画面" });
+    expect(router.state.location.pathname).toBe("/settings/account");
+    expect(screen.queryByRole("dialog", { name: "その他のメニュー" })).toBeNull();
+  });
+
+  it("タブバーの項目が5つまでなら、「その他」を出さない", async () => {
+    const five: NavItem[] = [
+      { id: "list", label: "交流会の一覧", to: "/admin/events", icon: "list" },
+      { id: "reception", label: "参加者・合計", to: "/admin/events/e1", icon: "people" },
+      { id: "a", label: "項目A", to: "/apps", icon: "list" },
+      { id: "b", label: "項目B", to: "/settings", icon: "list" },
+      { id: "c", label: "項目C", to: "/sample", icon: "list" },
+    ];
+    await renderShell("/admin/events", five);
+    const [, tabBar] = screen.getAllByRole("navigation", { name: "メイン" });
+    if (!tabBar) throw new Error("タブバーがありません");
+    expect(within(tabBar).getAllByRole("link")).toHaveLength(5);
+    expect(within(tabBar).queryByRole("button", { name: /その他/ })).toBeNull();
+  });
 });
 
 /** 試しのアプリ（受付と見本）。 */
