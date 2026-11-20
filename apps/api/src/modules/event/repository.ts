@@ -1,6 +1,6 @@
 // 交流会・受付係・招待のリンクの読み書き（表は event の領域だけが読み書きする。AD-3）。
 // 受付係の表示名は account の findAccountById で引く（account の表を読まない。research R7）。
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import type { Executor } from "../../kernel/db.ts";
 import { event, eventStaff, staffInvite } from "./schema.ts";
 
@@ -30,12 +30,37 @@ const NEWEST_FIRST = [desc(event.startsAt), desc(event.createdAt)] as const;
  * 交流会を作る。
  * @param db DB
  * @param values 値
+ * @param ownerAccountId 持ち主（作った人。AD-23）
  * @returns 作った交流会
  */
-export async function insertEvent(db: Executor, values: EventValues): Promise<EventRecord> {
-  const [row] = await db.insert(event).values(values).returning();
+export async function insertEvent(
+  db: Executor,
+  values: EventValues,
+  ownerAccountId: string,
+): Promise<EventRecord> {
+  const [row] = await db
+    .insert(event)
+    .values({ ...values, ownerAccountId })
+    .returning();
   if (!row) throw new Error("作った交流会が返りませんでした。");
   return row;
+}
+
+/**
+ * 持ち主のない交流会（前の版のアプリで運営者が作ったもの）を、すべて運営者のものにする（research R1）。
+ * 前の版で交流会を作れたのは運営者だけなので、持ち主のない交流会はすべて運営者のもの。2回流しても同じ。
+ * 運営者かは呼ぶ側が決める（account の isOrganizer）。埋め終えて owner_account_id を NOT NULL にしたら消す。
+ * @param db DB
+ * @param operatorAccountId 運営者の account の ID
+ * @returns 運営者のものにした数
+ */
+export async function claimLegacyEvents(db: Executor, operatorAccountId: string): Promise<number> {
+  const rows = await db
+    .update(event)
+    .set({ ownerAccountId: operatorAccountId })
+    .where(isNull(event.ownerAccountId))
+    .returning({ id: event.id });
+  return rows.length;
 }
 
 /**
