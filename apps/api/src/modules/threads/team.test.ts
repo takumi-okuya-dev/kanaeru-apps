@@ -848,6 +848,60 @@ describe("チーム運用の決まり", () => {
     expect((await call(scene.app, scene.outsider.cookie, path)).status).toBe(404);
   });
 
+  it("運用状況の人の動きは、今の組織に入れたあとの分だけ数える（入れる前の動きは数えない）", async () => {
+    // 個人で運用していたときに案をためてから、組織に入れる
+    const other = await createThreadsAccount(scene.app, scene.member.cookie, "ベーカリー");
+    await pasteDrafts(scene.app, scene.member.cookie, other.id, "組織に入れる前の案です");
+    await placeThreadsAccount(scene.app, scene.member.cookie, other.id, scene.organizationId);
+    const status = (await (
+      await call(
+        scene.app,
+        scene.admin.cookie,
+        `${THREADS_ORG_BASE}/${scene.organizationId}/status`,
+      )
+    ).json()) as ThreadsTeamStatus;
+    const memberRow = status.people.find((row) => row.accountId === scene.member.id);
+    expect(memberRow?.activeCount7d).toBe(0);
+    expect(memberRow?.lastActiveAt).toBeNull();
+  });
+
+  it("見せてもらうだけの組織の人には、承認済みの一覧に投稿の予定の時刻を返さない", async () => {
+    const batch = await pasteDrafts(
+      scene.app,
+      scene.owner.cookie,
+      scene.account.id,
+      "予定のある案",
+    );
+    const [draft] = batch.drafts as [PostDraft];
+    const approved = await send(scene.owner, "/drafts/review", "POST", {
+      action: "approve",
+      items: [{ id: draft.id, version: draft.version }],
+    });
+    expect(approved.status).toBe(200);
+    expect((await send(scene.owner, "/team/shared", "PUT", { shared: true })).status).toBe(200);
+    // 接続済みで自動投稿が入のときだけ予定の時刻が出るので、DB で直接その状態にする（毎日 12:00 と 20:00）
+    await database.pool.query(
+      "UPDATE threads_account SET connection_status = 'connected', threads_user_id = '9001', username = 'cafe_b' WHERE id = $1",
+      [scene.account.id],
+    );
+    await database.pool.query(
+      `INSERT INTO threads_posting_schedule (threads_account_id, enabled, slot_minutes, jitter)
+       VALUES ($1, true, '{720,1200}', false)
+       ON CONFLICT (threads_account_id) DO UPDATE SET enabled = true, slot_minutes = '{720,1200}', jitter = false`,
+      [scene.account.id],
+    );
+    // 持ち主には予定の時刻が出る
+    const forOwner = await send(scene.owner, "/drafts?status=approved");
+    expect(
+      Object.keys(((await forOwner.json()) as { schedule: Record<string, unknown> }).schedule),
+    ).toEqual([draft.id]);
+    const forMember = await send(scene.member, "/drafts?status=approved");
+    expect(forMember.status).toBe(200);
+    expect(((await forMember.json()) as { schedule: Record<string, unknown> }).schedule).toEqual(
+      {},
+    );
+  });
+
   it("知らせ：担当が付いたら1回だけ出し、見たらもう出さない", async () => {
     const notices = (await (
       await call(scene.app, scene.assignee.cookie, "/api/v1/threads/team-notices")

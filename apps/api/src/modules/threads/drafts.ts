@@ -16,13 +16,19 @@ import {
   normalizeNgWord,
 } from "@workspace/contracts/threads";
 import type { ReviewInput, ReviewSkipReason } from "@workspace/contracts/threads";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "@hono/zod-openapi";
 import type { Db, Executor } from "../../kernel/db.ts";
 import { AppError } from "../../kernel/errors.ts";
 import { lockKey } from "./locks.ts";
 import { dropPendingMentions, pendingMentionTexts } from "./mention.ts";
-import { changeDraftState, countDrafts, deleteDrafts, listNgWords } from "./repository.ts";
+import {
+  changeDraftState,
+  countDrafts,
+  deleteDrafts,
+  listNgWords,
+  lockDrafts,
+} from "./repository.ts";
 import type { DraftCountsRecord, NgWordRecord, PostDraftRecord } from "./repository.ts";
 import { threadsDraftBatch, threadsNgWord, threadsPostDraft } from "./schema.ts";
 
@@ -86,16 +92,9 @@ export async function reviewDrafts(
     // NG ワードを足すのと同じ鍵で1つずつにする（NG ワードを含む承認済みを残さない）
     await lockAccountDrafts(tx, threadsAccountId);
     const ids = [...new Set(input.items.map((item) => item.id))];
-    const [rows, ngWords, counts, mentionTexts] = await Promise.all([
-      tx
-        .select()
-        .from(threadsPostDraft)
-        .where(
-          and(
-            eq(threadsPostDraft.threadsAccountId, threadsAccountId),
-            inArray(threadsPostDraft.id, ids),
-          ),
-        ),
+    // 案の行に鍵をかけてから、版と返信の文を読む（メンションを書く処理も案の行の鍵を取るので、承認の間に返信の文を変えられない）
+    const rows = await lockDrafts(tx, threadsAccountId, ids);
+    const [ngWords, counts, mentionTexts] = await Promise.all([
       input.action === "approve" ? listNgWords(tx, threadsAccountId) : Promise.resolve([]),
       countDrafts(tx, threadsAccountId),
       // 時間差のメンション（threads-007）：承認では返信の文も確かめる
@@ -326,16 +325,19 @@ export async function undoBatch(
  * @param db DB
  * @param threadsAccountId 運用アカウントの ID
  * @param draftIds 案の ID
+ * @param statuses 消してよい状態（既定は承認待ちと却下。承認を任されていない担当の人は承認待ちだけ）
  * @returns 消した案
  */
 export async function deleteDraftsLocked(
   db: Db,
   threadsAccountId: string,
   draftIds: readonly string[],
+  statuses?: readonly PostDraftRecord["status"][],
 ): Promise<PostDraftRecord[]> {
   return db.transaction(async (tx) => {
     await lockAccountDrafts(tx, threadsAccountId);
-    return deleteDrafts(tx, threadsAccountId, draftIds);
+    // 消してよい状態は、鍵をかけたこのトランザクションの中で確かめる（確かめてから消すまでに却下されたものは消さない）
+    return deleteDrafts(tx, threadsAccountId, draftIds, statuses);
   });
 }
 

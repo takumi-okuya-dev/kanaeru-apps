@@ -20,7 +20,7 @@ import type { OrganizationMembership } from "../suite/index.ts";
 import { allows, assignmentEffective } from "./access.ts";
 import type { AccountAccess } from "./access.ts";
 import { recordActivity } from "./activity-log.ts";
-import { countDrafts } from "./repository.ts";
+import { DELETABLE_STATUSES, countDrafts } from "./repository.ts";
 import type { DraftCountsRecord, PostDraftRecord, ThreadsAccountRecord } from "./repository.ts";
 import {
   threadsAccount,
@@ -28,6 +28,16 @@ import {
   threadsOrganizationAccount,
   threadsPostDraft,
 } from "./schema.ts";
+
+/**
+ * 呼んだ人が消してよい案の状態（承認を任されていない担当の人は承認待ちだけ。却下の案を消すのは承認と同じ扱い。PRD 組織 5.2）。
+ * 消すトランザクションの中で、この状態だけを消す（確かめてから消すまでに状態が変わっても、権限の外は消さない）。
+ * @param access 運用アカウントの関わり
+ * @returns 消してよい状態
+ */
+export function deletableStatuses(access: AccountAccess): readonly PostDraftRecord["status"][] {
+  return allows(access, "review") ? DELETABLE_STATUSES : ["needs_review"];
+}
 
 /**
  * 消してよい案の ID（承認を任されていない担当の人は、承認待ちの案だけ。PRD 組織 5.2）。

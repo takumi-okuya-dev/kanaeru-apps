@@ -152,7 +152,14 @@ export async function getTeamStatus(
             .where(
               and(
                 eq(threadsActivityLog.actorAccountId, member.accountId),
-                sql`${threadsActivityLog.threadsAccountId} IN (${sqlList(scopeIds)})`,
+                // 運用アカウントごとに、今の組織に入れたあとの動きだけを数える（入れる前・前に入れていたときの動きは数えない）
+                sql`(${sql.join(
+                  placed.map(
+                    (row) =>
+                      sql`(${threadsActivityLog.threadsAccountId} = ${row.account.id} AND ${threadsActivityLog.createdAt} >= ${row.placedAt.toISOString()})`,
+                  ),
+                  sql` OR `,
+                )})`,
                 sql`${threadsActivityLog.action} IN (${sqlList(TEAM_STATUS_ACTIVITY_ACTIONS)})`,
               ),
             );

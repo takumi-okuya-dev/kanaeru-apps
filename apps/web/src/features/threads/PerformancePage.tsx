@@ -28,7 +28,7 @@ import { Button, buttonVariants } from "@workspace/ui/components/button";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { Textarea } from "@workspace/ui/components/textarea";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { ApiError, errorMessage } from "../../lib/api.ts";
 import { saveFile } from "../../lib/download.ts";
 import { fieldErrorsFromApi, fieldErrorsFromIssues } from "../../lib/form.ts";
@@ -125,36 +125,45 @@ function FeedbackForm({ accountId, item }: { accountId: string; item: Performanc
   // 保存した値（保存のたびに版が進むので、返った項目で置きかえる）
   const [current, setCurrent] = useState(item.feedback);
   const [memo, setMemo] = useState(item.feedback?.memo ?? "");
+  // 次のプロンプトに入れるか（押したらすぐ欄に出し、保存は後ろで行う）
+  const [include, setInclude] = useState(item.feedback?.includeInPrompt ?? true);
   const [error, setError] = useState<string>();
   const [result, setResult] = useState<{ tone: "success" | "danger"; message: string }>();
   const [pending, setPending] = useState(false);
+  // 保存の途中に来た変更は捨てずに、いちばん新しいものだけを、終わったあとに続けて保存する
+  const savingRef = useRef(false);
+  const queuedRef = useRef<{ memo: string; includeInPrompt: boolean } | null>(null);
+  const versionRef = useRef(item.feedback?.version ?? 0);
+  const savedMemoRef = useRef(item.feedback?.memo ?? "");
   if (!current) return null;
 
   /**
-   * 保存する。
-   * @param next 保存する値（メモと、次のプロンプトに入れるか）
+   * 1回保存する（確かめに通らなければ false）。
+   * @param next 保存する値
    * @param next.memo メモ
    * @param next.includeInPrompt 次のプロンプトに入れるか
+   * @returns 続けてよいなら true
    */
-  const save = async (next: { memo: string; includeInPrompt: boolean }) => {
-    if (pending) return;
-    setResult(undefined);
+  const saveOnce = async (next: { memo: string; includeInPrompt: boolean }): Promise<boolean> => {
     const parsed = FeedbackInput.safeParse({
       memo: next.memo.trim() ? next.memo : null,
       includeInPrompt: next.includeInPrompt,
-      version: current.version,
+      version: versionRef.current,
     });
     if (!parsed.success) {
       setError(fieldErrorsFromIssues(parsed.error.issues).memo);
-      return;
+      return false;
     }
     setError(undefined);
-    setPending(true);
     try {
       const saved = await saveFeedback(accountId, item.id, parsed.data);
       setCurrent(saved.feedback);
-      await queryClient.invalidateQueries({ queryKey: THREADS_QUERY_KEYS.account(accountId) });
+      if (saved.feedback) {
+        versionRef.current = saved.feedback.version;
+        savedMemoRef.current = saved.feedback.memo ?? "";
+      }
       setResult({ tone: "success", message: "保存しました。" });
+      return true;
     } catch (caught) {
       const fields = fieldErrorsFromApi(caught);
       if (fields.memo) setError(fields.memo);
@@ -165,15 +174,45 @@ function FeedbackForm({ accountId, item }: { accountId: string; item: Performanc
             "ほかの画面で先に保存されたため、保存できませんでした。画面を読みこみ直してから、もう一度入れてください。",
         });
       else setResult({ tone: "danger", message: `保存できませんでした。${errorMessage(caught)}` });
+      return false;
+    }
+  };
+
+  /**
+   * 保存する（保存の途中なら、いちばん新しい値を覚えておき、終わったあとに続けて保存する）。
+   * @param next 保存する値（メモと、次のプロンプトに入れるか）
+   * @param next.memo メモ
+   * @param next.includeInPrompt 次のプロンプトに入れるか
+   */
+  const save = async (next: { memo: string; includeInPrompt: boolean }) => {
+    if (savingRef.current) {
+      queuedRef.current = next;
+      return;
+    }
+    savingRef.current = true;
+    setPending(true);
+    setResult(undefined);
+    try {
+      let job: { memo: string; includeInPrompt: boolean } | null = next;
+      while (job) {
+        if (!(await saveOnce(job))) {
+          queuedRef.current = null;
+          break;
+        }
+        job = queuedRef.current;
+        queuedRef.current = null;
+      }
+      await queryClient.invalidateQueries({ queryKey: THREADS_QUERY_KEYS.account(accountId) });
     } finally {
+      savingRef.current = false;
       setPending(false);
     }
   };
 
   /** 欄から離れたとき、変わっていれば保存する。 */
   const commitMemo = () => {
-    if (memo.trim() === (current.memo ?? "")) return;
-    void save({ memo, includeInPrompt: current.includeInPrompt });
+    if (memo.trim() === savedMemoRef.current.trim() && !queuedRef.current) return;
+    void save({ memo, includeInPrompt: include });
   };
 
   return (
@@ -206,9 +245,12 @@ function FeedbackForm({ accountId, item }: { accountId: string; item: Performanc
         <input
           type="checkbox"
           className="size-s accent-primary"
-          checked={current.includeInPrompt}
-          aria-disabled={pending || undefined}
-          onChange={() => void save({ memo, includeInPrompt: !current.includeInPrompt })}
+          checked={include}
+          onChange={() => {
+            const next = !include;
+            setInclude(next);
+            void save({ memo, includeInPrompt: next });
+          }}
         />
         次のプロンプトに入れる
       </label>

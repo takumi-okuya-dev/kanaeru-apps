@@ -68,10 +68,12 @@ import {
 } from "./route-helpers.ts";
 import {
   deletableDraftIds,
+  deletableStatuses,
   draftActorNames,
   listAssignedAccounts,
   withDraftActors,
 } from "./team.ts";
+import { allows } from "./access.ts";
 import { recordActivity } from "./activity-log.ts";
 import { queueSchedule } from "./auto-post-status.ts";
 import { trendsForAccountPrompt } from "./analysis.ts";
@@ -694,7 +696,7 @@ export function threadsRoutes(deps: DomainRouteDeps) {
       const { account } = access;
       // 承認を任されていない担当の人は、承認待ちの案だけを消せる（却下の案を消すのは承認と同じ扱い。PRD 組織 5.2）
       const ids = await deletableDraftIds(db, access, c.req.valid("json").ids);
-      const deleted = await deleteDraftsLocked(db, account.id, ids);
+      const deleted = await deleteDraftsLocked(db, account.id, ids, deletableStatuses(access));
       if (deleted.length > 0) {
         await recordActivity(deps, account.id, {
           kind: "draft",
@@ -722,7 +724,10 @@ export function threadsRoutes(deps: DomainRouteDeps) {
       ]);
       const { drafts } = page;
       const [schedule, mentions] = await Promise.all([
-        status === "approved" ? queueSchedule(db, account, drafts, new Date()) : {},
+        // 投稿の予定の時刻は、自動投稿の予定を読める人だけに返す（見せてもらうだけの組織の人には出さない）
+        status === "approved" && allows(access, "read_private")
+          ? queueSchedule(db, account, drafts, new Date())
+          : {},
         // 時間差のメンション（threads-007）
         loadMentions(db, drafts, account.username),
       ]);
@@ -765,7 +770,12 @@ export function threadsRoutes(deps: DomainRouteDeps) {
       if ((await deletableDraftIds(db, access, [draftId])).length === 0) {
         throw new AppError(THREADS_ERRORS.THREADS_TEAM_FORBIDDEN);
       }
-      const [deleted] = await deleteDraftsLocked(db, account.id, [draftId]);
+      const [deleted] = await deleteDraftsLocked(
+        db,
+        account.id,
+        [draftId],
+        deletableStatuses(access),
+      );
       if (!deleted) {
         // 消せなかった理由を分ける（ない・投稿中・今の状態では消せない）
         const current = await findDraft(db, account.id, draftId);

@@ -761,28 +761,33 @@ export async function findDraft(
 }
 
 /** 消せる案の状態（めぐると同じ。承認済み・投稿に失敗は承認待ちに戻してから、投稿済みは反応の記録が消えるので消さない。threads-011）。 */
-export const DELETABLE_STATUSES = ["needs_review", "rejected"] as const;
+export const DELETABLE_STATUSES: readonly PostDraftRecord["status"][] = [
+  "needs_review",
+  "rejected",
+];
 
 /**
  * 案を消す（承認待ち・却下だけ）。
  * @param db DB
  * @param threadsAccountId 運用アカウントの ID
  * @param draftIds 案の ID（ほかの状態・ほかの運用アカウントのものは無視する）
+ * @param statuses 消してよい状態（既定は承認待ちと却下）
  * @returns 消した案
  */
 export async function deleteDrafts(
   db: Executor,
   threadsAccountId: string,
   draftIds: readonly string[],
+  statuses: readonly PostDraftRecord["status"][] = DELETABLE_STATUSES,
 ): Promise<PostDraftRecord[]> {
-  if (draftIds.length === 0) return [];
+  if (draftIds.length === 0 || statuses.length === 0) return [];
   return db
     .delete(threadsPostDraft)
     .where(
       and(
         inArray(threadsPostDraft.id, [...draftIds]),
         eq(threadsPostDraft.threadsAccountId, threadsAccountId),
-        inArray(threadsPostDraft.status, [...DELETABLE_STATUSES]),
+        inArray(threadsPostDraft.status, [...statuses]),
       ),
     )
     .returning();
