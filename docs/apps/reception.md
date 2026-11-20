@@ -1,8 +1,8 @@
 # 受付（reception）の地図
 
-2026-11-19 作成（reception-001。決めた理由は [specs/reception/001-checkin/research.md](../../specs/reception/001-checkin/research.md)）。2026-11-19 直した（reception-002：割引・紹介者の名前。理由は [specs/reception/002-discounts/research.md](../../specs/reception/002-discounts/research.md)）。
+2026-11-19 作成（reception-001。決めた理由は [specs/reception/001-checkin/research.md](../../specs/reception/001-checkin/research.md)）。2026-11-19 直した（reception-002：割引・紹介者の名前。理由は [specs/reception/002-discounts/research.md](../../specs/reception/002-discounts/research.md)）。2026-11-20 直した（event-002：主催者の決め方・運営者でない主催者の A5 の削除）。
 
-チェックインを持ち、参加者のチェックイン（受付QR → P1）・主催者と受付係の一覧画面（手でのチェックイン・直す・取り消す・合計）・主催者の内訳と参加者の CSV と削除を出す。survey には、チェックインと名前を1つの仕組みで出す（構成の決めごと AD-3・AD-5・AD-6・AD-7）。
+チェックインを持ち、参加者のチェックイン（受付QR → P1）・主催者（交流会の持ち主と、入れた組織の管理者・編集者。event-002。判定は event の `requireEventRole`）と受付係の一覧画面（手でのチェックイン・直す・取り消す・合計）・主催者の内訳と参加者の CSV と削除を出す。survey には、チェックインと名前を1つの仕組みで出す（構成の決めごと AD-3・AD-5・AD-6・AD-7）。
 
 ## 1. 表
 
@@ -77,7 +77,7 @@ const checkin = await findCheckin(deps.db, eventId, currentAccount(c).accountId)
 |---|---|---|
 | `/e/$eventId/checkin`（`PARTICIPANT_ROUTE_PATTERNS.checkin`） | P1 チェックインの画面（ログインした人。外枠のナビなし〈`staticData: { layout: "bare" }`〉） | 交流会の名前（h1）と要約 → 名前（初期値あり）→ 申し込みの媒体・知ったきっかけ・支払い方法のチップ →（割引があれば）割引のチップ（「割引なし」が既定・「紹介割（−1,000円）」）と、紹介者を聞く割引のときだけ「紹介してくれた人の名前」（任意）→ 何をどう使うかの1文 → 「チェックインする」。済んだらカード（「チェックインしました」・交流会の名前・「受付で紙の名札に名前を書いて、お入りください。」）に変え、見出しへフォーカス。読み直すと「チェックイン済み」。アンケートが開いていれば「アンケートに答える」（`participantPaths.survey`。survey の画面）と、招待リンクがあれば「交流会のLINEグループに参加する」。オープンチャットの URL があれば「コミュニティのオープンチャットに参加する」。友だち追加は出さない |
 | `/admin/events/$eventId`（`eventReception`） | A3 一覧画面の参加者・合計（主催者・受付係） | 交流会の中の行き来は外枠のナビ（event）。タブ「参加者」（「手でチェックイン」・広い画面は表・狭い画面はカード・支払い方法に割引の名前を添える・名前を押すと直す・取り消すの枠。手でのチェックインと直す枠にも割引のチップと紹介者の欄〈割引は event の `EventView.discounts`。直す枠は今の割引が使うのをやめたものでも写しで出す。受付係の紹介者の欄は空で、空なら送らない〉）と「合計」（支払い方法ごとの合計。主催者は下に内訳〈割引があれば割引の内訳と紹介者〉）。5秒おきに読み直し（夜間の停止では止める）、書いたあとはその場で読み直す。読み直しが失敗しても前のものを出したまま「最新にできませんでした」。主催者には「書き出しと削除」 |
-| `/admin/events/$eventId/data`（`eventData`） | A5 書き出しと削除（主催者だけ） | 「参加者をCSVで書き出す」・登録された節（survey）・「参加者のデータを消す」（アカウントのある人は account の `DELETE /api/v1/accounts/{accountId}`、手でのチェックインは取り消し。確かめの枠で何が消えるかを書く。主催者自身のアカウントには出さない） |
+| `/admin/events/$eventId/data`（`eventData`） | A5 書き出しと削除（主催者だけ） | 「参加者をCSVで書き出す」・登録された節（survey）・「参加者のデータを消す」（アカウントのある人は、運営者なら account の `DELETE /api/v1/accounts/{accountId}`〈運営者だけの窓口〉でアカウントごと、運営者でない主催者ならこの交流会のチェックインの取り消しだけ〈event-002〉、手でのチェックインは取り消し。確かめの枠で何が消えるかを書く。主催者自身のアカウントには出さない） |
 
 ## 5. 置き場所
 

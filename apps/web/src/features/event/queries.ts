@@ -34,6 +34,12 @@ export const EVENT_QUERY_KEYS = {
    */
   staff: (eventId: string) => ["event", "staff", eventId] as const,
   /**
+   * 持ち主と組織（event-002）。
+   * @param eventId 交流会の ID
+   * @returns 鍵
+   */
+  organization: (eventId: string) => ["event", "organization", eventId] as const,
+  /**
    * 招待の中身。
    * @param inviteToken 招待の印
    * @returns 鍵

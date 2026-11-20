@@ -83,7 +83,7 @@ describe("交流会ごとの権限", () => {
     eventId = (await createEvent(app, organizer)).id;
   });
 
-  it("主催者はどの交流会でも主催者、受付係はその交流会だけ受付係、ほかは 403", async () => {
+  it("持ち主は主催者、受付係はその交流会だけ受付係、ほかは 403", async () => {
     const staff = await makeStaff(app, organizer, eventId);
     const other = await loginAs(app);
     const otherEventId = (await createEvent(app, organizer, { name: "別の交流会" })).id;

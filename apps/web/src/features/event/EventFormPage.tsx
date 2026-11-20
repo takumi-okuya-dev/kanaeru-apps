@@ -1,4 +1,4 @@
-// A2 交流会の作成・編集（主催者だけ。EXPERIENCE.md）。名前・日時（日本時間の日付と時刻）・会場・参加費・
+// A2 交流会の作成（ログインした誰でも。作った人が持ち主。event-002）・編集（主催者だけ。EXPERIENCE.md）。名前・日時（日本時間の日付と時刻）・会場・参加費・
 // GoogleフォームのURL（任意）・LINEグループの招待リンク（任意）・割引（任意。reception-002）。入力の誤りは欄のそば、送った結果はボタンの近く。
 // 作ったら準備の画面（QR）へ、直したら一覧へ移り、画面の上の知らせの帯で伝える。
 import { EventInput } from "@workspace/contracts/event";
@@ -16,10 +16,10 @@ import { fieldErrorsFromApi, fieldErrorsFromIssues, focusFirstInvalid } from "..
 import type { FieldErrors } from "../../lib/form.ts";
 import { showNotice } from "../../lib/notice.ts";
 import { Page } from "../../lib/page.tsx";
-import { SessionGate, useSession } from "../account/index.ts";
+import { SessionGate } from "../account/index.ts";
 import { DiscountFields, toDiscountRows } from "./DiscountFields.tsx";
 import type { DiscountRowValues } from "./DiscountFields.tsx";
-import { EventAccessGate, Loading, OrganizerOnlyPage } from "./EventAccessGate.tsx";
+import { EventAccessGate } from "./EventAccessGate.tsx";
 import { createEvent, updateEvent } from "./api.ts";
 import { fromJstInputs, parseFee, toJstInputs } from "./format.ts";
 import { EVENT_QUERY_KEYS } from "./queries.ts";
@@ -267,13 +267,10 @@ function EventForm({ event }: EventFormProps) {
 }
 
 /**
- * 交流会を作る画面の中身（主催者だけ）。
+ * 交流会を作る画面の中身（ログインした誰でも。作った人が持ち主。event-002）。
  * @returns 画面の要素
  */
 function NewEvent() {
-  const session = useSession();
-  if (session.status !== "authenticated") return <Loading />;
-  if (!session.account.isOrganizer) return <OrganizerOnlyPage />;
   return (
     <Page title="交流会を追加">
       <EventForm />
@@ -282,7 +279,7 @@ function NewEvent() {
 }
 
 /**
- * A2 交流会の作成（ログインが要る・主催者だけ）。
+ * A2 交流会の作成（ログインが要る。だれでも作れる）。
  * @returns 画面の要素
  */
 export function EventNewPage() {

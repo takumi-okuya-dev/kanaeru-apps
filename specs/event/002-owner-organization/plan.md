@@ -6,7 +6,7 @@
 
 ## Summary
 
-交流会に持ち主（`event.owner_account_id`）と「組織に入れる」（`event_organization`）を足し、交流会ごとの権限を「運営者の設定」から「持ち主と、入れた組織の管理者・編集者」に替える。判定は event の `access.ts` の1つの関数（`resolveEventAccess`）にまとめ、`requireEventRole`・`getEventRole` と一覧がそれを通る（reception・survey は今のまま `requireEventRole` を使うので直さない）。組織に入れる・外す窓口、退会の段（組織の交流会は管理者に引き継ぎ・個人の交流会は消す・チェックインがあれば 409）、一覧と準備の画面の「持ち主と組織」を足す。今の交流会は、運営者が一覧を開いたときに運営者のものにする（research R1）。
+交流会に持ち主（`event.owner_account_id`）と「組織に入れる」（`event_organization`）を足し、交流会ごとの権限を「運営者の設定」から「持ち主と、入れた組織の管理者・編集者」に替える。判定は event の `access.ts` の1つの関数（`resolveEventAccess`）にまとめ、`requireEventRole`・`getEventRole` と一覧がそれを通る（reception・survey の API は今のまま `requireEventRole` を使うので直さない。reception の画面は A5 の削除だけを直す。research R11）。組織に入れる・外す窓口、退会の段（組織の交流会は管理者に引き継ぎ・個人の交流会は消す・チェックインがあれば 409）、一覧と準備の画面の「持ち主と組織」を足す。今の交流会は、運営者が一覧を開いたときに運営者のものにする（research R1）。
 
 ## Technical Context
 
@@ -73,6 +73,7 @@ apps/api/src/modules/event/
 apps/api/drizzle/0014_event_owner.sql
 packages/contracts/src/event/（roles.ts・event.ts・errors.ts・index.ts）
 apps/web/src/features/event/（EventListPage・EventSetupPage・OwnerOrganizationSection〈新〉・EventFormPage・api・queries）
+apps/web/src/features/reception/DataPage.tsx（運営者でない主催者の削除。research R11）
 apps/api/test/helpers/event.ts（組織に入れる手伝い）
 e2e/tests/event.spec.ts
 docs/apps/event.md ほか今の形の文書

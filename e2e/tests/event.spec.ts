@@ -1,9 +1,10 @@
 // 交流会（event-001）：主催者が交流会を作り、準備の画面で受付QR・アンケートQRを出し、アンケートを開く。
 // 受付係は招待のリンクから受け、交流会の一覧でその交流会を見るが、準備の画面は使えない。両方の幅で axe にかける。
+// 持ち主と組織（event-002）：運営者でない人が交流会を作って組織に入れ、組織の編集者が一覧から開ける。
 // ログインは account の試験用のログイン（主催者は e2e/env.ts の E2E_ORGANIZER_LINE_USER_ID）。
 // DB は消さない（名前に幅と時刻を入れて、前の回の交流会と見分ける）。
 import { expect, test } from "@playwright/test";
-import type { APIRequestContext, Page } from "@playwright/test";
+import type { APIRequestContext, Browser, Page } from "@playwright/test";
 import { E2E_ORGANIZER_LINE_USER_ID, E2E_WEB_URL } from "../env.ts";
 import { expectNoA11yViolations } from "../helpers/axe.ts";
 import { collectCspViolations } from "../helpers/csp.ts";
@@ -163,7 +164,8 @@ test("受付係が招待のリンクから受け、一覧で交流会を見る�
   const row = page.getByRole("listitem").filter({ has: page.getByRole("heading", { name }) });
   await expect(row).toBeVisible();
   await expect(row.getByRole("link", { name: /準備/ })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "交流会を追加" })).toHaveCount(0);
+  // 交流会はだれでも作れるので、受付係にも「交流会を追加」は出る（event-002）
+  await expect(page.getByRole("link", { name: "交流会を追加" })).toBeVisible();
   await expectNoA11yViolations(page, "交流会の一覧（受付係）");
 
   // 準備の画面を開いても使えない
@@ -209,3 +211,116 @@ async function myId(page: Page): Promise<string> {
   const me = await page.request.get("/api/v1/accounts/me");
   return ((await me.json()) as { id: string }).id;
 }
+
+/**
+ * 前の回と重ならない LINE のユーザー ID（組織の管理者の数の上限に当たらないよう、回ごとに新しい人にする）。
+ * @param tag 人の印（16進の文字）
+ * @returns LINE のユーザー ID
+ */
+function uniqueLineUserId(tag: string): string {
+  return `U${(tag + Date.now().toString(16)).padStart(32, "0")}`;
+}
+
+/**
+ * 別のクッキーの入れ物の画面を開き、試験用のログインをする。
+ * @param browser ブラウザ
+ * @param lineUserId LINE のユーザー ID
+ * @param displayName 表示名
+ * @returns 画面
+ */
+async function openAs(browser: Browser, lineUserId: string, displayName: string): Promise<Page> {
+  const context = await browser.newContext({ baseURL: E2E_WEB_URL, locale: "ja-JP" });
+  const page = await context.newPage();
+  await login(page.request, lineUserId, displayName);
+  return page;
+}
+
+test("運営者でない人が交流会を作って組織に入れ、組織の編集者が開ける（event-002）", async ({
+  page,
+  browser,
+}, testInfo) => {
+  const tag = testInfo.project.name === "mobile" ? "e2" : "e1";
+  const ownerName = `E2E の持ち主（${testInfo.project.name}）`;
+  const organizationName = `E2E の部（${testInfo.project.name}）${Date.now()}`;
+  const eventName = `E2E の部の練習（${testInfo.project.name}）${Date.now()}`;
+  const origin = { origin: E2E_WEB_URL };
+  await login(page.request, uniqueLineUserId(`${tag}a`), ownerName);
+
+  // 窓口で用意する：交流会を作り（運営者でなくても作れる）、組織を作って編集者を招く
+  const created = await page.request.post("/api/v1/events", {
+    data: {
+      name: eventName,
+      startsAt: `${tomorrowInJst()}T19:00:00+09:00`,
+      venue: "体育館",
+      fee: 0,
+    },
+    headers: origin,
+  });
+  expect(created.status()).toBe(201);
+  const { id: eventId } = (await created.json()) as { id: string };
+  const organization = await page.request.post("/api/v1/suite/organizations", {
+    data: { name: organizationName },
+    headers: origin,
+  });
+  const { id: organizationId } = (await organization.json()) as { id: string };
+  const invite = await page.request.post(`/api/v1/suite/organizations/${organizationId}/invite`, {
+    headers: origin,
+  });
+  const { token } = (await invite.json()) as { token: string };
+  const editor = await openAs(browser, uniqueLineUserId(`${tag}b`), "E2E の編集者");
+  try {
+    expect(
+      (
+        await editor.request.post(`/api/v1/suite/organization-invites/${token}`, {
+          headers: origin,
+        })
+      ).status(),
+    ).toBe(200);
+    const role = await page.request.put(
+      `/api/v1/suite/organizations/${organizationId}/members/${await myId(editor)}`,
+      { data: { role: "editor" }, headers: origin },
+    );
+    expect(role.status()).toBe(204);
+
+    // 編集者は、組織に入れる前は開けない
+    await editor.goto(`/admin/events/${eventId}/setup`);
+    await expect(
+      editor.getByRole("heading", { level: 1, name: "この交流会の一覧画面は使えません" }),
+    ).toBeVisible();
+
+    // 持ち主が準備の画面の「持ち主と組織」で組織に入れる
+    await page.goto(`/admin/events/${eventId}/setup`);
+    await expect(page.getByRole("heading", { level: 2, name: "持ち主と組織" })).toBeVisible();
+    await expect(page.getByText(`${ownerName}（あなた）`)).toBeVisible();
+    const chips = page.getByRole("radiogroup", { name: "入れる組織" });
+    await chips.getByRole("radio", { name: organizationName }).click();
+    await page.getByRole("button", { name: "保存" }).click();
+    await expect(page.getByText(`組織「${organizationName}」に入れました。`)).toBeVisible();
+    await expectNoA11yViolations(page, "準備（持ち主と組織）");
+    await expectNoHorizontalScroll(page, "準備（持ち主と組織）");
+
+    // 編集者の一覧に出て、持ち主と組織が分かる。組織で絞れる
+    await editor.goto("/admin/events");
+    const row = editor
+      .getByRole("listitem")
+      .filter({ has: editor.getByRole("heading", { name: eventName }) });
+    await expect(row).toContainText(ownerName);
+    await expect(row).toContainText(organizationName);
+    await editor
+      .getByRole("radiogroup", { name: "組織で絞る" })
+      .getByRole("radio", { name: organizationName })
+      .click();
+    await expect(row).toBeVisible();
+    await expectNoA11yViolations(editor, "交流会の一覧（組織の編集者）");
+    await expectNoHorizontalScroll(editor, "交流会の一覧（組織の編集者）");
+
+    // 編集者は準備の画面を使えるが、組織に入れる・外すは持ち主だけ
+    await row.getByRole("link", { name: `準備：${eventName}` }).click();
+    await expect(editor.getByRole("heading", { level: 1, name: "準備" })).toBeVisible();
+    await expect(editor.getByText("組織に入れる・外すのは、持ち主だけです。")).toBeVisible();
+    await expect(editor.getByRole("radiogroup", { name: "入れる組織" })).toHaveCount(0);
+    await expectNoA11yViolations(editor, "準備（組織の編集者）");
+  } finally {
+    await editor.context().close();
+  }
+});

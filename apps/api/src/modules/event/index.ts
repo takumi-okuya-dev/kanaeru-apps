@@ -1,5 +1,5 @@
-// 交流会の領域の入口（docs/apps/event.md・docs/rules/coding.md 6-6）。土台（app.ts）は routes を読む。
-// ほかの領域は、ここからだけ読む（AD-5：交流会ごとの権限は requireEventRole・currentEventRole・getEventRole、
+// 交流会の領域の入口（docs/apps/event.md・docs/rules/coding.md 6-6）。土台（app.ts）は routes・withdrawal を読む。
+// ほかの領域は、ここからだけ読む（AD-5・AD-23：交流会ごとの権限〈主催者・受付係・部員〉は requireEventRole・currentEventRole・getEventRole、
 // 参加者に見せてよい交流会の欄は getEventSummary。チェックインに写す割引は findEventDiscount・listEventDiscounts）。
 import type { DomainRouteDeps } from "../../kernel/http.ts";
 import { eventRoutes } from "./routes.ts";
@@ -13,6 +13,8 @@ export type { EventDiscountRecord } from "./discounts.ts";
 export { currentEventRole, getEventRole, requireEventRole } from "./access.ts";
 export { getEventSummary } from "./summary.ts";
 export { eventForbiddenResponse, eventNotFoundResponse } from "./routes.ts";
+// 退会の手順（AD-22 の (2)。組み立てが suite の段のあとに流す。event-002）
+export { eventWithdrawal as withdrawal } from "./withdrawal.ts";
 
 /**
  * 交流会の領域の道。戻り値の型は書かない（書くと画面に渡す型が消える）。

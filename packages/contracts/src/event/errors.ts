@@ -35,6 +35,19 @@ export const EVENT_ERRORS = {
     status: 400,
     message: "直そうとした割引が見つかりません。画面を読み直してから、もう一度保存してください。",
   },
+  /** 組織に入れる・外すのは持ち主だけ（event-002） */
+  EVENT_OWNER_ONLY: {
+    code: "EVENT_OWNER_ONLY",
+    status: 403,
+    message: "交流会を組織に入れる・外すのは、持ち主だけです。持ち主に頼んでください。",
+  },
+  /** 持ち主が入っていない組織を選んだ・組織がない（event-002） */
+  EVENT_ORGANIZATION_NOT_FOUND: {
+    code: "EVENT_ORGANIZATION_NOT_FOUND",
+    status: 404,
+    message:
+      "選んだ組織が見つかりません。入っている組織だけ選べます。画面を読み直してから、もう一度選んでください。",
+  },
 } as const;
 
 /** 領域のエラーのキー。 */
