@@ -2,11 +2,12 @@
 // 道はすべて createRoute で書き、道の頭は /api/v1/booking/events/{eventId}（AD-23）。どの道もログインが要る（account の
 // requireSession）と、event の requireEventRole（主催者・受付係。要求のたびに役目を引く。AD-5）。
 // 使い方が「受付だけ」の交流会では、使い方のほかの窓口は 409 BOOKING_ROSTER_OFF（名簿は消さずに隠す。research R1）。
+// 自前で申込みを受ける交流会（booking-003）でも名簿の窓口は使える。申込みページの受付と見せる範囲は self-page で変える。
 // チェックインは reception の index.ts（listEventAttendees・getCheckin・createManualCheckin）でだけ読み書きする（AD-3・AD-23）。
 // 名簿を書く窓口は、交流会の設定の行を押さえたトランザクションの中で決め直す（同時に押しても二重にならない）。名前はログに出さない。
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import * as contract from "@workspace/contracts/booking";
-import { BOOKING_ERRORS } from "@workspace/contracts/booking";
+import { BOOKING_ERRORS, usesRoster } from "@workspace/contracts/booking";
 import { endOfJstDate } from "@workspace/contracts/core";
 import { EVENT_ERRORS } from "@workspace/contracts/event";
 import * as reception from "@workspace/contracts/reception";
@@ -20,12 +21,14 @@ import { currentAccount, requireSession, unauthenticatedResponse } from "../acco
 import {
   eventForbiddenResponse,
   eventNotFoundResponse,
+  findEventOrganizationId,
   findEventOwnerAccountId,
   getEventSummary,
   requireEventRole,
 } from "../event/index.ts";
 import { createManualCheckin, getCheckin, listEventAttendees } from "../reception/index.ts";
 import type { CheckinRecord } from "../reception/index.ts";
+import { findPageSetting, savePageSetting } from "./apply-repository.ts";
 import { buildRosterCsv } from "./csv.ts";
 import { planImport } from "./importing.ts";
 import { resolveMatches } from "./matching.ts";
@@ -58,6 +61,10 @@ const BookingSettingInput = contract.BookingSettingInput.openapi("BookingSetting
 const Roster = contract.Roster.openapi("BookingRoster");
 /** 名簿の行。 */
 const RosterEntry = contract.RosterEntry.openapi("BookingRosterEntry");
+/** 申込みページの設定を変える入力（booking-003）。 */
+const SelfPageInput = contract.SelfPageInput.openapi("BookingSelfPageInput", {
+  example: { accepting: true, visibility: "public" },
+});
 /** 1人足す入力。 */
 const RosterEntryInput = contract.RosterEntryInput.openapi("BookingRosterEntryInput", {
   example: { name: "山田 花子", applicationSource: "other", memo: "電話で申込み" },
@@ -183,6 +190,26 @@ function defineRoutes(deps: DomainRouteDeps) {
         200: json(BookingSetting, "変えた使い方"),
         400: invalidInputResponse,
         ...errors,
+      },
+    }),
+    putSelfPage: createRoute({
+      method: "put",
+      path: `${base}/self-page`,
+      tags,
+      operationId: "bookingPutSelfPage",
+      summary:
+        "申込みページの受付を開く・閉じると見せる範囲を変える（主催者だけ。使い方が自前のときだけ。booking-003）",
+      middleware: [session, organizerOnly] as const,
+      request: { params: EventParams, body: body(SelfPageInput) },
+      responses: {
+        200: json(BookingSetting, "変えた設定"),
+        400: {
+          description:
+            "入力の誤り・組織に入れていないのに部員だけ（BOOKING_VISIBILITY_NEEDS_ORGANIZATION）",
+          content: invalidInputResponse.content,
+        },
+        ...errors,
+        409: domainErrorResponse(BOOKING_ERRORS.SELF_PAGE_OFF, "使い方が自前でない"),
       },
     }),
     getRoster: createRoute({
@@ -410,7 +437,8 @@ function defineRoutes(deps: DomainRouteDeps) {
  */
 async function requireRoster(db: Executor, eventId: string, lock = false): Promise<void> {
   const mode = lock ? await lockMode(db, eventId) : await findMode(db, eventId);
-  if (mode !== "roster") throw new AppError(BOOKING_ERRORS.ROSTER_OFF);
+  // 名簿を使う・自前で申込みを受けるのどちらでも名簿を使う（booking-003 research R1）
+  if (!usesRoster(mode)) throw new AppError(BOOKING_ERRORS.ROSTER_OFF);
 }
 
 /**
@@ -523,6 +551,27 @@ export function bookingRoutes(deps: DomainRouteDeps) {
   };
 
   /**
+   * 交流会の使い方と申込みページの設定の答え（booking-003 research R13）。
+   * @param eventId 交流会の ID
+   * @returns 設定
+   * @throws {AppError} 交流会がないとき（event の NOT_FOUND）
+   */
+  const readSetting = async (eventId: string): Promise<contract.BookingSetting> => {
+    const page = await findPageSetting(db, eventId);
+    const entryCount = await countEntries(db, eventId);
+    const summary = await getEventSummary(db, deps.config, eventId);
+    if (!summary) throw new AppError(EVENT_ERRORS.NOT_FOUND);
+    return {
+      mode: page.mode,
+      entryCount,
+      accepting: page.accepting,
+      visibility: page.visibility,
+      started: new Date(summary.startsAt).getTime() <= Date.now(),
+      inOrganization: (await findEventOrganizationId(db, eventId)) !== null,
+    };
+  };
+
+  /**
    * 名簿の答えを読む。
    * @param eventId 交流会の ID
    * @returns 名簿
@@ -562,18 +611,25 @@ export function bookingRoutes(deps: DomainRouteDeps) {
 
   return new OpenAPIHono<ApiEnv>()
     .openapi(routes.getSetting, async (c) => {
-      const { eventId } = c.req.valid("param");
-      const [mode, entryCount] = await Promise.all([
-        findMode(db, eventId),
-        countEntries(db, eventId),
-      ]);
-      return c.json({ mode, entryCount }, 200);
+      return c.json(await readSetting(c.req.valid("param").eventId), 200);
     })
     .openapi(routes.putSetting, async (c) => {
       const { eventId } = c.req.valid("param");
       const { mode } = c.req.valid("json");
       await saveMode(db, eventId, mode);
-      return c.json({ mode, entryCount: await countEntries(db, eventId) }, 200);
+      return c.json(await readSetting(eventId), 200);
+    })
+    .openapi(routes.putSelfPage, async (c) => {
+      const { eventId } = c.req.valid("param");
+      const input = c.req.valid("json");
+      if ((await findMode(db, eventId)) !== "self_page") {
+        throw new AppError(BOOKING_ERRORS.SELF_PAGE_OFF);
+      }
+      if (input.visibility === "members" && !(await findEventOrganizationId(db, eventId))) {
+        throw new AppError(BOOKING_ERRORS.VISIBILITY_NEEDS_ORGANIZATION);
+      }
+      await savePageSetting(db, eventId, input);
+      return c.json(await readSetting(eventId), 200);
     })
     .openapi(routes.getRoster, async (c) => {
       const { eventId } = c.req.valid("param");
@@ -616,8 +672,15 @@ export function bookingRoutes(deps: DomainRouteDeps) {
         ) {
           throw new AppError(BOOKING_ERRORS.MERGE_NAME_MISMATCH);
         }
-        // 消す行の当て・アカウントを先に外してから移す（一意の制約に当たらないように）
-        await updateEntry(tx, eventId, remove.id, { checkinId: null, accountId: null });
+        // 消す行の当て・アカウント・連絡のメールと札を先に外してから移す（一意の制約に当たらないように。
+        // メールの申込みの連絡と札は、残す行になければ移す。booking-003 research R14）
+        const moveContact = !keep.contactEmail && !keep.entryTokenHash;
+        await updateEntry(tx, eventId, remove.id, {
+          checkinId: null,
+          accountId: null,
+          contactEmail: null,
+          entryTokenHash: null,
+        });
         await updateEntry(tx, eventId, keep.id, {
           status:
             keep.status === "confirmed" || remove.status === "confirmed"
@@ -626,6 +689,9 @@ export function bookingRoutes(deps: DomainRouteDeps) {
           checkinId: keep.checkinId ?? remove.checkinId,
           accountId: keep.accountId ?? remove.accountId,
           memo: keep.memo ?? remove.memo,
+          ...(moveContact
+            ? { contactEmail: remove.contactEmail, entryTokenHash: remove.entryTokenHash }
+            : {}),
         });
         await deleteEntry(tx, eventId, remove.id);
       });

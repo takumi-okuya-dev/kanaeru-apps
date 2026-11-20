@@ -185,6 +185,8 @@ export async function updateEntry(
     checkinId: string | null;
     accountId: string | null;
     memo: string | null;
+    contactEmail: string | null;
+    entryTokenHash: string | null;
   }>,
 ): Promise<EntryRecord | null> {
   const [row] = await db

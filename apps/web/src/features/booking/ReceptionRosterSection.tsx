@@ -1,10 +1,11 @@
 // 受付の一覧画面（A3）の上の「名簿」の節（主催者・受付係。reception の差しこみの場所 registerReceptionSection から出す。
-// booking-001 research R13）。使い方が「名簿を使う」の交流会だけ、名簿に当てる画面と名簿への入口を出す（ほかは何も出さない）。
+// booking-001 research R13）。使い方が「名簿を使う」か「自前で申込みを受ける」の交流会だけ、名簿に当てる画面と名簿への入口を出す（ほかは何も出さない）。
 // ここで読んだ使い方を、外枠のナビの「名簿」も読む（同じ問い合わせの鍵）。
 import type { EventView } from "@workspace/contracts/event";
 import { Link } from "@tanstack/react-router";
 import { buttonVariants } from "@workspace/ui/components/button";
 import { cn } from "@workspace/ui/lib/cn";
+import { usesRoster } from "@workspace/contracts/booking";
 import { useBookingSetting } from "./queries.ts";
 
 /**
@@ -15,7 +16,7 @@ import { useBookingSetting } from "./queries.ts";
  */
 export function ReceptionRosterSection({ event }: { event: EventView }) {
   const setting = useBookingSetting(event.id);
-  if (setting.data?.mode !== "roster") return null;
+  if (!setting.data || !usesRoster(setting.data.mode)) return null;
   return (
     <section
       aria-labelledby="reception-roster"

@@ -1,4 +1,4 @@
-// 名簿の画面（A2・A3・S1）の入口の確かめ：使い方が「名簿を使う」の交流会だけ中身を出し、ほかは案内を出す（booking-001 research R1）。
+// 名簿の画面（A2・A3・S1）の入口の確かめ：使い方が「名簿を使う」か「自前で申込みを受ける」の交流会だけ中身を出し、ほかは案内を出す（booking-001 research R1）。
 import type { EventView } from "@workspace/contracts/event";
 import { Link } from "@tanstack/react-router";
 import { buttonVariants } from "@workspace/ui/components/button";
@@ -7,6 +7,7 @@ import { ResponseMessage } from "@workspace/ui/components/response-message";
 import type * as React from "react";
 import { errorMessage } from "../../lib/api.ts";
 import { Page } from "../../lib/page.tsx";
+import { usesRoster } from "@workspace/contracts/booking";
 import { useBookingSetting } from "./queries.ts";
 
 /**
@@ -27,7 +28,7 @@ export function RosterGate({ event, children }: { event: EventView; children: Re
   }
   if (setting.isError)
     return <ResponseMessage tone="danger">{errorMessage(setting.error)}</ResponseMessage>;
-  if (setting.data.mode !== "roster") {
+  if (!usesRoster(setting.data.mode)) {
     return (
       <Page title="名簿" lead={event.name}>
         <p className="text-m">

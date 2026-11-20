@@ -1,7 +1,8 @@
 // 予約の知らせを送る業務の関数（booking-002。AD-24・PRD FR-B80〜FR-B87）。何をいつ誰に送るかは booking が持ち、送る道具
 // （守りを通す）は platform/notify。送り先は LINE（交流会に当てはまる公式アカウントと紐づいている）→ メール（本人が入れた
 // アドレス）→ なし の順（research R5・R6）。守りで止めたときと LINE が送れなかったときは、ほかの手段を試さない。
-// 記録（booking_notice）とログには、本文・宛先・トークンを出さない。この版では、次の仕様（自前の申込み・キャンセル待ち）が呼ぶ。
+// 記録（booking_notice）とログには、本文・宛先・トークンを出さない。自前の申込み（booking-003）が確定のときに呼ぶ。
+// メールで申し込んだ人（アカウントなし）は、行の連絡のメール（contact_email）に送る（booking-003 research R12）。
 import type { NoticeMethod, NoticeResult } from "@workspace/contracts/booking";
 import type { TestMessageResult } from "@workspace/contracts/booking";
 import { BOOKING_ERRORS } from "@workspace/contracts/booking";
@@ -137,8 +138,9 @@ export async function sendNotice(
       return record("line", toResult(status));
     }
   }
-  // 2. メール：本人が入れたアドレス（主催者には見せない）
-  const email = entry.accountId ? await findContactEmail(db, entry.accountId) : null;
+  // 2. メール：メールで申し込んだ人は行の連絡のメール、LINE で申し込んだ人は本人が入れたアドレス（主催者には見せない。booking-003 R12）
+  const email =
+    entry.contactEmail ?? (entry.accountId ? await findContactEmail(db, entry.accountId) : null);
   if (email) {
     const replyTo = channel?.replyToEmail ?? null;
     const { status } = await notifier.sendEmail({

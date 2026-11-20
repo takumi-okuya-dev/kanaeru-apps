@@ -1,6 +1,6 @@
 // 交流会・受付係・招待のリンクの読み書き（表は event の領域だけが読み書きする。AD-3）。
 // 受付係の表示名は account の findAccountById で引く（account の表を読まない。research R7）。
-import { and, asc, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import type { Executor } from "../../kernel/db.ts";
 import { event, eventOrganization, eventStaff, staffInvite } from "./schema.ts";
@@ -168,6 +168,39 @@ export async function listAccessibleEvents(
     organizationId: row.organizationId,
     isStaff: row.staffId !== null,
   }));
+}
+
+/** 組織に入れた交流会の行（booking の部の予定。booking-003）。 */
+export type OrganizationEventRow = { eventId: string; organizationId: string; startsAt: Date };
+
+/**
+ * 組織の並びに入れた交流会で、始まりが from 以後のもの（始まりの近い順。booking の部の予定が使う。booking-003 research R9）。
+ * @param db DB
+ * @param organizationIds 組織の ID の並び（空なら何も返さない）
+ * @param from この時刻以後に始まるもの
+ * @returns 交流会の ID・組織・始まり
+ */
+export async function listOrganizationEvents(
+  db: Executor,
+  organizationIds: readonly string[],
+  from: Date,
+): Promise<OrganizationEventRow[]> {
+  if (organizationIds.length === 0) return [];
+  return db
+    .select({
+      eventId: event.id,
+      organizationId: eventOrganization.organizationId,
+      startsAt: event.startsAt,
+    })
+    .from(event)
+    .innerJoin(eventOrganization, eq(eventOrganization.eventId, event.id))
+    .where(
+      and(
+        inArray(eventOrganization.organizationId, [...organizationIds]),
+        gte(event.startsAt, from),
+      ),
+    )
+    .orderBy(asc(event.startsAt), asc(event.id));
 }
 
 /**

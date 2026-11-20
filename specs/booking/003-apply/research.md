@@ -122,8 +122,18 @@ LINE の申込み（`booking_entry.account_id`）・案内の同意（`booking_c
 ## R22 作りの置き場所
 
 - API：`apps/api/src/modules/booking/` に `apply-repository.ts`（設定の列・申込み・同意・確認の待ちの読み書き）・`apply.ts`（申し込む・取り消す・確認の待ち・札・ページの答え）・`calendar-ics.ts`（`.ics`）・`routes-apply.ts`（参加者の窓口）・`routes.ts`（主催者の `self-page` と `setting` の欄）。
-- 札の作り方と SHA-256 は `line-link.ts` のもの（booking-002）を共に使う形に `tokens.ts` へ移す。
+- 札の作り方と SHA-256 は `line-link.ts` のもの（booking-002）を共に使う形に `tokens.ts` へ移す（`line-link.ts` は `tokens.ts` を呼ぶ）。
 - 画面：`ApplyPage.tsx`（`/e/$eventId`）・`EntryTokenPage.tsx`（`/e/$eventId/entry/$entryToken`）・`MyBookingsPage.tsx`（`/my-bookings`）・`SelfPageSection.tsx`（準備の画面の申込みページの節）・`apply-api.ts`・`links.ts`（ミニアプリの URL）。
+
+## R23 作りながら決めたこと
+
+- **申込みの約束（`apply.ts`）は受付の約束を読まない**：名前の上限を受付の `CHECKIN_NAME_MAX` から読むと、申込みページの画面の束に受付の zod の形（`checkin.ts`）が入り、組み立て（rolldown）が受付の約束を入口の束から別の束に分けた。別の束は入口より先に動くので、画面の zod の設定（`lib/zod-config.ts` の jitless）より先に形が作られ、zod が eval を試して CSP の違反（`script-src eval`）が出た（E2E が見つけた）。`APPLY_NAME_MAX = 50` を `apply.ts` に持ち、`apply.test.ts` が受付の値と同じかを見張る。束の分け方に頼らない直し（zod の設定を別の入口にする・組み立ての設定）は共通の変更なので、残したことに書く。
+- **名前の初めの値**：前の申込みの名前（どの交流会でも、いちばん新しいもの）→ LINE の表示名（R4 のとおり）。受付のチェックインの名前は reception の表なので読まない。
+- **申込みページの部員だけの回でログインしていない人**：ページは中身を返さない（403）。画面は「部員の方は LINE でログイン」を出す。
+- **自分の申込みの一覧の取り消し**：本人の行なら、入口が自前でない行（主催者がまとめてアカウントが付いた行）も取り消せる（R19）。
+- **メールで申し込む答え**：送り直しの間隔の中（10分以内の2回目）も 202。メールの結果（送った・止めている・許可リストにない・準備がない）は答えに出さず、ログに交流会の ID と結果だけを出す（R10）。
+- **確定の知らせのリンク**：LINE の人は申込みページ（`WEB_URL/e/{eventId}`）、メールの人は札のページ。自分の申込みの道（`/my-bookings`）は知らせに入れない。
+- **booking-002 の画面の単体のテスト1つ**（設定がなければ3つの欄のフォーム）が、全部のテストを一緒に流すと重さで時間切れになることがあったので、待つ時間を延ばした（中身は変えていない）。
 
 ## 計画のときのセキュリティの確かめ（[開発の流れの決まり](../../../docs/rules/development-flow.md) 2）
 

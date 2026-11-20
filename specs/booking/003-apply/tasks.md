@@ -14,58 +14,58 @@
 
 ## Phase 2: 共通（2つ目の PR `feature/booking-003-pr2-apply` の1つ目のコミット）
 
-- [ ] T006 参加者の道：`packages/contracts/src/core/participant-paths.ts` に `apply`・`entry`・`myBookings` と単体のテスト。`pnpm check` を流し、共通だけのコミットにする
+- [x] T006 参加者の道：`packages/contracts/src/core/participant-paths.ts` に `apply`・`entry`・`myBookings` と単体のテスト。`pnpm check` を流し、共通だけのコミットにする
 
 ## Phase 3: 基礎（約束・札・event の関数）
 
-- [ ] T007 [P] 約束：`apply.ts`（`ApplyInput`・`EmailApplyInput`・`SelfPageInput`・`ApplyPage`・`MyEntry`・`ApplyResult`・`EntryTokenView`・`MyEntryList`・`MyEntryItem`・`MySchedule`・`ConsentList`）・`roster.ts`（`BookingSetting` の欄）・`errors.ts`・`calendar.ts`（`googleCalendarUrl`・`EVENT_DEFAULT_DURATION_MINUTES`）と単体のテスト
-- [ ] T008 [P] `tokens.ts`（札を作る・SHA-256・形）を作り、`line-link.ts` をそれで書きかえる
-- [ ] T009 event の `repository.ts`・`index.ts` に `listOrganizationEvents` を出す（結合のテストを event に足す）
+- [x] T007 [P] 約束：`apply.ts`（`ApplyInput`・`EmailApplyInput`・`SelfPageInput`・`ApplyPage`・`MyEntry`・`ApplyResult`・`EntryTokenView`・`MyEntryList`・`MyEntryItem`・`MySchedule`・`ConsentList`）・`roster.ts`（`BookingSetting` の欄）・`errors.ts`・`calendar.ts`（`googleCalendarUrl`・`EVENT_DEFAULT_DURATION_MINUTES`）と単体のテスト
+- [x] T008 [P] `tokens.ts`（札を作る・SHA-256・形）を作り、`line-link.ts` をそれで書きかえる
+- [x] T009 event の `repository.ts`・`index.ts` に `listOrganizationEvents` を出す（結合のテストは booking の部の予定〈`my-bookings.test.ts`〉で確かめた）
 
 ## Phase 4: US2 主催者が自前を選び、受付を開く（P1）
 
-- [ ] T010 結合のテストを先に書く（`apps/api/src/modules/booking/self-page.test.ts`）：使い方 `self_page` に変えられる・`setting` に受付・見せる範囲・始まり・組織の欄・`self-page` で開く・閉じる・部員だけ（組織なしは 400）・自前でないと 409・受付係と部員は 403・自前でも名簿の窓口が動く
-- [ ] T011 `apply-repository.ts`（設定の列）・`routes.ts`（`self-page`・`setting`・名簿の確かめを `usesRoster` に）
+- [x] T010 結合のテストを先に書く（`apps/api/src/modules/booking/self-page.test.ts`）：使い方 `self_page` に変えられる・`setting` に受付・見せる範囲・始まり・組織の欄・`self-page` で開く・閉じる・部員だけ（組織なしは 400）・自前でないと 409・受付係と部員は 403・自前でも名簿の窓口が動く
+- [x] T011 `apply-repository.ts`（設定の列）・`routes.ts`（`self-page`・`setting`・名簿の確かめを `usesRoster` に）
 
 ## Phase 5: US1 LINE で申し込む（P1）
 
-- [ ] T012 単体のテストを先に書く（`calendar-ics.test.ts`・`calendar.test.ts`）：`.ics` の形（CRLF・折り返し・escape・UID・終わりは2時間後）・Google のリンクの値
-- [ ] T013 結合のテストを先に書く（`apps/api/src/modules/booking/apply.test.ts`）：ログインなしのページ（中身・受付の状態・席の欄がない・自前でないと 404）・ログインしたページ（名前の初めの値・自分の申込み・同意・紐づけ）・申し込む（入口 自前・媒体 直接・確定・201）・2回目は同じ答えで1行・取り消しから申し込み直し・閉じている・始まりのあとは 409・案内の同意（作る・すでにある・false では消さない・組織と持ち主）・確定の知らせ（偽の送り手・記録・リンク）・`.ics`（添付・中身）・名前の誤りは 400・LINE のチェックインが同じアカウントの自前の申込みに自動で当たる（FR-015）
-- [ ] T014 `apply.ts`（ページ・申し込む）・`calendar-ics.ts`・`routes-apply.ts`（ページ・申し込む・`.ics`）・`index.ts`
-- [ ] T015 `notify.ts`・`notify-repository.ts`：行の連絡のメールを送り先に足す（`send-notice.test.ts` に足す）
+- [x] T012 単体のテストを先に書く（`calendar-ics.test.ts`・`calendar.test.ts`）：`.ics` の形（CRLF・折り返し・escape・UID・終わりは2時間後）・Google のリンクの値
+- [x] T013 結合のテストを先に書く（`apps/api/src/modules/booking/apply.test.ts`）：ログインなしのページ（中身・受付の状態・席の欄がない・自前でないと 404）・ログインしたページ（名前の初めの値・自分の申込み・同意・紐づけ）・申し込む（入口 自前・媒体 直接・確定・201）・2回目は同じ答えで1行・取り消しから申し込み直し・閉じている・始まりのあとは 409・案内の同意（作る・すでにある・false では消さない・組織と持ち主）・確定の知らせ（偽の送り手・記録・リンク）・`.ics`（添付・中身）・名前の誤りは 400・LINE のチェックインが同じアカウントの自前の申込みに自動で当たる（FR-015）
+- [x] T014 `apply.ts`（ページ・申し込む）・`calendar-ics.ts`・`routes-apply.ts`（ページ・申し込む・`.ics`）・`index.ts`
+- [x] T015 `notify.ts`・`notify-repository.ts`：行の連絡のメールを送り先に足す（`send-notice.test.ts` に足す）
 
 ## Phase 6: US3 自分の申込み・取り消し・部の予定・同意（P2）
 
-- [ ] T016 結合のテストを先に書く（`apps/api/src/modules/booking/my-bookings.test.ts`）：自分の申込み（始まりの日が終わっていない会だけ・近い順・取り消せるか）・取り消す（名簿でも取り消し・始まりのあとは 409・ほかの人の行は 404・2回目は同じ答え）・部の予定（自分の組織の自前の会だけ・部員だけの回を含む・ほかの組織と個人の会は出ない・自分の状態）・同意の一覧と外す（ほかの人のものは 404）
-- [ ] T017 `apply.ts`・`routes-apply.ts`（自分の申込み・取り消す・部の予定・同意）
+- [x] T016 結合のテストを先に書く（`apps/api/src/modules/booking/my-bookings.test.ts`）：自分の申込み（始まりの日が終わっていない会だけ・近い順・取り消せるか）・取り消す（名簿でも取り消し・始まりのあとは 409・ほかの人の行は 404・2回目は同じ答え）・部の予定（自分の組織の自前の会だけ・部員だけの回を含む・ほかの組織と個人の会は出ない・自分の状態）・同意の一覧と外す（ほかの人のものは 404）
+- [x] T017 `apply.ts`・`routes-apply.ts`（自分の申込み・取り消す・部の予定・同意）
 
 ## Phase 7: US4 部員だけの回（P2）
 
-- [ ] T018 結合のテストを先に書く（`apply.test.ts` に足す）：部員と主催者はページ・申込み・`.ics` に答える・受付係・外の人・ログインなしは 403 で中身がない・部員が抜けたら見られない・抜けた人も自分の申込みを取り消せる
-- [ ] T019 `apply.ts`（見せる範囲の確かめ）
+- [x] T018 結合のテストを先に書く（`apply.test.ts` に足す）：部員と主催者はページ・申込み・`.ics` に答える・受付係・外の人・ログインなしは 403 で中身がない・部員が抜けたら見られない・抜けた人も自分の申込みを取り消せる
+- [x] T019 `apply.ts`（見せる範囲の確かめ）
 
 ## Phase 8: US5 メールで申し込む（P2）
 
-- [ ] T020 結合のテストを先に書く（`apps/api/src/modules/booking/email-apply.test.ts`）：確認の待ち（202・偽の送り手にリンク・DB は SHA-256 だけ）・札の中身（`pending`・期限切れ 410・知らない 404）・GET では確定しない・確定（行・アカウントなし・連絡のメール・確定の知らせのメール・同じ札で `entry`）・2回押しても1行・取り消す（始まりのあとは 409）・10分以内の2回目は送らない（答えは同じ）・すでに申込みがあるアドレスも同じ答え・新しい札で確定すると前の札は使えない・交流会ごとの200件で 429・部員だけ 403・閉じている 409・名簿と CSV にアドレスがない・ログにアドレスと札がない
-- [ ] T021 `apply.ts`（確認の待ち・札）・`routes-apply.ts`（メールで申し込む・札）・`notice-templates.ts`（確認のメールの文面）
+- [x] T020 結合のテストを先に書く（`apps/api/src/modules/booking/email-apply.test.ts`）：確認の待ち（202・偽の送り手にリンク・DB は SHA-256 だけ）・札の中身（`pending`・期限切れ 410・知らない 404）・GET では確定しない・確定（行・アカウントなし・連絡のメール・確定の知らせのメール・同じ札で `entry`）・2回押しても1行・取り消す（始まりのあとは 409）・10分以内の2回目は送らない（答えは同じ）・すでに申込みがあるアドレスも同じ答え・新しい札で確定すると前の札は使えない・交流会ごとの200件で 429・部員だけ 403・閉じている 409・名簿と CSV にアドレスがない・ログにアドレスと札がない
+- [x] T021 `apply.ts`（確認の待ち・札）・`routes-apply.ts`（メールで申し込む・札）・`notice-templates.ts`（確認のメールの文面）
 
 ## Phase 9: 名簿・まとめる・退会
 
-- [ ] T022 結合のテストを先に書く：名簿の入口「自前」と CSV（`roster.test.ts` に足す）・まとめるで連絡のメールと札を移す・退会の確かめの中身（申込みと同意の数）と退会で申込みと同意が消える（`withdrawal.test.ts` に足す）
-- [ ] T023 `routes.ts`（まとめる）・`withdrawal.ts`
+- [x] T022 結合のテストを先に書く：名簿の入口「自前」と CSV（`roster.test.ts` に足す）・まとめるで連絡のメールと札を移す・退会の確かめの中身（申込みと同意の数）と退会で申込みと同意が消える（`withdrawal.test.ts` に足す）
+- [x] T023 `routes.ts`（まとめる）・`withdrawal.ts`
 
 ## Phase 10: 画面
 
-- [ ] T024 [P] 画面の単体のテストを先に書く（`apply-pages.test.tsx`）：申込みページ（ログインなし・閉じている・始まりのあと・部員だけ・ログインしたあとの名前と同意・申し込んだあとの完了の画面・メールの切り替え・送ったあとの文）・札のページ（確定の前・確定のあと・取り消し・期限切れ・使えない）・自分の申込み（一覧・取り消しの確かめ・部の予定のタブ・同意を外す・メールアドレス）・使い方の3つ目のカードと申込みページの節（開く・閉じる・部員だけを選べない・URL）
-- [ ] T025 `apply-api.ts`・`links.ts`・`ApplyPage.tsx`・`EntryTokenPage.tsx`・`MyBookingsPage.tsx`・`SelfPageSection.tsx`・`ModeSection.tsx`・`routes.ts`・`index.ts`
-- [ ] T026 自前でも名簿：`nav-items.ts`・`ReceptionRosterSection.tsx`・`RosterGate.tsx` を `usesRoster` に（`nav-items.test.tsx`・`pages.test.tsx` に足す）。名簿の入口「自前」
-- [ ] T027 E2E（`e2e/tests/booking-apply.spec.ts`）：主催者が自前を選ぶ → 受付を開く → ログインなしでページ → 参加者が手元のログインで申し込む → 完了の画面 → 名簿に「自前」→ 自分の申込みで取り消す → メールで申し込む（偽の送り手のリンク）→ 確定 → 取り消す・部員だけの回の「見られません」。アクセシビリティ（1440px・375px）と CSP の違反がないこと
+- [x] T024 [P] 画面の単体のテストを先に書く（`apply-pages.test.tsx`）：申込みページ（ログインなし・閉じている・始まりのあと・部員だけ・ログインしたあとの名前と同意・申し込んだあとの完了の画面・メールの切り替え・送ったあとの文）・札のページ（確定の前・確定のあと・取り消し・期限切れ・使えない）・自分の申込み（一覧・取り消しの確かめ・部の予定のタブ・同意を外す・メールアドレス）・使い方の3つ目のカードと申込みページの節（開く・閉じる・部員だけを選べない・URL）
+- [x] T025 `apply-api.ts`・`links.ts`・`ApplyPage.tsx`・`EntryTokenPage.tsx`・`MyBookingsPage.tsx`・`SelfPageSection.tsx`・`ModeSection.tsx`・`routes.ts`・`index.ts`
+- [x] T026 自前でも名簿：`nav-items.ts`・`ReceptionRosterSection.tsx`・`RosterGate.tsx` を `usesRoster` に（`nav-items.test.tsx`・`pages.test.tsx` に足す）。名簿の入口「自前」
+- [x] T027 E2E（`e2e/tests/booking-apply.spec.ts`）：主催者が自前を選ぶ → 受付を開く → ログインなしでページ → 参加者が手元のログインで申し込む → 完了の画面 → 名簿に「自前」→ 自分の申込みで取り消す → メールで申し込む（偽の送り手のリンク）→ 確定 → 取り消す・部員だけの回の「見られません」。アクセシビリティ（1440px・375px）と CSP の違反がないこと
 
 ## Phase 11: 守りと仕上げ
 
-- [ ] T028 今の形の文書：`docs/apps/booking.md`（表・窓口・画面・知らせ）・`docs/apps/event.md`（`listOrganizationEvents`）・構成の決めごと AD-3（`booking_email_request`）・AD-14（`/my-bookings`）の注
-- [ ] T040 守りの確かめ（research S1〜S16）：表の各行がテストか読み合わせで確かめられたかを見直し、足りないテストを足す。`pnpm security:check`
-- [ ] T041 `pnpm check` と関わる E2E を流し、コミットする。spec.md の Status を直す
+- [x] T028 今の形の文書：`docs/apps/booking.md`（表・窓口・画面・知らせ）・`docs/apps/event.md`（`listOrganizationEvents`）・構成の決めごと AD-3（`booking_email_request`）・AD-14（`/my-bookings`）の注
+- [x] T040 守りの確かめ（research S1〜S16）：表の各行がテストか読み合わせで確かめられたかを見直し、足りないテストを足す。`pnpm security:check`
+- [x] T041 `pnpm check` と関わる E2E を流し、コミットする。spec.md の Status を直す
 
 ## Analyze（2026-11-20）
 

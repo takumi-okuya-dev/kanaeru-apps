@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-20
 
-**Status**: Draft（2026-11-20 手元で実装と確かめまで。push・PR はまだ。【仮決め】は主催者の確かめを待つ）
+**Status**: Draft（2026-11-20 手元で実装と確かめまで済み〈`pnpm check`・E2E〉。push・PR はまだ。【仮決め】は主催者の確かめを待つ）
 
 **Input**: [PRD 受付アプリの予約](../../../_bmad-output/prd-kanaeru-booking/prd-kanaeru-booking.md) の 4.4（FR-B40〜FR-B47）・4.6（FR-B43・FR-B84・FR-B86 のうち申込みに関わるもの）・4.7（FR-B100）・5 章・8.1 の6番。ことばは PRD の3章のとおり。作りは [構成の決めごと](../../../_bmad-output/architecture-kanaeru/architecture-kanaeru.md) の AD-14（外から開く道）・AD-19・AD-22・AD-23・AD-24。原則は [Constitution](../../../.specify/memory/constitution.md) 1.2.0 の II（メールアドレスは予約の知らせのためだけ・任意・消せる・主催者に見せない・ログに出さない）と III（文字を打たずに終われる・LINE を使わない人はメールで申し込める）。画面は [モックアップ](https://claude.ai/artifact/C6CFPodPrEC6f6vm28ifHT) の P1（申込みページ）・P2（申し込む）・P3（申込み完了）・P6（自分の申込み）・P7（LINE を使わずに申し込む）・A1（申込みページの設定）。
 

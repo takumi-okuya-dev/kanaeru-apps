@@ -65,6 +65,7 @@
   hostName: string,
   name: string,                         // 入れた名前（本人だけが札を知る）
   entry: { status, cancellable } | null,  // state が entry のとき
+  confirmable: boolean,                 // 確認の前なら、いま確定できるか（受付中・誰でもの会）
   calendar: { googleUrl, icsPath },
 }
 ```
@@ -97,6 +98,7 @@
 
 - `sendNotice`（booking-002）の送り先に、行の `contact_email` を足す（LINE の紐づけ → 行の連絡のメール → 本人の連絡のメール → なし）。
 - `googleCalendarUrl({ name, startsAt, venue, details })`（`packages/contracts/src/booking/calendar.ts`。画面と API が使う）・`buildIcs(...)`（API の中）。
+- 名前の上限 `APPLY_NAME_MAX`（50。受付のチェックインの名前と同じ値。`apply.ts` は受付の約束を読まない。research の「作りながら決めたこと」）。
 - event の `index.ts` に `listOrganizationEvents(db, organizationIds, from)`（組織の並びに入れた交流会の `{ eventId, organizationId, startsAt }`。始まりが `from` 以後）を足す。
 
 ## 画面の道（AD-14。`packages/contracts/src/core/participant-paths.ts`）

@@ -22,10 +22,11 @@ function issuesOf(result: {
 }
 
 describe("予約の約束", () => {
-  it("使い方は受付だけと名簿を使うだけを選べる（自前で申込みを受けるはまだ選べない）", () => {
+  it("使い方は受付だけ・名簿を使う・自前で申込みを受けるを選べる（booking-003）", () => {
     expect(BookingSettingInput.safeParse({ mode: "roster" }).success).toBe(true);
     expect(BookingSettingInput.safeParse({ mode: "reception" }).success).toBe(true);
-    expect(issuesOf(BookingSettingInput.safeParse({ mode: "self_page" }))).toEqual([
+    expect(BookingSettingInput.safeParse({ mode: "self_page" }).success).toBe(true);
+    expect(issuesOf(BookingSettingInput.safeParse({ mode: "waitlist" }))).toEqual([
       ["mode", "使い方を選んでください。"],
     ]);
   });

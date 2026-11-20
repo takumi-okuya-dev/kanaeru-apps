@@ -105,6 +105,74 @@ export const BOOKING_ERRORS = {
     message:
       "このリンクは使い終わっています。紐づけ直すときは、公式アカウントをいったんブロックしてから友だち追加し直してください。",
   },
+  /** 交流会がない・使い方が自前でない（booking-003 research R13） */
+  PAGE_NOT_FOUND: {
+    code: "BOOKING_PAGE_NOT_FOUND",
+    status: 404,
+    message: "この会の申込みページはありません。主催者から届いた URL を確かめてください。",
+  },
+  /** 部員だけの回を、主催者・部員でない人が開いた（research R8） */
+  PAGE_MEMBERS_ONLY: {
+    code: "BOOKING_PAGE_MEMBERS_ONLY",
+    status: 403,
+    message:
+      "この会は見られません。部員だけの会です。部員の方は、部の LINE ログインで開いてください。",
+  },
+  /** 受付を閉じている・始まりを過ぎた（research R1） */
+  PAGE_CLOSED: {
+    code: "BOOKING_PAGE_CLOSED",
+    status: 409,
+    message:
+      "いまは申込みを受け付けていません。主催者が受付を閉じたか、始まりを過ぎました。画面を読み直してください。",
+  },
+  /** 始まりを過ぎてから取り消そうとした（research R7） */
+  CANCEL_CLOSED: {
+    code: "BOOKING_CANCEL_CLOSED",
+    status: 409,
+    message:
+      "始まりを過ぎたので、ここからは取り消せません。行けなくなったときは、主催者に直接知らせてください。",
+  },
+  /** 知らない札・交流会が消えた（research R10） */
+  ENTRY_TOKEN_INVALID: {
+    code: "BOOKING_ENTRY_TOKEN_INVALID",
+    status: 404,
+    message:
+      "このリンクは使えません。新しいリンクで確定したか、会がなくなったかもしれません。届いた最新のメールのリンクを開いてください。",
+  },
+  /** 確認の札の期限が切れた（research R10） */
+  ENTRY_TOKEN_EXPIRED: {
+    code: "BOOKING_ENTRY_TOKEN_EXPIRED",
+    status: 410,
+    message:
+      "このリンクは期限（24時間）が切れました。申込みページから、もう一度申し込んでください。",
+  },
+  /** 交流会ごとの確認の待ちが上限に達した（research R11） */
+  EMAIL_REQUEST_LIMIT: {
+    code: "BOOKING_EMAIL_REQUEST_LIMIT",
+    status: 429,
+    message:
+      "いまは確認のメールを送れません。申込みが集中しています。しばらくしてから、もう一度送ってください。",
+  },
+  /** 使い方が自前でないのに、受付・見せる範囲を変えようとした（research R13） */
+  SELF_PAGE_OFF: {
+    code: "BOOKING_SELF_PAGE_OFF",
+    status: 409,
+    message:
+      "この交流会は自前で申込みを受けていません。準備の画面の「使い方」で「自前で申込みを受ける」を選んでから、もう一度開いてください。",
+  },
+  /** 組織に入れていない交流会を部員だけにしようとした（research R8） */
+  VISIBILITY_NEEDS_ORGANIZATION: {
+    code: "BOOKING_VISIBILITY_NEEDS_ORGANIZATION",
+    status: 400,
+    message:
+      "部員だけにするには、先に交流会を組織に入れてください。準備の画面の「組織に入れる」から入れられます。",
+  },
+  /** 本人のものでない・ない案内の同意（research R5） */
+  CONSENT_NOT_FOUND: {
+    code: "BOOKING_CONSENT_NOT_FOUND",
+    status: 404,
+    message: "案内の同意が見つかりません。もう外したかもしれません。画面を読み直してください。",
+  },
 } as const;
 
 /** 領域のエラーのキー。 */

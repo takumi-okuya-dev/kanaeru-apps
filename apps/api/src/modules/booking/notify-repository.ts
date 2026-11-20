@@ -410,6 +410,7 @@ export async function findEntryForNotice(
   eventId: string;
   accountId: string | null;
   status: "confirmed" | "cancelled";
+  contactEmail: string | null;
 } | null> {
   const [row] = await db
     .select({
@@ -417,6 +418,7 @@ export async function findEntryForNotice(
       eventId: bookingEntry.eventId,
       accountId: bookingEntry.accountId,
       status: bookingEntry.status,
+      contactEmail: bookingEntry.contactEmail,
     })
     .from(bookingEntry)
     .where(eq(bookingEntry.id, entryId))

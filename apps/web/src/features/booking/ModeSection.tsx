@@ -1,16 +1,14 @@
 // 準備の画面（A4）の「使い方」の節（主催者だけ。event の差しこみの場所 registerSetupSection から出す。booking-001 research R1・R13）。
-// 選ぶカード（受付だけ・名簿を使う。自前で申込みを受けるは booking-003 の窓口と画面ができるまで出さない）と「使い方を変える」。名簿に行がある交流会を「受付だけ」に戻すときは確かめの枠を出す
+// 選ぶカード（受付だけ・名簿を使う・自前で申込みを受ける〈booking-003〉）と「使い方を変える」。名簿に行がある交流会を「受付だけ」に戻すときは確かめの枠を出す
 // （名簿は消さずに隠す。FR-B13）。保存した使い方は、ナビの「名簿」も読む（同じ問い合わせの鍵）。
+// 今の使い方が自前なら、その下に「申込みページ」の節（受付を開く・閉じる・見せる範囲・URL。SelfPageSection）を出す。
 import type { EventView } from "@workspace/contracts/event";
 import {
   BOOKING_MODES,
   BOOKING_MODE_DESCRIPTIONS,
   BOOKING_MODE_LABELS,
 } from "@workspace/contracts/booking";
-import type { BookingSettingInput } from "@workspace/contracts/booking";
-
-/** 選べる使い方（自前で申込みを受けるは booking-003 の窓口と画面ができるまで出さない）。 */
-type SelectableMode = BookingSettingInput["mode"];
+import type { BookingMode } from "@workspace/contracts/booking";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@workspace/ui/components/button";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
@@ -19,6 +17,7 @@ import { cn } from "@workspace/ui/lib/cn";
 import { useState } from "react";
 import { errorMessage } from "../../lib/api.ts";
 import { saveSetting } from "./api.ts";
+import { SelfPageSection } from "./SelfPageSection.tsx";
 import { BOOKING_QUERY_KEYS, useBookingSetting } from "./queries.ts";
 
 /**
@@ -30,11 +29,11 @@ import { BOOKING_QUERY_KEYS, useBookingSetting } from "./queries.ts";
 export function ModeSection({ event }: { event: EventView }) {
   const queryClient = useQueryClient();
   const setting = useBookingSetting(event.id);
-  const [chosen, setChosen] = useState<SelectableMode>();
+  const [chosen, setChosen] = useState<BookingMode>();
   const [confirming, setConfirming] = useState(false);
   const [saved, setSaved] = useState(false);
   const mutation = useMutation({
-    mutationFn: (mode: SelectableMode) => saveSetting(event.id, mode),
+    mutationFn: (mode: BookingMode) => saveSetting(event.id, mode),
     onSuccess: async (next) => {
       queryClient.setQueryData(BOOKING_QUERY_KEYS.setting(event.id), next);
       setConfirming(false);
@@ -43,14 +42,18 @@ export function ModeSection({ event }: { event: EventView }) {
     },
   });
   const current = setting.data?.mode;
-  const selected: SelectableMode = chosen ?? (current === "roster" ? "roster" : "reception");
+  const selected = chosen ?? current ?? "reception";
 
   /** 保存する（受付だけに戻すときで名簿に行があれば、先に確かめる）。 */
   const save = () => {
     if (mutation.isPending) return;
     setSaved(false);
     mutation.reset();
-    if (selected === "reception" && current === "roster" && (setting.data?.entryCount ?? 0) > 0) {
+    if (
+      selected === "reception" &&
+      current !== "reception" &&
+      (setting.data?.entryCount ?? 0) > 0
+    ) {
       setConfirming(true);
       return;
     }
@@ -68,42 +71,40 @@ export function ModeSection({ event }: { event: EventView }) {
       <fieldset className="flex flex-col gap-xxs">
         <legend className="sr-only">使い方</legend>
         <div className="grid gap-xxs wide:grid-cols-2">
-          {BOOKING_MODES.filter((mode): mode is SelectableMode => mode !== "self_page").map(
-            (mode) => {
-              const checked = selected === mode;
-              return (
-                <label
-                  key={mode}
-                  className={cn(
-                    "flex min-h-xl cursor-pointer items-start gap-xxs rounded-sm border bg-surface p-xs",
-                    checked ? "border-primary bg-primary-subtle" : "border-border-input",
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="booking-mode"
-                    value={mode}
-                    checked={checked}
-                    onChange={() => {
-                      setChosen(mode);
-                      setSaved(false);
-                    }}
-                    className="mt-x3s size-xs accent-primary"
-                  />
-                  <span className="flex flex-col gap-x3s">
-                    <span className="text-m font-bold">{BOOKING_MODE_LABELS[mode]}</span>
-                    <span className={checked ? "text-s text-text" : "text-s text-text-sub"}>
-                      {BOOKING_MODE_DESCRIPTIONS[mode]}
-                    </span>
+          {BOOKING_MODES.map((mode) => {
+            const checked = selected === mode;
+            return (
+              <label
+                key={mode}
+                className={cn(
+                  "flex min-h-xl cursor-pointer items-start gap-xxs rounded-sm border bg-surface p-xs",
+                  checked ? "border-primary bg-primary-subtle" : "border-border-input",
+                )}
+              >
+                <input
+                  type="radio"
+                  name="booking-mode"
+                  value={mode}
+                  checked={checked}
+                  onChange={() => {
+                    setChosen(mode);
+                    setSaved(false);
+                  }}
+                  className="mt-x3s size-xs accent-primary"
+                />
+                <span className="flex flex-col gap-x3s">
+                  <span className="text-m font-bold">{BOOKING_MODE_LABELS[mode]}</span>
+                  <span className={checked ? "text-s text-text" : "text-s text-text-sub"}>
+                    {BOOKING_MODE_DESCRIPTIONS[mode]}
                   </span>
-                </label>
-              );
-            },
-          )}
+                </span>
+              </label>
+            );
+          })}
         </div>
       </fieldset>
       <p className="text-s text-text-sub">
-        「自前で申込みを受ける」（申込みのページ・定員・キャンセル待ち）は、次の版で選べるようになります。
+        「自前で申込みを受ける」の定員とキャンセル待ちは、次の版で使えるようになります（今は申し込んだ人がみな確定します）。
       </p>
       <div className="flex flex-col items-start gap-xxs">
         <Button aria-disabled={mutation.isPending || setting.isPending || undefined} onClick={save}>
@@ -113,7 +114,9 @@ export function ModeSection({ event }: { event: EventView }) {
           <ResponseMessage tone="success">
             {selected === "roster"
               ? "名簿を使うにしました。ナビの「名簿」から名簿を作れます。"
-              : "受付だけにしました。"}
+              : selected === "self_page"
+                ? "自前で申込みを受けるにしました。下の「申込みページ」で受付を開いてください。"
+                : "受付だけにしました。"}
           </ResponseMessage>
         ) : null}
         {mutation.isError && !confirming ? (
@@ -122,6 +125,9 @@ export function ModeSection({ event }: { event: EventView }) {
           </ResponseMessage>
         ) : null}
       </div>
+      {setting.data?.mode === "self_page" ? (
+        <SelfPageSection event={event} setting={setting.data} />
+      ) : null}
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}
@@ -132,7 +138,7 @@ export function ModeSection({ event }: { event: EventView }) {
         error={mutation.isError ? errorMessage(mutation.error) : undefined}
         onConfirm={() => mutation.mutate("reception")}
       >
-        <p>{`名簿の${setting.data?.entryCount ?? 0}人分は消さずに隠します。ナビから「名簿」が消え、受付係の画面でも名簿に当てられなくなります。`}</p>
+        <p>{`名簿の${setting.data?.entryCount ?? 0}人分は消さずに隠します。ナビから「名簿」が消え、受付係の画面でも名簿に当てられなくなります。申込みページもなくなります。`}</p>
         <p>また「名簿を使う」にすると、前の名簿が出ます。</p>
       </ConfirmDialog>
     </section>

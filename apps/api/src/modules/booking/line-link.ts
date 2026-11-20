@@ -1,7 +1,6 @@
 // 紐づけの札と紐づけ（booking-002 research R3・R16。AD-24）。札は32バイトの乱数を base64url にしたもので、DB には SHA-256 だけを持つ。
 // 7日・1回だけ。同じ LINE の友だちの使っていない札は、新しい札を作るとき・ブロックのときに消す。札・LINE のユーザー ID はログに出さない。
 // 送り先は Webhook の公式アカウントから見える ID だけ（LINE ログインの sub は使わない）。
-import { createHash, randomBytes } from "node:crypto";
 import { BOOKING_ERRORS, LINE_LINK_TTL_DAYS } from "@workspace/contracts/booking";
 import type { LineLinkPreview } from "@workspace/contracts/booking";
 import type { Db, Executor } from "../../kernel/db.ts";
@@ -16,20 +15,15 @@ import {
   replaceLink,
 } from "./notify-repository.ts";
 import { holderNameOf, holderOfChannel } from "./notify-settings.ts";
-
-/** 札の長さ（バイト）。 */
-const TOKEN_BYTES = 32;
-
-/** 札の形（base64url）。 */
-const TOKEN_FORMAT = /^[A-Za-z0-9_-]{20,100}$/;
+import { TOKEN_FORMAT, createToken, hashToken } from "./tokens.ts";
 
 /**
- * 札の SHA-256（16進）。
+ * 札の SHA-256（16進。札の作り方は tokens.ts で booking-003 と共に使う）。
  * @param token 札
  * @returns ハッシュ
  */
 export function hashLinkToken(token: string): string {
-  return createHash("sha256").update(token, "utf8").digest("hex");
+  return hashToken(token);
 }
 
 /**
@@ -46,7 +40,7 @@ export async function issueLinkToken(
   lineUserId: string,
   now: Date,
 ): Promise<string> {
-  const token = randomBytes(TOKEN_BYTES).toString("base64url");
+  const token = createToken();
   await deleteUnusedTokens(db, channelId, lineUserId);
   await insertToken(db, {
     channelId,
