@@ -9,6 +9,7 @@ import {
   BOOKING_MODES,
   ENTRY_KINDS,
   ENTRY_STATUSES,
+  SETTABLE_ENTRY_STATUSES,
   VISIBILITIES,
 } from "./options.ts";
 
@@ -82,7 +83,7 @@ export type RosterEntryInput = z.infer<typeof RosterEntryInput>;
 
 /** 行の状態を変える入力（取り消す・戻す）。 */
 export const RosterStatusInput = z.strictObject({
-  status: z.enum(ENTRY_STATUSES, { error: "状態を選んでください。" }),
+  status: z.enum(SETTABLE_ENTRY_STATUSES, { error: "状態を選んでください。" }),
 });
 
 /** 行の状態を変える入力の型。 */

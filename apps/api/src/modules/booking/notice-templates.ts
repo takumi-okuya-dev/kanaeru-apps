@@ -1,8 +1,8 @@
 // 予約の知らせの文面（PRD FR-B80・FR-B86。booking-002）。業務の文面は booking が持つ（送る道具は platform/notify。AD-24）。
 // 交流会の名前・日時（日本時間）・場所・自分の状態と、渡されたリンク（取り消し・返事・カレンダー）を入れる。
 // 文面はログに出さない。LINE のテキストは5000文字までなので、長すぎるときは切る。
-import { NOTICE_KIND_LABELS } from "@workspace/contracts/booking";
-import type { NoticeKind } from "@workspace/contracts/booking";
+import { ENTRY_STATUS_LABELS, NOTICE_KIND_LABELS } from "@workspace/contracts/booking";
+import type { EntryStatus, NoticeKind } from "@workspace/contracts/booking";
 import { LINE_LINK_TTL_DAYS } from "@workspace/contracts/booking";
 
 /** LINE のテキストの上限（文字）。 */
@@ -28,7 +28,7 @@ export type NoticeContext = {
   /** 場所（なければ null） */
   venue: string | null;
   /** 申込みの今の状態（変更の知らせで使う） */
-  entryStatus?: "confirmed" | "cancelled";
+  entryStatus?: EntryStatus;
   /** 打診の返事の期限 */
   deadline?: Date;
   /** キャンセル待ちの何番目か */
@@ -111,7 +111,9 @@ function statusLine(kind: EntryNoticeKind, context: NoticeContext): string {
     case "cancelled_event":
       return "取り消し";
     case "changed":
-      return context.entryStatus === "cancelled" ? "取り消し" : "確定";
+      return ENTRY_STATUS_LABELS[context.entryStatus ?? "confirmed"];
+    case "same_day":
+      return "キャンセル待ち（当日の空きは先着で参加できます）";
   }
 }
 
@@ -155,6 +157,11 @@ function leadLines(kind: EntryNoticeKind, context: NoticeContext): string[] {
     }
     case "cancelled_event":
       return [`${holder}の交流会は中止になりました。申込みは取り消しになりました。`];
+    case "same_day":
+      return [
+        `${holder}の交流会に当日の空きが出ました。始まりが近いので、先着で参加できます。`,
+        "参加するときは、下のリンクから「参加する」を押してください。埋まったら締め切ります。",
+      ];
   }
 }
 
@@ -168,6 +175,7 @@ function linkLines(kind: EntryNoticeKind, context: NoticeContext): string[] {
   const links = context.links ?? {};
   const lines: string[] = [];
   if (kind === "offered" && links.respond) lines.push(`返事をする：${links.respond}`);
+  if (kind === "same_day" && links.respond) lines.push(`参加する：${links.respond}`);
   if (kind === "confirmed" && links.calendar) lines.push(`カレンダーに追加：${links.calendar}`);
   if (links.entry && kind !== "cancelled_event" && kind !== "offer_expired") {
     lines.push(`申込みを見る・取り消す：${links.entry}`);

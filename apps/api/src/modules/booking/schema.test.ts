@@ -114,7 +114,7 @@ describe("予約の表", () => {
     );
     const id = await insertEntry();
     await expect(
-      database.pool.query("UPDATE booking_entry SET status = 'waitlisted' WHERE id = $1", [id]),
+      database.pool.query("UPDATE booking_entry SET status = 'pending' WHERE id = $1", [id]),
     ).rejects.toThrow(/booking_entry_status_check/);
     expect((await readEntry(id))?.status).toBe("confirmed");
   });

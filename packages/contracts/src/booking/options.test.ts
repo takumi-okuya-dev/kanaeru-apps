@@ -1,5 +1,6 @@
 // 予約の約束の選択肢：code と言葉がそろう・受付の媒体と別の値を持たない。
 import { describe, expect, it } from "vitest";
+import { APPLICATION_SOURCES } from "../reception/index.ts";
 import {
   ATTENDANCES,
   ATTENDANCE_LABELS,
@@ -12,6 +13,9 @@ import {
   ENTRY_STATUS_LABELS,
   PAGE_STATES,
   PAGE_STATE_LABELS,
+  QUOTA_SOURCES,
+  SEAT_STATUSES,
+  SETTABLE_ENTRY_STATUSES,
   VISIBILITIES,
   VISIBILITY_LABELS,
   usesRoster,
@@ -34,6 +38,17 @@ describe("予約の選択肢", () => {
 
   it("見せる範囲の最初は誰でも（DB の既定と同じ）", () => {
     expect(VISIBILITIES[0]).toBe("public");
+  });
+
+  it("枠を置ける媒体は、受付の申し込みの媒体から直接を除いたもの（並びも同じ。booking-004）", () => {
+    expect([...QUOTA_SOURCES]).toEqual(APPLICATION_SOURCES.filter((source) => source !== "direct"));
+  });
+
+  it("主催者が選べる状態と席を押さえる状態は、名簿の行の状態の中にある（booking-004）", () => {
+    for (const status of [...SETTABLE_ENTRY_STATUSES, ...SEAT_STATUSES]) {
+      expect(ENTRY_STATUSES).toContain(status);
+    }
+    expect([...SETTABLE_ENTRY_STATUSES]).toEqual(["confirmed", "cancelled"]);
   });
 
   it("使い方の最初は受付だけ（行がない交流会と同じ）", () => {

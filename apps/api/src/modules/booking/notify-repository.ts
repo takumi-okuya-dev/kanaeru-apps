@@ -1,7 +1,12 @@
 // 予約の知らせの表の読み書き（公式アカウントの設定・紐づけ・札・連絡のメールアドレス・知らせの記録。booking-002）。
 // 表は booking の領域だけが読み書きする（AD-3）。鍵・札・宛先はログに出さない。
 import { and, count, eq, gte, isNull, or } from "drizzle-orm";
-import type { NoticeKind, NoticeMethod, NoticeResult } from "@workspace/contracts/booking";
+import type {
+  EntryStatus,
+  NoticeKind,
+  NoticeMethod,
+  NoticeResult,
+} from "@workspace/contracts/booking";
 import type { Executor } from "../../kernel/db.ts";
 import {
   bookingContact,
@@ -409,7 +414,7 @@ export async function findEntryForNotice(
   id: string;
   eventId: string;
   accountId: string | null;
-  status: "confirmed" | "cancelled";
+  status: EntryStatus;
   contactEmail: string | null;
 } | null> {
   const [row] = await db
