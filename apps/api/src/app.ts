@@ -5,7 +5,8 @@
 // 窓口の文書（GET /api/openapi.json）は、設定 OPENAPI_DOC_ENABLED が true のときだけ出す（production では止める）。
 // 設定 WEB_DIST_DIR があれば、/api 以外の道に組み立てた画面を返す（platform/web。AD-8）。守りの見出しは /api と画面で分ける。
 // ログインは account の領域が持つ（AD-12。道ごとに account の requireSession を付ける）。領域には、秘密でない設定（DomainConfig）と
-// 外への出口（fetch）と、登録されたアプリ（apps）と、秘密の値を使う道具（秘密の箱・定期の仕事の合言葉の確かめ。値そのものは渡さない）を渡す。
+// 外への出口（fetch）と、登録されたアプリ（apps）と、秘密の値を使う道具（秘密の箱・定期の仕事の合言葉の確かめ・知らせを送る道具。
+// 値そのものは渡さない）を渡す。
 // アプリが見えるか（AD-16）：packages/contracts/src/core/apps.list.ts の「アプリ → 属する領域」から、アプリに属する領域の
 // すべての道に suite の requireApp を付ける（各アプリは付けない。見えなければ 404）。どのアプリにも共通にも属さない領域があれば、
 // 起動を止める（requireApp の付け忘れで、作りかけのアプリが見えないように）。
@@ -41,6 +42,7 @@ import { REQUEST_ID_HEADER, requestIdMiddleware } from "./kernel/request-id.ts";
 import * as modules from "./modules.list.ts";
 import { requireApp, requireAppNotOff } from "./modules/suite/index.ts";
 import { healthRoutes } from "./platform/health/index.ts";
+import { createNotifier } from "./platform/notify/index.ts";
 import { createRateLimiter } from "./platform/rate-limit/index.ts";
 import {
   HSTS_MAX_AGE_SECONDS,
@@ -475,6 +477,11 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
       : undefined,
     isJobRequest: createJobRequestCheck(config.jobTriggerSecret),
     metaApp: createMetaApp(config.threadsApp),
+    notifier: createNotifier({
+      policy: config.notify,
+      fetch: deps.fetch ?? globalThis.fetch.bind(globalThis),
+      logger,
+    }),
     withdrawalSteps: orderWithdrawalSteps(domains, apps),
   };
   for (const [name, domain] of domains) {

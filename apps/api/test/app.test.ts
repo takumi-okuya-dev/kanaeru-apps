@@ -110,10 +110,14 @@ describe("組み立て", () => {
       "isJobRequest",
       "logger",
       "metaApp",
+      "notifier",
       "secretBox",
       "withdrawalSteps",
     ]);
     expect(received?.secretBox).toBeUndefined();
+    // 知らせを送る道具は、許可リストの値を持たず、テストでは偽の送り手で既定は止めている（booking-002）
+    expect(received?.notifier?.fake).toBe(true);
+    expect(received?.notifier?.mode).toBe("off");
     expect(received?.isJobRequest("Bearer ")).toBe(false);
     // Meta のアプリの設定がなければ、その道具もない
     expect(received?.metaApp).toBeUndefined();
