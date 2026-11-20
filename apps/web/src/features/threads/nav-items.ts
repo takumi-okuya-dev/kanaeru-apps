@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
 import type { NavItem } from "../../lib/feature.ts";
 import { THREADS_ACCOUNT_SCOPE, THREADS_ROUTE_PATTERNS, threadsPaths } from "./paths.ts";
+import { fetchAccount, fetchTeamOrganizations } from "./api.ts";
 import { THREADS_QUERY_KEYS } from "./queries.ts";
 
 /**
@@ -18,6 +19,9 @@ import { THREADS_QUERY_KEYS } from "./queries.ts";
 function useNeedsReviewCount(accountId: string): number | undefined {
   const { data } = useQuery<ThreadsAccount>({
     queryKey: THREADS_QUERY_KEYS.detail(accountId),
+    // 画面と同じ読みこむ処理を持たせ、自分からは読みに行かない（enabled: false）。読みこむ処理を持たない問い合わせは、
+    // 読み直しのたびにエラーになり、skipToken は同じ鍵の画面の読み直しまで止めてしまう（交流会のナビと同じ形）
+    queryFn: () => fetchAccount(accountId),
     enabled: false,
   });
   return accountId ? data?.counts.needsReview : undefined;
@@ -30,6 +34,7 @@ function useNeedsReviewCount(accountId: string): number | undefined {
 function useInOrganization(): boolean {
   const { data } = useQuery<ThreadsOrganizationList>({
     queryKey: THREADS_QUERY_KEYS.organizations,
+    queryFn: fetchTeamOrganizations,
     enabled: false,
   });
   return (data?.organizations.length ?? 0) > 0;
