@@ -1,8 +1,8 @@
 # スイート（suite）の地図
 
-2026-11-20 作成（core-005。決めた理由と仮決めは [specs/core/005-app-switcher/spec.md](../../specs/core/005-app-switcher/spec.md)、範囲は [PRD](../../_bmad-output/prd-kanaeru-suite/prd-kanaeru-suite.md)）。同じ日に suite-001（組織と退会の手順の組み立て。[specs/suite/001-organization](../../specs/suite/001-organization/spec.md)・[PRD 組織](../../_bmad-output/prd-kanaeru-org/prd-kanaeru-org.md)・AD-22）を足した。
+2026-11-20 作成（core-005。決めた理由と仮決めは [specs/core/005-app-switcher/spec.md](../../specs/core/005-app-switcher/spec.md)、範囲は [PRD](../../_bmad-output/prd-kanaeru-suite/prd-kanaeru-suite.md)）。同じ日に suite-001（組織と退会の手順の組み立て。[specs/suite/001-organization](../../specs/suite/001-organization/spec.md)・[PRD 組織](../../_bmad-output/prd-kanaeru-org/prd-kanaeru-org.md)・AD-22）を足した。同じ日に suite-002（利用規約とプライバシーポリシーのページ。[specs/suite/002-legal-pages](../../specs/suite/002-legal-pages/spec.md)）を足した。
 
-スイートの共通の領域（どのアプリにも属さない）。アプリの台帳（公開の状態）を持ち、アプリが見えるかを決める1か所（構成の決めごと AD-15・AD-16）。組織（人と役割・招待）と、契約の持ち主の形（`entitlement`。払うしくみと売り方は売り始めるときに足す）も持つ（AD-22）。画面では、すべてのアプリ・設定（一覧・アカウント・組織・アプリの台帳）・組織の招待の確かめの画面を持つ。
+スイートの共通の領域（どのアプリにも属さない）。アプリの台帳（公開の状態）を持ち、アプリが見えるかを決める1か所（構成の決めごと AD-15・AD-16）。組織（人と役割・招待）と、契約の持ち主の形（`entitlement`。払うしくみと売り方は売り始めるときに足す）も持つ（AD-22）。画面では、すべてのアプリ・設定（一覧・アカウント・組織・アプリの台帳）・組織の招待の確かめの画面・利用規約とプライバシーポリシーのページを持つ。
 
 ## 1. アプリの一覧（`packages/contracts/src/core/apps.list.ts`）
 
@@ -10,7 +10,7 @@
 
 | 欄 | 何か |
 |---|---|
-| `key` | 英小文字で始まる英小文字・数字。一意。予約語（`RESERVED_APP_KEYS`：`api`・`admin`・`e`・`invite`・`dev`・`assets`・`apps`・`oauth`・`mcp`・`well-known`・`settings`・`join`）は使えない |
+| `key` | 英小文字で始まる英小文字・数字。一意。予約語（`RESERVED_APP_KEYS`：`api`・`admin`・`e`・`invite`・`dev`・`assets`・`apps`・`oauth`・`mcp`・`well-known`・`settings`・`join`・`terms`・`privacy`）は使えない |
 | `name`・`summary`・`description` | 名前・切り替えの短い説明・すべてのアプリの説明 |
 | `icon` | 線のアイコンの種類（`APP_ICONS`。線は `apps/web/src/lib/icon.tsx`） |
 | `domains` | 属する領域。どの領域も、ちょうど1つのアプリか共通（`COMMON_DOMAINS`：`account`・`suite`）に属する |
@@ -99,12 +99,15 @@ API（`apps/api/src/modules/suite/index.ts`）：
 |---|---|---|
 | `/apps` | すべてのアプリ（`staticData.section: "apps"`） | 見えるアプリのカード。最後に使ったアプリの「開く」が主のボタン。運営者には「運営者だけに見えています」の札と台帳への入口。ログインの前でも公開のアプリを出す |
 | `/settings` | 設定の一覧（`section: "settings"`） | まとまり（個人の設定・アプリの設定・運営）ごとの項目。スマホはここから入る |
-| `/settings/account` | アカウント | 表示名・ログインの方法・登録した日・使えるアプリ・ログアウト・退会（確かめの枠）。ログアウトと退会のあとは `/apps` に知らせの帯 |
+| `/settings/account` | アカウント | 表示名・ログインの方法・登録した日・使えるアプリ・ログアウト・規約とポリシー（利用規約とプライバシーポリシーへのリンク）・退会（確かめの枠）。ログアウトと退会のあとは `/apps` に知らせの帯 |
 | `/settings/apps` | アプリの台帳（運営者だけ） | 行ごとのチップで、押すとすぐ保存し、結果を行のそばに出す。今見える人と凡例 |
 | `/settings/organizations` | 組織（個人の設定） | 入っている組織の一覧と「組織を作る」 |
 | `/settings/organizations/$organizationId` | 組織の画面 | 人の一覧（あなた・新しい人）。管理者は役割の切り替え・外す・招待のリンクと QR・作り直す・名前・消す・引き継ぐ。抜ける（管理者は引き継ぐ人を選ぶ）。アプリの組織の画面への入口（`feature.organization.links`。見えるアプリだけ） |
-| `/join/$joinToken` | 組織の招待の確かめ（外枠のナビなし。ログインが要る） | 組織の名前・管理者・人数・「メンバーとして入ります」・見え方の説明（アプリの `feature.organization.joinNotes`。見えるアプリだけ）・入る。すでに入っていれば組織の画面への入口。使えないリンクは理由と「管理者に新しいリンクを頼んでください」 |
+| `/join/$joinToken` | 組織の招待の確かめ（外枠のナビなし。ログインが要る） | 組織の名前・管理者・人数・「メンバーとして入ります」・見え方の説明（アプリの `feature.organization.joinNotes`。見えるアプリだけ）・利用規約とプライバシーポリシーへのリンク（新しいタブ）・入る。すでに入っていれば組織の画面への入口。使えないリンクは理由と「管理者に新しいリンクを頼んでください」 |
+| `/terms`・`/privacy` | 利用規約・プライバシーポリシー（外枠のナビなし。ログインなし。suite-002） | 本文は `legal-content.ts` の1か所から描く（番号つきの節・段落・箇条書き・2つの列の表は見出しと中身の並び）。`LEGAL_TEXT_IS_DRAFT` が true の間は題の下に「下書き（公開前）」の帯。運営者が埋める所（〈 〉）は黄色の印。文の中の `{{terms}}`・`{{privacy}}` はもう一方へのリンク。最後に「ほかのページ」（もう一方・すべてのアプリ） |
 
 退会の枠（`/settings/account`）は、開いたときに `GET /api/v1/accounts/me/withdrawal` を読み、組織・引き継がれる記録・消える記録に分けて出す。
 
-画面の入口（`apps/web/src/features/suite/index.ts`）：`useVisibleApps()`（見えるアプリ・運営者か。鍵に今わかっている利用者を入れる）・`loadVisibleApps(queryClient)`（はじめの画面）・`SUITE_QUERY_KEYS`・`SUITE_ROUTE_PATTERNS`。組み立てが外枠の切り替えとナビに使う。設定の項目は、領域の `feature.settings`（suite は「アカウント」「組織」「アプリの台帳」）。アプリが組織の画面と招待の確かめの画面に足すものは、領域の `feature.organization`（`lib/organization.ts`。組み立てが属するアプリを付けて渡す）。
+利用規約とプライバシーポリシーの本文（suite-002）：正本は `apps/web/src/features/suite/legal-content.ts`。主催者が読む写し（`_bmad-output/legal/terms-draft.md`・`privacy-policy-draft.md`）は、印の行より下を `pnpm exec tsx apps/web/legal-md.ts`（`apps/web/legal-md.ts`）で作り、印より上に〈 〉と要確認の一覧を手で書く。食い違い・一覧にない〈 〉は `legal-content.test.ts` が止める。道と題は `legal-paths.ts`（本文を読まない）。
+
+画面の入口（`apps/web/src/features/suite/index.ts`）：`LegalLink`（`to`：`"terms"`・`"privacy"`、`newTab`。ほかの領域が利用規約とプライバシーポリシーへのリンクを出す。Threads の接続の欄が使う）・`useVisibleApps()`（見えるアプリ・運営者か。鍵に今わかっている利用者を入れる）・`loadVisibleApps(queryClient)`（はじめの画面）・`SUITE_QUERY_KEYS`・`SUITE_ROUTE_PATTERNS`。組み立てが外枠の切り替えとナビに使う。設定の項目は、領域の `feature.settings`（suite は「アカウント」「組織」「アプリの台帳」）。アプリが組織の画面と招待の確かめの画面に足すものは、領域の `feature.organization`（`lib/organization.ts`。組み立てが属するアプリを付けて渡す）。

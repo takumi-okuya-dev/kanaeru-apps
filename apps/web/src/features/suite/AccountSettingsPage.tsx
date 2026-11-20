@@ -4,6 +4,7 @@
 //   枠を開いたら、各領域が出す確かめの中身（組織・引き継がれる記録・消える記録。AD-22・PRD 組織 FR-O54）を読んで分けて出す。
 //   ほかの人が書きこむ記録を持っていれば、API が 409 を返すので、枠の中にその文を出す
 // ログアウト・退会のあとは、すべてのアプリの画面へ移り、画面の上の知らせの帯で伝える（画面が切り替わるため）。
+// - 規約とポリシー：利用規約とプライバシーポリシーへのリンク（suite-002）
 import type { CurrentAccountView, WithdrawalItem } from "@workspace/contracts/account";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listApps } from "@workspace/contracts/core";
@@ -22,6 +23,7 @@ import {
   useSession,
   withdrawAccount,
 } from "../account/index.ts";
+import { LegalLink } from "./LegalLink.tsx";
 import { useVisibleApps } from "./queries.ts";
 
 /** 登録した日の見せ方（日本時間の「2026年11月19日」）。 */
@@ -104,6 +106,28 @@ function AccountSummary({ account }: { account: CurrentAccountView }) {
         </Button>
         {error ? <ResponseMessage tone="danger">{error}</ResponseMessage> : null}
       </div>
+    </section>
+  );
+}
+
+/**
+ * 規約とポリシーのまとまり（利用規約とプライバシーポリシーへのリンク。suite-002）。
+ * @returns 要素
+ */
+function LegalSection() {
+  return (
+    <section aria-labelledby="account-legal-heading" className="flex flex-col gap-xxs">
+      <h2 id="account-legal-heading" className="text-l leading-tight font-bold">
+        規約とポリシー
+      </h2>
+      <ul className="flex flex-col gap-x3s text-m">
+        <li>
+          <LegalLink to="terms" />
+        </li>
+        <li>
+          <LegalLink to="privacy" />
+        </li>
+      </ul>
     </section>
   );
 }
@@ -255,6 +279,7 @@ function AccountContent() {
   return (
     <Page title="アカウント" lead="どのアプリでも使う、あなたのアカウントです。">
       <AccountSummary account={session.account} />
+      <LegalSection />
       <Withdraw />
     </Page>
   );

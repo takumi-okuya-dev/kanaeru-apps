@@ -3,10 +3,12 @@
 // - /settings：設定の一覧。/settings/account：アカウント。/settings/apps：アプリの台帳（運営者だけ）
 // - /settings/organizations：組織の一覧と作る。/settings/organizations/{id}：組織の画面（suite-001）
 // - /join/{token}：組織の招待（外から開く道。外枠のナビを出さない。AD-14・AD-22）
+// - /terms・/privacy：利用規約・プライバシーポリシー（ログインなしで開ける。外枠のナビを出さない。suite-002）
 // 台帳・アカウント・組織は、開いたときに別に読む（lazyRouteComponent）。
 import { createRoute, lazyRouteComponent } from "@tanstack/react-router";
 import { PARTICIPANT_ROUTE_PATTERNS } from "@workspace/contracts/core";
 import { rootRoute } from "../../lib/router.ts";
+import { LEGAL_PATHS } from "./legal-paths.ts";
 import { ORGANIZATION_ROUTE_PATTERNS } from "./organization-paths.ts";
 import { AppsPage } from "./AppsPage.tsx";
 import { SettingsIndexPage } from "./SettingsIndexPage.tsx";
@@ -23,6 +25,10 @@ export const SUITE_ROUTE_PATTERNS = {
   ledger: "/settings/apps",
   /** 設定 › 組織 */
   organizations: ORGANIZATION_ROUTE_PATTERNS.list,
+  /** 利用規約（suite-002） */
+  terms: LEGAL_PATHS.terms,
+  /** プライバシーポリシー（suite-002） */
+  privacy: LEGAL_PATHS.privacy,
 } as const;
 
 /** すべてのアプリ。 */
@@ -79,4 +85,20 @@ export const joinRoute = createRoute({
   path: PARTICIPANT_ROUTE_PATTERNS.join,
   staticData: { layout: "bare" },
   component: lazyRouteComponent(() => import("./JoinPage.tsx"), "JoinRoute"),
+});
+
+/** 利用規約（ログインなしで開ける。外枠のナビを出さない。suite-002）。 */
+export const termsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: LEGAL_PATHS.terms,
+  staticData: { layout: "bare" },
+  component: lazyRouteComponent(() => import("./LegalPage.tsx"), "TermsPage"),
+});
+
+/** プライバシーポリシー（ログインなしで開ける。外枠のナビを出さない。suite-002）。 */
+export const privacyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: LEGAL_PATHS.privacy,
+  staticData: { layout: "bare" },
+  component: lazyRouteComponent(() => import("./LegalPage.tsx"), "PrivacyPage"),
 });
