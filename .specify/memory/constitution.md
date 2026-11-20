@@ -36,7 +36,7 @@
 - データベース：PostgreSQL 18・Drizzle ORM（0.45 の安定版）。本番は Cloud SQL for PostgreSQL（ENTERPRISE・db-f1-micro・東京）を1つで、夜間（0時〜8時）は止める。手元とテストは 18 の容器。DB の変更は SQL を読んでから当て、前の版のアプリでも壊れない形だけにする（[docs/rules/coding.md](../../docs/rules/coding.md) 3）。
 - 認証：参加者の画面は未認証の LINEミニアプリ（`@line/liff` 2.31.1 以上）。ログインは LINE のIDトークンを API が確かめ、自前のセッション（DB の表と `HttpOnly; Secure; SameSite=Lax` のクッキー）を出す。Better Auth は使わない（LINE でメールがない人がログインできないため）。
 - **運用コストの目標**：本番の運用費は月2,000円以内（請求の予算の知らせを月2,000円に置く）。開発の AI の利用料は別枠。
-- **モジュールの境界**：機能ごと（領域ごと）にフォルダを分け（`apps/api/src/modules/<領域>/`・`apps/web/src/features/<領域>/`・`packages/contracts/src/<領域>/`）、ほかの領域は入口（`index.ts`）からだけ使う。依存は 組み立て → 領域 → 共通 → 土台 の一方向。画面は API の型だけを読む。境界は ESLint の規則（`eslint.config.js`）で自動に守る。領域どうしの表の持ち主・権限・今の利用者の受け取り方は、構成の決めごと（AD-2〜AD-7・AD-12〜AD-14）に、アプリの登録・公開と契約・DB の変更・共通の道具・記録の持ち主・AI と MCP は AD-15〜AD-21 に従う。
+- **モジュールの境界**：機能ごと（領域ごと）にフォルダを分け（`apps/api/src/modules/<領域>/`・`apps/web/src/features/<領域>/`・`packages/contracts/src/<領域>/`）、ほかの領域は入口（`index.ts`）からだけ使う。依存は 組み立て → 領域 → 共通 → 土台 の一方向。画面は API の型だけを読む。境界は ESLint の規則（`eslint.config.js`）で自動に守る。領域どうしの表の持ち主・権限・今の利用者の受け取り方は、構成の決めごと（AD-2〜AD-7・AD-12〜AD-14）に、アプリの登録・公開と契約・DB の変更・共通の道具・記録の持ち主・AI と MCP は AD-15〜AD-21 に、スイートの組織と契約の持ち主（個人か組織）は AD-22 に従う。
 - **画面の見た目と振る舞い**：見た目は `_bmad-output/ux-kanaeru-reception/DESIGN.md`、振る舞いは `EXPERIENCE.md`（どちらも `docs/design/` の既定〈SmartHR Design System を土台にしたもの〉から始めた）。値は `packages/ui/src/styles/tokens.css` に写した1か所だけから読む。WCAG 2.2 AA を下限にし、通しのテストで axe にかける。
 
 ## 開発ワークフロー
@@ -52,4 +52,4 @@
 - 改定はセマンティックバージョニングに従う：原則の削除・後方非互換な再定義＝MAJOR、原則の追加・実質的な拡張＝MINOR、文言の修正・明確化＝PATCH。
 - 改定するときは`/speckit-constitution`を使い、Sync Impact Reportを残す。
 
-**Version**: 1.1.0 | **Ratified**: 2026-11-19 | **Last Amended**: 2026-11-19
+**Version**: 1.1.1 | **Ratified**: 2026-11-19 | **Last Amended**: 2026-11-20
