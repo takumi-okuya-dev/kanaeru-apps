@@ -107,8 +107,13 @@ variable "threads_token_key_version" {
 
 variable "threads_oauth_enabled" {
   type        = bool
-  description = "Threads の OAuth の接続と Meta の Webhook（threads-010。機能の印 threads.oauth）を入にするか。threads_enabled と threads_app_id が要る。true にする前に、Meta のアプリの秘密の値の秘密に版を足す（README の 9）"
+  description = "Threads の OAuth の接続と Meta の Webhook（threads-010。機能の印 threads.oauth）を入にするか。threads_enabled と threads_app_id が要る。true にする前に、Meta のアプリの秘密の値の秘密に版を足す（README の 9）。切にしても秘密の値は残る"
   default     = false
+
+  validation {
+    condition     = !var.threads_oauth_enabled || var.threads_app_id != ""
+    error_message = "threads_oauth_enabled を true にするときは、threads_app_id（Meta のアプリの ID）も入れてください。"
+  }
 }
 
 variable "threads_app_id" {

@@ -157,7 +157,7 @@ Cloud SQL は `prevent_destroy`・`deletion_protection`・`deletion_protection_e
       - リダイレクトの URL：`<WEB_URL>/api/v1/threads/oauth/callback`
       - 連携の解除の Webhook：`<WEB_URL>/api/v1/threads/webhooks/uninstall`
       - データの削除の Webhook：`<WEB_URL>/api/v1/threads/webhooks/data-deletion`
-   2. `threads_app_id = "<アプリの ID（数字）>"`・`threads_oauth_enabled = true` にする（`threads_enabled = true` も要る）。秘密の値の入れ物だけを先に作る：`terraform apply -target=google_secret_manager_secret.threads_app_secret`
+   2. `threads_app_id = "<アプリの ID（数字）>"` を入れて apply する（`threads_enabled = true` も要る。秘密の値の入れ物と読む権限だけができ、Cloud Run は変わらない）
    3. 秘密の値（App Secret）の版を足す（手元で入れ、ファイルや履歴に残さない）：
 
       ```bash
@@ -165,5 +165,5 @@ Cloud SQL は `prevent_destroy`・`deletion_protection`・`deletion_protection_e
         gcloud secrets versions add kanaeru-threads-app-secret --data-file=- && unset THREADS_APP_SECRET
       ```
 
-   4. 全体を apply する（Cloud Run に `THREADS_APP_ID`・`THREADS_APP_SECRET`・`DOMAIN_FEATURES=threads.oauth` が足される）。設定の「Threads への接続」に「Meta のアプリでつなぐ」が出る
-   5. 止めたいときは `threads_oauth_enabled = false` にして apply する（OAuth と Webhook の窓口は 404 になり、貼り付けた接続はそのまま使える）
+   4. `threads_oauth_enabled = true` にして apply する（Cloud Run に `THREADS_APP_ID`・`THREADS_APP_SECRET`・`DOMAIN_FEATURES=threads.oauth` が足される）。設定の「Threads への接続」に「Meta のアプリでつなぐ」が出る
+   5. 止めたいときは `threads_oauth_enabled = false` にして apply する（OAuth と Webhook の窓口は 404 になり、貼り付けた接続はそのまま使える。秘密の値は残るので、入に戻すときは 4 だけでよい）
