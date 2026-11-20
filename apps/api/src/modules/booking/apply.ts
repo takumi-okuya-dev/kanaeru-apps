@@ -4,6 +4,8 @@
 // 「受付中」は使い方が自前・受付を開いている・始まりの前を読むときに決める（始まりを過ぎたら自動で閉じる。research R1）。
 // 部員だけの回は、主催者と部員のほかに中身を返さない（research R8）。書く窓口は設定の行を押さえて受付中かを決め直す（S8・S14）。
 // 名前・メールアドレス・札はログに出さない。確定したら sendNotice（確定）を呼び、知らせが送れなくても申込みは成り立つ（R12）。
+// 定員とキャンセル待ち（booking-004）：書く窓口は片付け（waitlist.ts の settleEvent）を通してから、確定かキャンセル待ちかを決める。
+// 読む窓口は書かずに、席の欄・本人の何番目か・打診の期限を返す（期限を過ぎた打診は期限切れとして見せる。research R9）。
 import type {
   ApplyInput,
   ApplyPage,
@@ -23,7 +25,8 @@ import {
   EMAIL_REQUEST_TTL_HOURS,
   googleCalendarUrl,
 } from "@workspace/contracts/booking";
-import { endOfJstDate, jstDate, participantPaths } from "@workspace/contracts/core";
+import type { EntryStanding } from "@workspace/contracts/booking";
+import { endOfJstDate, jstDate } from "@workspace/contracts/core";
 import type { EventSummary } from "@workspace/contracts/event";
 import type { Executor } from "../../kernel/db.ts";
 import { AppError } from "../../kernel/errors.ts";
@@ -43,6 +46,7 @@ import {
   findLatestAccountEntryName,
   findLatestRequestAt,
   findOwnEntry,
+  findSelfEntry,
   findPageSetting,
   findRequestByHash,
   hasConsent,
@@ -59,12 +63,31 @@ import {
 import type { PageSetting, SelfEntry } from "./apply-repository.ts";
 import { buildIcs } from "./calendar-ics.ts";
 import { emailConfirmSubject, emailConfirmText, senderName } from "./notice-templates.ts";
-import { eventNotifyHolder, sendNotice } from "./notify.ts";
+import { eventNotifyHolder } from "./notify.ts";
 import { findChannelByHolder, findContactEmail, findLinkedLineUser } from "./notify-repository.ts";
 import type { NotifyHolderRef } from "./notify-repository.ts";
 import { holderNameOf, notifierOf } from "./notify-settings.ts";
 import type { NotifyDeps } from "./notify-settings.ts";
+import { applyUrl, calendarLinks, entryTokenUrl } from "./page-links.ts";
 import { TOKEN_FORMAT, createToken, hashToken } from "./tokens.ts";
+import { isSameDayWindow } from "./deadline.ts";
+import {
+  eventContext,
+  flushNotices,
+  loadSeatState,
+  pageSeatsOf,
+  placementOf,
+  queueApplied,
+  respondToOffer,
+  settleEvent,
+  standingOf,
+} from "./waitlist.ts";
+import type { NoticeQueue, SeatState } from "./waitlist.ts";
+import {
+  closePendingOffer,
+  findEntryIdByOfferToken,
+  setEntryStatus,
+} from "./waitlist-repository.ts";
 
 /** 自前の申込みの処理に使う道具（知らせと同じ）。 */
 export type ApplyDeps = NotifyDeps;
@@ -86,9 +109,10 @@ const MINUTE_MS = 60 * 1000;
  * @param setting 設定
  * @param startsAt 始まり
  * @param now 今の時刻
- * @returns 受付中・閉じている・始まりを過ぎた
+ * @returns 受付中・閉じている・始まりを過ぎた・中止（booking-004）
  */
 export function pageStateOf(setting: PageSetting, startsAt: Date, now: Date): PageState {
+  if (setting.mode === "self_page" && setting.cancelledAt) return "cancelled";
   if (startsAt.getTime() <= now.getTime()) return "started";
   return setting.mode === "self_page" && setting.accepting ? "open" : "closed";
 }
@@ -100,38 +124,6 @@ export function pageStateOf(setting: PageSetting, startsAt: Date, now: Date): Pa
  */
 function startsOf(event: EventSummary): Date {
   return new Date(event.startsAt);
-}
-
-/**
- * 申込みページの URL（知らせ・カレンダーの説明に入れる。API は LIFF ID を知らないので画面の源＋道）。
- * @param deps 道具
- * @param eventId 交流会の ID
- * @returns URL
- */
-function applyUrl(deps: Pick<ApplyDeps, "config">, eventId: string): string {
-  return `${deps.config.webUrl}${participantPaths.apply(eventId)}`;
-}
-
-/**
- * カレンダーに追加のリンク。
- * @param deps 道具
- * @param event 要約
- * @param hostName 主催の名前
- * @returns Google のリンクと .ics の道
- */
-function calendarLinks(deps: Pick<ApplyDeps, "config">, event: EventSummary, hostName: string) {
-  const details = [hostName ? `主催：${hostName}` : "", applyUrl(deps, event.id)]
-    .filter(Boolean)
-    .join("\n");
-  return {
-    googleUrl: googleCalendarUrl({
-      name: event.name,
-      startsAt: event.startsAt,
-      venue: event.venue,
-      details,
-    }),
-    icsPath: `/api/v1/booking/events/${event.id}/calendar`,
-  };
 }
 
 /**
@@ -149,20 +141,46 @@ function applyEventOf(event: EventSummary): ApplyPage["event"] {
   };
 }
 
+/** 打診も並びもないときの答え。 */
+const NO_STANDING: EntryStanding = {
+  waitlistPosition: null,
+  offerDeadline: null,
+  offerExpired: false,
+  canAccept: false,
+};
+
+/**
+ * 取り消せるか（確定・キャンセル待ち・打診中で始まりの前。booking-004）。
+ * @param status 状態
+ * @param startsAt 始まり
+ * @param now 今の時刻
+ * @returns 取り消せれば true
+ */
+function isCancellable(status: SelfEntry["status"], startsAt: Date, now: Date): boolean {
+  return status !== "cancelled" && now.getTime() < startsAt.getTime();
+}
+
 /**
  * 本人の申込みの答え。
  * @param entry 申込み
  * @param startsAt 始まり
  * @param now 今の時刻
+ * @param standing 並びと打診
  * @returns 答え
  */
-function toMyEntry(entry: SelfEntry, startsAt: Date, now: Date): MyEntry {
+function toMyEntry(
+  entry: SelfEntry,
+  startsAt: Date,
+  now: Date,
+  standing: EntryStanding = NO_STANDING,
+): MyEntry {
   return {
     id: entry.id,
     name: entry.name,
     status: entry.status,
     appliedAt: entry.appliedAt.toISOString(),
-    cancellable: entry.status === "confirmed" && now.getTime() < startsAt.getTime(),
+    cancellable: isCancellable(entry.status, startsAt, now),
+    ...standing,
   };
 }
 
@@ -220,6 +238,7 @@ async function buildPage(
   const { db } = deps;
   const { event, holder } = context;
   const channel = holder ? await findChannelByHolder(db, holder) : null;
+  const seats = await loadSeatState(db, event.id, now);
   const base = {
     event: applyEventOf(event),
     hostName: context.hostName,
@@ -229,6 +248,7 @@ async function buildPage(
     lineFriendUrl: channel?.basicId
       ? `https://line.me/R/ti/p/${encodeURIComponent(channel.basicId)}`
       : null,
+    seats: context.setting.mode === "self_page" ? pageSeatsOf(seats, startsOf(event), now) : null,
   };
   if (!viewer) return { ...base, viewer: { signedIn: false } };
   const me = viewer.accountId;
@@ -247,7 +267,9 @@ async function buildPage(
     viewer: {
       signedIn: true,
       defaultName,
-      myEntry: entry ? toMyEntry(entry, startsOf(event), now) : null,
+      myEntry: entry
+        ? toMyEntry(entry, startsOf(event), now, standingOf(seats, entry.id, startsOf(event), now))
+        : null,
       consented: holder ? await hasConsent(db, me, holder) : false,
       lineLinked,
       hasContactEmail: (await findContactEmail(db, me)) !== null,
@@ -275,36 +297,26 @@ export async function readApplyPage(
 }
 
 /**
- * 確定の知らせを送る（送れなくても申込みは成り立つ。例外はログに出す。research R12）。
- * @param deps 道具
- * @param entryId 申込みの ID
- * @param links 申込みを見る・取り消すリンクと、カレンダーのリンク
- * @param links.entry 申込みを見る・取り消すリンク
- * @param links.calendar Google カレンダーのリンク
+ * 受付中か確かめる（中止は 409 BOOKING_EVENT_CANCELLED。booking-004）。
+ * @param setting 設定
+ * @param startsAt 始まり
+ * @param now 今の時刻
+ * @throws {AppError} 受付中でないとき（409）
  */
-async function notifyConfirmed(
-  deps: ApplyDeps,
-  entryId: string,
-  links: { entry: string; calendar: string },
-): Promise<void> {
-  try {
-    await sendNotice(deps, { entryId, kind: "confirmed", links });
-  } catch (error) {
-    deps.logger.warn(
-      { entryId, errorName: error instanceof Error ? error.name : "unknown" },
-      "確定の知らせを送れませんでした",
-    );
-  }
+function assertOpen(setting: PageSetting, startsAt: Date, now: Date): void {
+  const state = pageStateOf(setting, startsAt, now);
+  if (state === "cancelled") throw new AppError(BOOKING_ERRORS.EVENT_CANCELLED);
+  if (state !== "open") throw new AppError(BOOKING_ERRORS.PAGE_CLOSED);
 }
 
 /**
- * LINE ログインで申し込む（1交流会1人1つ。取り消しなら確定に戻す。research R4・R5）。
+ * LINE ログインで申し込む（1交流会1人1つ。取り消しなら戻す。満員ならキャンセル待ち。research R4・R5・booking-004 R4）。
  * @param deps 道具
  * @param eventId 交流会の ID
  * @param viewer 今の利用者
  * @param input 名前と案内の同意
  * @param now 今の時刻
- * @returns 答えと、新しく確定にしたか（201 にする）
+ * @returns 答えと、新しく申し込んだ（状態を変えた）か（201 にする）
  * @throws {AppError} ページがない（404）・見られない（403）・受付中でない（409）とき
  */
 export async function applyWithAccount(
@@ -317,40 +329,54 @@ export async function applyWithAccount(
   const context = await loadPage(deps, eventId);
   await assertVisible(deps, context, viewer);
   const me = viewer.accountId;
+  const startsAt = startsOf(context.event);
+  const eventInfo = { event: context.event, hostName: context.hostName };
+  const queue: NoticeQueue = [];
   const { entry, created } = await deps.db.transaction(async (tx) => {
     // 設定の行を押さえて、受付中かを決め直す（同時の申込み・閉じた直後を順に流す。S8・S14）
     const setting = await findPageSetting(tx, eventId, true);
     if (setting.mode !== "self_page") throw new AppError(BOOKING_ERRORS.PAGE_NOT_FOUND);
-    if (pageStateOf(setting, startsOf(context.event), now) !== "open") {
-      throw new AppError(BOOKING_ERRORS.PAGE_CLOSED);
-    }
+    assertOpen(setting, startsAt, now);
     const existing = await findAccountEntry(tx, eventId, me, true);
     if (input.consent && context.holder) await insertConsent(tx, me, context.holder);
-    if (existing?.status === "confirmed") return { entry: existing, created: false };
-    const next = existing
-      ? await reconfirmEntry(tx, existing.id, { name: input.name })
-      : await insertSelfEntry(tx, {
-          eventId,
-          name: input.name,
-          accountId: me,
-          contactEmail: null,
-          entryTokenHash: null,
-        });
+    if (existing?.status === "confirmed" || existing?.status === "offered") {
+      return { entry: existing, created: false };
+    }
+    // 片付け（期限切れ・打診）をしてから、確定かキャンセル待ちかを決める（待ちを飛びこさない。booking-004 R4・R9）
+    await settleEvent(deps, tx, eventId, startsAt, now, queue);
+    const state = await loadSeatState(tx, eventId, now);
+    const placement = placementOf(state, startsAt, now);
+    let next: SelfEntry;
+    if (existing?.status === "waitlisted") {
+      // もうキャンセル待ち：当日の空きで席があるときだけ確定にする（research R7）
+      if (placement !== "confirmed" || !isSameDayWindow(now, startsAt)) {
+        return { entry: existing, created: false };
+      }
+      await setEntryStatus(tx, existing.id, "confirmed");
+      next = { ...existing, status: "confirmed" };
+    } else if (existing) {
+      next = await reconfirmEntry(tx, existing.id, { name: input.name, status: placement });
+    } else {
+      next = await insertSelfEntry(tx, {
+        eventId,
+        name: input.name,
+        accountId: me,
+        contactEmail: null,
+        entryTokenHash: null,
+        status: placement,
+      });
+    }
+    await queueApplied(deps, tx, eventInfo, { ...next, accountId: me }, null, now, queue);
+    await settleEvent(deps, tx, eventId, startsAt, now, queue);
     return { entry: next, created: true };
   });
-  if (created) {
-    await notifyConfirmed(deps, entry.id, {
-      entry: applyUrl(deps, eventId),
-      calendar: calendarLinks(deps, context.event, context.hostName).googleUrl,
-    });
-  }
-  return {
-    result: {
-      entry: toMyEntry(entry, startsOf(context.event), now),
-      page: await buildPage(deps, context, viewer, now),
-    },
-    created,
-  };
+  await flushNotices(deps, queue);
+  const page = await buildPage(deps, context, viewer, now);
+  const myEntry =
+    page.viewer.signedIn && page.viewer.myEntry
+      ? page.viewer.myEntry
+      : toMyEntry(entry, startsAt, now);
+  return { result: { entry: myEntry, page }, created };
 }
 
 /** 交流会の要約と主催の名前を、同じものは1回だけ引く道具。 */
@@ -375,6 +401,26 @@ function eventLookup(deps: ApplyDeps): EventLookup {
   };
 }
 
+/** 交流会ごとの席の状態を、同じものは1回だけ読む道具。 */
+type SeatLookup = (eventId: string) => Promise<SeatState>;
+
+/**
+ * 席の状態を読む道具を作る（一覧の中で同じ交流会を1回だけ読む）。
+ * @param deps 道具
+ * @param now 今の時刻
+ * @returns 読む道具
+ */
+function seatLookup(deps: ApplyDeps, now: Date): SeatLookup {
+  const cache = new Map<string, SeatState>();
+  return async (eventId) => {
+    const cached = cache.get(eventId);
+    if (cached) return cached;
+    const state = await loadSeatState(deps.db, eventId, now);
+    cache.set(eventId, state);
+    return state;
+  };
+}
+
 /**
  * 自分の申込みの一覧の1行。
  * @param entry 申込み
@@ -382,18 +428,21 @@ function eventLookup(deps: ApplyDeps): EventLookup {
  * @param found.event 交流会の要約
  * @param found.hostName 主催の名前
  * @param now 今の時刻
+ * @param standing 並びと打診
  * @returns 1行
  */
 function toMyEntryItem(
   entry: SelfEntry,
   found: { event: EventSummary; hostName: string },
   now: Date,
+  standing: EntryStanding,
 ): MyEntryItem {
   const { event, hostName } = found;
   return {
     entryId: entry.id,
     status: entry.status,
-    cancellable: toMyEntry(entry, startsOf(event), now).cancellable,
+    cancellable: isCancellable(entry.status, startsOf(event), now),
+    ...standing,
     event: { id: event.id, name: event.name, startsAt: event.startsAt, venue: event.venue },
     hostName,
     googleCalendarUrl: googleCalendarUrl({
@@ -402,6 +451,28 @@ function toMyEntryItem(
       venue: event.venue,
     }),
   };
+}
+
+/**
+ * 自分の申込みの一覧の1行を、今の席の状態で作る。
+ * @param deps 道具
+ * @param entry 申込み
+ * @param found 交流会と主催
+ * @param found.event 交流会の要約
+ * @param found.hostName 主催の名前
+ * @param now 今の時刻
+ * @param seats 席の状態を読む道具
+ * @returns 1行
+ */
+async function myEntryItemOf(
+  deps: ApplyDeps,
+  entry: SelfEntry,
+  found: { event: EventSummary; hostName: string },
+  now: Date,
+  seats: SeatLookup = seatLookup(deps, now),
+): Promise<MyEntryItem> {
+  const standing = standingOf(await seats(entry.eventId), entry.id, startsOf(found.event), now);
+  return toMyEntryItem(entry, found, now, standing);
 }
 
 /**
@@ -417,13 +488,43 @@ export async function listMyEntries(
   now: Date,
 ): Promise<MyEntryItem[]> {
   const lookup = eventLookup(deps);
+  const seats = seatLookup(deps, now);
   const items: MyEntryItem[] = [];
   for (const entry of await listAccountEntries(deps.db, accountId)) {
     const found = await lookup(entry.eventId);
     if (!found || endOfJstDate(found.event.startsAt).getTime() <= now.getTime()) continue;
-    items.push(toMyEntryItem(entry, found, now));
+    items.push(await myEntryItemOf(deps, entry, found, now, seats));
   }
   return items.sort((a, b) => a.event.startsAt.localeCompare(b.event.startsAt));
+}
+
+/**
+ * 申込みを取り消す（設定の行を押さえてから行を押さえ直す。打診中なら辞退と同じ。そのあと片付けで次の人へ。booking-004 R8）。
+ * @param deps 道具
+ * @param tx トランザクション
+ * @param entry 申込み（押さえる前に読んだもの）
+ * @param startsAt 始まり
+ * @param now 今の時刻
+ * @param queue 知らせ
+ * @returns 取り消したあとの申込み
+ * @throws {AppError} 始まりを過ぎたとき（409 BOOKING_CANCEL_CLOSED）
+ */
+async function cancelIfOpen(
+  deps: ApplyDeps,
+  tx: Executor,
+  entry: SelfEntry,
+  startsAt: Date,
+  now: Date,
+  queue: NoticeQueue,
+): Promise<SelfEntry> {
+  await findPageSetting(tx, entry.eventId, true);
+  const current = (await findSelfEntry(tx, entry.id, true)) ?? entry;
+  if (current.status === "cancelled") return current;
+  if (startsAt.getTime() <= now.getTime()) throw new AppError(BOOKING_ERRORS.CANCEL_CLOSED);
+  if (current.status === "offered") await closePendingOffer(tx, current.id, "declined", now);
+  const cancelled = await cancelEntryRow(tx, current.id);
+  await settleEvent(deps, tx, current.eventId, startsAt, now, queue);
+  return cancelled;
 }
 
 /**
@@ -442,35 +543,42 @@ export async function cancelMyEntry(
   now: Date,
 ): Promise<MyEntryItem> {
   const lookup = eventLookup(deps);
-  const entry = await deps.db.transaction(async (tx) => {
-    const own = await findOwnEntry(tx, accountId, entryId, true);
-    const found = own ? await lookup(own.eventId) : null;
-    if (!own || !found) throw new AppError(BOOKING_ERRORS.ENTRY_NOT_FOUND);
-    return cancelIfOpen(tx, own, startsOf(found.event), now);
-  });
-  const found = await lookup(entry.eventId);
-  if (!found) throw new AppError(BOOKING_ERRORS.ENTRY_NOT_FOUND);
-  return toMyEntryItem(entry, found, now);
+  const own = await findOwnEntry(deps.db, accountId, entryId);
+  const found = own ? await lookup(own.eventId) : null;
+  if (!own || !found) throw new AppError(BOOKING_ERRORS.ENTRY_NOT_FOUND);
+  const queue: NoticeQueue = [];
+  const entry = await deps.db.transaction((tx) =>
+    cancelIfOpen(deps, tx, own, startsOf(found.event), now, queue),
+  );
+  await flushNotices(deps, queue);
+  return myEntryItemOf(deps, entry, found, now);
 }
 
 /**
- * 始まりの前なら取り消しにする（もう取り消しなら、そのまま）。
- * @param tx トランザクション
- * @param entry 押さえた申込み
- * @param startsAt 始まり
+ * 自分の申込みの打診に答える（参加・辞退。当日の空きの「参加する」も。booking-004 R8）。
+ * @param deps 道具
+ * @param accountId 本人
+ * @param entryId 行の ID
+ * @param answer 参加する・辞退する
  * @param now 今の時刻
- * @returns 取り消したあとの申込み
- * @throws {AppError} 始まりを過ぎたとき（409 BOOKING_CANCEL_CLOSED）
+ * @returns 答えたあとの1行
+ * @throws {AppError} 本人の行でない（404）・期限の後（410）・打診中でない（409）・埋まった（409）とき
  */
-async function cancelIfOpen(
-  tx: Executor,
-  entry: SelfEntry,
-  startsAt: Date,
+export async function respondMyEntry(
+  deps: ApplyDeps,
+  accountId: string,
+  entryId: string,
+  answer: "accept" | "decline",
   now: Date,
-): Promise<SelfEntry> {
-  if (entry.status === "cancelled") return entry;
-  if (startsAt.getTime() <= now.getTime()) throw new AppError(BOOKING_ERRORS.CANCEL_CLOSED);
-  return cancelEntryRow(tx, entry.id);
+): Promise<MyEntryItem> {
+  const lookup = eventLookup(deps);
+  const own = await findOwnEntry(deps.db, accountId, entryId);
+  const found = own ? await lookup(own.eventId) : null;
+  if (!own || !found) throw new AppError(BOOKING_ERRORS.ENTRY_NOT_FOUND);
+  await respondToOffer(deps, own.eventId, own.id, answer, now, null);
+  const after = await findOwnEntry(deps.db, accountId, entryId);
+  if (!after) throw new AppError(BOOKING_ERRORS.ENTRY_NOT_FOUND);
+  return myEntryItemOf(deps, after, found, now);
 }
 
 /**
@@ -596,9 +704,7 @@ export async function readIcs(
 function assertEmailOpen(setting: PageSetting, event: EventSummary, now: Date): void {
   if (setting.mode !== "self_page") throw new AppError(BOOKING_ERRORS.PAGE_NOT_FOUND);
   if (setting.visibility !== "public") throw new AppError(BOOKING_ERRORS.PAGE_MEMBERS_ONLY);
-  if (pageStateOf(setting, startsOf(event), now) !== "open") {
-    throw new AppError(BOOKING_ERRORS.PAGE_CLOSED);
-  }
+  assertOpen(setting, startsOf(event), now);
 }
 
 /**
@@ -656,7 +762,7 @@ export async function requestEmailApply(
       eventName: context.event.name,
       startsAt: startsOf(context.event),
       venue: context.event.venue,
-      url: `${deps.config.webUrl}${participantPaths.entry(eventId, token)}`,
+      url: entryTokenUrl(deps, eventId, token),
       ttlHours: EMAIL_REQUEST_TTL_HOURS,
     }),
   });
@@ -675,6 +781,20 @@ function tokenHashOf(token: string): string {
 }
 
 /**
+ * 札の SHA-256 から申込みを引く（申込みの札か、打診の返事の札。booking-004 R8）。
+ * @param db DB
+ * @param hash 札の SHA-256
+ * @param lock 押さえて読むか
+ * @returns 申込み（なければ null）
+ */
+async function entryOfToken(db: Executor, hash: string, lock = false): Promise<SelfEntry | null> {
+  const entry = await findEntryByTokenHash(db, hash, lock);
+  if (entry) return entry;
+  const entryId = await findEntryIdByOfferToken(db, hash);
+  return entryId ? findSelfEntry(db, entryId, lock) : null;
+}
+
+/**
  * 札のページの答え（申込みがあるとき）。
  * @param deps 道具
  * @param entry 申込み
@@ -686,6 +806,7 @@ async function entryView(deps: ApplyDeps, entry: SelfEntry, now: Date): Promise<
   const found = await eventLookup(deps)(entry.eventId);
   if (!found) throw new AppError(BOOKING_ERRORS.ENTRY_TOKEN_INVALID);
   const { event, hostName } = found;
+  const seats = await loadSeatState(deps.db, entry.eventId, now);
   return {
     state: "entry",
     event: applyEventOf(event),
@@ -693,7 +814,8 @@ async function entryView(deps: ApplyDeps, entry: SelfEntry, now: Date): Promise<
     name: entry.name,
     entry: {
       status: entry.status,
-      cancellable: toMyEntry(entry, startsOf(event), now).cancellable,
+      cancellable: isCancellable(entry.status, startsOf(event), now),
+      ...standingOf(seats, entry.id, startsOf(event), now),
     },
     confirmable: false,
     calendar: calendarLinks(deps, event, hostName),
@@ -714,7 +836,7 @@ export async function readEntryToken(
   now: Date,
 ): Promise<EntryTokenView> {
   const hash = tokenHashOf(token);
-  const entry = await findEntryByTokenHash(deps.db, hash);
+  const entry = await entryOfToken(deps.db, hash);
   if (entry) return entryView(deps, entry, now);
   const request = await findRequestByHash(deps.db, hash);
   if (!request) throw new AppError(BOOKING_ERRORS.ENTRY_TOKEN_INVALID);
@@ -739,7 +861,8 @@ export async function readEntryToken(
 }
 
 /**
- * 確認の札で申込みを確定する（2回押しても1行。すでにそのアドレスの申込みがあれば札を替える。research R10）。
+ * 確認の札で申込みを確定する（2回押しても1行。すでにそのアドレスの申込みがあれば札を替える。満員ならキャンセル待ち。
+ * research R10・booking-004 R4）。
  * @param deps 道具
  * @param token 札
  * @param now 今の時刻
@@ -754,21 +877,25 @@ export async function confirmEntryToken(
   const hash = tokenHashOf(token);
   const already = await findEntryByTokenHash(deps.db, hash);
   if (already) return entryView(deps, already, now);
+  const queue: NoticeQueue = [];
   const outcome = await deps.db.transaction(async (tx) => {
     const request = await findRequestByHash(tx, hash, true);
     if (!request) {
       // 同時に押された2回目：先に確定したほうの申込みを返す
       const entry = await findEntryByTokenHash(tx, hash);
       if (!entry) throw new AppError(BOOKING_ERRORS.ENTRY_TOKEN_INVALID);
-      return { entry, changed: false };
+      return entry;
     }
     if (request.expiresAt.getTime() <= now.getTime()) {
       throw new AppError(BOOKING_ERRORS.ENTRY_TOKEN_EXPIRED);
     }
-    const event = await getEventSummary(tx, deps.config, request.eventId);
-    if (!event) throw new AppError(BOOKING_ERRORS.ENTRY_TOKEN_INVALID);
-    assertEmailOpen(await findPageSetting(tx, request.eventId, true), event, now);
+    const context = await eventContext(deps, tx, request.eventId);
+    if (!context) throw new AppError(BOOKING_ERRORS.ENTRY_TOKEN_INVALID);
+    const startsAt = startsOf(context.event);
+    assertEmailOpen(await findPageSetting(tx, request.eventId, true), context.event, now);
     const existing = await findEntryByContactEmail(tx, request.eventId, request.email, true);
+    await settleEvent(deps, tx, request.eventId, startsAt, now, queue);
+    const placement = placementOf(await loadSeatState(tx, request.eventId, now), startsAt, now);
     let entry: SelfEntry;
     let changed = true;
     if (!existing) {
@@ -778,32 +905,45 @@ export async function confirmEntryToken(
         accountId: null,
         contactEmail: request.email,
         entryTokenHash: hash,
+        status: placement,
       });
     } else if (existing.status === "cancelled") {
-      entry = await reconfirmEntry(tx, existing.id, { name: request.name, entryTokenHash: hash });
+      entry = await reconfirmEntry(tx, existing.id, {
+        name: request.name,
+        entryTokenHash: hash,
+        status: placement,
+      });
     } else {
-      // もう確定：札を新しいものに替える（前のリンクは使えなくなる）
+      // もう申込みがある：札を新しいものに替える（前のリンクは使えなくなる）。キャンセル待ちで当日の空きなら確定にする
       entry = await replaceEntryToken(tx, existing.id, {
         name: request.name,
         entryTokenHash: hash,
       });
       changed = false;
+      if (
+        existing.status === "waitlisted" &&
+        placement === "confirmed" &&
+        isSameDayWindow(now, startsAt)
+      ) {
+        await setEntryStatus(tx, existing.id, "confirmed");
+        entry = { ...entry, status: "confirmed" };
+        changed = true;
+      }
     }
     await deleteRequestsOf(tx, request.eventId, request.email);
-    return { entry, changed };
+    if (changed) {
+      const link = entryTokenUrl(deps, request.eventId, token);
+      await queueApplied(deps, tx, context, { ...entry, accountId: null }, link, now, queue);
+      await settleEvent(deps, tx, request.eventId, startsAt, now, queue);
+    }
+    return entry;
   });
-  const view = await entryView(deps, outcome.entry, now);
-  if (outcome.changed) {
-    await notifyConfirmed(deps, outcome.entry.id, {
-      entry: `${deps.config.webUrl}${participantPaths.entry(outcome.entry.eventId, token)}`,
-      calendar: view.calendar.googleUrl,
-    });
-  }
-  return view;
+  await flushNotices(deps, queue);
+  return entryView(deps, outcome, now);
 }
 
 /**
- * 札で申込みを取り消す（始まりまで）。
+ * 札で申込みを取り消す（始まりまで。申込みの札か返事の札）。
  * @param deps 道具
  * @param token 札
  * @param now 今の時刻
@@ -816,11 +956,44 @@ export async function cancelEntryToken(
   now: Date,
 ): Promise<EntryTokenView> {
   const hash = tokenHashOf(token);
-  const entry = await deps.db.transaction(async (tx) => {
-    const own = await findEntryByTokenHash(tx, hash, true);
-    const event = own ? await getEventSummary(tx, deps.config, own.eventId) : null;
-    if (!own || !event) throw new AppError(BOOKING_ERRORS.ENTRY_TOKEN_INVALID);
-    return cancelIfOpen(tx, own, startsOf(event), now);
-  });
+  const own = await entryOfToken(deps.db, hash);
+  const event = own ? await getEventSummary(deps.db, deps.config, own.eventId) : null;
+  if (!own || !event) throw new AppError(BOOKING_ERRORS.ENTRY_TOKEN_INVALID);
+  const queue: NoticeQueue = [];
+  const entry = await deps.db.transaction((tx) =>
+    cancelIfOpen(deps, tx, own, startsOf(event), now, queue),
+  );
+  await flushNotices(deps, queue);
   return entryView(deps, entry, now);
+}
+
+/**
+ * 札で打診に答える（参加・辞退。当日の空きの「参加する」も。申込みの札か返事の札。booking-004 R8）。
+ * @param deps 道具
+ * @param token 札
+ * @param answer 参加する・辞退する
+ * @param now 今の時刻
+ * @returns 札のページ
+ * @throws {AppError} 知らない札（404）・期限の後（410）・打診中でない（409）・埋まった（409）とき
+ */
+export async function respondEntryToken(
+  deps: ApplyDeps,
+  token: string,
+  answer: "accept" | "decline",
+  now: Date,
+): Promise<EntryTokenView> {
+  const hash = tokenHashOf(token);
+  const own = await entryOfToken(deps.db, hash);
+  if (!own) throw new AppError(BOOKING_ERRORS.ENTRY_TOKEN_INVALID);
+  await respondToOffer(
+    deps,
+    own.eventId,
+    own.id,
+    answer,
+    now,
+    entryTokenUrl(deps, own.eventId, token),
+  );
+  const after = await findSelfEntry(deps.db, own.id);
+  if (!after) throw new AppError(BOOKING_ERRORS.ENTRY_TOKEN_INVALID);
+  return entryView(deps, after, now);
 }

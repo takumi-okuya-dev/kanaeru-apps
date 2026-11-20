@@ -173,6 +173,65 @@ export const BOOKING_ERRORS = {
     status: 404,
     message: "案内の同意が見つかりません。もう外したかもしれません。画面を読み直してください。",
   },
+  /** 枠の合計が定員を超える・定員なしで枠（booking-004 research R1） */
+  QUOTA_OVER_CAPACITY: {
+    code: "BOOKING_QUOTA_OVER_CAPACITY",
+    status: 400,
+    message:
+      "媒体の枠の合計が定員を超えています。枠を減らすか、定員を増やしてから保存してください。",
+  },
+  /** 自前で定員がないのに、キャンセル待ち・打診を使おうとした（research R4・R14） */
+  WAITLIST_OFF: {
+    code: "BOOKING_WAITLIST_OFF",
+    status: 409,
+    message:
+      "この交流会はキャンセル待ちを使っていません。自前で申込みを受け、定員を入れると使えます。",
+  },
+  /** 手で打診する行がキャンセル待ちでない（research R14） */
+  ENTRY_NOT_WAITLISTED: {
+    code: "BOOKING_ENTRY_NOT_WAITLISTED",
+    status: 409,
+    message: "この行はキャンセル待ちではありません。画面を読み直してください。",
+  },
+  /** 始まりが近くて、返事の期限が1時間取れない（research R6・R14） */
+  OFFER_WINDOW_SHORT: {
+    code: "BOOKING_OFFER_WINDOW_SHORT",
+    status: 409,
+    message:
+      "始まりまでの時間が短いので、打診できません（返事の期限が1時間取れません）。参加してもらうときは「確定にする」を押してください。",
+  },
+  /** 返事する打診がない（research R8） */
+  OFFER_NOT_PENDING: {
+    code: "BOOKING_OFFER_NOT_PENDING",
+    status: 409,
+    message:
+      "いまは返事を受け付けていません。打診中ではないか、もう答えています。画面を読み直してください。",
+  },
+  /** 返事の期限が過ぎた（research R8） */
+  OFFER_EXPIRED: {
+    code: "BOOKING_OFFER_EXPIRED",
+    status: 410,
+    message:
+      "返事の期限が過ぎたので、この申込みは取り消しになりました。席は次の方にお回ししました。",
+  },
+  /** 当日の空きが埋まった（research R7） */
+  NO_SEAT: {
+    code: "BOOKING_NO_SEAT",
+    status: 409,
+    message: "当日の空きは埋まりました。キャンセル待ちのまま、また席が空いたらお知らせします。",
+  },
+  /** 中止した会に申し込む・受付を開く（research R11） */
+  EVENT_CANCELLED: {
+    code: "BOOKING_EVENT_CANCELLED",
+    status: 409,
+    message: "この会は中止になりました。申込みは受け付けていません。",
+  },
+  /** 知らせる変更がない（research R10） */
+  NO_CHANGE: {
+    code: "BOOKING_NO_CHANGE",
+    status: 409,
+    message: "知らせる日時や場所の変更はありません。画面を読み直してください。",
+  },
 } as const;
 
 /** 領域のエラーのキー。 */

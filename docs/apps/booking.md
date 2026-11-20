@@ -1,14 +1,16 @@
 # 予約（booking）の地図
 
-2026-11-20 作成（booking-001。決めた理由は [specs/booking/001-roster/research.md](../../specs/booking/001-roster/research.md)）。2026-11-20 直した（booking-002：知らせの仕組み〈LINE 公式アカウントの設定・Webhook・紐づけ・参加者の連絡のメールアドレス・知らせの記録・`sendNotice`〉。理由は [specs/booking/002-notify/research.md](../../specs/booking/002-notify/research.md)）。2026-11-20 直した（booking-003：自前の申込みページ〈申込みページ・LINE ログインで申し込む・案内の同意・取り消し・カレンダー・部員だけの回・メールで申し込む・自分の申込みと部の予定〉。理由は [specs/booking/003-apply/research.md](../../specs/booking/003-apply/research.md)）。2026-11-20 直した（booking-004 の1つ目：定員・媒体の枠・キャンセル待ち・打診の表と列。窓口と画面は次の変更。理由は [specs/booking/004-waitlist/research.md](../../specs/booking/004-waitlist/research.md)）。
+2026-11-20 作成（booking-001。決めた理由は [specs/booking/001-roster/research.md](../../specs/booking/001-roster/research.md)）。2026-11-20 直した（booking-002：知らせの仕組み〈LINE 公式アカウントの設定・Webhook・紐づけ・参加者の連絡のメールアドレス・知らせの記録・`sendNotice`〉。理由は [specs/booking/002-notify/research.md](../../specs/booking/002-notify/research.md)）。2026-11-20 直した（booking-003：自前の申込みページ〈申込みページ・LINE ログインで申し込む・案内の同意・取り消し・カレンダー・部員だけの回・メールで申し込む・自分の申込みと部の予定〉。理由は [specs/booking/003-apply/research.md](../../specs/booking/003-apply/research.md)）。2026-11-21 直した（booking-004：定員・媒体の枠・キャンセル待ち・期限つきの繰り上げ・当日の空き・日時や場所の変更と中止の知らせ・送った知らせの一覧・定期の窓口。理由は [specs/booking/004-waitlist/research.md](../../specs/booking/004-waitlist/research.md)）。
 
 受付アプリの4つ目の領域（構成の決めごと AD-23）。交流会ごとの使い方（受付だけ・名簿を使う・自前で申込みを受ける）と名簿（申込み）を持ち、名簿を手で足す・貼る・CSV で作る・取り消す・まとめる・書き出す窓口と、受付係がチェックインを名簿に当てる窓口・画面を出す。依存は booking → reception → event の一方向で、reception は booking を読まない。チェックインとの当ては booking が読むときに決める（AD-3・AD-5・AD-7・AD-19・AD-23）。
 
-知らせ（AD-24）：組織と個人の LINE 公式アカウントの設定・友だち追加の Webhook と紐づけ・参加者の連絡のメールアドレス・知らせの記録を持ち、送る道具（守りつき）は `platform/notify`（[全体の形](../architecture.md) 2章）を使う。アプリの中から送るのは、設定の画面の確かめのメッセージ・友だち追加へのあいさつ・申込みの確定の知らせ（`sendNotice`）・メールで申し込む人への確認のメールだけ。
+知らせ（AD-24）：組織と個人の LINE 公式アカウントの設定・友だち追加の Webhook と紐づけ・参加者の連絡のメールアドレス・知らせの記録を持ち、送る道具（守りつき）は `platform/notify`（[全体の形](../architecture.md) 2章）を使う。アプリの中から送るのは、設定の画面の確かめのメッセージ・友だち追加へのあいさつ・予約の知らせ（`sendNotice`：確定・キャンセル待ちに入った・打診・期限が過ぎた・日時や場所の変更・中止・当日の空き）・メールで申し込む人への確認のメールだけ。
 
-自前の申込み（booking-003）：使い方が「自前で申込みを受ける」の交流会は、参加者が外から開く申込みページ（`/e/{eventId}`。ログインなしで見られる）を持つ。受付は主催者が開く（既定は閉じる）・始まりを過ぎたら読むときに閉じたものとして扱う。LINE ログインで1交流会1人1つ申し込み（入口「自前」・媒体「直接」・確定）、案内の同意（組織か持ち主ごと）を任意で残す。LINE を使わない人は確認のメール（札は SHA-256 だけ・24時間）のリンクで確定し、同じ札のページ（`/e/{eventId}/entry/{entryToken}`）で見る・取り消す。参加者は自分の申込み（`/my-bookings`）で取り消し、部の予定を見る。部員だけの回は、主催者と部員のほかには中身を返さない。定員はまだないので、申し込めばみな確定する。
+自前の申込み（booking-003）：使い方が「自前で申込みを受ける」の交流会は、参加者が外から開く申込みページ（`/e/{eventId}`。ログインなしで見られる）を持つ。受付は主催者が開く（既定は閉じる）・始まりを過ぎたら読むときに閉じたものとして扱う。LINE ログインで1交流会1人1つ申し込み（入口「自前」・媒体「直接」・確定）、案内の同意（組織か持ち主ごと）を任意で残す。LINE を使わない人は確認のメール（札は SHA-256 だけ・24時間）のリンクで確定し、同じ札のページ（`/e/{eventId}/entry/{entryToken}`）で見る・取り消す。参加者は自分の申込み（`/my-bookings`）で取り消し、部の予定を見る。部員だけの回は、主催者と部員のほかには中身を返さない。
 
-この版で作っていないもの：定員と媒体の枠・席の残り・キャンセル待ちと打診・日時や場所の変更と中止の知らせ・案内を送る機能（同意は記録だけ）・本物のメールの送信のサービス（PRD 受付アプリの予約 8.1 の7番）。
+定員とキャンセル待ち（booking-004）：主催者は定員（任意）と媒体の枠（直接を除く媒体ごと・管理ページの URL は任意）を入れる。埋まった席＝確定＋打診中、自前のページの残り＝定員 − 埋まった席 − 枠のまだ埋まっていない席（一度満員になったら枠を押さえない）。残りが0なら自前の申込みはキャンセル待ちに入り、席が空くと先頭に期限つきで打診する（期限は日本時間で24時間・夜〈0時より後・9時より前〉なら朝9時・始まりの2時間前まで・それが夜なら0時・1時間取れなければ当日の空きとして先着）。返事は LINE の人は自分の申込み、メールの人は札のページ（打診の知らせの返事の札でも開ける）。期限切れは定期の窓口・書く窓口の片付け・読む窓口の判定の3つで拾う。日時や場所の変更は「最後に知らせた日時と場所」と event の要約を比べて決め（event を直さない）、主催者が知らせるか済ませるかを選ぶ（選ばなければ30分後に定期の仕事が知らせる）。予約の中止は booking の操作で、取り消しでない申込みを取り消して知らせる（戻せない）。定員を入れなければ、申し込めばみな確定する（booking-003 と同じ）。
+
+この版で作っていないもの：前日のリマインド・主催者への知らせ（満員は画面に出す）・案内を送る機能（同意は記録だけ）・本物のメールの送信のサービス・交流会そのものの中止の状態（event にはない）。
 
 ## 1. 表
 
@@ -115,6 +117,26 @@
 - GET は何も書かない（確定・取り消しは画面のボタンの POST だけ。メールの下見の仕組みが開いても確定しない）。
 - 名前・メールアドレス・札はログに出さない。メールで申し込んだ人の連絡のメールは名簿・CSV・当てる画面の答えに出さない（答えは列を選んで作る）。
 
+### 定員とキャンセル待ちの窓口（booking-004。道の頭は `/api/v1/booking`）
+
+| 動き | 道 | だれ | すること |
+|---|---|---|---|
+| PUT | `/events/{eventId}/capacity` | 主催者 | 定員と枠を丸ごと置きかえる（`{ capacity, quotas: [{ applicationSource, seats, manageUrl }] }`。枠の合計が定員を超える・定員なしで枠・直接・同じ媒体・URL の形は 400。受付だけは 409 `BOOKING_ROSTER_OFF`）。増えた席はキャンセル待ちに打診する |
+| POST | `/events/{eventId}/entries/{entryId}/offer` | 主催者 | キャンセル待ちの人に手で打診する（席がなくても押さえる。自前で定員がない 409 `BOOKING_WAITLIST_OFF`・キャンセル待ちでない 409 `BOOKING_ENTRY_NOT_WAITLISTED`・期限が1時間取れない 409 `BOOKING_OFFER_WINDOW_SHORT`） |
+| GET | `/events/{eventId}/entries/{entryId}/notices` | 主催者 | 送った知らせ（種類・手段・結果・時刻だけ。新しい順・200件まで） |
+| POST | `/events/{eventId}/change-notice` | 主催者 | 日時や場所の変更を知らせる・知らせずに済ませる（`{ notify }`。変更がない 409 `BOOKING_NO_CHANGE`・自前でない 409 `BOOKING_SELF_PAGE_OFF`） |
+| POST | `/events/{eventId}/cancel-booking` | 主催者 | 予約を中止する（取り消しでない申込みを取り消しにして `cancelled_event` を送る。戻せない。もう中止なら同じ答え） |
+| POST | `/me/entries/{entryId}/respond` | ログインした人（本人の行だけ） | 打診に答える（`{ answer: "accept" \| "decline" }`。当日の空きのキャンセル待ちの参加も。期限の後 410 `BOOKING_OFFER_EXPIRED`・打診中でない 409 `BOOKING_OFFER_NOT_PENDING`・当日の空きが埋まった 409 `BOOKING_NO_SEAT`） |
+| POST | `/entry-tokens/{entryToken}/respond` | だれでも（札を知る本人） | 同じ（申込みの札か返事の札） |
+| POST | `/jobs/tick` | Cloud Scheduler（`Authorization: Bearer <JOB_TRIGGER_SECRET>`。合わなければ 404） | 定期の仕事（10分おき・9時〜23時台）：使い方が自前で中止していない交流会のうち、待っている打診かキャンセル待ちがあるか、知らせた日時が1日前より後か空のものごとに、片付けと変更の知らせ。答えは数だけ（`{ events, expired, offered, sameDay, changed }`） |
+
+- `…/setting` の答えに `capacity`・`quotas`・`seats`（席の内訳：定員・埋まった席・確定・打診中・キャンセル待ち・自前の残り・超えた人数・満員・枠を押さえるのをやめたか・当日の空き・枠ごとの残り・満員のとき止める媒体）・`cancelled`・`change`（前と今の日時と場所・定期の仕事が知らせる予定の時刻）を足した。名簿の行に `waitlistPosition`・`offer`（期限・期限切れか・手で打診したか）、人数に `waitlisted`・`offered`。
+- `…/entries` の手で足す入力に `waitlist`（自前で定員があるとき。キャンセル待ちに入れる）。`…/status` の入力は確定と取り消しだけ（キャンセル待ち・打診中を確定にすると確定の知らせ、取り消すと次の人へ。取り消しの知らせは送らない）。
+- **片付け**（`waitlist.ts` の `settleEvent`）：`booking_setting` の行を `FOR UPDATE` で押さえ、押さえたあとに読み直した行から、満員なら枠を押さえるのをやめる → 期限の来た打診を期限切れ（申込みは取り消し・`offer_expired`）→ 空いた席の分だけキャンセル待ちの先頭に打診（期限・メールの人は返事の札〈SHA-256 だけ〉・`offered`）→ 期限が1時間取れなければ当日の空き（交流会ごとに1回 `same_day`）。申込み・確定・取り消し・返事・主催者の操作・取り込み・定員の保存・定期の仕事のどれも同じ関数を通す。知らせはトランザクションが確定したあとに送る（送れなくても処理は成り立つ）。
+- 読む窓口（申込みページ・自分の申込み・札のページ・名簿・設定）は書かない。期限を過ぎた打診は期限切れとして見せ（席を押さえない・返事できない）、キャンセル待ちがいれば新しい人の残りは0と見せる。
+- 申込みページの答えに `seats`（定員・新しく申し込む人の残り・キャンセル待ちの人数・当日の空き）と受付の状態 `cancelled`、本人の申込み（`MyEntry`・`MyEntryItem`・札のページ）に `waitlistPosition`・`offerDeadline`・`offerExpired`・`canAccept` を足した。ほかの人の名前は返さない。
+- 中止のあとは申し込む・確定する・受付を開くが 409 `BOOKING_EVENT_CANCELLED`。
+
 ### 知らせを送る（`notify.ts` の `sendNotice`）
 
 `sendNotice(deps, { entryId, kind, deadline?, waitlistPosition?, previous?, links? })`：
@@ -151,7 +173,11 @@ booking が読むもの：event の `requireEventRole`・`getEventRole`・`getEv
 
 約束（自前の申込み。booking-003）：選択肢 `VISIBILITIES`・`PAGE_STATES` と `*_LABELS`・`usesRoster`、形 `SelfPageInput`・`ApplyInput`・`EmailApplyInput`・`EmailApplyAccepted`・`ApplyPage`・`ApplyViewer`・`ApplyEvent`・`ApplyResult`・`MyEntry`・`EntryTokenView`・`MyEntryList`・`MyEntryItem`・`MySchedule`・`ScheduleItem`・`ConsentList`・`CalendarLinks`、上限 `APPLY_NAME_MAX`（50。受付の名前と同じ）・`EMAIL_REQUEST_TTL_HOURS`（24）・`EMAIL_REQUEST_RESEND_MINUTES`（10）・`EMAIL_REQUESTS_PER_EVENT_MAX`（200）、カレンダー `googleCalendarUrl`・`eventEndsAt`・`calendarStamp`・`EVENT_DEFAULT_DURATION_MINUTES`（120）。参加者の道は core の `participantPaths.apply`・`entry`・`myBookings`（AD-14）。`apply.ts` は受付の約束を読まない（読むと申込みページの画面の束に受付の zod の形が入り、束の分け方が変わって画面の zod の設定〈jitless〉より先に形が作られ、CSP の eval の違反になる。research の「作りながら決めたこと」）。
 
+約束（定員とキャンセル待ち。booking-004）：選択肢 `ENTRY_STATUSES`（`waitlisted`・`offered` を足した）・`SETTABLE_ENTRY_STATUSES`（主催者が選べる確定と取り消し）・`SEAT_STATUSES`・`OFFER_STATUSES`・`QUOTA_SOURCES`・`QUOTA_SOURCE_LABELS`（直接を除く受付の媒体。受付の約束を読まずに値を書き、テストが見張る）・`PAGE_STATES` の `cancelled`・`NOTICE_KINDS` の `same_day`、形 `CapacityInput`・`QuotaInput`・`QuotaView`・`SeatSummary`・`ScheduleChange`・`ChangeNoticeInput`・`OfferAnswerInput`・`NoticeLog`・`WaitlistJobSummary`・`PageSeats`・`EntryStanding`（`waitlist.ts`。受付の約束を読まない）、値 `CAPACITY_MAX`（1000）・`QUOTAS_MAX`・`QUOTA_MANAGE_URL_MAX`（500）・`OFFER_TTL_HOURS`（24）・`OFFER_MORNING_HOUR`（9）・`OFFER_START_MARGIN_HOURS`（2）・`OFFER_MIN_HOURS`（1）・`CHANGE_NOTICE_DELAY_MINUTES`（30）・`NOTICE_LOG_MAX`（200）。準備の画面の「定員とキャンセル待ち」の節は zod の形を読むので、開いたときに別に読む（`ModeSection` は準備の画面と一緒に最初に読まれるため。booking-003 research R23 と同じ理由）。
+
 画面の入口（`apps/web/src/features/booking/index.ts`）：`feature`（道とナビ・設定の画面の項目「予約の知らせ」・組織の画面の入口「予約の知らせの設定（LINE・メール）」）。event の `registerSetupSection({ id: "booking-mode" })` と reception の `registerReceptionSection({ id: "booking-roster" })` をここで1度だけ登録する。
+
+テスト（定員とキャンセル待ち。booking-004）：`apps/api/test/helpers/booking-waitlist.ts` の `setCapacity`・`statusOf`・`noticeKinds`・`expireOffer`・`pendingOffers`・`tick`（定期の窓口）・`TEST_JOB_SECRET`。
 
 テスト：API は `apps/api/test/helpers/booking.ts` の `bookingBase(eventId)`・`useRoster(app, cookie, eventId)`・`importNames(app, cookie, eventId, names, applicationSource?)`・`readRoster(app, cookie, eventId)`。知らせは `apps/api/test/helpers/booking-notify.ts` の `notifyConfig(notify?)`（鍵の束と送り方）・`saveLine`・`postWebhook`（署名つき）・`lineEvent`・`readOutbox`・`linkTokenOf`・`followAndLink`。自前の申込みは `apps/api/test/helpers/booking-apply.ts` の `openSelfPage`（自前にして受付を開く）・`anonymous`（ログインなしの要求）・`apply`・`entryTokenOf`。
 
@@ -159,19 +185,19 @@ booking が読むもの：event の `requireEventRole`・`getEventRole`・`getEv
 
 | 道 | 画面 | 振る舞い |
 |---|---|---|
-| 準備の画面（A4）の節 | 使い方（主催者だけ） | 選ぶカード（受付だけ・名簿を使う・自前で申込みを受ける）と「使い方を変える」。名簿に行がある交流会を受付だけに戻すときは確かめの枠（名簿は消さずに隠す・申込みページもなくなる）。自前のときは下に「申込みページ」の節（受付の状態と「受付を開く」／「受付を閉じる」・見せる範囲〈組織に入れていなければ部員だけを選べない〉・ページの URL〈ミニアプリの URL。LIFF ID のない手元は画面の源＋道〉とコピー。始まりを過ぎたら「自動で閉じました」） |
+| 準備の画面（A4）の節 | 使い方（主催者だけ） | 選ぶカード（受付だけ・名簿を使う・自前で申込みを受ける）と「使い方を変える」。名簿に行がある交流会を受付だけに戻すときは確かめの枠（名簿は消さずに隠す・申込みページもなくなる）。自前のときは下に「申込みページ」の節（受付の状態と「受付を開く」／「受付を閉じる」・見せる範囲〈組織に入れていなければ部員だけを選べない〉・ページの URL〈ミニアプリの URL。LIFF ID のない手元は画面の源＋道〉とコピー。始まりを過ぎたら「自動で閉じました」）。名簿を使う・自前のときは「定員とキャンセル待ち」の節（`CapacitySection`。開いたときに読む）：席の内訳と変更の帯（`SeatSummary`）・定員の欄（空＝定員なし）・媒体ごとの枠の席と管理ページの URL・「定員を保存する」、自前なら「予約を中止する」（確かめの枠）。booking-004 |
 | 一覧画面（A3）の上の節 | 名簿（主催者・受付係） | 名簿を使う・自前で申込みを受ける交流会だけ「名簿に当てる」と「名簿を見る」。ほかは何も出さない |
 | ナビ | 「名簿」 | 名簿を使う・自前で申込みを受ける交流会の中で、主催者・受付係にだけ出す。画面が読んだ交流会と使い方から決め、ナビのために問い合わせない（`nav-items.ts`） |
-| `/admin/events/$eventId/roster` | A2 名簿（主催者・受付係） | 上の操作：「1人足す」（画面の中に欄を開く。名前・媒体・メモ）・「貼る・CSV で入れる」「書き出す」（主催者だけ）・「名簿に当てる」。人数の欄（確定・取り消し・来た・来なかった〈日が終わるまでは —〉・飛び入り・媒体ごと）・絞り込み（すべて・確定・取り消し・来なかった）。広い画面は表（名前・媒体・入口・状態・申し込んだ日時・来た）、狭い画面はカード。名前に「同じ名前があります」と「手で足した：（入れた人）」・メモ。主催者は行ごとに「取り消す」「戻す」と、同じ名前があれば「まとめる」（確かめの枠）。名簿を使わない交流会では案内（主催者には準備の画面への入口） |
+| `/admin/events/$eventId/roster` | A2 名簿（主催者・受付係） | 上に席の内訳と変更の帯（booking-004。主催者だけ「変更を知らせる」）。絞り込みに「キャンセル待ち」（打診中を先に・何番目かの順）、行の状態に何番目か・打診の期限、主催者は「打診する」「確定にする」「送った知らせ」（開くと種類・手段・結果・時刻）。満員で自前なら「1人足す」に「定員を超えて足す」「キャンセル待ちに入れる」。上の操作：「1人足す」（画面の中に欄を開く。名前・媒体・メモ）・「貼る・CSV で入れる」「書き出す」（主催者だけ）・「名簿に当てる」。人数の欄（確定・取り消し・来た・来なかった〈日が終わるまでは —〉・飛び入り・媒体ごと）・絞り込み（すべて・確定・取り消し・来なかった）。広い画面は表（名前・媒体・入口・状態・申し込んだ日時・来た）、狭い画面はカード。名前に「同じ名前があります」と「手で足した：（入れた人）」・メモ。主催者は行ごとに「取り消す」「戻す」と、同じ名前があれば「まとめる」（確かめの枠）。名簿を使わない交流会では案内（主催者には準備の画面への入口） |
 | `/admin/events/$eventId/roster/import` | A3 名簿に入れる（主催者だけ） | タブ「名前をまとめて貼る」（1行に1人・媒体・「取り込む前に確かめる」）と「CSV を取り込む」（ファイル〈画面の中で読むだけ・UTF-8 か Shift_JIS・5MB と500行まで〉→ 名前の列 → 媒体）。同じ見出しの CSV は、持ち主が前に選んだ列と媒体を選んでおく。取り込む前の確かめ（入る・すでにある・名前が空の人数と行ごとの表・同じ名前の印）と「N人を取り込む」。入れたら名簿へ移り、知らせの帯 |
 | `/admin/events/$eventId/roster/match` | S1 名簿に当てる（主催者・受付係） | 来た・確定・飛び入りの人数。当てを待つチェックインのカード（候補なら「名簿の候補：…」と「当てる」「ちがう人」、名簿にいなければ「名簿から選ぶ」〈名前で探す〉「飛び入りにする」）・さっきのチェックイン（名簿に当たった〈自動・手〉・飛び入り）・下の「手でチェックイン（名簿から選ぶ）」（名前で探して選ぶと、受付の欄〈名前と媒体を入れておく〉でチェックイン。「名簿にいない人（飛び入り）」）。5秒おきに読み直す（夜間の停止では止める） |
 | `/settings/reception/notify` | A4 予約の知らせ（個人。設定の画面の下） | 今の送り方の帯・自分が管理者の組織の一覧（組織の設定への入口）・LINE 公式アカウントの節・メールの節 |
 | `/settings/reception/notify/organizations/$organizationId` | A4 予約の知らせ（組織） | 組織の管理者だけ（ほかは「組織の管理者だけが変えられます」）。LINE の節：まだなければ3つの欄のフォーム、あれば末尾・ベーシック ID・紐づいた人・今月 LINE で送った数・「入れ直す」（空の欄は前のまま）・「公式アカウントの設定を消す」（確かめの枠）・Webhook の URL とコピー・LINE の画面での手順・あいさつの見本・「自分に確かめのメッセージを送る」（結果はボタンのそば）。メールの節：送り主の名前（変えられない）と返信先 |
 | `/line-link/$linkToken` | 紐づけ（参加者が外から開く。外枠のナビなし） | ログイン（SessionGate）→ 持ち主の名前と「紐づける」→「紐づけました」。使った札は本人なら「もう紐づいています」、知らない・期限切れ・ほかの人が使った札は理由と、友だち追加し直すと新しいリンクが届くこと |
 
-| `/e/$eventId` | 申込みページ（参加者が外から開く。外枠のナビなし。booking-003） | ログインなしで交流会の欄（日時・会場・参加費・主催）と受付の状態。受付中なら「LINE でログインして申し込む」（主のボタン）と「LINE を使わずに申し込む」（同じ画面の中で名前とメールアドレスの欄に切り替え、「確認のメールを送る」）。ログインしたら名前（初めの値つき）と案内のチェック（初めは外す。同意していれば文）と「申し込む」。申し込んだら「申し込みました」（確定・カレンダーに追加〈Google・.ics〉・公式 LINE の友だち追加〈設定があるとき〉・任意のメールアドレス・自分の申込みを見る・取り消す〈確かめの枠〉）。部員だけの回は「この会は見られません」（ログインしていなければログインの入口） |
-| `/e/$eventId/entry/$entryToken` | 札のページ（メールで申し込んだ人。ログインなし） | 確認の前は「申込みを確定する」（開いただけでは確定しない）、確定のあとは状態・カレンダーに追加・取り消す。期限切れは申込みページへの入口、知らない札は「使えません」 |
-| `/my-bookings` | 自分の申込み（参加者。ログインが要る。外枠のナビなし） | タブ「自分の申込み」（今後の回・状態・カレンダーに追加・取り消す〈確かめの枠〉）と「部の予定」（`?tab=schedule`。自分の組織の自前の会・受付の状態・部員だけ・自分の状態）。下の「知らせと案内」でメールアドレスを入れる・消す、案内を受け取る主催を外す |
+| `/e/$eventId` | 申込みページ（参加者が外から開く。外枠のナビなし。booking-003） | ログインなしで交流会の欄（日時・会場・参加費・主催）と受付の状態。受付中なら「LINE でログインして申し込む」（主のボタン）と「LINE を使わずに申し込む」（同じ画面の中で名前とメールアドレスの欄に切り替え、「確認のメールを送る」）。ログインしたら名前（初めの値つき）と案内のチェック（初めは外す。同意していれば文）と「申し込む」。申し込んだら「申し込みました」（確定・カレンダーに追加〈Google・.ics〉・公式 LINE の友だち追加〈設定があるとき〉・任意のメールアドレス・自分の申込みを見る・取り消す〈確かめの枠〉）。部員だけの回は「この会は見られません」（ログインしていなければログインの入口）。定員があれば「残り n 席」・「満員です（キャンセル待ち n 人）」と「キャンセル待ちに申し込む」・「当日の空き：残り n 席（先着）」、完了の画面は「キャンセル待ちに入りました」と何番目か、打診中なら期限と自分の申込みへの案内。中止なら「この会は中止になりました」（booking-004） |
+| `/e/$eventId/entry/$entryToken` | 札のページ（メールで申し込んだ人。ログインなし） | 確認の前は「申込みを確定する」（開いただけでは確定しない）、確定のあとは状態・カレンダーに追加・取り消す。期限切れは申込みページへの入口、知らない札は「使えません」。キャンセル待ちは何番目か、打診中は期限と「参加する」（主のボタン）「辞退する」、当日の空きなら「参加する」。打診の知らせの返事の札でも同じ画面（booking-004） |
+| `/my-bookings` | 自分の申込み（参加者。ログインが要る。外枠のナビなし） | タブ「自分の申込み」（今後の回・状態〈キャンセル待ちは何番目か・打診中は期限〉・「参加する」「辞退する」〈打診中・当日の空き。booking-004〉・カレンダーに追加・取り消す〈確かめの枠〉）と「部の予定」（`?tab=schedule`。自分の組織の自前の会・受付の状態・部員だけ・自分の状態）。下の「知らせと案内」でメールアドレスを入れる・消す、案内を受け取る主催を外す |
 
 - 参加者がほかの人の名前を見る画面はない。外へのリンク（カレンダー・友だち追加）は `rel="noopener noreferrer"`。
 
@@ -180,8 +206,8 @@ booking が読むもの：event の `requireEventRole`・`getEventRole`・`getEv
 | 所 | ファイル |
 |---|---|
 | 約束 | `packages/contracts/src/booking/`（`options.ts`・`roster.ts`・`notify-options.ts`・`notify.ts`・`apply.ts`・`calendar.ts`・`errors.ts`・`paths.ts`・`index.ts`） |
-| API | `apps/api/src/modules/booking/`（`schema.ts`・`repository.ts`・`importing.ts`・`matching.ts`・`views.ts`・`csv.ts`・`routes.ts`・`notify-repository.ts`・`notify-settings.ts`・`line-link.ts`・`notice-templates.ts`・`notify.ts`・`routes-notify.ts`・`routes-webhook.ts`・`tokens.ts`・`apply-repository.ts`・`apply.ts`・`calendar-ics.ts`・`routes-apply.ts`・`withdrawal.ts`・`index.ts`・テスト） |
+| API | `apps/api/src/modules/booking/`（`schema.ts`・`repository.ts`・`importing.ts`・`matching.ts`・`views.ts`・`csv.ts`・`routes.ts`・`notify-repository.ts`・`notify-settings.ts`・`line-link.ts`・`notice-templates.ts`・`notify.ts`・`routes-notify.ts`・`routes-webhook.ts`・`tokens.ts`・`apply-repository.ts`・`apply.ts`・`calendar-ics.ts`・`routes-apply.ts`・`deadline.ts`・`seats.ts`・`page-links.ts`・`waitlist-repository.ts`・`waitlist.ts`・`setting-view.ts`・`routes-waitlist.ts`・`withdrawal.ts`・`index.ts`・テスト） |
 | DB の変更 | `apps/api/drizzle/0015_booking.sql`・`0016_booking_notify.sql`・`0017_booking_apply.sql`・`0018_booking_waitlist.sql` |
-| 画面 | `apps/web/src/features/booking/`（`api.ts`・`queries.ts`・`nav-items.ts`・`csv-read.ts`・`ModeSection.tsx`・`ReceptionRosterSection.tsx`・`RosterGate.tsx`・`RosterPage.tsx`・`ImportPage.tsx`・`MatchPage.tsx`・`notify-api.ts`・`NotifySettingsPage.tsx`・`LineLinkPage.tsx`・`apply-api.ts`・`apply-parts.tsx`・`links.ts`・`ApplyPage.tsx`・`EntryTokenPage.tsx`・`MyBookingsPage.tsx`・`SelfPageSection.tsx`・`routes.ts`・`index.ts`） |
-| テストの手伝い | `apps/api/test/helpers/booking.ts`・`booking-notify.ts`・`booking-apply.ts` |
-| 通しのテスト | `e2e/tests/booking.spec.ts`・`booking-notify.spec.ts`・`booking-apply.spec.ts` |
+| 画面 | `apps/web/src/features/booking/`（`api.ts`・`queries.ts`・`nav-items.ts`・`csv-read.ts`・`ModeSection.tsx`・`ReceptionRosterSection.tsx`・`RosterGate.tsx`・`RosterPage.tsx`・`ImportPage.tsx`・`MatchPage.tsx`・`notify-api.ts`・`NotifySettingsPage.tsx`・`LineLinkPage.tsx`・`apply-api.ts`・`apply-parts.tsx`・`links.ts`・`ApplyPage.tsx`・`EntryTokenPage.tsx`・`MyBookingsPage.tsx`・`SelfPageSection.tsx`・`waitlist-api.ts`・`waitlist-parts.tsx`・`SeatSummary.tsx`・`CapacitySection.tsx`・`NoticeLog.tsx`・`routes.ts`・`index.ts`） |
+| テストの手伝い | `apps/api/test/helpers/booking.ts`・`booking-notify.ts`・`booking-apply.ts`・`booking-waitlist.ts` |
+| 通しのテスト | `e2e/tests/booking.spec.ts`・`booking-notify.spec.ts`・`booking-apply.spec.ts`・`booking-waitlist.spec.ts` |

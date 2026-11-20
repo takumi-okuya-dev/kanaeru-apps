@@ -1,10 +1,12 @@
 // 自前の申込みページの窓口の入出力の形（申込みページ・申し込む・取り消す・自分の申込み・部の予定・案内の同意・メールで申し込む・
 // 札のページ・申込みページの設定。booking-003 contracts）。ふつうの zod で書く（OpenAPI の名前は API の側で付ける）。
 // 入力の誤りの文は、欄のそばにそのまま出せる日本語。日時は時差つきの ISO 8601 だけ。
-// 席の残り・キャンセル待ちの欄は置かない（定員は booking-004 で足す。research R18）。ほかの人の名前・メールアドレスは返さない。
+// 席の残り・キャンセル待ちの人数・本人の何番目かと打診の期限は booking-004 で足した（waitlist.ts の PageSeats・EntryStanding）。
+// ほかの人の名前・メールアドレスは返さない。
 import { z } from "zod";
 import { EmailAddress } from "./notify.ts";
 import { ENTRY_STATUSES, PAGE_STATES, VISIBILITIES } from "./options.ts";
+import { EntryStanding, PageSeats } from "./waitlist.ts";
 
 /** 時差つきの ISO 8601。 */
 const isoDateTime = z.iso.datetime({ offset: true });
@@ -102,8 +104,9 @@ export const MyEntry = z.object({
   name: z.string(),
   status: EntryStatusSchema,
   appliedAt: isoDateTime,
-  /** 取り消せるか（確定かつ始まりの前） */
+  /** 取り消せるか（確定・キャンセル待ち・打診中で始まりの前） */
   cancellable: z.boolean(),
+  ...EntryStanding.shape,
 });
 
 /** 自分の申込みの型。 */
@@ -142,6 +145,8 @@ export const ApplyPage = z.object({
   calendar: CalendarLinks,
   /** 公式アカウントを友だちに追加する URL（ベーシック ID があるとき） */
   lineFriendUrl: z.string().nullable(),
+  /** 席の欄（定員があるとき。booking-004） */
+  seats: PageSeats.nullable(),
   viewer: ApplyViewer,
 });
 
@@ -163,7 +168,9 @@ export const EntryTokenView = z.object({
   /** 入れた名前（札を知る本人だけが読む） */
   name: z.string(),
   /** 申込み（state が entry のとき） */
-  entry: z.object({ status: EntryStatusSchema, cancellable: z.boolean() }).nullable(),
+  entry: z
+    .object({ status: EntryStatusSchema, cancellable: z.boolean(), ...EntryStanding.shape })
+    .nullable(),
   /** 確認の前なら、確定できるか（受付中か） */
   confirmable: z.boolean(),
   calendar: CalendarLinks,
@@ -185,6 +192,7 @@ export const MyEntryItem = z.object({
   entryId: z.guid(),
   status: EntryStatusSchema,
   cancellable: z.boolean(),
+  ...EntryStanding.shape,
   event: ListedEvent,
   hostName: z.string(),
   googleCalendarUrl: z.string(),

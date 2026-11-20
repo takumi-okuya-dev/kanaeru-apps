@@ -3,12 +3,13 @@
 // 「申し込む」の1つ。LINE を使わない人は、同じ画面の中で名前とメールアドレスの欄に切り替える（道を足さない。research R2）。
 // 申し込んだら「申し込みました」（確定・カレンダーに追加・公式 LINE・メールアドレス・自分の申込み）に変える。
 // 部員だけの回は「この会は見られません」（中身は API が返さない）。ほかの人の名前は出さない。
+// 定員があるとき（booking-004）：残りの席か満員とキャンセル待ちの人数を出し、満員なら「キャンセル待ちに申し込む」。完了の画面に
+// キャンセル待ちの何番目か・打診中なら期限と「自分の申込み」で答える入口。中止した会は「この会は中止になりました」。
 import type { ApplyPage as ApplyPageData, MyEntry } from "@workspace/contracts/booking";
 import { ApplyInput, EmailApplyInput, PAGE_STATE_LABELS } from "@workspace/contracts/booking";
 import { PARTICIPANT_ROUTE_PATTERNS } from "@workspace/contracts/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, getRouteApi } from "@tanstack/react-router";
-import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { Field } from "@workspace/ui/components/field";
@@ -32,6 +33,7 @@ import {
   LineLoginButton,
   PRIMARY_ACTION_CLASS,
 } from "./apply-parts.tsx";
+import { EntryStatusBadge, SeatsLine, StandingNote } from "./waitlist-parts.tsx";
 
 /**
  * 読みこめないときの画面（ない・見られない・ほか）。
@@ -76,17 +78,12 @@ function ApplyLoadFailure({
 }
 
 /**
- * 申込みの状態の札。
- * @param props 申込み（entry）
- * @param props.entry 申込み
- * @returns 札の要素
+ * 申し込んだばかりの見出し。
+ * @param entry 申込み
+ * @returns 見出し
  */
-function EntryBadge({ entry }: { entry: MyEntry }) {
-  return entry.status === "confirmed" ? (
-    <Badge variant="success">確定</Badge>
-  ) : (
-    <Badge>取り消し</Badge>
-  );
+function appliedTitle(entry: MyEntry): string {
+  return entry.status === "waitlisted" ? "キャンセル待ちに入りました" : "申し込みました";
 }
 
 /**
@@ -131,19 +128,24 @@ function AppliedView({
             tabIndex={-1}
             className="text-xl leading-tight font-bold outline-none"
           >
-            {justApplied ? "申し込みました" : page.event.name}
+            {justApplied ? appliedTitle(entry) : page.event.name}
           </h1>
         </div>
         {justApplied ? <p className="text-m font-bold break-words">{page.event.name}</p> : null}
         <div>
-          <EntryBadge entry={entry} />
+          <EntryStatusBadge status={entry.status} waitlistPosition={entry.waitlistPosition} />
         </div>
         <p className="text-m">{`お名前：${entry.name}`}</p>
         {entry.status === "confirmed" ? (
           <p className="text-m">当日は受付でお名前を伝えてください。</p>
-        ) : (
+        ) : entry.status === "cancelled" ? (
           <p className="text-m">この申込みは取り消しています。</p>
+        ) : (
+          <StandingNote status={entry.status} standing={entry} />
         )}
+        {entry.canAccept ? (
+          <p className="text-m">「自分の申込み」から「参加する」を押して答えてください。</p>
+        ) : null}
       </section>
       <ApplyEventList event={page.event} hostName={page.hostName} />
       {entry.status === "confirmed" ? <CalendarSection calendar={page.calendar} /> : null}
@@ -265,7 +267,11 @@ function ApplyForm({
           className={PRIMARY_ACTION_CLASS}
           aria-busy={mutation.isPending || undefined}
         >
-          {mutation.isPending ? "申し込んでいます…" : "申し込む"}
+          {mutation.isPending
+            ? "申し込んでいます…"
+            : page.seats && page.seats.remaining === 0
+              ? "キャンセル待ちに申し込む"
+              : "申し込む"}
         </Button>
         <p className="text-s text-text-sub">取り消しは、始まりまでいつでもできます。</p>
         {mutation.isError && Object.keys(fieldErrorsFromApi(mutation.error)).length === 0 ? (
@@ -418,7 +424,7 @@ export function ApplyPage({ eventId }: { eventId: string }) {
 
   const page = applied?.page ?? query.data;
   const myEntry = applied?.entry ?? (page.viewer.signedIn ? page.viewer.myEntry : null);
-  if (myEntry && (myEntry.status === "confirmed" || page.state !== "open")) {
+  if (myEntry && (myEntry.status !== "cancelled" || page.state !== "open")) {
     return (
       <AppliedView
         page={page}
@@ -434,6 +440,10 @@ export function ApplyPage({ eventId }: { eventId: string }) {
     <Page title={page.event.name} lead={membersOnly ? "部員だけの会です。" : undefined}>
       <ApplyEventList event={page.event} hostName={page.hostName} />
       <p className="text-m font-bold">{PAGE_STATE_LABELS[page.state]}</p>
+      {page.seats && page.state === "open" ? <SeatsLine seats={page.seats} /> : null}
+      {page.state === "cancelled" ? (
+        <p className="text-m">主催者が予約を中止しました。申込みは受け付けていません。</p>
+      ) : null}
       {page.state === "closed" ? (
         <p className="text-m">
           いまは申込みを受け付けていません。受付が開いたら、この画面から申し込めます。

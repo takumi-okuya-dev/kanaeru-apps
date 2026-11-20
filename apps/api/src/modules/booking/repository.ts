@@ -24,6 +24,8 @@ export type NewEntryValues = {
   memo?: string | null;
   /** 当てたチェックイン（飛び入り） */
   checkinId?: string | null;
+  /** 状態（既定は確定。主催者がキャンセル待ちに入れるとき。booking-004） */
+  status?: "confirmed" | "waitlisted";
 };
 
 /** 名簿の並び（申し込んだ日時の古い順・同じ時刻は ID の古い順）。 */

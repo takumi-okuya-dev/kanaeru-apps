@@ -6,17 +6,28 @@ import type { BookingMode, EntryStatus, Visibility } from "@workspace/contracts/
 import type { Executor } from "../../kernel/db.ts";
 import { bookingConsent, bookingEmailRequest, bookingEntry, bookingSetting } from "./schema.ts";
 
-/** 申込みページの設定（行がなければ受付だけ・閉じる・誰でも）。 */
-export type PageSetting = { mode: BookingMode; accepting: boolean; visibility: Visibility };
+/** 申込みページの設定（行がなければ受付だけ・閉じる・誰でも。中止の時刻は booking-004）。 */
+export type PageSetting = {
+  mode: BookingMode;
+  accepting: boolean;
+  visibility: Visibility;
+  cancelledAt: Date | null;
+};
 
 /** 行がないときの設定。 */
-const NO_SETTING: PageSetting = { mode: "reception", accepting: false, visibility: "public" };
+const NO_SETTING: PageSetting = {
+  mode: "reception",
+  accepting: false,
+  visibility: "public",
+  cancelledAt: null,
+};
 
 /** 設定の列。 */
 const settingColumns = {
   mode: bookingSetting.mode,
   accepting: bookingSetting.accepting,
   visibility: bookingSetting.visibility,
+  cancelledAt: bookingSetting.cancelledAt,
 };
 
 /**
@@ -173,6 +184,27 @@ export async function findOwnEntry(
 }
 
 /**
+ * ID で申込みを読む（返事の札から引いたとき。booking-004）。
+ * @param db DB
+ * @param entryId 行の ID
+ * @param lock 押さえて読むか
+ * @returns 申込み（なければ null）
+ */
+export async function findSelfEntry(
+  db: Executor,
+  entryId: string,
+  lock = false,
+): Promise<SelfEntry | null> {
+  const query = db
+    .select(selfEntryColumns)
+    .from(bookingEntry)
+    .where(eq(bookingEntry.id, entryId))
+    .limit(1);
+  const [row] = lock ? await query.for("update") : await query;
+  return row ?? null;
+}
+
+/**
  * 札の SHA-256 でメールの申込みを読む。
  * @param db DB
  * @param tokenHash 札の SHA-256
@@ -226,10 +258,12 @@ export type NewSelfEntry = {
   contactEmail: string | null;
   /** メールの申込みの札の SHA-256 */
   entryTokenHash: string | null;
+  /** 状態（確定かキャンセル待ち。booking-004） */
+  status?: "confirmed" | "waitlisted";
 };
 
 /**
- * 自前の申込みを作る（入口は自前・媒体は直接・確定。research R4）。
+ * 自前の申込みを作る（入口は自前・媒体は直接・確定かキャンセル待ち。research R4）。
  * @param db DB
  * @param values 値
  * @returns 作った申込み
@@ -241,7 +275,7 @@ export async function insertSelfEntry(db: Executor, values: NewSelfEntry): Promi
       ...values,
       applicationSource: "direct",
       entryKind: "self_page",
-      status: "confirmed",
+      status: values.status ?? "confirmed",
       enteredBy: values.accountId,
     })
     .returning(selfEntryColumns);
@@ -250,22 +284,24 @@ export async function insertSelfEntry(db: Executor, values: NewSelfEntry): Promi
 }
 
 /**
- * 申込みを確定に戻す（申し込み直し。申し込んだ日時を今にする。メールの申込みは札を替える）。
+ * 申込みを確定（かキャンセル待ち）に戻す（申し込み直し。申し込んだ日時を今にする。メールの申込みは札を替える）。
  * @param db DB
  * @param entryId 行の ID
- * @param values 名前と、替える札
+ * @param values 名前と、替える札と、状態
  * @param values.name 名前
  * @param values.entryTokenHash 新しい札の SHA-256（メールの申込みのとき）
+ * @param values.status 状態（既定は確定。満員ならキャンセル待ち。booking-004）
  * @returns 直した申込み
  */
 export async function reconfirmEntry(
   db: Executor,
   entryId: string,
-  values: { name: string; entryTokenHash?: string },
+  values: { name: string; entryTokenHash?: string; status?: "confirmed" | "waitlisted" },
 ): Promise<SelfEntry> {
+  const { status = "confirmed", ...rest } = values;
   const [row] = await db
     .update(bookingEntry)
-    .set({ ...values, status: "confirmed", appliedAt: sql`now()`, updatedAt: sql`now()` })
+    .set({ ...rest, status, appliedAt: sql`now()`, updatedAt: sql`now()` })
     .where(eq(bookingEntry.id, entryId))
     .returning(selfEntryColumns);
   if (!row) throw new Error("申込みを直せませんでした。");

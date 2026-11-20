@@ -63,9 +63,24 @@ function entry(id: string, name: string, values: Partial<Roster["entries"][numbe
     sameName: false,
     attendance: "pending" as const,
     match: null,
+    waitlistPosition: null,
+    offer: null,
     ...values,
   };
 }
+
+/** 設定の答えのほかの欄（定員なし。booking-003・004）。 */
+const SETTING_REST = {
+  accepting: false,
+  visibility: "public",
+  started: false,
+  inOrganization: false,
+  capacity: null,
+  quotas: [],
+  seats: null,
+  cancelled: false,
+  change: null,
+};
 
 /** 試しの名簿。 */
 const ROSTER: Roster = {
@@ -83,6 +98,8 @@ const ROSTER: Roster = {
   counts: {
     confirmed: 3,
     cancelled: 1,
+    waitlisted: 0,
+    offered: 0,
     came: 0,
     noShow: 1,
     walkIn: 0,
@@ -154,10 +171,10 @@ function stubApi(
       case `GET /api/v1/events/${EVENT_ID}`:
         return Promise.resolve(Response.json(eventView(options.role ?? "organizer")));
       case `GET ${base}/setting`:
-        return Promise.resolve(Response.json({ mode, entryCount: 4 }));
+        return Promise.resolve(Response.json({ ...SETTING_REST, mode, entryCount: 4 }));
       case `PUT ${base}/setting`:
         mode = (body as { mode: "reception" | "roster" }).mode;
-        return Promise.resolve(Response.json({ mode, entryCount: 4 }));
+        return Promise.resolve(Response.json({ ...SETTING_REST, mode, entryCount: 4 }));
       case `GET ${base}/entries`:
         return Promise.resolve(Response.json(ROSTER));
       case `GET ${base}/matches`:

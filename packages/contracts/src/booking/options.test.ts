@@ -1,6 +1,6 @@
 // 予約の約束の選択肢：code と言葉がそろう・受付の媒体と別の値を持たない。
 import { describe, expect, it } from "vitest";
-import { APPLICATION_SOURCES } from "../reception/index.ts";
+import { APPLICATION_SOURCES, APPLICATION_SOURCE_LABELS } from "../reception/index.ts";
 import {
   ATTENDANCES,
   ATTENDANCE_LABELS,
@@ -14,6 +14,7 @@ import {
   PAGE_STATES,
   PAGE_STATE_LABELS,
   QUOTA_SOURCES,
+  QUOTA_SOURCE_LABELS,
   SEAT_STATUSES,
   SETTABLE_ENTRY_STATUSES,
   VISIBILITIES,
@@ -42,6 +43,9 @@ describe("予約の選択肢", () => {
 
   it("枠を置ける媒体は、受付の申し込みの媒体から直接を除いたもの（並びも同じ。booking-004）", () => {
     expect([...QUOTA_SOURCES]).toEqual(APPLICATION_SOURCES.filter((source) => source !== "direct"));
+    for (const source of QUOTA_SOURCES) {
+      expect(QUOTA_SOURCE_LABELS[source]).toBe(APPLICATION_SOURCE_LABELS[source]);
+    }
   });
 
   it("主催者が選べる状態と席を押さえる状態は、名簿の行の状態の中にある（booking-004）", () => {

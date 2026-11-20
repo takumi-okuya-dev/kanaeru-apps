@@ -3,6 +3,8 @@
 // 人数の欄（確定・取り消し・来た・来なかった・飛び入り・媒体ごと）・絞り込み（すべて・確定・取り消し・来なかった）・表
 // （名前・媒体・入口・状態・申し込んだ日時・来た）。同じ名前の印と「手で足した：（入れた人）」。主催者は行を取り消す・戻す・まとめる。
 // 参加者のメールアドレスは出さない（持たない。FR-B26）。
+// 定員とキャンセル待ち（booking-004）：上に席の内訳と変更の帯（SeatSummary）、絞り込みに「キャンセル待ち」（並びの順）、行に
+// 何番目か・打診の期限、主催者は「打診する」「確定にする」と「送った知らせ」。満員のとき「1人足す」でキャンセル待ちに入れられる。
 import type { EventView } from "@workspace/contracts/event";
 import type { Roster, RosterEntry, RosterEntryInput } from "@workspace/contracts/booking";
 import {
@@ -43,13 +45,17 @@ import { SessionGate } from "../account/index.ts";
 import { EventAccessGate, formatEventDateTime } from "../event/index.ts";
 import { APPLICATION_SOURCE_OPTIONS, SameNameFlag } from "../reception/index.ts";
 import { addEntry, downloadRosterCsv, mergeEntries, setEntryStatus } from "./api.ts";
-import { BOOKING_QUERY_KEYS, useRoster } from "./queries.ts";
+import { BOOKING_QUERY_KEYS, useBookingSetting, useRoster } from "./queries.ts";
+import { NoticeLog } from "./NoticeLog.tsx";
 import { RosterGate } from "./RosterGate.tsx";
+import { SeatSummary } from "./SeatSummary.tsx";
+import { offerEntry } from "./waitlist-api.ts";
 
 /** 絞り込み。 */
 const FILTERS = [
   { value: "all", label: "すべて" },
   { value: "confirmed", label: "確定" },
+  { value: "waitlist", label: "キャンセル待ち" },
   { value: "cancelled", label: "取り消し" },
   { value: "no_show", label: "来なかった" },
 ] as const;
@@ -66,7 +72,37 @@ type Filter = (typeof FILTERS)[number]["value"];
 export function matchesFilter(entry: RosterEntry, filter: Filter): boolean {
   if (filter === "all") return true;
   if (filter === "no_show") return entry.attendance === "no_show";
+  if (filter === "waitlist") return entry.status === "waitlisted" || entry.status === "offered";
   return entry.status === filter;
+}
+
+/**
+ * キャンセル待ちの絞り込みの並び（打診中を先に、キャンセル待ちは何番目かの順）。
+ * @param a 行
+ * @param b 行
+ * @returns 並びの比べ
+ */
+function waitlistOrder(a: RosterEntry, b: RosterEntry): number {
+  const rank = (entry: RosterEntry) =>
+    entry.status === "offered" ? 0 : (entry.waitlistPosition ?? Number.MAX_SAFE_INTEGER);
+  return rank(a) - rank(b);
+}
+
+/**
+ * 行の状態の文（キャンセル待ちの何番目か・打診の期限つき）。
+ * @param entry 行
+ * @returns 文
+ */
+export function statusText(entry: RosterEntry): string {
+  if (entry.status === "waitlisted" && entry.waitlistPosition !== null) {
+    return `キャンセル待ち（${entry.waitlistPosition}番目）`;
+  }
+  if (entry.status === "offered" && entry.offer) {
+    return entry.offer.expired
+      ? "打診中（期限切れ。次の回で回します）"
+      : `打診中（返事の期限：${formatEventDateTime(entry.offer.deadline)}）`;
+  }
+  return ENTRY_STATUS_LABELS[entry.status];
 }
 
 /**
@@ -100,6 +136,9 @@ function Counts({ roster }: { roster: Roster }) {
     <div role="group" aria-label="人数">
       <dl className="grid grid-cols-2 gap-xxs wide:grid-cols-6">
         <CountTile label="確定">{roster.counts.confirmed}</CountTile>
+        {roster.counts.waitlisted + roster.counts.offered > 0 ? (
+          <CountTile label="キャンセル待ち・打診中">{`${roster.counts.waitlisted}・${roster.counts.offered}`}</CountTile>
+        ) : null}
         <CountTile label="取り消し">{roster.counts.cancelled}</CountTile>
         <CountTile label="来た">{roster.counts.came}</CountTile>
         <CountTile label="来なかった">{roster.eventEnded ? roster.counts.noShow : "—"}</CountTile>
@@ -112,6 +151,12 @@ function Counts({ roster }: { roster: Roster }) {
     </div>
   );
 }
+
+/** 満員のときの入れ方（定員を超えて足す・キャンセル待ちに入れる。booking-004 research R4）。 */
+const PLACEMENT_OPTIONS = [
+  { value: "over", label: "定員を超えて足す" },
+  { value: "waitlist", label: "キャンセル待ちに入れる" },
+] as const;
 
 /** 1人足す欄の値。 */
 type AddValues = { name: string; applicationSource: ApplicationSource | null; memo: string };
@@ -126,14 +171,18 @@ type AddValues = { name: string; applicationSource: ApplicationSource | null; me
  */
 function AddEntryForm({
   eventId,
+  full,
   onDone,
   onCancel,
 }: {
   eventId: string;
+  /** 満員で、キャンセル待ちに入れられるか（自前で定員があるとき。booking-004） */
+  full: boolean;
   onDone: (entry: RosterEntry) => void;
   onCancel: () => void;
 }) {
   const [values, setValues] = useState<AddValues>({ name: "", applicationSource: null, memo: "" });
+  const [placement, setPlacement] = useState<"over" | "waitlist">("over");
   const [errors, setErrors] = useState<FieldErrors>({});
   const mutation = useMutation({
     mutationFn: (input: RosterEntryInput) => addEntry(eventId, input),
@@ -152,6 +201,7 @@ function AddEntryForm({
       name: values.name,
       applicationSource: values.applicationSource ?? undefined,
       memo: values.memo.trim() === "" ? null : values.memo,
+      ...(full && placement === "waitlist" ? { waitlist: true } : {}),
     });
     if (!parsed.success) {
       setErrors(fieldErrorsFromIssues(parsed.error.issues));
@@ -198,6 +248,14 @@ function AddEntryForm({
           onChange={(change) => setValues({ ...values, memo: change.target.value })}
         />
       </Field>
+      {full ? (
+        <ChoiceChips
+          label="満員です。どちらに入れますか"
+          options={PLACEMENT_OPTIONS}
+          value={placement}
+          onValueChange={(next) => setPlacement(next ?? "over")}
+        />
+      ) : null}
       <div className="flex flex-col gap-xxs">
         <div className="flex flex-wrap gap-xxs">
           <Button
@@ -274,7 +332,9 @@ function RosterView({ event }: { event: EventView }) {
   const organizer = event.myRole === "organizer";
   const queryClient = useQueryClient();
   const roster = useRoster(event.id);
+  const setting = useBookingSetting(event.id);
   const [filter, setFilter] = useState<Filter>("all");
+  const [noticesOf, setNoticesOf] = useState<string>();
   const [adding, setAdding] = useState(false);
   const [message, setMessage] = useState<{ tone: "success" | "danger"; text: string }>();
   const [merging, setMerging] = useState<{ keep: RosterEntry; remove: RosterEntry }>();
@@ -286,12 +346,21 @@ function RosterView({ event }: { event: EventView }) {
     onSuccess: async (entry) => {
       setMessage({
         tone: "success",
-        text: `${entry.name}さんを${entry.status === "cancelled" ? "取り消し" : "確定"}にしました。`,
+        text: `${entry.name}さんを${entry.status === "cancelled" ? "取り消し" : ENTRY_STATUS_LABELS[entry.status]}にしました。`,
       });
       await refresh();
     },
     onError: (error) =>
       setMessage({ tone: "danger", text: `直せませんでした。${errorMessage(error)}` }),
+  });
+  const offer = useMutation({
+    mutationFn: (entry: RosterEntry) => offerEntry(event.id, entry.id),
+    onSuccess: async (entry) => {
+      setMessage({ tone: "success", text: `${entry.name}さんに打診しました。` });
+      await refresh();
+    },
+    onError: (error) =>
+      setMessage({ tone: "danger", text: `打診できませんでした。${errorMessage(error)}` }),
   });
   const merge = useMutation({
     mutationFn: (input: { keep: RosterEntry; remove: RosterEntry }) =>
@@ -311,6 +380,8 @@ function RosterView({ event }: { event: EventView }) {
 
   const entries = roster.data?.entries ?? [];
   const visible = entries.filter((entry) => matchesFilter(entry, filter));
+  if (filter === "waitlist") visible.sort(waitlistOrder);
+  const waitlistOn = setting.data?.mode === "self_page" && setting.data.capacity !== null;
 
   /**
    * まとめる相手（同じ名前のほかの行のうち最初のもの）。
@@ -332,35 +403,78 @@ function RosterView({ event }: { event: EventView }) {
    */
   const actionsOf = (entry: RosterEntry) => {
     const target = entry.sameName ? mergeTarget(entry) : undefined;
+    const waiting = entry.status === "waitlisted" || entry.status === "offered";
     return (
-      <div className="flex flex-wrap gap-x3s">
-        <Button
-          variant="text"
-          className="min-h-xl"
-          aria-label={`${entry.name}を${entry.status === "cancelled" ? "確定に戻す" : "取り消す"}`}
-          onClick={() => {
-            if (status.isPending) return;
-            setMessage(undefined);
-            status.mutate({
-              entry,
-              status: entry.status === "cancelled" ? "confirmed" : "cancelled",
-            });
-          }}
-        >
-          {entry.status === "cancelled" ? "戻す" : "取り消す"}
-        </Button>
-        {target ? (
+      <div className="flex flex-col items-start gap-x3s">
+        <div className="flex flex-wrap gap-x3s">
+          {entry.status === "waitlisted" && waitlistOn ? (
+            <Button
+              variant="text"
+              className="min-h-xl"
+              aria-label={`${entry.name}に打診する`}
+              onClick={() => {
+                if (offer.isPending) return;
+                setMessage(undefined);
+                offer.mutate(entry);
+              }}
+            >
+              打診する
+            </Button>
+          ) : null}
+          {waiting ? (
+            <Button
+              variant="text"
+              className="min-h-xl"
+              aria-label={`${entry.name}を確定にする`}
+              onClick={() => {
+                if (status.isPending) return;
+                setMessage(undefined);
+                status.mutate({ entry, status: "confirmed" });
+              }}
+            >
+              確定にする
+            </Button>
+          ) : null}
           <Button
             variant="text"
             className="min-h-xl"
-            aria-label={`${entry.name}の同じ名前の行をまとめる`}
+            aria-label={`${entry.name}を${entry.status === "cancelled" ? "確定に戻す" : "取り消す"}`}
             onClick={() => {
-              merge.reset();
-              setMerging({ keep: entry, remove: target });
+              if (status.isPending) return;
+              setMessage(undefined);
+              status.mutate({
+                entry,
+                status: entry.status === "cancelled" ? "confirmed" : "cancelled",
+              });
             }}
           >
-            まとめる
+            {entry.status === "cancelled" ? "戻す" : "取り消す"}
           </Button>
+          {target ? (
+            <Button
+              variant="text"
+              className="min-h-xl"
+              aria-label={`${entry.name}の同じ名前の行をまとめる`}
+              onClick={() => {
+                merge.reset();
+                setMerging({ keep: entry, remove: target });
+              }}
+            >
+              まとめる
+            </Button>
+          ) : null}
+          <Button
+            variant="text"
+            className="min-h-xl"
+            aria-expanded={noticesOf === entry.id}
+            aria-label={`${entry.name}さんに送った知らせ`}
+            onClick={() => setNoticesOf(noticesOf === entry.id ? undefined : entry.id)}
+          >
+            送った知らせ
+          </Button>
+        </div>
+        {noticesOf === entry.id ? (
+          <NoticeLog eventId={event.id} entryId={entry.id} name={entry.name} />
         ) : null}
       </div>
     );
@@ -413,6 +527,7 @@ function RosterView({ event }: { event: EventView }) {
       {adding ? (
         <AddEntryForm
           eventId={event.id}
+          full={waitlistOn && (setting.data?.seats?.full ?? false)}
           onCancel={() => setAdding(false)}
           onDone={(entry) => {
             setAdding(false);
@@ -429,6 +544,9 @@ function RosterView({ event }: { event: EventView }) {
         <ResponseMessage tone="danger">{errorMessage(roster.error)}</ResponseMessage>
       ) : (
         <>
+          {setting.data ? (
+            <SeatSummary eventId={event.id} setting={setting.data} organizer={organizer} />
+          ) : null}
           <Counts roster={roster.data} />
           <ChoiceChips
             label="絞り込み"
@@ -471,7 +589,7 @@ function RosterView({ event }: { event: EventView }) {
                         </TableCell>
                         <TableCell>{APPLICATION_SOURCE_LABELS[entry.applicationSource]}</TableCell>
                         <TableCell>{ENTRY_KIND_LABELS[entry.entryKind]}</TableCell>
-                        <TableCell>{ENTRY_STATUS_LABELS[entry.status]}</TableCell>
+                        <TableCell>{statusText(entry)}</TableCell>
                         <TableCell className="tabular-nums">
                           {formatEventDateTime(entry.appliedAt)}
                         </TableCell>
@@ -492,7 +610,7 @@ function RosterView({ event }: { event: EventView }) {
                   >
                     <EntryName entry={entry} />
                     <span className="text-s">
-                      {`${APPLICATION_SOURCE_LABELS[entry.applicationSource]}・${ENTRY_KIND_LABELS[entry.entryKind]}・${ENTRY_STATUS_LABELS[entry.status]}`}
+                      {`${APPLICATION_SOURCE_LABELS[entry.applicationSource]}・${ENTRY_KIND_LABELS[entry.entryKind]}・${statusText(entry)}`}
                     </span>
                     <span className="text-s text-text-sub tabular-nums">
                       {`申し込んだ日時：${formatEventDateTime(entry.appliedAt)}`}

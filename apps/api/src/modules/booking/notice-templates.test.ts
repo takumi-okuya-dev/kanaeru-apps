@@ -95,4 +95,31 @@ describe("知らせの文面", () => {
     expect(text).toContain("https://example.com/line-link/abc");
     expect(text).toContain("7日");
   });
+
+  it("キャンセル待ち・打診・当日の空き・変更の文に、何番目か・期限・返事のリンク・前の日時が入る（booking-004）", () => {
+    expect(noticeText("waitlisted", { ...BASE, waitlistPosition: 3 })).toContain(
+      "キャンセル待ち（3番目）",
+    );
+    const offered = noticeText("offered", {
+      ...BASE,
+      deadline: new Date("2026-11-27T00:00:00Z"),
+      links: { respond: "https://example.com/my-bookings" },
+    });
+    expect(offered).toContain("返事の期限：11月27日（金）09:00");
+    expect(offered).toContain("返事をする：https://example.com/my-bookings");
+    const sameDay = noticeText("same_day", {
+      ...BASE,
+      links: { respond: "https://example.com/e/1" },
+    });
+    expect(sameDay).toContain("当日の空き");
+    expect(sameDay).toContain("参加する：https://example.com/e/1");
+    const changed = noticeText("changed", {
+      ...BASE,
+      entryStatus: "waitlisted",
+      previous: { startsAt: new Date("2026-11-21T10:00:00Z"), venue: "前の会場" },
+    });
+    expect(changed).toContain("前の日時：11月21日（土）19:00");
+    expect(changed).toContain("前の場所：前の会場");
+    expect(changed).toContain("あなたの状態：キャンセル待ち");
+  });
 });

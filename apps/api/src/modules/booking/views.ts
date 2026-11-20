@@ -8,6 +8,8 @@ import type { EventAttendee } from "../reception/index.ts";
 import { attendanceOf, resolveMatches, sameNameEntryIds } from "./matching.ts";
 import type { DismissedPair, MatchResult } from "./matching.ts";
 import type { EntryRecord } from "./repository.ts";
+import { waitlistOf } from "./seats.ts";
+import type { PendingOffer } from "./waitlist-repository.ts";
 
 /**
  * 入れた人の表示名を引く（同じ人は1回だけ）。
@@ -33,6 +35,9 @@ export function enteredByNames(
  * @param context.sameName 同じ名前の印を付ける行の ID
  * @param context.names 入れた人の表示名
  * @param context.eventEnded 交流会の日が終わったか
+ * @param context.positions キャンセル待ちの何番目か（booking-004）
+ * @param context.offers 待っている打診（booking-004）
+ * @param context.now 今の時刻
  * @returns 名簿の行
  */
 export function toRosterEntry(
@@ -42,8 +47,12 @@ export function toRosterEntry(
     sameName: ReadonlySet<string>;
     names: ReadonlyMap<string, string>;
     eventEnded: boolean;
+    positions: ReadonlyMap<string, number>;
+    offers: ReadonlyMap<string, PendingOffer>;
+    now: Date;
   },
 ): RosterEntry {
+  const offer = entry.status === "offered" ? context.offers.get(entry.id) : undefined;
   const match = context.matches.byEntry.get(entry.id);
   return {
     id: entry.id,
@@ -60,6 +69,14 @@ export function toRosterEntry(
     sameName: context.sameName.has(entry.id),
     attendance: attendanceOf(entry, match !== undefined, context.eventEnded),
     match: match?.kind ?? null,
+    waitlistPosition: context.positions.get(entry.id) ?? null,
+    offer: offer
+      ? {
+          deadline: offer.deadline.toISOString(),
+          expired: offer.deadline.getTime() <= context.now.getTime(),
+          manual: offer.manual,
+        }
+      : null,
   };
 }
 
@@ -70,6 +87,8 @@ export function toRosterEntry(
  * @param attendees その交流会のチェックイン
  * @param dismissals ちがう人の組
  * @param eventEnded 交流会の日が終わったか
+ * @param offers 待っている打診（booking-004）
+ * @param now 今の時刻
  * @returns 名簿
  */
 export async function buildRoster(
@@ -78,6 +97,8 @@ export async function buildRoster(
   attendees: readonly EventAttendee[],
   dismissals: readonly DismissedPair[],
   eventEnded: boolean,
+  offers: ReadonlyMap<string, PendingOffer> = new Map(),
+  now: Date = new Date(),
 ): Promise<Roster> {
   const matches = resolveMatches(entries, attendees, dismissals);
   const context = {
@@ -85,14 +106,21 @@ export async function buildRoster(
     sameName: sameNameEntryIds(entries),
     names: await enteredByNames(db, entries),
     eventEnded,
+    positions: new Map(waitlistOf(entries).map((entry, index) => [entry.id, index + 1])),
+    offers,
+    now,
   };
   const views = entries.map((entry) => toRosterEntry(entry, context));
   const confirmed = views.filter((entry) => entry.status === "confirmed");
+  const countOf = (status: RosterEntry["status"]) =>
+    views.filter((entry) => entry.status === status).length;
   return {
     entries: views,
     counts: {
       confirmed: confirmed.length,
-      cancelled: views.length - confirmed.length,
+      cancelled: countOf("cancelled"),
+      waitlisted: countOf("waitlisted"),
+      offered: countOf("offered"),
       came: views.filter((entry) => entry.attendance === "came").length,
       noShow: views.filter((entry) => entry.attendance === "no_show").length,
       walkIn: views.filter((entry) => entry.entryKind === "walk_in").length,
