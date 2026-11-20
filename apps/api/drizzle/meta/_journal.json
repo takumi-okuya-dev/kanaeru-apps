@@ -120,6 +120,13 @@
       "when": 1795175898841,
       "tag": "0016_booking_notify",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795179487656,
+      "tag": "0017_booking_apply",
+      "breakpoints": true
     }
   ]
 }

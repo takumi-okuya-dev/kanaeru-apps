@@ -11,6 +11,7 @@
 import "@hono/zod-openapi";
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   customType,
   index,
@@ -27,6 +28,7 @@ import {
   NOTICE_KINDS,
   NOTICE_METHODS,
   NOTICE_RESULTS,
+  VISIBILITIES,
 } from "@workspace/contracts/booking";
 import { APPLICATION_SOURCES } from "@workspace/contracts/reception";
 import { primaryId, timestamps, timestamptz } from "../../kernel/columns.ts";
@@ -42,11 +44,18 @@ export const bookingSetting = pgTable(
     eventId: uuid("event_id")
       .primaryKey()
       .references(() => eventTable.id, { onDelete: "cascade" }),
-    /** 使い方（受付だけ・名簿を使う） */
+    /** 使い方（受付だけ・名簿を使う・自前で申込みを受ける） */
     mode: text("mode", { enum: BOOKING_MODES }).notNull(),
+    /** 申込みページの受付を開いているか（既定は閉じる。始まりを過ぎたら読むときに閉じたものとして扱う。booking-003 R1） */
+    accepting: boolean("accepting").notNull().default(false),
+    /** 申込みページの見せる範囲（誰でも・部員だけ。booking-003 R8） */
+    visibility: text("visibility", { enum: VISIBILITIES }).notNull().default("public"),
     ...timestamps(),
   },
-  (table) => [check("booking_setting_mode_check", sql`${table.mode} in ('reception', 'roster')`)],
+  (table) => [
+    check("booking_setting_mode_check", sql`${table.mode} in ('reception', 'roster', 'self_page')`),
+    check("booking_setting_visibility_check", sql`${table.visibility} in ('public', 'members')`),
+  ],
 );
 
 /** 申込み（名簿の1行）。 */
@@ -61,7 +70,7 @@ export const bookingEntry = pgTable(
     name: text("name").notNull(),
     /** 媒体（受付の申し込みの媒体） */
     applicationSource: text("application_source", { enum: APPLICATION_SOURCES }).notNull(),
-    /** 入口（手で足す・取り込み・飛び入り） */
+    /** 入口（手で足す・取り込み・飛び入り・自前のページ） */
     entryKind: text("entry_kind", { enum: ENTRY_KINDS }).notNull(),
     /** 状態（確定・取り消し） */
     status: text("status", { enum: ENTRY_STATUSES }).notNull().default("confirmed"),
@@ -71,10 +80,14 @@ export const bookingEntry = pgTable(
     enteredBy: uuid("entered_by").references(() => accountTable.id, { onDelete: "set null" }),
     /** メモ（任意） */
     memo: text("memo"),
-    /** 本人のアカウント（自前のページの申込み。この版では空。消すと申込みも消える） */
+    /** 本人のアカウント（自前のページで LINE ログインして申し込んだ人。消すと申込みも消える） */
     accountId: uuid("account_id").references(() => accountTable.id, { onDelete: "cascade" }),
     /** 手で当てたチェックイン（チェックインを取り消すと null。AD-23） */
     checkinId: uuid("checkin_id").references(() => checkinTable.id, { onDelete: "set null" }),
+    /** メールで申し込んだ人の連絡のメールアドレス（小文字。主催者に見せない・ログに出さない。booking-003 R10） */
+    contactEmail: text("contact_email"),
+    /** メールで申し込んだ人の札の SHA-256（16進。見る・取り消すのリンク。booking-003 R10） */
+    entryTokenHash: text("entry_token_hash"),
     ...timestamps(),
   },
   (table) => [
@@ -87,13 +100,23 @@ export const bookingEntry = pgTable(
     uniqueIndex("booking_entry_event_id_account_id_unique")
       .on(table.eventId, table.accountId)
       .where(sql`${table.accountId} is not null`),
+    uniqueIndex("booking_entry_event_id_contact_email_unique")
+      .on(table.eventId, table.contactEmail)
+      .where(sql`${table.contactEmail} is not null`),
+    uniqueIndex("booking_entry_entry_token_hash_unique")
+      .on(table.entryTokenHash)
+      .where(sql`${table.entryTokenHash} is not null`),
+    check(
+      "booking_entry_contact_email_check",
+      sql`${table.contactEmail} is null or char_length(${table.contactEmail}) <= 254`,
+    ),
     check(
       "booking_entry_application_source_check",
       sql`${table.applicationSource} in ('connpass', 'peatix', 'direct', 'other')`,
     ),
     check(
       "booking_entry_entry_kind_check",
-      sql`${table.entryKind} in ('manual', 'import', 'walk_in')`,
+      sql`${table.entryKind} in ('manual', 'import', 'walk_in', 'self_page')`,
     ),
     check("booking_entry_status_check", sql`${table.status} in ('confirmed', 'cancelled')`),
   ],
@@ -327,5 +350,71 @@ export const bookingNotice = pgTable(
       sql`${table.result} in ('sent', 'off', 'not_allowed', 'no_destination', 'failed', 'unavailable')`,
     ),
     check("booking_notice_entry_check", sql`(${table.kind} = 'test') = (${table.entryId} is null)`),
+  ],
+);
+
+// ---- 自前の申込みページ（booking-003。specs/booking/003-apply/data-model.md・AD-23） ----
+// 案内の同意は、同意した人と相手（組織か交流会の持ち主のどちらか1つ）の組。確認の待ちは、メールで申し込む人の名前・アドレス・
+// 札の SHA-256（24時間）。消し方：同意は本人・相手のどちらを消しても消える。確認の待ちは交流会と一緒に消える。
+
+/** 案内の同意（相手は組織か持ち主のどちらか1つ。booking-003 research R5）。 */
+export const bookingConsent = pgTable(
+  "booking_consent",
+  {
+    id: primaryId(),
+    /** 同意した人 */
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accountTable.id, { onDelete: "cascade" }),
+    /** 相手の組織 */
+    organizationId: uuid("organization_id").references(() => organizationTable.id, {
+      onDelete: "cascade",
+    }),
+    /** 相手の個人の持ち主 */
+    ownerAccountId: uuid("owner_account_id").references(() => accountTable.id, {
+      onDelete: "cascade",
+    }),
+    /** 同意した時刻 */
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    check(
+      "booking_consent_holder_check",
+      sql`num_nonnulls(${table.organizationId}, ${table.ownerAccountId}) = 1`,
+    ),
+    uniqueIndex("booking_consent_account_id_organization_id_unique")
+      .on(table.accountId, table.organizationId)
+      .where(sql`${table.organizationId} is not null`),
+    uniqueIndex("booking_consent_account_id_owner_account_id_unique")
+      .on(table.accountId, table.ownerAccountId)
+      .where(sql`${table.ownerAccountId} is not null`),
+    index("booking_consent_organization_id_idx").on(table.organizationId),
+    index("booking_consent_owner_account_id_idx").on(table.ownerAccountId),
+  ],
+);
+
+/** メールで申し込む確認の待ち（札は SHA-256 だけ・24時間。booking-003 research R10）。 */
+export const bookingEmailRequest = pgTable(
+  "booking_email_request",
+  {
+    id: primaryId(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => eventTable.id, { onDelete: "cascade" }),
+    /** 入れた名前（前後の空白を消したもの） */
+    name: text("name").notNull(),
+    /** 入れたメールアドレス（小文字） */
+    email: text("email").notNull(),
+    /** 確認の札の SHA-256（16進） */
+    tokenHash: text("token_hash").notNull(),
+    /** 期限（作ってから24時間） */
+    expiresAt: timestamptz("expires_at").notNull(),
+    /** 作った時刻（同じアドレスの10分の縛り） */
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("booking_email_request_token_hash_unique").on(table.tokenHash),
+    index("booking_email_request_event_id_email_idx").on(table.eventId, table.email),
+    check("booking_email_request_email_check", sql`char_length(${table.email}) <= 254`),
   ],
 );

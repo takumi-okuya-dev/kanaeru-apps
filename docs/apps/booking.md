@@ -12,8 +12,8 @@
 
 | 表 | 列 | 決まり |
 |---|---|---|
-| `booking_setting` | `event_id`（主キー）・`mode`・`created_at`・`updated_at` | 交流会ごとの使い方。行がなければ受付だけ。`mode` は `reception`（受付だけ）・`roster`（名簿を使う）の CHECK（`booking_setting_mode_check`）。「受付だけ」に戻しても行は消さない |
-| `booking_entry` | `id`・`event_id`・`name`・`application_source`（媒体）・`entry_kind`（入口）・`status`（状態）・`applied_at`（申し込んだ日時）・`entered_by`（入れた人）・`memo`・`account_id`（本人の申込み。この版では空）・`checkin_id`（手で当てたチェックイン）・`created_at`・`updated_at` | 名簿の1行。媒体は受付の申し込みの媒体（`connpass`・`peatix`・`direct`・`other`）、入口は `manual`（手で足す）・`import`（取り込み）・`walk_in`（飛び入り）、状態は `confirmed`（確定）・`cancelled`（取り消し）の CHECK。`checkin_id` は空でない行で一意（`booking_entry_checkin_id_unique`）、`(event_id, account_id)` は `account_id` が空でない行で一意。索引 `booking_entry_event_id_applied_at_idx`・`booking_entry_entered_by_idx`・`booking_entry_account_id_idx` |
+| `booking_setting` | `event_id`（主キー）・`mode`・`accepting`・`visibility`・`created_at`・`updated_at` | 交流会ごとの使い方。行がなければ受付だけ。`mode` は `reception`（受付だけ）・`roster`（名簿を使う）・`self_page`（自前で申込みを受ける。booking-003）の CHECK（`booking_setting_mode_check`）。「受付だけ」に戻しても行は消さない。`accepting`（申込みページの受付を開いているか。既定 false）・`visibility`（`public`＝誰でも・`members`＝部員だけ。既定 `public`。CHECK `booking_setting_visibility_check`）は booking-003 |
+| `booking_entry` | `id`・`event_id`・`name`・`application_source`（媒体）・`entry_kind`（入口）・`status`（状態）・`applied_at`（申し込んだ日時）・`entered_by`（入れた人）・`memo`・`account_id`（本人の申込み〈自前のページで LINE ログインして申し込んだ人〉）・`checkin_id`（手で当てたチェックイン）・`contact_email`（メールで申し込んだ人の連絡のメール。主催者に見せない）・`entry_token_hash`（メールで申し込んだ人の札の SHA-256）・`created_at`・`updated_at` | 名簿の1行。媒体は受付の申し込みの媒体（`connpass`・`peatix`・`direct`・`other`）、入口は `manual`（手で足す）・`import`（取り込み）・`walk_in`（飛び入り）・`self_page`（自前。booking-003）、状態は `confirmed`（確定）・`cancelled`（取り消し）の CHECK。`checkin_id` は空でない行で一意（`booking_entry_checkin_id_unique`）、`(event_id, account_id)` は `account_id` が空でない行で一意、`(event_id, contact_email)`・`entry_token_hash` は空でない行で一意（booking-003）。`contact_email` は254文字まで。索引 `booking_entry_event_id_applied_at_idx`・`booking_entry_entered_by_idx`・`booking_entry_account_id_idx` |
 | `booking_dismissal` | `id`・`event_id`・`checkin_id`・`entry_id`・`dismissed_by`・`created_at` | 受付係が「ちがう人」にした組。`(checkin_id, entry_id)` で一意 |
 | `booking_import_mapping` | `id`・`owner_account_id`・`header_key`（見出しの並びの JSON）・`name_column`・`application_source`・`created_at`・`updated_at` | 交流会の持ち主ごとの CSV の列の対応。`(owner_account_id, header_key)` で一意 |
 
@@ -21,6 +21,8 @@
 | `booking_line_link` | `id`・`channel_id`・`line_user_id`・`account_id`・`created_at`・`updated_at` | 紐づけ。`line_user_id` は公式アカウントから見える ID（送り先。LINE ログインの `sub` ではない。CHECK `^U[0-9a-f]{32}$`）。`(channel_id, account_id)`・`(channel_id, line_user_id)` で一意 |
 | `booking_line_link_token` | `id`・`channel_id`・`line_user_id`・`token_hash`（SHA-256。一意）・`expires_at`・`used_at`・`used_by_account_id`・`created_at` | 紐づけの札。7日・1回だけ。同じ人の使っていない札は、友だち追加し直したときとブロックで消す |
 | `booking_contact` | `account_id`（主キー）・`email`・`created_at`・`updated_at` | 参加者の連絡のメールアドレス（予約の知らせのためだけ・任意・本人の窓口だけが読み書きする・主催者に見せない。254文字まで） |
+| `booking_consent` | `id`・`account_id`（同意した人）・`organization_id`・`owner_account_id`・`created_at` | 案内の同意（booking-003）。相手は組織か交流会の持ち主のどちらか1つ（`booking_consent_holder_check`）。相手ごとに1つ（部分の一意）。案内を送る機能はまだない（記録だけ） |
+| `booking_email_request` | `id`・`event_id`・`name`・`email`・`token_hash`（SHA-256。一意）・`expires_at`・`created_at` | メールで申し込む確認の待ち（booking-003）。24時間。確定すると消し、期限切れはその交流会に新しい待ちを作るときに消す |
 | `booking_notice` | `id`・`entry_id`・`channel_id`・`kind`・`method`・`result`・`created_at` | 知らせの記録。種類 `confirmed`・`waitlisted`・`offered`・`offer_expired`・`changed`・`cancelled_event`・`test`、手段 `line`・`email`・`none`、結果 `sent`・`off`・`not_allowed`・`no_destination`・`failed`・`unavailable` の CHECK。申込みが空なのは確かめのメッセージ（`test`）だけ。本文・宛先・トークンは持たない |
 
 消し方（research R11）：
@@ -36,10 +38,12 @@
 | `booking_line_link.channel_id`・`booking_line_link_token.channel_id` | `CASCADE` |
 | `booking_line_link_token.used_by_account_id` | `SET NULL` |
 | `booking_notice.entry_id` | `CASCADE`／`booking_notice.channel_id` は `SET NULL`（記録は残る） |
+| `booking_consent` の `account_id`・`organization_id`・`owner_account_id` | `CASCADE`（本人の同意・相手がいなくなれば消える。booking-003） |
+| `booking_email_request.event_id` | `CASCADE`（交流会と一緒に消える） |
 
-- 使い方・入口・状態の値は今使うものだけを CHECK に入れている。「自前で申込みを受ける」（`self_page`）・入口の自前のページ・キャンセル待ち・打診中を足すときは、CHECK を広げる（今の行はどれも通るので1回の DB の変更でよい）。
+- 使い方・入口・状態の値は今使うものだけを CHECK に入れている。キャンセル待ち・打診中を足すときは、CHECK を広げる（今の行はどれも通るので1回の DB の変更でよい。`self_page` は booking-003 でこの形で足した）。
 - 名前は前後の空白を消して持つ。そろえた名前（`normalizeCheckinName`）は持たず、比べるときに作る。名前はログに出さない。
-- 参加者のメールアドレスは持たない・返さない（PRD FR-B26）。
+- 参加者のメールアドレスは、メールで申し込んだ人の `contact_email` と、本人が入れた `booking_contact` だけ。主催者・受付係の答え（名簿・CSV・当てる画面）には出さない（PRD FR-B26・Constitution II）。
 
 ## 2. 窓口（どれもログイン必須。道の頭は `/api/v1/booking/events/{eventId}`）
 

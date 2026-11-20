@@ -6,11 +6,11 @@
 
 ## Phase 1: DB の変更（1つ目の PR `feature/booking-003-apply`）
 
-- [ ] T001 約束の選択肢を先に置く：`packages/contracts/src/booking/options.ts`（`BOOKING_MODES` に `self_page`・`ENTRY_KINDS` に `self_page`・`VISIBILITIES`・`PAGE_STATES` と言葉・`usesRoster`）・`index.ts`。単体のテスト `options.test.ts`（言葉がそろう・`usesRoster`）
-- [ ] T002 結合のテストを先に書く（`apps/api/src/modules/booking/apply-schema.test.ts`）：使い方 `self_page` が入る・既定は閉じる・誰でも・見せる範囲の CHECK・入口 `self_page`・連絡のメールの長さ・札の一意・`(event_id, contact_email)` の一意・同意の相手はどちらか1つ・同意の一意（組織・持ち主ごと）・組織・持ち主・本人を消すと同意が消える・交流会を消すと確認の待ちが消える・確認の待ちの札の一意。`schema.test.ts` の CHECK の値の見張りに新しい値を足す
-- [ ] T003 `apps/api/src/modules/booking/schema.ts`：列・CHECK・一意と、`booking_consent`・`booking_email_request`
-- [ ] T004 `pnpm db:generate --name booking_apply` → `apps/api/drizzle/0017_booking_apply.sql` を読む（足す・CHECK を広げるだけで、消す・名前を変える・NOT NULL で既定値なしがないこと）→ `pnpm db:migrate`
-- [ ] T005 `pnpm check` を流し、コミットする
+- [x] T001 約束の選択肢を先に置く：`packages/contracts/src/booking/options.ts`（`BOOKING_MODES` に `self_page`・`ENTRY_KINDS` に `self_page`・`VISIBILITIES`・`PAGE_STATES` と言葉・`usesRoster`）・`index.ts`。単体のテスト `options.test.ts`（言葉がそろう・`usesRoster`）
+- [x] T002 結合のテストを先に書く（`apps/api/src/modules/booking/apply-schema.test.ts`）：使い方 `self_page` が入る・既定は閉じる・誰でも・見せる範囲の CHECK・入口 `self_page`・連絡のメールの長さ・札の一意・`(event_id, contact_email)` の一意・同意の相手はどちらか1つ・同意の一意（組織・持ち主ごと）・組織・持ち主・本人を消すと同意が消える・交流会を消すと確認の待ちが消える・確認の待ちの札の一意。`schema.test.ts` の CHECK の値の見張りに新しい値を足す
+- [x] T003 `apps/api/src/modules/booking/schema.ts`：列・CHECK・一意と、`booking_consent`・`booking_email_request`
+- [x] T004 `pnpm db:generate --name booking_apply` → `apps/api/drizzle/0017_booking_apply.sql` を読む（足す・CHECK を広げるだけで、消す・名前を変える・NOT NULL で既定値なしがないこと）→ `pnpm db:migrate`
+- [x] T005 `pnpm check` を流し、コミットする
 
 ## Phase 2: 共通（2つ目の PR `feature/booking-003-pr2-apply` の1つ目のコミット）
 
