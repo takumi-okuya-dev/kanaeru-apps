@@ -1,554 +1,187 @@
-// 投稿の案（めぐるの「投稿ストック」）。状態（承認待ち・承認済み・却下）をチップで選び、案ごとにカードで出す。
-// 案ごとに Threads の文字数・NG ワード・規約に注意・似ている度合い（ほかの案との近さ。80％以上で知らせる）を出す。
-// 承認待ち：承認・却下・直す・消す。承認済み：承認待ちに戻す・却下・消す。却下：承認待ちに戻す・消す。
-// 承認待ちと承認済みは、選んでまとめて承認・却下できる。結果は押したボタンの近くに出し、消す前は確かめる（EXPERIENCE.md）。
-// threads-002：上に自動投稿の状態（次の投稿・知らせ）を出す。承認済みは投稿の順に並べ、予定の時刻と「次に投稿する」を出す。
-// 投稿済み（Threads の投稿へのリンク）と投稿に失敗（理由・承認し直す）のチップを足した。投稿中の案は変えられない。
-// threads-007：カードの中で時間差のメンションを付ける・直す・外す（MentionPanel.tsx）。
+// 投稿の案（めぐるの「投稿ストック」）。状態（承認待ち・承認済み・投稿済み・投稿に失敗・却下）をチップで選び、案ごとにカードで出す（カードは DraftCard.tsx）。
+// 選んだ状態は道の ?tab= に残す（読みこみ直しても同じ状態を開く）。結果は押したボタンの近くに出し、消す前は確かめる（EXPERIENCE.md）。
+// threads-002：上に自動投稿の状態。承認済みは投稿の順に並べ、予定の時刻と「次に投稿する」を出す。threads-007：カードの中で時間差のメンション。
+// threads-011（めぐるの投稿ストックの振る舞いを写した）：
+// - まとめての操作は1件ずつ確かめ、できるものだけ変える（「N件を承認しました。M件は承認できませんでした（理由ごとの件数）」）
+// - 承認待ち：ためた新しいまとまりが先で、まとまりごとに「○にためたN件」と「このN件を選ぶ」。「承認できるものを選ぶ（N件）」。
+//   選んで承認（責任の確かめの枠。規約に注意の確かめも兼ねる）・却下・消す・「いつも付ける」の人でメンションを付ける
+// - 承認済み：選んで承認待ちに戻す・却下。却下：選んで承認待ちに戻す・消す。投稿済み：50件ずつ「もっと見る」
+// - 規約に注意の案を1件承認するときは確かめの枠を出す。似ている案へは、その状態のチップに切り替えて移る
+// めぐるの「元に戻す」のトースト（承認・却下・削除の取り消し）は持たない。kanaeru は消す前に確かめる。
 import {
-  DRAFT_BODY_MAX,
+  NEEDS_REVIEW_LIMIT,
+  APPROVED_LIMIT,
   DRAFT_LIST_STATUSES,
   DRAFT_STATUS_LABELS,
-  PUBLISH_ERROR_LABELS,
-  REJECT_NOTE_MAX,
-  REJECT_REASONS,
+  REJECTED_LIST_MAX,
   SIMILARITY_THRESHOLD,
-  THREADS_TEXT_LIMIT,
   checkPublishable,
   computeSimilarities,
-  rejectReasonLabel,
-  threadsLength,
+  mergeChecks,
 } from "@workspace/contracts/threads";
 import type {
   DraftListStatus,
-  MentionSettings,
-  NgWord,
   PostDraft,
+  PublishCheck,
   RejectReasonCode,
-  ReviewInput,
+  SimilarityResult,
   ThreadsAccount,
 } from "@workspace/contracts/threads";
+import { jstDateTime } from "@workspace/contracts/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
-import { Badge } from "@workspace/ui/components/badge";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
-import { Dialog } from "@workspace/ui/components/dialog";
-import { Field } from "@workspace/ui/components/field";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
-import { Textarea } from "@workspace/ui/components/textarea";
-import { jstDateTime } from "@workspace/contracts/core";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { errorMessage } from "../../lib/api.ts";
-import { fieldErrorsFromApi } from "../../lib/form.ts";
-import { Page } from "../../lib/page.tsx";
+import { ThreadsPage } from "./ThreadsPage.tsx";
 import { AccountGate, LoadFailure, Loading } from "./AccountGate.tsx";
 import { AutoPostPanel } from "./AutoPostPanel.tsx";
-import { deleteDraft, reviewDrafts, setDraftPriority, updateDraft } from "./api.ts";
-import { MentionPanel } from "./MentionPanel.tsx";
-import { THREADS_QUERY_KEYS, useDrafts, useMentionSettings, usePostingRules } from "./queries.ts";
+import { attachMentionsBulk, deleteDrafts, setDraftPriority } from "./api.ts";
+import { useThreadsCan } from "./team-access.ts";
+import { DraftCard, draftCardId } from "./DraftCard.tsx";
+import type { CardDialog, CardResult, CompareTarget } from "./DraftCard.tsx";
+import { EditDialog, RejectDialog } from "./DraftDialogs.tsx";
+import { reviewMessage, sendReview } from "./review-send.ts";
+import type { ReviewAction, ReviewOptions } from "./review-send.ts";
+import {
+  THREADS_QUERY_KEYS,
+  useDrafts,
+  useMentionSettings,
+  usePostingRules,
+  usePublishedDrafts,
+} from "./queries.ts";
 
-/** 結果の知らせ。 */
-type Result = { tone: "success" | "danger"; message: string };
-
-/** 開いている枠。 */
+/** 開いている確かめの枠（カードから開く枠のほか、規約に注意・まとめて承認）。 */
 type OpenDialog =
-  | { kind: "edit"; draft: PostDraft }
-  | { kind: "reject"; drafts: PostDraft[] }
-  | { kind: "delete"; draft: PostDraft }
+  | CardDialog
+  | { kind: "policy"; drafts: PostDraft[]; labels: string[] }
+  | { kind: "bulk-approve"; drafts: PostDraft[] }
   | undefined;
 
+/** ためたまとまりごとの案。 */
+type BatchGroup = { batchId: string; createdAt: string; drafts: PostDraft[] };
+
 /**
- * 案を、承認・却下の入力の項目にする。
+ * 承認待ちの案を、ためたまとまりごとに分ける（API の順のまま）。
  * @param drafts 案
- * @returns 項目
+ * @returns まとまり
  */
-function toItems(drafts: readonly PostDraft[]): ReviewInput["items"] {
-  return drafts.map((draft) => ({ id: draft.id, version: draft.version }));
-}
-
-/** DraftCard が受け取るもの。 */
-type DraftCardProps = {
-  /** 運用アカウントの ID */
-  accountId: string;
-  /** 案 */
-  draft: PostDraft;
-  /** 時間差のメンションの設定（threads-007。読めていなければ undefined） */
-  mentionSettings: MentionSettings | undefined;
-  /** NG ワード */
-  ngWords: readonly NgWord[];
-  /** 似ている度合い（出さないときは undefined） */
-  similarity: number | undefined;
-  /** 選んでいるか（選べない状態なら undefined） */
-  selected: boolean | undefined;
-  /** 選ぶ・外す */
-  onSelect: (selected: boolean) => void;
-  /** 操作中か */
-  pending: boolean;
-  /** このカードの結果 */
-  result: Result | undefined;
-  /** 投稿の予定の時刻（承認済みで、予定があるときだけ） */
-  scheduledAt: string | undefined;
-  /** 承認する・承認待ちに戻す */
-  onReview: (action: "approve" | "reopen") => void;
-  /** 「次に投稿する」を付ける・外す */
-  onPriority: (prioritized: boolean) => void;
-  /** 枠を開く */
-  onOpen: (dialog: NonNullable<OpenDialog>) => void;
-};
-
-/**
- * 案の1枚。
- * @param props 案・NG ワード・似ている度合い・選択・操作
- * @returns カードの要素
- */
-function DraftCard({
-  accountId,
-  draft,
-  mentionSettings,
-  ngWords,
-  similarity,
-  selected,
-  onSelect,
-  pending,
-  result,
-  scheduledAt,
-  onReview,
-  onPriority,
-  onOpen,
-}: DraftCardProps) {
-  const check = checkPublishable(draft.body, [...ngWords]);
-  const length = threadsLength(draft.body);
-  const headingId = `threads-draft-${draft.id}`;
-  return (
-    <li
-      aria-labelledby={headingId}
-      className="flex flex-col gap-xs rounded-md border border-border bg-surface p-xs"
-    >
-      <div className="flex flex-wrap items-center gap-xxs">
-        {selected !== undefined ? (
-          <label className="flex min-h-l items-center gap-x3s text-m">
-            <input
-              type="checkbox"
-              className="size-s accent-primary"
-              checked={selected}
-              onChange={(change) => onSelect(change.target.checked)}
-            />
-            選ぶ
-          </label>
-        ) : null}
-        <h3 id={headingId} className="sr-only">
-          {`${DRAFT_STATUS_LABELS[draft.status]}の案：${draft.body.slice(0, 20)}`}
-        </h3>
-        <span
-          className={
-            length > THREADS_TEXT_LIMIT ? "text-s text-danger-text" : "text-s text-text-sub"
-          }
-        >
-          {length}／{THREADS_TEXT_LIMIT}文字
-        </span>
-        {similarity !== undefined && similarity >= SIMILARITY_THRESHOLD ? (
-          <Badge variant="danger">似た案あり {similarity}％</Badge>
-        ) : null}
-        {check.ngWords.length > 0 ? (
-          <Badge variant="danger">
-            NGワード：{check.ngWords.map((hit) => hit.word).join("、")}
-          </Badge>
-        ) : null}
-        {check.overThreadsLimit ? (
-          <Badge variant="danger">Threads の上限を超えています</Badge>
-        ) : null}
-        {draft.status === "publishing" ? <Badge>投稿中</Badge> : null}
-        {draft.carryover ? <Badge>前の時刻から持ち越し</Badge> : null}
-        {draft.prioritizedAt ? <Badge variant="success">次に投稿する</Badge> : null}
-        {scheduledAt ? (
-          <span className="text-s text-text-sub">投稿の予定：{jstDateTime(scheduledAt)}</span>
-        ) : null}
-        {draft.publishedAt ? (
-          <span className="text-s text-text-sub">投稿：{jstDateTime(draft.publishedAt)}</span>
-        ) : null}
-      </div>
-      {draft.blockedReason ? (
-        <p className="text-s text-danger-text">
-          {draft.blockedReason === "ng_word"
-            ? `投稿の直前にNGワード（${(draft.blockedWords ?? []).join("、")}）に当たったため、承認待ちに戻しました。`
-            : "投稿の直前に Threads の上限を超えていたため、承認待ちに戻しました。"}
-        </p>
-      ) : null}
-      {draft.status === "publish_failed" && draft.publishError ? (
-        <p className="text-s text-danger-text">
-          投稿に失敗しました（{PUBLISH_ERROR_LABELS[draft.publishError]}
-          {draft.publishFailedAt ? `・${jstDateTime(draft.publishFailedAt)}` : ""}）。
-          直す・承認し直すと、投稿の順に戻ります。
-        </p>
-      ) : null}
-      <p className="text-m break-words whitespace-pre-wrap">{draft.body}</p>
-      {check.policyCautions.length > 0 ? (
-        <ul className="flex flex-col gap-x3s text-s text-text-sub">
-          {check.policyCautions.map((caution) => (
-            <li key={caution.id}>
-              規約に注意：{caution.label}（{caution.suggestion}）
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {draft.status === "rejected" ? (
-        <p className="text-s text-text-sub">
-          却下の理由：
-          {[...(draft.rejectReasons ?? []).map(rejectReasonLabel), draft.rejectNote]
-            .filter(Boolean)
-            .join("・")}
-        </p>
-      ) : null}
-      {mentionSettings ? (
-        <MentionPanel
-          accountId={accountId}
-          draft={draft}
-          settings={mentionSettings}
-          ngWords={ngWords}
-        />
-      ) : null}
-      <div className="flex flex-col items-start gap-xxs">
-        <div className="flex flex-wrap gap-xxs">
-          {draft.status === "needs_review" ? (
-            <>
-              <Button
-                variant="primary"
-                size="small"
-                disabled={!check.approvable}
-                aria-disabled={pending || undefined}
-                onClick={() => onReview("approve")}
-              >
-                承認する
-              </Button>
-              <Button size="small" onClick={() => onOpen({ kind: "reject", drafts: [draft] })}>
-                却下する
-              </Button>
-              <Button size="small" onClick={() => onOpen({ kind: "edit", draft })}>
-                直す
-              </Button>
-            </>
-          ) : null}
-          {draft.status === "approved" ? (
-            <>
-              <Button
-                size="small"
-                aria-disabled={pending || undefined}
-                onClick={() => onPriority(draft.prioritizedAt === null)}
-              >
-                {draft.prioritizedAt ? "「次に投稿する」を外す" : "次に投稿する"}
-              </Button>
-              <Button
-                size="small"
-                aria-disabled={pending || undefined}
-                onClick={() => onReview("reopen")}
-              >
-                承認待ちに戻す
-              </Button>
-              <Button size="small" onClick={() => onOpen({ kind: "reject", drafts: [draft] })}>
-                却下する
-              </Button>
-            </>
-          ) : null}
-          {draft.status === "publish_failed" ? (
-            <>
-              <Button
-                variant="primary"
-                size="small"
-                disabled={!check.approvable}
-                aria-disabled={pending || undefined}
-                onClick={() => onReview("approve")}
-              >
-                承認し直す
-              </Button>
-              <Button
-                size="small"
-                aria-disabled={pending || undefined}
-                onClick={() => onReview("reopen")}
-              >
-                承認待ちに戻す
-              </Button>
-              <Button size="small" onClick={() => onOpen({ kind: "reject", drafts: [draft] })}>
-                却下する
-              </Button>
-            </>
-          ) : null}
-          {draft.status === "rejected" ? (
-            <Button
-              size="small"
-              aria-disabled={pending || undefined}
-              onClick={() => onReview("reopen")}
-            >
-              承認待ちに戻す
-            </Button>
-          ) : null}
-          {draft.status === "published" && draft.threadsPermalink ? (
-            <a
-              href={draft.threadsPermalink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={buttonVariants({ variant: "text", size: "small" })}
-            >
-              Threads で見る（新しいタブ）
-            </a>
-          ) : null}
-          {draft.status !== "publishing" ? (
-            <Button variant="text" size="small" onClick={() => onOpen({ kind: "delete", draft })}>
-              消す
-            </Button>
-          ) : null}
-        </div>
-        {!check.approvable && draft.status === "needs_review" ? (
-          <p className="text-s text-text-sub">
-            NGワードを含むか Threads の上限を超えるので、直してから承認してください。
-          </p>
-        ) : null}
-        {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
-      </div>
-    </li>
-  );
-}
-
-/** EditDialog が受け取るもの。 */
-type EditDialogProps = {
-  /** 運用アカウントの ID */
-  accountId: string;
-  /** 直す案 */
-  draft: PostDraft;
-  /** 閉じる */
-  onClose: () => void;
-  /** 直したあと */
-  onDone: () => Promise<void>;
-};
-
-/**
- * 案の本文を直す枠。
- * @param props 運用アカウントの ID・直す案・閉じる・直したあと
- * @returns 枠の要素
- */
-function EditDialog({ accountId, draft, onClose, onDone }: EditDialogProps) {
-  const [body, setBody] = useState(draft.body);
-  const [error, setError] = useState<string>();
-  const [failure, setFailure] = useState<string>();
-  const [pending, setPending] = useState(false);
-
-  /** 保存する。 */
-  const save = async () => {
-    if (pending) return;
-    setFailure(undefined);
-    if (body.trim() === "") {
-      setError("本文を入れてください。");
-      return;
-    }
-    setError(undefined);
-    setPending(true);
-    try {
-      await updateDraft(accountId, draft.id, { body, version: draft.version });
-      await onDone();
-      onClose();
-    } catch (caught) {
-      const fields = fieldErrorsFromApi(caught);
-      if (fields.body) setError(fields.body);
-      else setFailure(`保存できませんでした。${errorMessage(caught)}`);
-    } finally {
-      setPending(false);
-    }
-  };
-
-  return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open && !pending) onClose();
-      }}
-      title="案を直す"
-      footer={
-        <div className="flex flex-col-reverse gap-xxs wide:flex-row wide:justify-end">
-          <Button onClick={onClose} aria-disabled={pending || undefined}>
-            キャンセル
-          </Button>
-          <Button
-            variant="primary"
-            onClick={() => void save()}
-            aria-disabled={pending || undefined}
-          >
-            {pending ? "保存しています…" : "保存"}
-          </Button>
-        </div>
-      }
-    >
-      <div className="flex flex-col gap-xs">
-        <Field
-          label="本文"
-          description={`Threads の上限は${THREADS_TEXT_LIMIT}文字です（今 ${threadsLength(body)}文字）。`}
-          error={error}
-          required
-        >
-          <Textarea
-            rows={8}
-            maxLength={DRAFT_BODY_MAX}
-            value={body}
-            onChange={(change) => setBody(change.target.value)}
-          />
-        </Field>
-        {failure ? <ResponseMessage tone="danger">{failure}</ResponseMessage> : null}
-      </div>
-    </Dialog>
-  );
-}
-
-/** RejectDialog が受け取るもの。 */
-type RejectDialogProps = {
-  /** 運用アカウントの ID */
-  accountId: string;
-  /** 却下する案 */
-  drafts: PostDraft[];
-  /** 閉じる */
-  onClose: () => void;
-  /** 却下したあと */
-  onDone: (count: number) => Promise<void>;
-};
-
-/**
- * 理由をつけて却下する枠。理由とメモは、次のプロンプトで「避けること」として使う。
- * @param props 運用アカウントの ID・却下する案・閉じる・却下したあと
- * @returns 枠の要素
- */
-function RejectDialog({ accountId, drafts, onClose, onDone }: RejectDialogProps) {
-  const [reasons, setReasons] = useState<RejectReasonCode[]>([]);
-  const [note, setNote] = useState("");
-  const [error, setError] = useState<string>();
-  const [failure, setFailure] = useState<string>();
-  const [pending, setPending] = useState(false);
-
-  /** 却下する。 */
-  const reject = async () => {
-    if (pending) return;
-    setFailure(undefined);
-    if (reasons.length === 0 && note.trim() === "") {
-      setError("却下の理由を選ぶか、メモを書いてください。");
-      return;
-    }
-    setError(undefined);
-    setPending(true);
-    try {
-      await reviewDrafts(accountId, {
-        action: "reject",
-        items: toItems(drafts),
-        reasons,
-        ...(note.trim() ? { note: note.trim() } : {}),
-      });
-      await onDone(drafts.length);
-      onClose();
-    } catch (caught) {
-      setFailure(`却下できませんでした。${errorMessage(caught)}`);
-    } finally {
-      setPending(false);
-    }
-  };
-
-  return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open && !pending) onClose();
-      }}
-      title={drafts.length > 1 ? `${drafts.length}件の案を却下する` : "案を却下する"}
-      description="理由とメモは、次に作るプロンプトに「避けること」として入ります。"
-      footer={
-        <div className="flex flex-col-reverse gap-xxs wide:flex-row wide:justify-end">
-          <Button onClick={onClose} aria-disabled={pending || undefined}>
-            キャンセル
-          </Button>
-          <Button
-            variant="primary"
-            onClick={() => void reject()}
-            aria-disabled={pending || undefined}
-          >
-            {pending ? "却下しています…" : "却下する"}
-          </Button>
-        </div>
-      }
-    >
-      <div className="flex flex-col gap-s">
-        <fieldset
-          className="flex flex-col gap-x3s"
-          aria-describedby={error ? "threads-reject-error" : undefined}
-        >
-          <legend className="mb-x3s text-m font-bold">却下の理由（いくつでも）</legend>
-          {REJECT_REASONS.map((reason) => (
-            <label key={reason.code} className="flex min-h-l items-center gap-xxs text-m">
-              <input
-                type="checkbox"
-                className="size-s accent-primary"
-                checked={reasons.includes(reason.code)}
-                onChange={(change) =>
-                  setReasons((current) =>
-                    change.target.checked
-                      ? [...current, reason.code]
-                      : current.filter((code) => code !== reason.code),
-                  )
-                }
-              />
-              {reason.label}
-            </label>
-          ))}
-          {error ? (
-            <p id="threads-reject-error" className="text-s text-danger-text">
-              {error}
-            </p>
-          ) : null}
-        </fieldset>
-        <Field label="メモ" description={`任意。${REJECT_NOTE_MAX}文字まで`}>
-          <Textarea
-            rows={3}
-            maxLength={REJECT_NOTE_MAX}
-            value={note}
-            onChange={(change) => setNote(change.target.value)}
-          />
-        </Field>
-        {failure ? <ResponseMessage tone="danger">{failure}</ResponseMessage> : null}
-      </div>
-    </Dialog>
-  );
+function groupByBatch(drafts: readonly PostDraft[]): BatchGroup[] {
+  const groups: BatchGroup[] = [];
+  for (const draft of drafts) {
+    const last = groups.at(-1);
+    if (last?.batchId === draft.batchId) last.drafts.push(draft);
+    else groups.push({ batchId: draft.batchId, createdAt: draft.createdAt, drafts: [draft] });
+  }
+  return groups;
 }
 
 /** StockContent が受け取るもの。 */
 type StockContentProps = {
   /** 運用アカウント */
   account: ThreadsAccount;
+  /** 道の ?tab= の状態 */
+  status: DraftListStatus;
+  /** 状態を変える（道の ?tab= を変える） */
+  onStatusChange: (status: DraftListStatus) => void;
 };
 
 /**
  * 投稿の案の画面の中身。
- * @param props 運用アカウント（account）
+ * @param props 運用アカウント・状態・状態を変える
  * @returns 画面の要素
  */
-function StockContent({ account }: StockContentProps) {
+function StockContent({ account, status, onStatusChange }: StockContentProps) {
+  // 担当の人の出し分け（threads-013。判定の正は API）
+  const can = useThreadsCan();
   const accountId = account.id;
   const queryClient = useQueryClient();
-  const [status, setStatus] = useState<DraftListStatus>("needs_review");
-  const drafts = useDrafts(accountId, status);
+  const published = status === "published";
+  const drafts = useDrafts(accountId, status, !published);
+  const publishedPages = usePublishedDrafts(accountId, published);
   const rules = usePostingRules(accountId);
   const mentionSettings = useMentionSettings(accountId);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [dialog, setDialog] = useState<OpenDialog>();
   const [pendingId, setPendingId] = useState<string>();
   const [bulkPending, setBulkPending] = useState(false);
-  const [bulkResult, setBulkResult] = useState<Result>();
-  const [cardResults, setCardResults] = useState<Record<string, Result>>({});
-  const [deletePending, setDeletePending] = useState(false);
-  const [deleteError, setDeleteError] = useState<string>();
+  const [bulkResult, setBulkResult] = useState<CardResult>();
+  const [cardResults, setCardResults] = useState<Record<string, CardResult>>({});
+  const [dialogPending, setDialogPending] = useState(false);
+  const [dialogError, setDialogError] = useState<string>();
+  const [jumpTarget, setJumpTarget] = useState<string>();
 
-  const list = drafts.data?.drafts ?? [];
-  const similarities = useMemo(() => {
-    if (!drafts.data || (status !== "needs_review" && status !== "approved")) {
-      return new Map<string, number>();
+  const list = useMemo(
+    () =>
+      published
+        ? (publishedPages.data?.pages.flatMap((page) => page.drafts) ?? [])
+        : (drafts.data?.drafts ?? []),
+    [published, publishedPages.data, drafts.data],
+  );
+  const firstPage = published ? publishedPages.data?.pages[0] : drafts.data;
+  const ngWords = useMemo(() => rules.data?.ngWords ?? [], [rules.data]);
+
+  // 承認できるか（NG ワード・Threads の上限。返信の文も合わせる）。承認の確かめそのものは API が行い、ここは出すため
+  const checks = useMemo(() => {
+    const map = new Map<string, PublishCheck>();
+    for (const draft of list) {
+      const reply =
+        draft.mention?.state === "pending"
+          ? checkPublishable(draft.mention.text, [...ngWords])
+          : null;
+      map.set(draft.id, mergeChecks(checkPublishable(draft.body, [...ngWords]), reply));
     }
-    const result = computeSimilarities(drafts.data.drafts, drafts.data.compareWith);
-    return new Map([...result].map(([id, value]) => [id, value.score]));
-  }, [drafts.data, status]);
+    return map;
+  }, [list, ngWords]);
+
+  // 似ている度合い（承認待ちだけ。相手は承認待ち・承認済み・却下。計算は画面で行う）
+  const compareWith = useMemo(() => firstPage?.compareWith ?? [], [firstPage]);
+  const similarities = useMemo(() => {
+    if (status !== "needs_review") return new Map<string, SimilarityResult>();
+    return computeSimilarities(list, compareWith);
+  }, [status, list, compareWith]);
+  const targets = useMemo(
+    () => new Map<string, CompareTarget>(compareWith.map((item) => [item.id, item])),
+    [compareWith],
+  );
+
+  /**
+   * 案の判定（読めていなければ NG ワードなしで判定する）。
+   * @param draft 案
+   * @returns 判定
+   */
+  const checkOf = (draft: PostDraft): PublishCheck =>
+    checks.get(draft.id) ?? checkPublishable(draft.body, []);
+  /**
+   * 規約に注意の分類（NG ワード・上限で承認できないものは除く）。
+   * @param draft 案
+   * @returns 分類の名前
+   */
+  const cautionsOf = (draft: PostDraft): string[] => {
+    const check = checkOf(draft);
+    return check.approvable ? check.policyCautions.map((caution) => caution.label) : [];
+  };
+  /**
+   * 似ている案（80％以上）があるか。
+   * @param draft 案
+   * @returns あれば true
+   */
+  const isSimilar = (draft: PostDraft) =>
+    (similarities.get(draft.id)?.score ?? 0) >= SIMILARITY_THRESHOLD;
+
+  // 似ている案へ移ったら、その案までスクロールしてフォーカスを移す
+  useEffect(() => {
+    if (!jumpTarget) return;
+    const element = document.getElementById(draftCardId(jumpTarget));
+    if (!element) return;
+    element.scrollIntoView?.({ block: "center" });
+    element.focus();
+    const timer = window.setTimeout(() => setJumpTarget(undefined), 3000);
+    return () => window.clearTimeout(timer);
+  }, [jumpTarget, list]);
 
   /** 運用アカウントの問い合わせをまとめて読み直す。 */
   const refresh = async () => {
@@ -561,28 +194,79 @@ function StockContent({ account }: StockContentProps) {
    * @param next 状態
    */
   const changeStatus = (next: DraftListStatus) => {
-    setStatus(next);
+    onStatusChange(next);
     setSelected(new Set());
     setBulkResult(undefined);
     setCardResults({});
   };
 
   /**
-   * 1件を承認する・承認待ちに戻す。
+   * 似ている案へ移る（その状態のチップに切り替える）。
+   * @param target 似ている案
+   */
+  const jumpTo = (target: CompareTarget) => {
+    const next: DraftListStatus = target.status === "publishing" ? "approved" : target.status;
+    if (next !== status) changeStatus(next);
+    setJumpTarget(target.id);
+  };
+
+  /**
+   * 状態を変える（1件はカードの近く、まとめてはまとめての操作の近くに結果を出す）。
+   * @param action 操作
+   * @param targets 案
+   * @param options 却下の理由・規約に注意の確かめ
+   * @returns 送れたら true
+   */
+  const runReview = async (
+    action: ReviewAction,
+    targets: PostDraft[],
+    options: ReviewOptions = {},
+  ): Promise<boolean> => {
+    const single = targets.length === 1 && targets[0] ? targets[0] : undefined;
+    try {
+      const result = await sendReview(accountId, action, targets, options);
+      const message = reviewMessage(action, targets, result);
+      // 変えた案は選択から外し、変えなかった案は選んだまま残す
+      const changed = new Set(result.drafts.map((draft) => draft.id));
+      setSelected((current) => new Set([...current].filter((id) => !changed.has(id))));
+      if (single) {
+        if (result.skipped.length > 0)
+          setCardResults((current) => ({ ...current, [single.id]: message }));
+        else setBulkResult(message);
+      } else {
+        setBulkResult(message);
+      }
+      return true;
+    } catch (caught) {
+      const message: CardResult = {
+        tone: "danger",
+        message: `できませんでした。${errorMessage(caught)}`,
+      };
+      if (single) setCardResults((current) => ({ ...current, [single.id]: message }));
+      else setBulkResult(message);
+      return false;
+    } finally {
+      await refresh();
+    }
+  };
+
+  /**
+   * 1件を承認する・承認待ちに戻す（規約に注意の案は、承認の前に確かめる）。
    * @param draft 案
    * @param action 操作
    */
   const reviewOne = async (draft: PostDraft, action: "approve" | "reopen") => {
     if (pendingId) return;
+    setCardResults(({ [draft.id]: _removed, ...rest }) => rest);
+    const labels = action === "approve" && draft.status === "needs_review" ? cautionsOf(draft) : [];
+    if (labels.length > 0) {
+      setDialogError(undefined);
+      setDialog({ kind: "policy", drafts: [draft], labels });
+      return;
+    }
     setPendingId(draft.id);
     try {
-      await reviewDrafts(accountId, { action, items: toItems([draft]) });
-      await refresh();
-    } catch (caught) {
-      setCardResults((current) => ({
-        ...current,
-        [draft.id]: { tone: "danger", message: `できませんでした。${errorMessage(caught)}` },
-      }));
+      await runReview(action, [draft]);
     } finally {
       setPendingId(undefined);
     }
@@ -609,44 +293,139 @@ function StockContent({ account }: StockContentProps) {
     }
   };
 
-  const selectedDrafts = list.filter((draft) => selected.has(draft.id));
-  const selectable = status === "needs_review" || status === "approved";
-  const selectableList = list.filter((draft) => draft.status !== "publishing");
+  const selectable = status === "needs_review" || status === "approved" || status === "rejected";
+  const selectableList = selectable ? list.filter((draft) => draft.status !== "publishing") : [];
+  const selectedDrafts = selectableList.filter((draft) => selected.has(draft.id));
+  const approvableSelected = selectedDrafts.filter((draft) => checkOf(draft).approvable);
+  // 注意の付いていない案：NG ワード・Threads の上限・規約に注意・似ている案（80％以上）のどれにも当たらない
+  const cleanDrafts =
+    status === "needs_review"
+      ? list.filter((draft) => {
+          const check = checkOf(draft);
+          return check.approvable && check.policyCautions.length === 0 && !isSimilar(draft);
+        })
+      : [];
+  const allSelected = selectableList.length > 0 && selectedDrafts.length === selectableList.length;
+  const canBulkMention =
+    status === "needs_review" &&
+    !!mentionSettings.data &&
+    !mentionSettings.data.repliesDenied &&
+    mentionSettings.data.people.some((person) => person.always);
+  const approvedSlots = Math.max(0, APPROVED_LIMIT - account.counts.approved);
 
-  /** 選んだ案をまとめて承認する。 */
-  const approveSelected = async () => {
-    if (bulkPending || selectedDrafts.length === 0) return;
+  /**
+   * 選んだ案をまとめて操作する（結果はまとめての操作の近く）。
+   * @param action 操作
+   * @param targets 案
+   * @param options 却下の理由・規約に注意の確かめ
+   * @returns 送れたら true
+   */
+  const runBulk = async (
+    action: ReviewAction,
+    targets: PostDraft[],
+    options: ReviewOptions = {},
+  ): Promise<boolean> => {
+    if (bulkPending || targets.length === 0) return false;
     setBulkResult(undefined);
     setBulkPending(true);
     try {
-      const result = await reviewDrafts(accountId, {
-        action: "approve",
-        items: toItems(selectedDrafts),
-      });
-      setSelected(new Set());
-      await refresh();
-      setBulkResult({ tone: "success", message: `${result.drafts.length}件を承認しました。` });
-    } catch (caught) {
-      setBulkResult({ tone: "danger", message: `承認できませんでした。${errorMessage(caught)}` });
+      return await runReview(action, targets, options);
     } finally {
       setBulkPending(false);
     }
   };
 
-  /** 案を消す（確かめの枠から）。 */
-  const confirmDelete = async () => {
-    if (dialog?.kind !== "delete" || deletePending) return;
-    setDeleteError(undefined);
-    setDeletePending(true);
+  /** 選んだ案に「いつも付ける」の人でまとめてメンションを付ける。 */
+  const mentionSelected = async () => {
+    if (bulkPending || selectedDrafts.length === 0) return;
+    setBulkResult(undefined);
+    setBulkPending(true);
     try {
-      await deleteDraft(accountId, dialog.draft.id);
+      const result = await attachMentionsBulk(
+        accountId,
+        selectedDrafts.map((draft) => ({ id: draft.id, version: draft.version })),
+      );
+      const done = `${result.drafts.length}件にメンションを付けました。`;
+      setBulkResult(
+        result.skipped.length === 0
+          ? { tone: "success", message: done }
+          : {
+              tone: result.drafts.length === 0 ? "danger" : "info",
+              message: `${done}${result.skipped.length}件には付けられませんでした（「いつも付ける」の人がほかの投稿の予定に入っている・ほかの画面で変わったなど）。`,
+            },
+      );
+    } catch (caught) {
+      setBulkResult({ tone: "danger", message: `付けられませんでした。${errorMessage(caught)}` });
+    } finally {
+      setBulkPending(false);
+      await refresh();
+    }
+  };
+
+  /** 確かめの枠の「消す」。 */
+  const confirmDelete = async () => {
+    if (dialog?.kind !== "delete" || dialogPending) return;
+    setDialogError(undefined);
+    setDialogPending(true);
+    try {
+      const ids = dialog.drafts.map((draft) => draft.id);
+      const result = await deleteDrafts(accountId, ids);
+      setSelected((current) => new Set([...current].filter((id) => !ids.includes(id))));
       await refresh();
       setDialog(undefined);
-      setBulkResult({ tone: "success", message: "案を消しました。" });
+      setBulkResult({
+        tone: result.deletedCount === ids.length ? "success" : "info",
+        message:
+          result.deletedCount === ids.length
+            ? `${result.deletedCount}件の案を消しました。`
+            : `${result.deletedCount}件の案を消しました。${ids.length - result.deletedCount}件は、ほかの画面で状態が変わったため消していません。`,
+      });
     } catch (caught) {
-      setDeleteError(`消せませんでした。${errorMessage(caught)}`);
+      setDialogError(`消せませんでした。${errorMessage(caught)}`);
     } finally {
-      setDeletePending(false);
+      setDialogPending(false);
+    }
+  };
+
+  /**
+   * 確かめの枠から承認する（規約に注意・まとめて承認）。
+   * @param targets 案
+   * @param confirmPolicyCaution 規約に注意を確かめたか
+   */
+  const confirmApprove = async (targets: PostDraft[], confirmPolicyCaution: boolean) => {
+    if (dialogPending) return;
+    setDialogPending(true);
+    try {
+      if (targets.length === 1 && targets[0]) setPendingId(targets[0].id);
+      else setBulkPending(true);
+      setDialog(undefined);
+      await runReview("approve", targets, { confirmPolicyCaution });
+    } finally {
+      setDialogPending(false);
+      setPendingId(undefined);
+      setBulkPending(false);
+    }
+  };
+
+  /**
+   * 却下の枠から却下する。
+   * @param targets 案
+   * @param reject 理由とメモ
+   */
+  const submitReject = async (
+    targets: PostDraft[],
+    reject: { reasons: RejectReasonCode[]; note: string },
+  ) => {
+    if (dialogPending) return;
+    setDialogError(undefined);
+    setDialogPending(true);
+    try {
+      setBulkResult(undefined);
+      const ok = await runReview("reject", targets, { reject });
+      if (ok) setDialog(undefined);
+      else setDialogError("却下できませんでした。読みこみ直して、もう一度お試しください。");
+    } finally {
+      setDialogPending(false);
     }
   };
 
@@ -658,8 +437,54 @@ function StockContent({ account }: StockContentProps) {
     rejected: account.counts.rejected,
   };
 
+  /**
+   * 案のカードを描く。
+   * @param draft 案
+   * @returns カード
+   */
+  const renderCard = (draft: PostDraft) => (
+    <DraftCard
+      key={draft.id}
+      accountId={accountId}
+      draft={draft}
+      check={checkOf(draft)}
+      mentionSettings={mentionSettings.data}
+      ngWords={ngWords}
+      similarity={similarities.get(draft.id)}
+      findTarget={(id) => targets.get(id)}
+      onJump={jumpTo}
+      highlighted={jumpTarget === draft.id}
+      selected={selectable && draft.status !== "publishing" ? selected.has(draft.id) : undefined}
+      onSelect={(value) =>
+        setSelected((current) => {
+          const next = new Set(current);
+          if (value) next.add(draft.id);
+          else next.delete(draft.id);
+          return next;
+        })
+      }
+      pending={pendingId === draft.id}
+      result={cardResults[draft.id]}
+      scheduledAt={firstPage?.schedule[draft.id]}
+      onReview={(action) => void reviewOne(draft, action)}
+      onPriority={(prioritized) => void priorityOne(draft, prioritized)}
+      onOpen={(next) => {
+        setDialogError(undefined);
+        setDialog(next);
+      }}
+    />
+  );
+
+  const loading = published ? publishedPages.isPending : drafts.isPending;
+  const loadError = published ? publishedPages.error : drafts.error;
+  const rejectTargets = dialog?.kind === "reject" ? dialog.drafts : [];
+  const bulkTargets = dialog?.kind === "bulk-approve" ? dialog.drafts : [];
+  const bulkApprovable = bulkTargets.filter((draft) => checkOf(draft).approvable);
+  const bulkCount = Math.min(bulkApprovable.length, approvedSlots);
+  const bulkCautious = bulkApprovable.filter((draft) => cautionsOf(draft).length > 0).length;
+
   return (
-    <Page
+    <ThreadsPage
       title="投稿の案"
       lead={`${account.name}：ためた案を承認するか却下します。承認した案は、自動投稿で決めた時刻に投稿されます。`}
       actions={
@@ -682,39 +507,90 @@ function StockContent({ account }: StockContentProps) {
         value={status}
         onValueChange={changeStatus}
       />
-      {selectable && selectableList.length > 0 ? (
+      {selectableList.length > 0 ? (
         <div className="flex flex-col items-start gap-xxs">
           <div className="flex flex-wrap items-center gap-xxs">
             <Button
               size="small"
               onClick={() =>
                 setSelected(
-                  selected.size === selectableList.length
-                    ? new Set()
-                    : new Set(selectableList.map((draft) => draft.id)),
+                  allSelected ? new Set() : new Set(selectableList.map((draft) => draft.id)),
                 )
               }
             >
-              {selected.size === selectableList.length ? "選んだのを外す" : "すべて選ぶ"}
+              {allSelected ? "選んだのを外す" : "すべて選ぶ"}
             </Button>
             {status === "needs_review" ? (
               <Button
+                size="small"
+                disabled={cleanDrafts.length === 0}
+                onClick={() => setSelected(new Set(cleanDrafts.map((draft) => draft.id)))}
+              >
+                承認できるものを選ぶ（{cleanDrafts.length}件）
+              </Button>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-xxs">
+            {status === "needs_review" && can.review ? (
+              <Button
                 variant="primary"
+                size="small"
+                disabled={approvableSelected.length === 0}
+                aria-disabled={bulkPending || undefined}
+                onClick={() => {
+                  setDialogError(undefined);
+                  setDialog({ kind: "bulk-approve", drafts: selectedDrafts });
+                }}
+              >
+                {bulkPending ? "送っています…" : `選んだ${selectedDrafts.length}件を承認`}
+              </Button>
+            ) : null}
+            {(status === "approved" || status === "rejected") && can.review ? (
+              <Button
                 size="small"
                 disabled={selectedDrafts.length === 0}
                 aria-disabled={bulkPending || undefined}
-                onClick={() => void approveSelected()}
+                onClick={() => void runBulk("reopen", selectedDrafts)}
               >
-                {bulkPending ? "承認しています…" : `選んだ${selectedDrafts.length}件を承認`}
+                {bulkPending ? "送っています…" : `選んだ${selectedDrafts.length}件を承認待ちに戻す`}
               </Button>
             ) : null}
-            <Button
-              size="small"
-              disabled={selectedDrafts.length === 0}
-              onClick={() => setDialog({ kind: "reject", drafts: selectedDrafts })}
-            >
-              選んだ{selectedDrafts.length}件を却下
-            </Button>
+            {(status === "needs_review" || status === "approved") && can.review ? (
+              <Button
+                size="small"
+                disabled={selectedDrafts.length === 0}
+                onClick={() => {
+                  setDialogError(undefined);
+                  setDialog({ kind: "reject", drafts: selectedDrafts });
+                }}
+              >
+                選んだ{selectedDrafts.length}件を却下
+              </Button>
+            ) : null}
+            {canBulkMention && can.review ? (
+              <Button
+                size="small"
+                disabled={selectedDrafts.length === 0}
+                aria-disabled={bulkPending || undefined}
+                onClick={() => void mentionSelected()}
+              >
+                選んだ{selectedDrafts.length}件にメンションを付ける
+              </Button>
+            ) : null}
+            {(status === "needs_review" && can.writeContent) ||
+            (status === "rejected" && can.review) ? (
+              <Button
+                variant="text"
+                size="small"
+                disabled={selectedDrafts.length === 0}
+                onClick={() => {
+                  setDialogError(undefined);
+                  setDialog({ kind: "delete", drafts: selectedDrafts });
+                }}
+              >
+                選んだ{selectedDrafts.length}件を消す
+              </Button>
+            ) : null}
           </div>
           {bulkResult ? (
             <ResponseMessage tone={bulkResult.tone}>{bulkResult.message}</ResponseMessage>
@@ -723,13 +599,19 @@ function StockContent({ account }: StockContentProps) {
       ) : bulkResult ? (
         <ResponseMessage tone={bulkResult.tone}>{bulkResult.message}</ResponseMessage>
       ) : null}
-      {drafts.isPending || rules.isPending ? (
+      {status === "needs_review" && account.counts.needsReview >= NEEDS_REVIEW_LIMIT ? (
+        <p role="status" className="rounded-sm border border-border bg-surface-sunken p-xs text-m">
+          承認待ちの案が上限（{NEEDS_REVIEW_LIMIT}
+          件）に達しています。承認か却下をするか、いらない案を消してから、新しい案をためてください。
+        </p>
+      ) : null}
+      {loading || rules.isPending ? (
         <Loading />
-      ) : drafts.isError || rules.isError ? (
+      ) : loadError || rules.isError ? (
         <LoadFailure
-          error={drafts.error ?? rules.error}
+          error={loadError ?? rules.error}
           retry={() => {
-            void drafts.refetch();
+            void (published ? publishedPages.refetch() : drafts.refetch());
             void rules.refetch();
           }}
         />
@@ -739,58 +621,91 @@ function StockContent({ account }: StockContentProps) {
             ? "承認待ちの案はありません。「案を作る」からためてください。"
             : `${DRAFT_STATUS_LABELS[status]}の案はありません。`}
         </p>
+      ) : status === "needs_review" ? (
+        <div className="flex flex-col gap-s">
+          {groupByBatch(list).map((group) => {
+            const label = `${jstDateTime(group.createdAt)}にためた${group.drafts.length}件`;
+            return (
+              <section key={group.batchId} aria-label={label} className="flex flex-col gap-xxs">
+                <div className="flex flex-wrap items-center justify-between gap-xxs">
+                  <h2 className="text-s font-bold text-text-sub">{label}</h2>
+                  <Button
+                    variant="text"
+                    size="small"
+                    onClick={() =>
+                      setSelected(
+                        (current) =>
+                          new Set([...current, ...group.drafts.map((draft) => draft.id)]),
+                      )
+                    }
+                  >
+                    この{group.drafts.length}件を選ぶ
+                  </Button>
+                </div>
+                <ul aria-label={`${label}の案`} className="flex flex-col gap-xs">
+                  {group.drafts.map(renderCard)}
+                </ul>
+              </section>
+            );
+          })}
+        </div>
       ) : (
-        <ul aria-label={`${DRAFT_STATUS_LABELS[status]}の案`} className="flex flex-col gap-xs">
-          {list.map((draft) => (
-            <DraftCard
-              key={draft.id}
-              accountId={accountId}
-              draft={draft}
-              mentionSettings={mentionSettings.data}
-              ngWords={rules.data.ngWords}
-              similarity={similarities.get(draft.id)}
-              selected={
-                selectable && draft.status !== "publishing" ? selected.has(draft.id) : undefined
-              }
-              onSelect={(value) =>
-                setSelected((current) => {
-                  const next = new Set(current);
-                  if (value) next.add(draft.id);
-                  else next.delete(draft.id);
-                  return next;
-                })
-              }
-              pending={pendingId === draft.id}
-              result={cardResults[draft.id]}
-              scheduledAt={drafts.data.schedule[draft.id]}
-              onReview={(action) => void reviewOne(draft, action)}
-              onPriority={(prioritized) => void priorityOne(draft, prioritized)}
-              onOpen={(next) => {
-                setDeleteError(undefined);
-                setDialog(next);
-              }}
-            />
-          ))}
-        </ul>
+        <div className="flex flex-col gap-xs">
+          <ul aria-label={`${DRAFT_STATUS_LABELS[status]}の案`} className="flex flex-col gap-xs">
+            {list.map(renderCard)}
+          </ul>
+          {status === "rejected" && counts.rejected > REJECTED_LIST_MAX ? (
+            <p className="text-s text-text-sub">新しい{REJECTED_LIST_MAX}件を出しています。</p>
+          ) : null}
+          {published && publishedPages.hasNextPage ? (
+            <div className="flex flex-col items-start gap-xxs">
+              <Button
+                aria-disabled={publishedPages.isFetchingNextPage || undefined}
+                onClick={() => {
+                  if (!publishedPages.isFetchingNextPage) void publishedPages.fetchNextPage();
+                }}
+              >
+                {publishedPages.isFetchingNextPage ? "読みこんでいます…" : "もっと見る"}
+              </Button>
+              {publishedPages.isFetchNextPageError ? (
+                <ResponseMessage tone="danger">
+                  続きを読めませんでした。{errorMessage(publishedPages.error)}
+                </ResponseMessage>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       )}
       {dialog?.kind === "edit" ? (
         <EditDialog
           accountId={accountId}
           draft={dialog.draft}
+          ngWords={ngWords}
           onClose={() => setDialog(undefined)}
-          onDone={refresh}
+          onDone={async (reopened) => {
+            await refresh();
+            setBulkResult({
+              tone: "success",
+              message: reopened
+                ? "直したので、承認待ちに戻しました。もう一度承認してください。"
+                : "案を直しました。",
+            });
+          }}
         />
       ) : null}
       {dialog?.kind === "reject" ? (
         <RejectDialog
-          accountId={accountId}
-          drafts={dialog.drafts}
+          count={rejectTargets.length}
+          initialReasons={[
+            ...(rejectTargets.some(isSimilar) ? (["similar"] as const) : []),
+            ...(rejectTargets.some((draft) => cautionsOf(draft).length > 0)
+              ? (["policy"] as const)
+              : []),
+          ]}
+          pending={dialogPending}
+          failure={dialogError}
           onClose={() => setDialog(undefined)}
-          onDone={async (count) => {
-            setSelected(new Set());
-            await refresh();
-            setBulkResult({ tone: "success", message: `${count}件を却下しました。` });
-          }}
+          onSubmit={(reject) => void submitReject(rejectTargets, reject)}
         />
       ) : null}
       <ConfirmDialog
@@ -798,16 +713,79 @@ function StockContent({ account }: StockContentProps) {
         onOpenChange={(open) => {
           if (!open) setDialog(undefined);
         }}
-        title="この案を消します"
+        title={
+          dialog?.kind === "delete" && dialog.drafts.length > 1
+            ? `選んだ${dialog.drafts.length}件の案を消します`
+            : "この案を消します"
+        }
         confirmLabel="消す"
         pendingLabel="消しています…"
-        pending={deletePending}
-        error={deleteError}
+        pending={dialogPending}
+        error={dialogError}
         onConfirm={() => void confirmDelete()}
       >
         消した案は元に戻せません。
       </ConfirmDialog>
-    </Page>
+      <ConfirmDialog
+        open={dialog?.kind === "policy"}
+        onOpenChange={(open) => {
+          if (!open) setDialog(undefined);
+        }}
+        title="Threads の規約に触れるおそれのある表現があります"
+        confirmLabel="承認する"
+        pendingLabel="承認しています…"
+        danger={false}
+        pending={dialogPending}
+        onConfirm={() => {
+          if (dialog?.kind === "policy") void confirmApprove(dialog.drafts, true);
+        }}
+      >
+        内容を確かめたうえで承認しますか？
+        {dialog?.kind === "policy" ? `（${dialog.labels.join("・")}）` : ""}
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={dialog?.kind === "bulk-approve"}
+        onOpenChange={(open) => {
+          if (!open) setDialog(undefined);
+        }}
+        title={`選んだ${bulkTargets.length}件を承認します`}
+        confirmLabel={`${bulkCount}件を承認する`}
+        pendingLabel="承認しています…"
+        danger={false}
+        pending={dialogPending}
+        onConfirm={() => {
+          if (bulkCount > 0) void confirmApprove(bulkTargets, bulkCautious > 0);
+        }}
+      >
+        <div className="flex flex-col gap-xxs">
+          <p>
+            承認した投稿は、自動投稿の設定に従って Threads
+            に公開されます。投稿の内容は、あなた（アカウントの運用者）の責任のもとで公開されます。内容を確かめたうえで承認してください。
+          </p>
+          {bulkTargets.length - bulkApprovable.length > 0 ||
+          bulkCount < bulkApprovable.length ||
+          bulkCautious > 0 ? (
+            <ul className="list-disc pl-s">
+              {bulkTargets.length - bulkApprovable.length > 0 ? (
+                <li>
+                  うち{bulkTargets.length - bulkApprovable.length}件は NGワード・Threads
+                  の上限に当たるため、承認されません。
+                </li>
+              ) : null}
+              {bulkCount < bulkApprovable.length ? (
+                <li>
+                  承認済みの案が上限（{APPROVED_LIMIT}件）に近いため、承認されるのは{bulkCount}
+                  件までです。
+                </li>
+              ) : null}
+              {bulkCautious > 0 ? (
+                <li>うち{bulkCautious}件に、Threads の規約に触れるおそれのある表現があります。</li>
+              ) : null}
+            </ul>
+          ) : null}
+        </div>
+      </ConfirmDialog>
+    </ThreadsPage>
   );
 }
 
@@ -815,17 +793,30 @@ function StockContent({ account }: StockContentProps) {
 export type StockPageProps = {
   /** 運用アカウントの ID */
   accountId: string;
+  /** 表示する状態（既定は承認待ち） */
+  status?: DraftListStatus;
+  /** 状態を変える（道の ?tab= を変える。渡さなければ画面の中だけで変える） */
+  onStatusChange?: (status: DraftListStatus) => void;
 };
 
 /**
  * 投稿の案の画面（ログインが要る・自分の運用アカウントだけ）。
- * @param props 運用アカウントの ID（accountId）
+ * @param props 運用アカウントの ID・状態・状態を変える
  * @returns 画面の要素
  */
-export function StockPage({ accountId }: StockPageProps) {
+export function StockPage({ accountId, status, onStatusChange }: StockPageProps) {
+  const [localStatus, setLocalStatus] = useState<DraftListStatus>(status ?? "needs_review");
+  const current = status ?? localStatus;
   return (
     <AccountGate accountId={accountId}>
-      {(account) => <StockContent account={account} />}
+      {(account) => (
+        <StockContent
+          key={account.id}
+          account={account}
+          status={current}
+          onStatusChange={onStatusChange ?? setLocalStatus}
+        />
+      )}
     </AccountGate>
   );
 }
@@ -833,10 +824,20 @@ export function StockPage({ accountId }: StockPageProps) {
 const stockRouteApi = getRouteApi("/threads/accounts/$accountId/stock");
 
 /**
- * 投稿の案の道の画面（道の値を読む）。
+ * 投稿の案の道の画面（道の値と ?tab= を読む）。
  * @returns 画面の要素
  */
 export function StockRoute() {
   const { accountId } = stockRouteApi.useParams();
-  return <StockPage accountId={accountId} />;
+  const { tab } = stockRouteApi.useSearch();
+  const navigate = stockRouteApi.useNavigate();
+  return (
+    <StockPage
+      accountId={accountId}
+      status={tab ?? "needs_review"}
+      onStatusChange={(next) =>
+        void navigate({ search: next === "needs_review" ? {} : { tab: next }, replace: true })
+      }
+    />
+  );
 }

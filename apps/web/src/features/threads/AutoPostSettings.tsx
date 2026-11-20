@@ -5,7 +5,6 @@
 import {
   AUTOPOST_SLOT_LIMIT,
   CONNECTION_STATUS_LABELS,
-  ConnectInput,
   PostingScheduleSaveInput,
   TOKEN_WARNING_LABELS,
 } from "@workspace/contracts/threads";
@@ -15,7 +14,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
-import { Field } from "@workspace/ui/components/field";
 import { Input } from "@workspace/ui/components/input";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useId, useState } from "react";
@@ -23,8 +21,10 @@ import type * as React from "react";
 import { errorMessage } from "../../lib/api.ts";
 import { fieldErrorsFromApi, fieldErrorsFromIssues } from "../../lib/form.ts";
 import { LoadFailure, Loading } from "./AccountGate.tsx";
-import { checkConnection, connectThreads, disconnectThreads, savePostingSchedule } from "./api.ts";
+import { checkConnection, disconnectThreads, savePostingSchedule } from "./api.ts";
 import { OauthConnect } from "./OauthConnect.tsx";
+import { PublishCheck, scheduleSavedResult } from "./PublishCheck.tsx";
+import { TokenConnectForm } from "./TokenConnectForm.tsx";
 import { THREADS_QUERY_KEYS, useConnection, usePostingSchedule } from "./queries.ts";
 
 /** 結果の知らせ。 */
@@ -82,7 +82,11 @@ export function ConnectionSection({ accountId }: SectionProps) {
         <LoadFailure error={query.error} retry={() => void query.refetch()} />
       ) : (
         <>
-          <OauthConnect accountId={accountId} connected={query.data.status !== "not_connected"} />
+          <OauthConnect
+            accountId={accountId}
+            connected={query.data.status !== "not_connected"}
+            username={query.data.username}
+          />
           <ConnectionBody accountId={accountId} connection={query.data} />
         </>
       )}
@@ -99,11 +103,6 @@ export function ConnectionSection({ accountId }: SectionProps) {
  */
 function ConnectionBody({ accountId, connection }: { accountId: string; connection: Connection }) {
   const queryClient = useQueryClient();
-  const [token, setToken] = useState("");
-  const [error, setError] = useState<string>();
-  const [result, setResult] = useState<Result>();
-  const [notes, setNotes] = useState<string[]>([]);
-  const [pending, setPending] = useState(false);
   const [checking, setChecking] = useState(false);
   const [checkResult, setCheckResult] = useState<Result>();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -117,40 +116,6 @@ function ConnectionBody({ accountId, connection }: { accountId: string; connecti
    */
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: THREADS_QUERY_KEYS.account(accountId) });
-
-  /**
-   * つなぐ。
-   * @param submitEvent 送る出来事
-   */
-  const submit = async (submitEvent: React.FormEvent<HTMLFormElement>) => {
-    submitEvent.preventDefault();
-    if (pending) return;
-    setResult(undefined);
-    setNotes([]);
-    const parsed = ConnectInput.safeParse({ token });
-    if (!parsed.success) {
-      setError(fieldErrorsFromIssues(parsed.error.issues).token);
-      return;
-    }
-    setError(undefined);
-    setPending(true);
-    try {
-      const outcome = await connectThreads(accountId, parsed.data.token);
-      setToken("");
-      await refresh();
-      setResult({
-        tone: "success",
-        message: `@${outcome.connection.username ?? ""} に${outcome.kind === "connect" ? "つなぎました" : "つなぎ直しました"}。`,
-      });
-      setNotes(outcome.warnings.map((warning) => TOKEN_WARNING_LABELS[warning]));
-    } catch (caught) {
-      const fields = fieldErrorsFromApi(caught);
-      if (fields.token) setError(fields.token);
-      else setResult({ tone: "danger", message: `つなげませんでした。${errorMessage(caught)}` });
-    } finally {
-      setPending(false);
-    }
-  };
 
   /** 持っているトークンで確かめる。 */
   const check = async () => {
@@ -220,37 +185,12 @@ function ConnectionBody({ accountId, connection }: { accountId: string; connecti
       {connection.repliesDenied ? (
         <p className="text-s text-text-sub">{TOKEN_WARNING_LABELS.no_replies_permission}</p>
       ) : null}
-      <form
-        noValidate
-        onSubmit={(submitEvent) => void submit(submitEvent)}
-        className="flex flex-col gap-xs"
-      >
-        <Field
-          label="長期のアクセストークン"
-          description="自分の Meta のアプリ（Threads の使い方を足したもの）で作った長期のアクセストークンを貼ります。トークンは暗号にして持ち、画面には戻しません。"
-          error={error}
-          required={!connected}
-        >
-          <Input
-            type="password"
-            autoComplete="off"
-            spellCheck={false}
-            value={token}
-            onChange={(change) => setToken(change.target.value)}
-          />
-        </Field>
-        <div className="flex flex-col items-start gap-xxs">
-          <Button type="submit" variant="primary" aria-disabled={pending || undefined}>
-            {pending ? "確かめています…" : connected ? "つなぎ直す" : "つなぐ"}
-          </Button>
-          {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
-          {notes.map((note) => (
-            <p key={note} className="text-s text-text-sub">
-              {note}
-            </p>
-          ))}
-        </div>
-      </form>
+      <TokenConnectForm
+        accountId={accountId}
+        connected={connected}
+        username={connection.username}
+        onConnected={refresh}
+      />
       {connected ? (
         <div className="flex flex-col items-start gap-xxs">
           <div className="flex flex-wrap gap-xxs">
@@ -303,6 +243,7 @@ export function ScheduleSection({ accountId }: SectionProps) {
       ) : (
         <ScheduleForm accountId={accountId} view={query.data} />
       )}
+      <PublishCheck accountId={accountId} />
     </section>
   );
 }
@@ -358,12 +299,8 @@ function ScheduleForm({ accountId, view }: { accountId: string; view: PostingSch
     try {
       const saved = await savePostingSchedule(accountId, parsed.data);
       await queryClient.invalidateQueries({ queryKey: THREADS_QUERY_KEYS.account(accountId) });
-      setResult({
-        tone: "success",
-        message: saved.schedule.enabled
-          ? `自動投稿をオンにしました（1日${saved.schedule.slotTimes.length}回）。`
-          : "自動投稿をオフで保存しました。",
-      });
+      // オンにしたら、次の投稿の予定か、承認済みの案を用意する案内を添える（threads-012）
+      setResult(await scheduleSavedResult(accountId, saved.schedule, saved.connectionCheck));
     } catch (caught) {
       const fields = fieldErrorsFromApi(caught);
       if (fields.slotTimes || fields.enabled) setErrors(fields);

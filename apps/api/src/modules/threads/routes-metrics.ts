@@ -25,6 +25,10 @@ const PerformanceQuery = z.object({
     param: { name: "tab", in: "query" },
     description: "絞りこみ（all・good・normal・poor・pending）",
   }),
+  before: contract.PerformanceQuery.shape.before.openapi({
+    param: { name: "before", in: "query" },
+    description: "続きを読むときの、前の応答の nextCursor（threads-012）",
+  }),
 });
 
 /** 書き出しの問い合わせ（文書の説明つき）。 */
@@ -51,7 +55,7 @@ export function metricsRoutes(deps: DomainRouteDeps) {
       path: `${base}/{accountId}/performance`,
       tags,
       operationId: "threadsGetPerformance",
-      summary: "反応の画面（基準値・判定ごとの数・投稿ごとの反応。投稿した新しい順に最大200件）",
+      summary: "反応の画面（基準値・判定ごとの数・投稿ごとの反応。投稿した新しい順に50件ずつ）",
       middleware,
       request: { params: AccountParams, query: PerformanceQuery },
       responses: {
@@ -84,7 +88,7 @@ export function metricsRoutes(deps: DomainRouteDeps) {
       path: `${base}/{accountId}/performance/export`,
       tags,
       operationId: "threadsExportPerformance",
-      summary: "反応の CSV（投稿ごと・取りこみごと。UTF-8 の BOM つき）",
+      summary: "反応の CSV（投稿ごと37列・取りこみごと13列。めぐると同じ列。UTF-8 の BOM つき）",
       middleware,
       request: { params: AccountParams, query: ExportQuery },
       responses: {
@@ -100,16 +104,17 @@ export function metricsRoutes(deps: DomainRouteDeps) {
 
   return new OpenAPIHono<ApiEnv>()
     .openapi(routes.getPerformance, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
-      return c.json(await getPerformanceView(deps.db, account, c.req.valid("query").tab), 200);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "read_private");
+      const { tab, before } = c.req.valid("query");
+      return c.json(await getPerformanceView(deps.db, account, tab, before), 200);
     })
     .openapi(routes.putFeedback, async (c) => {
       const { accountId, draftId } = c.req.valid("param");
-      const account = await ownedAccount(deps, c, accountId);
+      const account = await ownedAccount(deps, c, accountId, "write_content");
       return c.json(await updateFeedback(deps.db, account.id, draftId, c.req.valid("json")), 200);
     })
     .openapi(routes.exportCsv, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "read_private");
       const { kind } = c.req.valid("query");
       const csv = await buildPerformanceCsv(deps.db, account.id, kind);
       return c.body(

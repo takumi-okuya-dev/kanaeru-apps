@@ -1,9 +1,39 @@
 // 外枠のナビに出す Threads の運用の項目。
 // - Threads の画面の外：何も出さない（外枠は今のアプリの領域の項目だけを出す。アプリの入口は切り替えとすべてのアプリ）
-// - Threads の画面（/threads…）：「アカウント」。運用アカウントの中では「投稿の案」「案を作る」「戦略」「リサーチ」「反応」「分析」「外部メディア」「設定」も出す
+// - Threads の画面（/threads…）：「アカウント」。運用アカウントの中では「ホーム」（threads-012）「投稿の案」「案を作る」「戦略」「リサーチ」「反応」「分析」「外部メディア」「設定」も出す
+// - 「投稿の案」には承認待ちの数を添える（threads-011。画面が読んだ運用アカウントの数を使い、ナビのために問い合わせを始めない）
+// - 「組織」は、どれかの組織に入っている人にだけ出す（threads-013。画面が読んだ入っている組織を使い、ナビのために問い合わせを始めない）
+import type { ThreadsAccount, ThreadsOrganizationList } from "@workspace/contracts/threads";
+import { useQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
 import type { NavItem } from "../../lib/feature.ts";
 import { THREADS_ACCOUNT_SCOPE, THREADS_ROUTE_PATTERNS, threadsPaths } from "./paths.ts";
+import { THREADS_QUERY_KEYS } from "./queries.ts";
+
+/**
+ * 画面が読んだ運用アカウントの、承認待ちの案の数（まだ読んでいなければ undefined。ここからは読みに行かない）。
+ * @param accountId 運用アカウントの ID（運用アカウントの外は ""）
+ * @returns 承認待ちの数
+ */
+function useNeedsReviewCount(accountId: string): number | undefined {
+  const { data } = useQuery<ThreadsAccount>({
+    queryKey: THREADS_QUERY_KEYS.detail(accountId),
+    enabled: false,
+  });
+  return accountId ? data?.counts.needsReview : undefined;
+}
+
+/**
+ * 画面が読んだ入っている組織があるか（まだ読んでいなければ false。ここからは読みに行かない）。
+ * @returns 1つ以上入っていれば true
+ */
+function useInOrganization(): boolean {
+  const { data } = useQuery<ThreadsOrganizationList>({
+    queryKey: THREADS_QUERY_KEYS.organizations,
+    enabled: false,
+  });
+  return (data?.organizations.length ?? 0) > 0;
+}
 
 /**
  * 今の道の場所（Threads の画面の外は null、一覧は ""、運用アカウントの中はその ID）。
@@ -16,10 +46,13 @@ function useCurrentPlace(): string | null {
       const leaf = state.matches.at(-1);
       if (!leaf) return null;
       const inThreads =
-        leaf.routeId === THREADS_ROUTE_PATTERNS.accounts ||
-        leaf.routeId.startsWith(`${THREADS_ROUTE_PATTERNS.accounts}/`);
+        leaf.routeId === THREADS_ROUTE_PATTERNS.landing ||
+        leaf.routeId.startsWith(`${THREADS_ROUTE_PATTERNS.landing}/`);
       if (!inThreads) return null;
-      if (!leaf.routeId.startsWith(`${THREADS_ACCOUNT_SCOPE}/`)) return "";
+      const inAccount =
+        leaf.routeId === THREADS_ACCOUNT_SCOPE ||
+        leaf.routeId.startsWith(`${THREADS_ACCOUNT_SCOPE}/`);
+      if (!inAccount) return "";
       const { accountId } = leaf.params as { accountId?: string };
       return accountId ?? "";
     },
@@ -32,6 +65,8 @@ function useCurrentPlace(): string | null {
  */
 export function useThreadsNavItems(): readonly NavItem[] {
   const accountId = useCurrentPlace();
+  const needsReview = useNeedsReviewCount(accountId ?? "");
+  const inOrganization = useInOrganization();
   if (accountId === null) return [];
   const list: NavItem = {
     id: "threads-accounts",
@@ -39,10 +74,27 @@ export function useThreadsNavItems(): readonly NavItem[] {
     to: threadsPaths.accounts(),
     icon: "people",
   };
-  if (!accountId) return [list];
+  const organizations: NavItem[] = inOrganization
+    ? [
+        {
+          id: "threads-organizations",
+          label: "組織",
+          to: threadsPaths.organizations(),
+          icon: "people",
+        },
+      ]
+    : [];
+  if (!accountId) return [list, ...organizations];
   return [
     list,
-    { id: "threads-stock", label: "投稿の案", to: threadsPaths.stock(accountId), icon: "list" },
+    ...organizations,
+    { id: "threads-home", label: "ホーム", to: threadsPaths.home(accountId), icon: "account" },
+    {
+      id: "threads-stock",
+      label: needsReview ? `投稿の案（${needsReview}）` : "投稿の案",
+      to: threadsPaths.stock(accountId),
+      icon: "list",
+    },
     {
       id: "threads-create",
       label: "案を作る",

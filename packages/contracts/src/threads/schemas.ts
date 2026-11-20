@@ -5,6 +5,7 @@ import { z } from "zod";
 import {
   CORE_RULES_MAX,
   DRAFT_BODY_MAX,
+  NG_WORD_LIMIT,
   NG_WORD_MAX,
   PASTE_MAX_CHARS,
   POST_KIND_LENGTH_MAX,
@@ -20,8 +21,9 @@ import {
   REVIEW_MAX_ITEMS,
   STRATEGY_TEXT_MAX,
 } from "./limits.ts";
+import { CONNECTION_STATUSES } from "./autopost.ts";
 import { PostMention } from "./mention.ts";
-import { REJECT_REASON_CODES } from "./review.ts";
+import { REJECT_REASON_CODES, REVIEW_SKIP_REASONS } from "./review.ts";
 import { STRATEGY_TEXT_KEYS, TONE_PRESET_VALUES } from "./strategy.ts";
 import type { StrategyTextKey } from "./strategy.ts";
 
@@ -48,6 +50,29 @@ export const ThreadsAccountInput = z.strictObject({
 /** 運用アカウントを作る・名前を直す入力の型。 */
 export type ThreadsAccountInput = z.infer<typeof ThreadsAccountInput>;
 
+/** 運用アカウントを消す入力（消すアカウントの名前をそのまま入れて確かめる。threads-012。めぐるの account-service.ts）。 */
+export const ThreadsAccountDeleteInput = z.strictObject({
+  confirmName: z
+    .string({ error: "消すアカウントの名前を入れてください。" })
+    .min(1, { error: "消すアカウントの名前を入れてください。" })
+    .max(THREADS_ACCOUNT_NAME_MAX * 2, {
+      error: "入れた名前がアカウントの名前と違います。",
+    }),
+});
+
+/** 運用アカウントを消す入力の型。 */
+export type ThreadsAccountDeleteInput = z.infer<typeof ThreadsAccountDeleteInput>;
+
+/**
+ * 消す前に入れた名前が、アカウントの名前と同じか（前後の空白は除いて比べる。API と画面で同じ比べ方）。
+ * @param input 入れた名前
+ * @param name アカウントの名前
+ * @returns 同じなら true
+ */
+export function confirmNameMatches(input: string, name: string): boolean {
+  return input.trim() === name.trim();
+}
+
 /** 投稿の案の状態ごとの数（承認済みは投稿中を含む）。 */
 export const DraftCounts = z.object({
   needsReview: z.number().int(),
@@ -67,6 +92,16 @@ export const ThreadsAccount = z.object({
   id: z.guid(),
   name: z.string(),
   counts: DraftCounts,
+  /** Threads への接続の状態（threads-012。アカウントの切り替えと一覧に出す） */
+  connectionStatus: z.enum(CONNECTION_STATUSES),
+  /** Threads のユーザー名（@ なし。未接続は null） */
+  username: z.string().nullable(),
+  /** Threads の表示名（未接続・読めていなければ null） */
+  displayName: z.string().nullable(),
+  /** Threads のプロフィールの画像の URL（読めていなければ null） */
+  profilePictureUrl: z.string().nullable(),
+  /** 最後に開いた日時（まだなら null） */
+  lastOpenedAt: DateTime.nullable(),
   createdAt: DateTime,
   updatedAt: DateTime,
 });
@@ -74,9 +109,20 @@ export const ThreadsAccount = z.object({
 /** 運用アカウントの型。 */
 export type ThreadsAccount = z.infer<typeof ThreadsAccount>;
 
+/** 担当している運用アカウント（持ち主の表示名と組織の名前つき。threads-013）。 */
+export const ThreadsAssignedAccount = ThreadsAccount.extend({
+  ownerName: z.string(),
+  organizationName: z.string(),
+});
+
+/** 担当している運用アカウントの型。 */
+export type ThreadsAssignedAccount = z.infer<typeof ThreadsAssignedAccount>;
+
 /** 運用アカウントの一覧。 */
 export const ThreadsAccountList = z.object({
   accounts: z.array(ThreadsAccount),
+  /** 担当している運用アカウント（ほかの人のもの。上限に数えない。threads-013） */
+  assigned: z.array(ThreadsAssignedAccount).optional(),
   /** 持てる数の上限 */
   limit: z.number().int(),
 });
@@ -257,23 +303,41 @@ export const CoreRulesInput = z.strictObject({
 /** 投稿のルールを保存する入力の型。 */
 export type CoreRulesInput = z.infer<typeof CoreRulesInput>;
 
-/** NG ワードを足す入力。 */
-export const NgWordInput = z.strictObject({
-  word: z
-    .string({ error: "NGワードを入れてください。" })
-    .trim()
+/** NG ワードを足す入力（まとめて。threads-011。画面は改行・「、」で区切った語を送る）。 */
+export const NgWordsInput = z.strictObject({
+  words: z
+    .array(
+      z
+        .string({ error: "NGワードを入れてください。" })
+        .trim()
+        .min(1, { error: "NGワードを入れてください。" })
+        .max(NG_WORD_MAX, { error: `NGワードは1語${NG_WORD_MAX}文字までにしてください。` }),
+    )
     .min(1, { error: "NGワードを入れてください。" })
-    .max(NG_WORD_MAX, { error: `NGワードは${NG_WORD_MAX}文字までにしてください。` }),
+    .max(NG_WORD_LIMIT, { error: `NGワードは${NG_WORD_LIMIT}語までです。` }),
 });
 
 /** NG ワードを足す入力の型。 */
-export type NgWordInput = z.infer<typeof NgWordInput>;
+export type NgWordsInput = z.infer<typeof NgWordsInput>;
 
 /** NG ワード。 */
 export const NgWord = z.object({ id: z.guid(), word: z.string() });
 
 /** NG ワードの型。 */
 export type NgWord = z.infer<typeof NgWord>;
+
+/** NG ワードを足した結果。 */
+export const NgWordsResult = z.object({
+  /** 足した語（入れた順） */
+  added: z.array(NgWord),
+  /** もうあったので足さなかった語（入れたまま） */
+  duplicates: z.array(z.string()),
+  /** 足した語を含むため、承認待ちに戻した承認済みの案の数 */
+  reopenedCount: z.number().int(),
+});
+
+/** NG ワードを足した結果の型。 */
+export type NgWordsResult = z.infer<typeof NgWordsResult>;
 
 /** 投稿のルールと NG ワード。 */
 export const PostingRules = z.object({
@@ -378,6 +442,11 @@ export const PostDraft = z.object({
   blockedWords: z.array(z.string()).nullable(),
   /** 時間差のメンション（threads-007。付けていなければ null） */
   mention: PostMention.nullable(),
+  /** ためたあとに人が本文を直した日時（threads-011。直していなければ null） */
+  editedAt: DateTime.nullable(),
+  /** 作った人・最後に直した人の表示名（threads-013。組織に入っている運用アカウントの一覧だけ。前の行は null） */
+  createdByName: z.string().nullable().optional(),
+  updatedByName: z.string().nullable().optional(),
   createdAt: DateTime,
   updatedAt: DateTime,
 });
@@ -388,6 +457,8 @@ export type PostDraft = z.infer<typeof PostDraft>;
 /** 投稿の案の一覧の問い合わせ。 */
 export const DraftListQuery = z.object({
   status: z.enum(DRAFT_LIST_STATUSES, { error: "状態は、選択肢から選んでください。" }),
+  /** 投稿済みの続きを読むときの、前の応答の nextCursor（threads-011） */
+  before: z.string().max(200).optional(),
 });
 
 /** 投稿の案の一覧の問い合わせの型。 */
@@ -395,12 +466,16 @@ export type DraftListQuery = z.infer<typeof DraftListQuery>;
 
 /** 投稿の案の一覧。 */
 export const DraftList = z.object({
-  /** 承認待ちは作った古い順、承認済みは投稿の順（投稿中が先）、投稿済み・投稿に失敗・却下は新しい順 */
+  /** 承認待ちはためた新しいまとまりが先（まとまりの中は貼った順）、承認済みは投稿の順（投稿中が先）、投稿済み・投稿に失敗・却下は新しい順 */
   drafts: z.array(PostDraft),
   /** 承認済みの案の ID から、投稿の予定の時刻へ（自動投稿がオフ・止まっているときと、承認済みでない一覧は空） */
   schedule: z.record(z.string(), DateTime),
-  /** 似ている度合いを比べる相手（同じアカウントの承認待ち・承認済みの案。状態にかかわらず同じ） */
-  compareWith: z.array(z.object({ id: z.guid(), body: z.string() })),
+  /** 似ている度合いを比べる相手（同じアカウントの承認待ち・承認済み〈投稿中を含む〉・却下〈新しい500件〉の案。状態にかかわらず同じ） */
+  compareWith: z.array(
+    z.object({ id: z.guid(), body: z.string(), status: z.enum(DRAFT_STATUSES) }),
+  ),
+  /** 投稿済みの続きを読むときに before に渡す値（続きがない・投稿済みでない一覧は null。threads-011） */
+  nextCursor: z.string().nullable(),
 });
 
 /** 投稿の案の一覧の型。 */
@@ -424,8 +499,13 @@ export type DraftBatchInput = z.infer<typeof DraftBatchInput>;
 /** 案をまとめてためた結果。 */
 export const DraftBatchResult = z.object({
   batchId: z.guid(),
+  /** ためた件数（threads-011） */
+  draftCount: z.number().int(),
   /** 区切り（@@@）が見つかったか（なければ全体を1件にした） */
   delimiterFound: z.boolean(),
+  /** そのうち Threads の上限を超える件数（threads-011） */
+  overLimitCount: z.number().int(),
+  /** ためた案（送り直しでは、まだ承認待ちのものだけ） */
   drafts: z.array(PostDraft),
 });
 
@@ -454,6 +534,13 @@ export const REVIEW_ACTIONS = ["approve", "reject", "reopen"] as const;
 export const ReviewInput = z
   .strictObject({
     action: z.enum(REVIEW_ACTIONS, { error: "操作は、選択肢から選んでください。" }),
+    /**
+     * 操作ごとに画面が作る ID（threads-011。送り直しでは同じ値）。同じ ID の送り直しで、もうその操作で変わった案は
+     * 変えたものとして返す（二重に記録しない）。省略すると送り直しを見分けない
+     */
+    requestId: z.guid({ error: "形が合いません。" }).optional(),
+    /** 規約に注意の案を、確かめたうえで承認する（承認のときだけ。threads-011） */
+    confirmPolicyCaution: z.boolean().optional(),
     items: z
       .array(z.strictObject({ id: z.guid(), version: z.number().int().min(1) }))
       .min(1, { error: "案を選んでください。" })
@@ -481,8 +568,62 @@ export const ReviewInput = z
 /** 承認・却下の入力の型。 */
 export type ReviewInput = z.infer<typeof ReviewInput>;
 
-/** 承認・却下の結果。 */
-export const ReviewResult = z.object({ drafts: z.array(PostDraft) });
+/** 承認・却下で、状態を変えなかった案と理由（threads-011）。 */
+export const ReviewSkipped = z.object({ id: z.guid(), reason: z.enum(REVIEW_SKIP_REASONS) });
+
+/** 状態を変えなかった案の型。 */
+export type ReviewSkipped = z.infer<typeof ReviewSkipped>;
+
+/**
+ * 承認・却下の結果（threads-011：まとめての操作は1件ずつ確かめ、できるものだけ変える）。
+ * drafts は変えた案（同じ requestId の送り直しで、もう変わっていた案を含む）。skipped は変えなかった案と理由。counts は変えたあとの数。
+ */
+export const ReviewResult = z.object({
+  drafts: z.array(PostDraft),
+  skipped: z.array(ReviewSkipped),
+  counts: DraftCounts,
+});
 
 /** 承認・却下の結果の型。 */
 export type ReviewResult = z.infer<typeof ReviewResult>;
+
+/** 案をまとめて消す入力（threads-011。承認待ちと却下だけを消し、ほかの ID は無視する）。 */
+export const DraftDeleteInput = z.strictObject({
+  ids: z
+    .array(z.guid())
+    .min(1, { error: "案を選んでください。" })
+    .max(REVIEW_MAX_ITEMS, { error: `一度に選べるのは${REVIEW_MAX_ITEMS}件までです。` }),
+});
+
+/** 案をまとめて消す入力の型。 */
+export type DraftDeleteInput = z.infer<typeof DraftDeleteInput>;
+
+/** 消した数（まとめて消す・ためたのを取り消す）。 */
+export const DeletedCount = z.object({ deletedCount: z.number().int() });
+
+/** 消した数の型。 */
+export type DeletedCount = z.infer<typeof DeletedCount>;
+
+/** 選んだ承認待ちの案に、「いつも付ける」の人で時間差のメンションをまとめて付ける入力（threads-011。めぐるの POST …/post-drafts/mentions）。 */
+export const MentionBulkInput = z.strictObject({
+  items: z
+    .array(z.strictObject({ id: z.guid(), version: z.number().int().min(1) }))
+    .min(1, { error: "案を選んでください。" })
+    .max(REVIEW_MAX_ITEMS, { error: `一度に選べるのは${REVIEW_MAX_ITEMS}件までです。` }),
+});
+
+/** まとめて付ける入力の型。 */
+export type MentionBulkInput = z.infer<typeof MentionBulkInput>;
+
+/** まとめて付けられなかった理由（ない・承認待ちでないか版が合わない・付けられる「いつも付ける」の人がいない）。 */
+export const MENTION_BULK_SKIP_REASONS = ["NOT_FOUND", "STALE", "NO_PEOPLE"] as const;
+
+/** まとめて付けた結果。 */
+export const MentionBulkResult = z.object({
+  /** 付けた案 */
+  drafts: z.array(PostDraft),
+  skipped: z.array(z.object({ id: z.guid(), reason: z.enum(MENTION_BULK_SKIP_REASONS) })),
+});
+
+/** まとめて付けた結果の型。 */
+export type MentionBulkResult = z.infer<typeof MentionBulkResult>;

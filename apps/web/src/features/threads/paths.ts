@@ -2,7 +2,9 @@
 
 /** 道の形（TanStack Router の道の ID）。 */
 export const THREADS_ROUTE_PATTERNS = {
-  accounts: "/threads",
+  landing: "/threads",
+  accounts: "/threads/accounts",
+  home: "/threads/accounts/$accountId",
   stock: "/threads/accounts/$accountId/stock",
   create: "/threads/accounts/$accountId/create",
   strategy: "/threads/accounts/$accountId/strategy",
@@ -14,7 +16,27 @@ export const THREADS_ROUTE_PATTERNS = {
   listing: "/threads/accounts/$accountId/media/$promotionId/$media",
   oauthComplete: "/threads/oauth/complete",
   dataDeletion: "/threads/data-deletion/$code",
+  tokenGuide: "/threads/guide/threads-token",
+  organizations: "/threads/organizations",
+  organization: "/threads/organizations/$organizationId",
+  organizationStatus: "/threads/organizations/$organizationId/status",
+  sharedAccount: "/threads/organizations/$organizationId/accounts/$accountId",
 } as const;
+
+/**
+ * 投稿の案の画面の ?tab= に入れてよい状態（約束の DRAFT_LIST_STATUSES と同じ並び。道は約束〈zod〉を読まないので、ここに書く。
+ * 食い違いは nav-items.test.tsx が見張る。threads-011）。
+ */
+export const STOCK_TABS = [
+  "needs_review",
+  "approved",
+  "published",
+  "publish_failed",
+  "rejected",
+] as const;
+
+/** 投稿の案の画面の ?tab= の型。 */
+export type StockTab = (typeof STOCK_TABS)[number];
 
 /** 運用アカウントの中の道の頭。 */
 export const THREADS_ACCOUNT_SCOPE = "/threads/accounts/$accountId";
@@ -22,10 +44,26 @@ export const THREADS_ACCOUNT_SCOPE = "/threads/accounts/$accountId";
 /** 値を入れた道。 */
 export const threadsPaths = {
   /**
+   * トークンの作り方の詳しい手順（threads-012）。
+   * @returns 道
+   */
+  tokenGuide: () => "/threads/guide/threads-token",
+  /**
+   * Threads の入口（最後に開いた運用アカウントのホームか、一覧へ移る。threads-012）。
+   * @returns 道
+   */
+  landing: () => "/threads",
+  /**
    * 運用アカウントの一覧。
    * @returns 道
    */
-  accounts: () => "/threads",
+  accounts: () => "/threads/accounts",
+  /**
+   * 運用アカウントのホーム（threads-012）。
+   * @param accountId 運用アカウントの ID
+   * @returns 道
+   */
+  home: (accountId: string) => `/threads/accounts/${accountId}`,
   /**
    * 投稿の案。
    * @param accountId 運用アカウントの ID
@@ -83,4 +121,29 @@ export const threadsPaths = {
    */
   listing: (accountId: string, promotionId: string, media: string) =>
     `/threads/accounts/${accountId}/media/${promotionId}/${media}`,
+  /**
+   * 入っている組織（threads-013）。
+   * @returns 道
+   */
+  organizations: () => "/threads/organizations",
+  /**
+   * Threads の組織の画面（threads-013）。
+   * @param organizationId 組織の ID
+   * @returns 道
+   */
+  organization: (organizationId: string) => `/threads/organizations/${organizationId}`,
+  /**
+   * 運用状況（threads-013）。
+   * @param organizationId 組織の ID
+   * @returns 道
+   */
+  organizationStatus: (organizationId: string) => `/threads/organizations/${organizationId}/status`,
+  /**
+   * 見せてもらっている運用アカウント（読むだけ。threads-013）。
+   * @param organizationId 組織の ID
+   * @param accountId 運用アカウントの ID
+   * @returns 道
+   */
+  sharedAccount: (organizationId: string, accountId: string) =>
+    `/threads/organizations/${organizationId}/accounts/${accountId}`,
 };

@@ -6,9 +6,9 @@
 // - データの削除は、送り直しを signed_request 全体の SHA-256 でまとめ、その Threads のユーザーにつないだ運用アカウントを消す
 // トークン・code・state の値はログに出さない。
 import { THREADS_ERRORS } from "@workspace/contracts/threads";
-import { and, eq, inArray, lt, ne } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, lt, ne, or } from "drizzle-orm";
 import { createHash, randomBytes } from "node:crypto";
-import type { Db } from "../../kernel/db.ts";
+import type { Db, Executor } from "../../kernel/db.ts";
 import { AppError } from "../../kernel/errors.ts";
 import type { DomainRouteDeps } from "../../kernel/http.ts";
 import type { MetaApp } from "../../kernel/meta-app.ts";
@@ -21,6 +21,7 @@ import {
   threadsConnection,
   threadsDeletionRequest,
   threadsOauthState,
+  threadsRevocation,
 } from "./schema.ts";
 import { ThreadsApiError, ThreadsAuthError, ThreadsTransientError } from "./threads-client.ts";
 import type { ThreadsClient } from "./threads-client.ts";
@@ -33,6 +34,12 @@ const STATE_TTL_MS = 10 * 60_000;
 
 /** データの削除をやり直すまでの間。 */
 const DELETION_RETRY_MS = 15 * 60_000;
+
+/** 連携の解除の知らせを持つ時間（許可の画面から戻る途中の接続を止めるのに足りる長さ。めぐると同じ15分）。 */
+const REVOCATION_TTL_MS = 15 * 60_000;
+
+/** 終わったデータの削除の、Threads のユーザーの ID のハッシュを持つ時間（そのあいだに始まった接続を止める。めぐると同じ24時間）。 */
+const DELETION_IDENTIFIER_GRACE_MS = 24 * 60 * 60_000;
 
 /** 認可の画面の源（本物の Threads）。 */
 const THREADS_AUTHORIZE_ORIGIN = "https://threads.net";
@@ -55,6 +62,75 @@ const OAUTH_SCOPES = [
  */
 function sha256Hex(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+/**
+ * Threads のユーザーの ID のハッシュ（連携の解除・データの削除の記録に持つ。ID そのものは持たない）。
+ * めぐるは鍵つきの HMAC だが、領域には鍵がないので、決まった頭を付けた SHA-256 にする（threads-012）。
+ * @param threadsUserId Threads のユーザーの ID
+ * @returns ハッシュ（16進64文字）
+ */
+export function threadsUserHash(threadsUserId: string): string {
+  return sha256Hex(`threads-user:${threadsUserId}`);
+}
+
+/**
+ * Threads のユーザーの鍵（接続の確定・連携の解除・データの削除が同じ順に並ぶ。connection.ts と同じ鍵の名前）。
+ * @param tx トランザクション
+ * @param threadsUserId Threads のユーザーの ID
+ */
+async function lockThreadsUser(tx: Executor, threadsUserId: string): Promise<void> {
+  await lockKey(tx, `threads_user:${threadsUserId}`);
+}
+
+/**
+ * OAuth の接続を確定してよいかを、接続のトランザクションの中で確かめる（めぐるの connection-service.ts の手順3・4）。
+ * - 認可したあとに出た連携の解除の知らせがあれば断る（許可の画面から戻る途中で、連携を解いた）
+ * - 終わっていないデータの削除の要求か、接続を始めたあとに終わったデータの削除の要求があれば断る
+ * @param tx トランザクション（Threads のユーザーの鍵を取ったあと）
+ * @param threadsUserId Threads のユーザーの ID
+ * @param authorizedAt 認可した時刻（完了を受けた時刻）
+ * @param startedAt 接続を始めた時刻（state を作った時刻）
+ * @throws {AppError} 連携が解かれた（THREADS_AUTH_REVOKED）・データの削除の要求がある（THREADS_DATA_DELETION_REQUESTED）
+ */
+export async function assertOauthAllowed(
+  tx: Executor,
+  threadsUserId: string,
+  authorizedAt: Date,
+  startedAt: Date,
+): Promise<void> {
+  const hash = threadsUserHash(threadsUserId);
+  const [revoked] = await tx
+    .select({ id: threadsRevocation.id })
+    .from(threadsRevocation)
+    .where(
+      and(
+        eq(threadsRevocation.threadsUserHash, hash),
+        gte(threadsRevocation.issuedAt, authorizedAt),
+      ),
+    )
+    .limit(1);
+  if (revoked) throw new AppError(THREADS_ERRORS.THREADS_AUTH_REVOKED);
+  const [deletion] = await tx
+    .select({ code: threadsDeletionRequest.confirmationCode })
+    .from(threadsDeletionRequest)
+    .where(
+      or(
+        and(
+          eq(threadsDeletionRequest.threadsUserId, threadsUserId),
+          inArray(threadsDeletionRequest.status, ["pending", "failed"]),
+        ),
+        and(
+          eq(threadsDeletionRequest.threadsUserHash, hash),
+          or(
+            inArray(threadsDeletionRequest.status, ["pending", "failed"]),
+            gte(threadsDeletionRequest.completedAt, startedAt),
+          ),
+        ),
+      ),
+    )
+    .limit(1);
+  if (deletion) throw new AppError(THREADS_ERRORS.THREADS_DATA_DELETION_REQUESTED);
 }
 
 /**
@@ -236,7 +312,16 @@ export async function completeOauth(
     return { redirectTo: `${settings}?oauth=failed`, outcome: null };
   }
   try {
-    const outcome = await connectWithToken(deps, ownerId, account, token, now);
+    // 認可したあとの連携の解除・データの削除の要求があれば、接続を確定しない（threads-012）
+    const startedAt = row.createdAt;
+    const outcome = await connectWithToken(
+      deps,
+      ownerId,
+      account,
+      token,
+      now,
+      (tx, threadsUserId) => assertOauthAllowed(tx, threadsUserId, now, startedAt),
+    );
     return { redirectTo: `${settings}?oauth=${outcome.kind}`, outcome };
   } catch (error) {
     if (error instanceof AppError) {
@@ -249,18 +334,29 @@ export async function completeOauth(
 /**
  * Meta の連携の解除の知らせを扱う。ユーザーが最後に認可した時刻より前の知らせは当てない。
  * 時刻のない知らせは、持っているトークンでプロフィールを読み、認証のエラーのときだけ解除する。
+ * つないだ運用アカウントがなくても、知らせはハッシュで記録する（許可の画面から戻る途中の接続を止める。threads-012）。
  * @param deps 土台が渡す道具
  * @param threads Threads の API の呼び出し
  * @param payload 確かめた中身
  * @param payload.userId Threads のユーザーの ID
  * @param payload.issuedAt 知らせを出した時刻
+ * @param receivedAt 受け取った時刻
  * @returns 接続を解いたか
  */
 export async function handleUninstall(
   deps: DomainRouteDeps,
   threads: ThreadsClient,
   payload: { userId: string; issuedAt: Date | undefined },
+  receivedAt: Date = new Date(),
 ): Promise<boolean> {
+  await deps.db.transaction(async (tx) => {
+    await lockThreadsUser(tx, payload.userId);
+    await tx.insert(threadsRevocation).values({
+      threadsUserHash: threadsUserHash(payload.userId),
+      issuedAt: payload.issuedAt ?? receivedAt,
+      receivedAt,
+    });
+  });
   const [row] = await deps.db
     .select({ id: threadsAccount.id, authorizedAt: threadsConnection.authorizedAt })
     .from(threadsAccount)
@@ -336,6 +432,7 @@ export async function receiveDeletion(
       confirmationCode: code,
       requestFingerprint: fingerprint,
       threadsUserId: userId,
+      threadsUserHash: threadsUserHash(userId),
       receivedAt: now,
       lastAttemptedAt: now,
     })
@@ -378,7 +475,7 @@ export async function attemptDeletion(
         .where(eq(threadsDeletionRequest.confirmationCode, code))
         .for("update");
       if (!row || row.status === "completed" || !row.threadsUserId) return "skipped" as const;
-      await lockKey(tx, `threads-user:${row.threadsUserId}`);
+      await lockThreadsUser(tx, row.threadsUserId);
       // その Threads のユーザーにつないだ運用アカウントを消す（下の表は一緒に消える）
       await tx.delete(threadsAccount).where(eq(threadsAccount.threadsUserId, row.threadsUserId));
       await tx
@@ -430,7 +527,47 @@ export async function runOauthMaintenance(deps: DomainRouteDeps, now: Date): Pro
     );
   for (const { code } of due) await attemptDeletion(deps, code, now);
   await deps.db.delete(threadsOauthState).where(lt(threadsOauthState.expiresAt, now));
+  await cleanupRevocations(deps.db, now);
+  await cleanupDeletionIdentifiers(deps.db, now);
   return due.length;
+}
+
+/**
+ * 受け取ってから15分を過ぎた連携の解除の知らせを消す（定期の仕事。threads-012）。
+ * @param db DB
+ * @param now 今
+ * @returns 消した数
+ */
+export async function cleanupRevocations(db: Db, now: Date): Promise<number> {
+  const deleted = await db
+    .delete(threadsRevocation)
+    .where(lt(threadsRevocation.receivedAt, new Date(now.getTime() - REVOCATION_TTL_MS)))
+    .returning({ id: threadsRevocation.id });
+  return deleted.length;
+}
+
+/**
+ * 終わってから24時間を過ぎたデータの削除の要求から、Threads のユーザーの ID のハッシュを消す（定期の仕事。threads-012）。
+ * @param db DB
+ * @param now 今
+ * @returns 消した数
+ */
+export async function cleanupDeletionIdentifiers(db: Db, now: Date): Promise<number> {
+  const cleared = await db
+    .update(threadsDeletionRequest)
+    .set({ threadsUserHash: null })
+    .where(
+      and(
+        eq(threadsDeletionRequest.status, "completed"),
+        isNotNull(threadsDeletionRequest.threadsUserHash),
+        lt(
+          threadsDeletionRequest.completedAt,
+          new Date(now.getTime() - DELETION_IDENTIFIER_GRACE_MS),
+        ),
+      ),
+    )
+    .returning({ code: threadsDeletionRequest.confirmationCode });
+  return cleared.length;
 }
 
 /**

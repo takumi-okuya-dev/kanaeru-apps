@@ -48,6 +48,7 @@ export function ActivitySection({ accountId }: { accountId: string }) {
               </span>
               <span className="text-s text-text-sub">
                 {jstDateTime(item.createdAt)}・{ACTIVITY_KIND_LABELS[item.kind]}
+                {item.actorName ? `・${item.actorName}` : ""}
               </span>
             </li>
           ))}

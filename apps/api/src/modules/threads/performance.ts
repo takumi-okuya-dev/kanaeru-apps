@@ -1,16 +1,22 @@
 // 反応の画面のデータ・改善のメモ・書き出し（threads-003。めぐるの metrics/performance-service.ts を写した）。
-// 一覧は投稿した新しい順に最大 PERFORMANCE_LIST_MAX 件（めぐるのページ送りの代わり【仮決め】）。
+// 一覧は投稿した新しい順に PERFORMANCE_PAGE_SIZE 件ずつ（続きは nextCursor。threads-012 でめぐるのページ送りにそろえた）。
+// CSV の列はめぐるの「投稿ごと」37列・「取りこみごと」13列（列と値の形は約束の performance-csv.ts）。
 import {
   PERFORMANCE_BASELINE_SAMPLE,
-  PERFORMANCE_LIST_MAX,
   PERFORMANCE_MIN_JUDGEABLE,
+  PERFORMANCE_PAGE_SIZE,
+  POST_CSV_HEADER,
   PROMPT_POOR_POSTS,
+  SNAPSHOT_CSV_HEADER,
   THREADS_ERRORS,
   confirmAtOf,
   median,
+  postCsvCells,
+  snapshotCsvCells,
 } from "@workspace/contracts/threads";
 import type {
   FeedbackInput,
+  MetricValues,
   MetricsState,
   PerformanceItem,
   PerformanceSummary,
@@ -18,14 +24,15 @@ import type {
   PromptPoorPost,
 } from "@workspace/contracts/threads";
 import { buildCsv } from "@workspace/csv";
-import { jstDateTime } from "@workspace/contracts/core";
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull, max, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Executor } from "../../kernel/db.ts";
 import { AppError } from "../../kernel/errors.ts";
+import { decodeCursor, encodeCursor } from "./drafts.ts";
 import type { ThreadsAccountRecord } from "./repository.ts";
 import {
+  threadsDraftBatch,
   threadsFollowerSnapshot,
   threadsPostDraft,
   threadsPostMetric,
@@ -226,17 +233,41 @@ async function getSummary(
 }
 
 /**
- * 反応の画面（集計と一覧）。
+ * 続きの位置の条件（投稿した日時が前、同じ日時なら ID が後）。
+ * @param before 前の応答の nextCursor
+ * @returns 条件（はじめは undefined）
+ * @throws {AppError} 続きの位置が読めないとき（INVALID_INPUT。欄は before）
+ */
+function afterCursor(before: string | undefined): SQL | undefined {
+  if (!before) return undefined;
+  const cursor = decodeCursor(before);
+  if (!cursor) {
+    throw new AppError("INVALID_INPUT", {
+      fields: [
+        { path: "before", message: "続きの位置が読めません。一覧を読みこみ直してください。" },
+      ],
+    });
+  }
+  const at = cursor.publishedAt.toISOString();
+  return sql`(${threadsPostDraft.publishedAt} < ${at}
+    OR (${threadsPostDraft.publishedAt} = ${at} AND ${threadsPostDraft.id} > ${cursor.id}))`;
+}
+
+/**
+ * 反応の画面（集計と一覧の1ページ。めぐるの listPerformancePage）。
  * @param db DB
  * @param account 運用アカウント
  * @param tab 絞りこみ
- * @returns 集計と一覧
+ * @param before 続きを読むときの、前の応答の nextCursor
+ * @returns 集計と一覧と、続きの位置
  */
 export async function getPerformanceView(
   db: Executor,
   account: ThreadsAccountRecord,
   tab: PerformanceTab,
+  before?: string,
 ) {
+  const cursor = afterCursor(before);
   const [summary, rows, poor] = await Promise.all([
     getSummary(db, account),
     selectItems(db)
@@ -245,14 +276,24 @@ export async function getPerformanceView(
           eq(threadsPostDraft.threadsAccountId, account.id),
           eq(threadsPostDraft.status, "published"),
           tabFilter(tab),
+          cursor,
         ),
       )
       .orderBy(desc(threadsPostDraft.publishedAt), asc(threadsPostDraft.id))
-      .limit(PERFORMANCE_LIST_MAX),
+      .limit(PERFORMANCE_PAGE_SIZE + 1),
     listPoorForPrompt(db, account.id),
   ]);
   const inPrompt = new Set(poor.map((item) => item.id));
-  return { summary, items: rows.map((row) => toItem(row, inPrompt)) };
+  const page = rows.slice(0, PERFORMANCE_PAGE_SIZE);
+  const last = page.at(-1);
+  return {
+    summary,
+    items: page.map((row) => toItem(row, inPrompt)),
+    nextCursor:
+      rows.length > PERFORMANCE_PAGE_SIZE && last?.publishedAt
+        ? encodeCursor(last.publishedAt, last.id)
+        : null,
+  };
 }
 
 /**
@@ -303,44 +344,44 @@ export async function updateFeedback(
 }
 
 /**
- * 数を CSV の欄にする（ない数は空）。
- * @param value 数
- * @returns 欄
+ * 反応の6つの数を取り出す（取りこんでいなければ null）。
+ * @param row 数を持つ行
+ * @param fetched 取りこんだか
+ * @returns 6つの数
  */
-function cell(value: number | null | undefined): string {
-  return value === null || value === undefined ? "" : String(value);
+function metricsOf(
+  row: {
+    views: number | null;
+    likes: number | null;
+    replies: number | null;
+    reposts: number | null;
+    quotes: number | null;
+    shares: number | null;
+  } | null,
+  fetched: boolean,
+): MetricValues | null {
+  if (!row || !fetched) return null;
+  return {
+    views: row.views,
+    likes: row.likes,
+    replies: row.replies,
+    reposts: row.reposts,
+    quotes: row.quotes,
+    shares: row.shares,
+  };
 }
 
 /**
- * 日時を CSV の欄にする（日本時間。ないときは空）。
- * @param value 日時
- * @returns 欄
+ * 数かもしれない値を数にする（副問い合わせの数は文字で返ることがある）。
+ * @param value 値
+ * @returns 数（なければ null）
  */
-function time(value: Date | null | undefined): string {
-  return value ? jstDateTime(value) : "";
+function toNumber(value: number | string | null): number | null {
+  return value === null ? null : Number(value);
 }
 
-/** 判定の見える名前（CSV）。 */
-const JUDGMENT_TEXT: Record<string, string> = { good: "好調", normal: "普通", poor: "低調" };
-
-/** 取りこみの状態の見える名前（CSV）。 */
-const STATE_TEXT: Record<string, string> = {
-  updating: "途中",
-  confirmed: "確定",
-  late_confirmed: "遅れて確定",
-  unmeasurable: "計れない",
-};
-
-/** 時点の見える名前（CSV）。 */
-const KIND_TEXT: Record<string, string> = {
-  h24: "24時間",
-  d3: "3日",
-  d7: "7日",
-  late: "遅れて確定",
-};
-
 /**
- * 反応の CSV を作る（投稿ごと・取りこみごと。UTF-8 の BOM つき・式として読まれない守りは @workspace/csv）。
+ * 反応の CSV を作る（投稿ごと・取りこみごと。列はめぐると同じ。UTF-8 の BOM つき・式として読まれない守りは @workspace/csv）。
  * @param db DB
  * @param threadsAccountId 運用アカウントの ID
  * @param kind posts：投稿ごと・snapshots：取りこみごと
@@ -356,9 +397,9 @@ export async function buildPerformanceCsv(
       .select({
         snapshot: threadsPostMetricSnapshot,
         publishedAt: threadsPostDraft.publishedAt,
-        body: threadsPostDraft.body,
+        // 取りこんだ日（日本時間）のフォロワー数
         followers: sql<
-          number | null
+          number | string | null
         >`(SELECT ${threadsFollowerSnapshot.followersCount} FROM ${threadsFollowerSnapshot}
           WHERE ${threadsFollowerSnapshot.threadsAccountId} = ${threadsPostMetricSnapshot.threadsAccountId}
             AND ${threadsFollowerSnapshot.snapshotDate} = (${threadsPostMetricSnapshot.fetchedAt} AT TIME ZONE 'Asia/Tokyo')::date)`,
@@ -368,52 +409,38 @@ export async function buildPerformanceCsv(
       .where(eq(threadsPostMetricSnapshot.threadsAccountId, threadsAccountId))
       .orderBy(desc(threadsPostMetricSnapshot.fetchedAt), asc(threadsPostMetricSnapshot.id));
     return buildCsv(
-      [
-        "投稿の日時",
-        "本文",
-        "取りこんだ日時",
-        "経過（分）",
-        "時点",
-        "取り方",
-        "閲覧",
-        "いいね",
-        "返信",
-        "リポスト",
-        "引用",
-        "シェア",
-        "その日のフォロワー",
-      ],
-      rows.map(({ snapshot, publishedAt, body, followers }) => [
-        time(publishedAt),
-        body,
-        time(snapshot.fetchedAt),
-        String(snapshot.elapsedMinutes),
-        KIND_TEXT[snapshot.kind] ?? snapshot.kind,
-        snapshot.method === "slot" ? "時点の幅" : "補い",
-        cell(snapshot.views),
-        cell(snapshot.likes),
-        cell(snapshot.replies),
-        cell(snapshot.reposts),
-        cell(snapshot.quotes),
-        cell(snapshot.shares),
-        cell(followers === null ? null : Number(followers)),
-      ]),
+      SNAPSHOT_CSV_HEADER,
+      rows.map(({ snapshot, publishedAt, followers }) =>
+        snapshotCsvCells({
+          id: snapshot.draftId,
+          publishedAt: publishedAt ?? new Date(0),
+          fetchedAt: snapshot.fetchedAt,
+          elapsedMinutes: snapshot.elapsedMinutes,
+          kind: snapshot.kind,
+          method: snapshot.method,
+          metrics: metricsOf(snapshot, true)!,
+          followersOnDay: toNumber(followers),
+        }),
+      ),
     );
   }
   const h24 = alias(threadsPostMetricSnapshot, "h24");
   const rows = await db
     .select({
       draft: threadsPostDraft,
+      batch: threadsDraftBatch,
       metric: threadsPostMetric,
-      h24Views: h24.views,
+      h24,
+      // 投稿した日時より前で、いちばん新しいフォロワー数
       followers: sql<
-        number | null
+        number | string | null
       >`(SELECT ${threadsFollowerSnapshot.followersCount} FROM ${threadsFollowerSnapshot}
         WHERE ${threadsFollowerSnapshot.threadsAccountId} = ${threadsPostDraft.threadsAccountId}
           AND ${threadsFollowerSnapshot.capturedAt} <= ${threadsPostDraft.publishedAt}
         ORDER BY ${threadsFollowerSnapshot.capturedAt} DESC LIMIT 1)`,
     })
     .from(threadsPostDraft)
+    .innerJoin(threadsDraftBatch, eq(threadsDraftBatch.id, threadsPostDraft.batchId))
     .leftJoin(threadsPostMetric, eq(threadsPostMetric.draftId, threadsPostDraft.id))
     .leftJoin(h24, and(eq(h24.draftId, threadsPostDraft.id), eq(h24.kind, "h24")))
     .where(
@@ -424,45 +451,34 @@ export async function buildPerformanceCsv(
     )
     .orderBy(desc(threadsPostDraft.publishedAt), asc(threadsPostDraft.id));
   return buildCsv(
-    [
-      "投稿の日時",
-      "本文",
-      "Threads の URL",
-      "状態",
-      "判定",
-      "倍率",
-      "閲覧",
-      "いいね",
-      "返信",
-      "リポスト",
-      "引用",
-      "シェア",
-      "24時間の閲覧",
-      "投稿のときのフォロワー",
-      "時刻（0時からの分）",
-      "次に投稿する",
-      "持ち越し",
-      "承認の日時",
-    ],
-    rows.map(({ draft, metric, h24Views, followers }) => [
-      time(draft.publishedAt),
-      draft.body,
-      draft.threadsPermalink ?? "",
-      metric ? (STATE_TEXT[metric.state] ?? metric.state) : "取りこみ待ち",
-      metric?.judgment ? (JUDGMENT_TEXT[metric.judgment] ?? "") : "",
-      metric?.judgment && metric.judgmentRatio !== null ? metric.judgmentRatio.toFixed(2) : "",
-      cell(metric?.views),
-      cell(metric?.likes),
-      cell(metric?.replies),
-      cell(metric?.reposts),
-      cell(metric?.quotes),
-      cell(metric?.shares),
-      cell(h24Views),
-      cell(followers === null ? null : Number(followers)),
-      cell(draft.publishedSlotMinute),
-      draft.publishedPrioritized === null ? "" : draft.publishedPrioritized ? "はい" : "いいえ",
-      draft.publishedCarryover === null ? "" : draft.publishedCarryover ? "はい" : "いいえ",
-      time(draft.reviewedAt),
-    ]),
+    POST_CSV_HEADER,
+    rows.map(({ draft, batch, metric, h24: h24Row, followers }) =>
+      postCsvCells({
+        id: draft.id,
+        publishedAt: draft.publishedAt ?? new Date(0),
+        body: draft.body,
+        metrics: metricsOf(metric, metric?.lastFetchedAt != null),
+        ratio: metric?.judgment ? metric.judgmentRatio : null,
+        state: metric?.state ?? "pending",
+        judgment: metric?.judgment ?? null,
+        permalink: draft.threadsPermalink,
+        lastFetchedAt: metric?.lastFetchedAt ?? null,
+        lastElapsedMinutes: metric?.lastElapsedMinutes ?? null,
+        followersAtPost: toNumber(followers),
+        h24: metricsOf(h24Row, h24Row !== null),
+        batchId: batch.id,
+        batchPosition: draft.position,
+        batchCreatedAt: batch.createdAt,
+        approvedAt: draft.reviewedAt,
+        prioritized: draft.publishedPrioritized,
+        carryover: draft.publishedCarryover,
+        bodyEdited: draft.bodyEditedAt !== null,
+        slotMinute: draft.publishedSlotMinute,
+        strategyUpdatedAt: batch.strategyUpdatedAt,
+        promotionsChangedAt: batch.promotionsChangedAt,
+        researchChangedAt: batch.researchChangedAt,
+        coreRulesChangedAt: batch.coreRulesChangedAt,
+      }),
+    ),
   );
 }

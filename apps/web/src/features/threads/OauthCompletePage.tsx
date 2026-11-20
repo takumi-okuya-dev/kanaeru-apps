@@ -4,7 +4,7 @@ import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
 import { useEffect, useRef, useState } from "react";
 import { errorMessage } from "../../lib/api.ts";
-import { Page } from "../../lib/page.tsx";
+import { ThreadsPage } from "./ThreadsPage.tsx";
 import { SessionGate } from "../account/index.ts";
 import { Loading } from "./AccountGate.tsx";
 import { completeOauth } from "./api.ts";
@@ -40,17 +40,19 @@ function Completer() {
 
   if (error) {
     return (
-      <Page title="つなげませんでした" lead={error}>
+      <ThreadsPage title="つなげませんでした" lead={error}>
         <div>
-          <Button onClick={() => void navigate({ to: "/threads" })}>アカウントの一覧へ</Button>
+          <Button onClick={() => void navigate({ to: "/threads/accounts" })}>
+            アカウントの一覧へ
+          </Button>
         </div>
-      </Page>
+      </ThreadsPage>
     );
   }
   return (
-    <Page title="Threads につないでいます" lead="少しお待ちください。">
+    <ThreadsPage title="Threads につないでいます" lead="少しお待ちください。">
       <Loading />
-    </Page>
+    </ThreadsPage>
   );
 }
 

@@ -19,7 +19,7 @@ import { createLogger } from "../../kernel/logger.ts";
 import { createMetaApp, signRequestForTest } from "../../kernel/meta-app.ts";
 import { createFakeThreads } from "./fake-threads.ts";
 import type { FakeThreads } from "./fake-threads.ts";
-import { THREADS_OAUTH_FEATURE, runOauthMaintenance } from "./oauth.ts";
+import { THREADS_OAUTH_FEATURE, runOauthMaintenance, threadsUserHash } from "./oauth.ts";
 
 const database = useTestDatabase();
 const BASE = "/api/v1/threads";
@@ -226,6 +226,111 @@ describe("OAuth の接続と Meta の Webhook", () => {
       "SELECT threads_user_id FROM threads_deletion_request",
     );
     expect(stored.rows).toEqual([{ threads_user_id: null }]);
+  });
+
+  it("連携の解除：つないだ運用アカウントがなくても記録し、許可の画面から戻る途中の接続を止める（threads-012）", async () => {
+    const pair = await authorize();
+    // 完了より後の時刻の知らせ（完了の途中で連携を解いた）
+    const revoked = signRequestForTest(APP_SECRET, {
+      algorithm: "HMAC-SHA256",
+      user_id: "9001",
+      issued_at: Math.floor(Date.now() / 1000) + 60,
+    });
+    expect((await webhook(`${BASE}/webhooks/uninstall`, revoked)).status).toBe(200);
+    const recorded = await database.pool.query<{ threads_user_hash: string }>(
+      "SELECT threads_user_hash FROM threads_revocation",
+    );
+    expect(recorded.rows).toEqual([{ threads_user_hash: threadsUserHash("9001") }]);
+    expect(recorded.rows[0]?.threads_user_hash).not.toContain("9001");
+    const done = await call(app, cookie, `${BASE}/oauth/complete`, "POST", pair);
+    expect(((await done.json()) as { redirectTo: string }).redirectTo).toBe(
+      `/threads/accounts/${accountId}/settings?oauth=THREADS_AUTH_REVOKED`,
+    );
+    expect((await connection()).status).toBe("not_connected");
+  });
+
+  it("データの削除の要求が終わっていない・接続を始めたあとに終わったなら、OAuth の接続を断る（threads-012）", async () => {
+    await database.pool.query(
+      `INSERT INTO threads_deletion_request (confirmation_code, request_fingerprint, threads_user_id, threads_user_hash, status, received_at, last_attempted_at)
+       VALUES ($1, 'fp1', '9001', $2, 'pending', now(), now())`,
+      ["a".repeat(32), threadsUserHash("9001")],
+    );
+    const first = await authorize();
+    const pending = await call(app, cookie, `${BASE}/oauth/complete`, "POST", first);
+    expect(((await pending.json()) as { redirectTo: string }).redirectTo).toContain(
+      "oauth=THREADS_DATA_DELETION_REQUESTED",
+    );
+    expect((await connection()).status).toBe("not_connected");
+
+    // 接続を始めたあとに終わった（ID は消えてハッシュだけが残る）
+    const second = await authorize();
+    // 終わった時刻は、アプリと同じ時計で入れる（本番も completed_at はアプリの時計。DB の now() と混ぜると数ミリ秒前後する）
+    await database.pool.query(
+      "UPDATE threads_deletion_request SET status = 'completed', completed_at = $1, threads_user_id = NULL",
+      [new Date()],
+    );
+    const completed = await call(app, cookie, `${BASE}/oauth/complete`, "POST", second);
+    expect(((await completed.json()) as { redirectTo: string }).redirectTo).toContain(
+      "oauth=THREADS_DATA_DELETION_REQUESTED",
+    );
+
+    // 接続を始める前に終わったものは止めない
+    await database.pool.query(
+      "UPDATE threads_deletion_request SET completed_at = now() - interval '1 hour'",
+    );
+    const third = await authorize();
+    const ok = await call(app, cookie, `${BASE}/oauth/complete`, "POST", third);
+    expect(((await ok.json()) as { redirectTo: string }).redirectTo).toContain("oauth=connect");
+    expect((await connection()).status).toBe("connected");
+  });
+
+  it("データの削除が終わっても、Threads のユーザーの ID のハッシュは残す（threads-012）", async () => {
+    const signed = signRequestForTest(APP_SECRET, { algorithm: "HMAC-SHA256", user_id: "777" });
+    expect((await webhook(`${BASE}/webhooks/data-deletion`, signed)).status).toBe(200);
+    const rows = await database.pool.query<{ status: string; hash: string | null }>(
+      "SELECT status, threads_user_hash AS hash FROM threads_deletion_request",
+    );
+    expect(rows.rows).toEqual([{ status: "completed", hash: threadsUserHash("777") }]);
+  });
+
+  it("定期の仕事：15分を過ぎた連携の解除の知らせと、終わって24時間を過ぎた削除のハッシュを消す（threads-012）", async () => {
+    await database.pool.query(
+      `INSERT INTO threads_revocation (threads_user_hash, issued_at, received_at)
+       VALUES ($1, now() - interval '20 minutes', now() - interval '20 minutes'), ($2, now(), now())`,
+      [threadsUserHash("1"), threadsUserHash("2")],
+    );
+    await database.pool.query(
+      `INSERT INTO threads_deletion_request (confirmation_code, request_fingerprint, threads_user_hash, status, received_at, last_attempted_at, completed_at)
+       VALUES ($1, 'old', $3, 'completed', now() - interval '2 days', now() - interval '2 days', now() - interval '25 hours'),
+              ($2, 'new', $4, 'completed', now(), now(), now())`,
+      ["b".repeat(32), "c".repeat(32), threadsUserHash("3"), threadsUserHash("4")],
+    );
+    const deps: DomainRouteDeps = {
+      db: database.db,
+      logger: createLogger({ level: "silent", pretty: false }),
+      features: createDomainFeatures([THREADS_OAUTH_FEATURE]),
+      config: { ...testConfig(), threadsApiBaseUrl: FAKE_BASE },
+      fetch: fake.fetch,
+      secretBox: createSecretBox(KEY_RING, 1),
+      isJobRequest: createJobRequestCheck(undefined),
+      apps: listApps(),
+      metaApp: createMetaApp(THREADS_APP),
+    };
+    await runOauthMaintenance(deps, new Date());
+    const revocations = await database.pool.query<{ threads_user_hash: string }>(
+      "SELECT threads_user_hash FROM threads_revocation",
+    );
+    expect(revocations.rows).toEqual([{ threads_user_hash: threadsUserHash("2") }]);
+    const deletions = await database.pool.query<{
+      request_fingerprint: string;
+      hash: string | null;
+    }>(
+      "SELECT request_fingerprint, threads_user_hash AS hash FROM threads_deletion_request ORDER BY request_fingerprint",
+    );
+    expect(deletions.rows).toEqual([
+      { request_fingerprint: "new", hash: threadsUserHash("4") },
+      { request_fingerprint: "old", hash: null },
+    ]);
   });
 
   it("定期の仕事：止まったデータの削除をやり直し、切れた state を消す", async () => {

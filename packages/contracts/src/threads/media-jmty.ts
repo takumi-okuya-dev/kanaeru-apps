@@ -245,7 +245,9 @@ function rules(): ListingCheck[] {
  */
 function finalize(values: ListingValues, src: ListingSource): ListingValues {
   if (!src.linkedUrl || (values.body ?? "").includes(src.linkedUrl)) return values;
-  return { ...values, body: `${values.body ?? ""}\n\n■詳細・お申し込み\n${src.linkedUrl}`.trim() };
+  // 保存し直すと URL の行だけが自動の直しで外れ、前に足した見出しが残る。見出しを外してから足し直す（見出しが重ならない。threads-012）
+  const body = (values.body ?? "").replace(/\n*■詳細・お申し込み\s*$/, "");
+  return { ...values, body: `${body}\n\n■詳細・お申し込み\n${src.linkedUrl}`.trim() };
 }
 
 /** ジモティーの決まり。 */

@@ -21,14 +21,15 @@ import type {
   AnalysisTheme,
   AnalysisView,
   ClassificationsList,
+  ClassifyItem,
   OpeningType,
   ThreadsAccount,
 } from "@workspace/contracts/threads";
 import { jstDateTime } from "@workspace/contracts/core";
 import { useQueryClient } from "@tanstack/react-query";
-import { getRouteApi } from "@tanstack/react-router";
+import { Link, getRouteApi } from "@tanstack/react-router";
 import { Badge } from "@workspace/ui/components/badge";
-import { Button } from "@workspace/ui/components/button";
+import { Button, buttonVariants } from "@workspace/ui/components/button";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { Dialog } from "@workspace/ui/components/dialog";
 import { Field } from "@workspace/ui/components/field";
@@ -38,10 +39,11 @@ import { Textarea } from "@workspace/ui/components/textarea";
 import { useMemo, useState } from "react";
 import { errorMessage } from "../../lib/api.ts";
 import { fieldErrorsFromApi, fieldErrorsFromIssues } from "../../lib/form.ts";
-import { Page } from "../../lib/page.tsx";
+import { ThreadsPage } from "./ThreadsPage.tsx";
 import { AccountGate, LoadFailure, Loading } from "./AccountGate.tsx";
 import { saveAnalysisSettings, saveClassifications } from "./api.ts";
 import { CopyButton } from "./CopyButton.tsx";
+import { threadsPaths } from "./paths.ts";
 import { THREADS_QUERY_KEYS, useAnalysis, useClassifications } from "./queries.ts";
 
 /** 結果の知らせ。 */
@@ -132,11 +134,12 @@ function SummarySection({ view }: { view: AnalysisView }) {
 
 /**
  * 傾向の節。
- * @param props 分析（view）
+ * @param props 運用アカウントの ID（accountId）・分析（view）
+ * @param props.accountId 運用アカウントの ID
  * @param props.view 分析
  * @returns 節の要素
  */
-function TrendsSection({ view }: { view: AnalysisView }) {
+function TrendsSection({ accountId, view }: { accountId: string; view: AnalysisView }) {
   const timing = view.trends.some(
     (trend) => trend.dimension === "time" || trend.dimension === "day",
   );
@@ -169,11 +172,20 @@ function TrendsSection({ view }: { view: AnalysisView }) {
         </ul>
       )}
       {timing ? (
-        <p className="text-s text-text-sub">
-          {view.schedule.enabled && view.schedule.slotTimes.length > 0
-            ? `今の自動投稿の時刻：${view.schedule.slotTimes.join("・")}。時刻は自動では変えません（設定で直せます）。`
-            : "自動投稿の時刻は、まだ決めていません（設定で決められます）。"}
-        </p>
+        <div className="flex flex-col items-start gap-x3s">
+          <p className="text-s text-text-sub">
+            {view.schedule.enabled && view.schedule.slotTimes.length > 0
+              ? `今の自動投稿の時刻：${view.schedule.slotTimes.join("・")}。時刻は自動では変えません（設定で直せます）。`
+              : "自動投稿の時刻は、まだ決めていません（設定で決められます）。"}
+          </p>
+          <Link
+            to={threadsPaths.settings(accountId)}
+            hash="threads-schedule"
+            className={buttonVariants({ variant: "secondary", size: "small" })}
+          >
+            投稿の時刻を開く
+          </Link>
+        </div>
       ) : null}
       <p className="text-s text-text-sub">
         {view.settings.trendsInPrompt
@@ -361,7 +373,15 @@ function RecommendedSection({ view }: { view: AnalysisView }) {
           <dt className="text-text-sub">文字数</dt>
           <dd>{formatCount(recommended.compare.recommended.length)}</dd>
           <dd>{formatCount(recommended.compare.others.length)}</dd>
+          <dt className="text-text-sub">問いかけあり</dt>
+          <dd>{`${recommended.compare.recommended.questionCount}件／${recommended.compare.recommended.count}件`}</dd>
+          <dd>{`${recommended.compare.others.questionCount}件／${recommended.compare.others.count}件`}</dd>
         </dl>
+      ) : null}
+      {recommended.available && view.totals.withFollowers < view.totals.confirmed ? (
+        <p className="text-s text-text-sub">
+          {`フォロワーの数を記録する前の${view.totals.confirmed - view.totals.withFollowers}件は、広がりを出せないので外しています。`}
+        </p>
       ) : null}
     </section>
   );
@@ -385,7 +405,14 @@ function ClassifySection({ accountId }: { accountId: string }) {
   );
   const themes = query.data?.themes ?? [];
   const prompt = targets.length > 0 ? classifyPrompt(targets, themes) : "";
-  const parsed = answer.trim() ? parseClassifyAnswer(answer, targets, themes) : undefined;
+  const read = answer.trim() ? parseClassifyAnswer(answer, targets, themes) : undefined;
+  // 読み取った候補を保存の前に直した分（投稿の ID ごと。答えを貼り直すと消す）
+  const [edits, setEdits] = useState<Record<string, ClassChoice>>({});
+  const [editing, setEditing] = useState<ClassifyItem>();
+  const parsed = read
+    ? { ...read, items: read.items.map((item) => ({ ...item, ...edits[item.draftId] })) }
+    : undefined;
+  const bodyOf = new Map(targets.map((target) => [target.draftId, target.body]));
 
   /** 読み取った分類を保存する。 */
   const save = async () => {
@@ -409,6 +436,7 @@ function ClassifySection({ accountId }: { accountId: string }) {
         })),
       });
       setAnswer("");
+      setEdits({});
       await queryClient.invalidateQueries({ queryKey: THREADS_QUERY_KEYS.account(accountId) });
       setResult({
         tone: "success",
@@ -451,12 +479,39 @@ function ClassifySection({ accountId }: { accountId: string }) {
             <Textarea
               rows={6}
               value={answer}
-              onChange={(change) => setAnswer(change.target.value)}
+              onChange={(change) => {
+                setAnswer(change.target.value);
+                setEdits({});
+              }}
             />
           </Field>
           {parsed ? (
             <div className="flex flex-col gap-x3s text-s">
-              <p>{`読み取れた分類：${parsed.items.length}件`}</p>
+              <p>{`読み取れた分類：${parsed.items.length}件（保存の前に、1件ずつ直せます）`}</p>
+              {parsed.items.length > 0 ? (
+                <ul aria-label="分類の候補" className="flex flex-col gap-x3s">
+                  {parsed.items.map((item) => (
+                    <li
+                      key={item.draftId}
+                      className="flex flex-wrap items-center justify-between gap-xxs rounded-sm border border-border bg-surface p-xxs"
+                    >
+                      <span className="min-w-0 flex-1 break-words">
+                        {`【${item.index}】${headOf(bodyOf.get(item.draftId) ?? "")}`}
+                        <span className="block text-text-sub">
+                          {`${OPENING_TYPE_LABELS[item.openingType]}／${themes.find((theme) => theme.id === item.themeId)?.name ?? "テーマなし"}`}
+                        </span>
+                      </span>
+                      <Button
+                        size="small"
+                        onClick={() => setEditing(item)}
+                        aria-label={`【${item.index}】の分類を直す`}
+                      >
+                        直す
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               {parsed.problems.length > 0 ? (
                 <ul aria-label="読み取れなかった投稿" className="flex flex-col gap-x3s">
                   {parsed.problems.map((problem) => (
@@ -480,7 +535,101 @@ function ClassifySection({ accountId }: { accountId: string }) {
         </>
       )}
       {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
+      {editing ? (
+        <CandidateDialog
+          index={editing.index}
+          body={bodyOf.get(editing.draftId) ?? ""}
+          initial={{ openingType: editing.openingType, themeId: editing.themeId }}
+          themes={themes}
+          onApply={(choice) => setEdits({ ...edits, [editing.draftId]: choice })}
+          onClose={() => setEditing(undefined)}
+        />
+      ) : null}
     </section>
+  );
+}
+
+/** 書き出しの型とテーマ。 */
+type ClassChoice = { openingType: OpeningType; themeId: string | null };
+
+/**
+ * 本文の書き出し（改行をつめて24文字まで）。
+ * @param body 本文
+ * @returns 書き出し
+ */
+function headOf(body: string): string {
+  const chars = [...body.replace(/\s*\n\s*/g, " ")];
+  return chars.length > 24 ? `${chars.slice(0, 24).join("")}…` : chars.join("");
+}
+
+/** CandidateDialog が受け取るもの。 */
+type CandidateDialogProps = {
+  /** 何件目（【n】） */
+  index: number;
+  /** 本文 */
+  body: string;
+  /** 今の候補 */
+  initial: ClassChoice;
+  /** テーマ */
+  themes: AnalysisTheme[];
+  /** 直した候補を受け取る（まだ保存しない） */
+  onApply: (choice: ClassChoice) => void;
+  /** 閉じる */
+  onClose: () => void;
+};
+
+/**
+ * 読み取った分類の候補を、保存の前に直す枠（めぐるの ClassifyDialog の候補の選び直し）。
+ * @param props 何件目・本文・今の候補・テーマ・直した候補を受け取る・閉じる
+ * @returns 枠の要素
+ */
+function CandidateDialog({ index, body, initial, themes, onApply, onClose }: CandidateDialogProps) {
+  const [opening, setOpening] = useState<OpeningType>(initial.openingType);
+  const [theme, setTheme] = useState<string>(initial.themeId ?? "none");
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      title={`【${index}】の分類を直す`}
+      footer={
+        <div className="flex flex-wrap justify-end gap-xxs">
+          <Button variant="secondary" onClick={onClose}>
+            やめる
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => {
+              onApply({ openingType: opening, themeId: theme === "none" ? null : theme });
+              onClose();
+            }}
+          >
+            候補を直す
+          </Button>
+        </div>
+      }
+    >
+      <div className="flex flex-col gap-xs">
+        <p className="text-s break-words whitespace-pre-wrap text-text-sub">{body}</p>
+        <ChoiceChips
+          label="書き出しの型"
+          options={OPENING_TYPES.map((type) => ({ value: type, label: OPENING_TYPE_LABELS[type] }))}
+          value={opening}
+          onValueChange={setOpening}
+        />
+        <ChoiceChips
+          label="テーマ"
+          options={[
+            { value: "none", label: "なし" },
+            ...themes.map((item) => ({ value: item.id, label: item.name })),
+          ]}
+          value={theme}
+          onValueChange={setTheme}
+        />
+        <p className="text-s text-text-sub">直した候補は「分類を保存」で保存します。</p>
+      </div>
+    </Dialog>
   );
 }
 
@@ -794,7 +943,8 @@ function AnalysisContent({ account }: { account: ThreadsAccount }) {
   if (query.isError) return <LoadFailure error={query.error} retry={() => void query.refetch()} />;
   const view = query.data;
   return (
-    <Page
+    <ThreadsPage
+      wide
       title="分析"
       lead={`${account.name}：確定した投稿の反応から、伸びやすい時間帯・長さ・書き出しを見つけます。`}
     >
@@ -807,7 +957,7 @@ function AnalysisContent({ account }: { account: ThreadsAccount }) {
       />
       {view.needMore === null ? (
         <>
-          <TrendsSection view={view} />
+          <TrendsSection accountId={account.id} view={view} />
           <section aria-labelledby="threads-analysis-buckets" className="flex flex-col gap-xs">
             <h2 id="threads-analysis-buckets" className="text-l font-bold">
               区切りごとの反応
@@ -833,7 +983,7 @@ function AnalysisContent({ account }: { account: ThreadsAccount }) {
       <ClassifySection accountId={account.id} />
       <ManualClassifySection accountId={account.id} />
       <SettingsSection accountId={account.id} settings={view.settings} />
-    </Page>
+    </ThreadsPage>
   );
 }
 

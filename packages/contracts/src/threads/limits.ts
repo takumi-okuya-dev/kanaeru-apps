@@ -230,7 +230,7 @@ export const TEAM_STATUS_GROWTH_MIN_POSTS = 5;
 export const TEAM_STATUS_GROWTH_POOR_RATIO = 0.8;
 /** 人の動きに数える操作の記録（案を作る・直す・承認・却下。research.md R1）。 */
 export const TEAM_STATUS_ACTIVITY_ACTIONS = [
-  "drafts_registered",
+  "drafts_added",
   "draft_edited",
   "drafts_approved",
   "drafts_rejected",

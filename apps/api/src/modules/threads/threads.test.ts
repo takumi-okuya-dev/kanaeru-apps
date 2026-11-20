@@ -8,6 +8,7 @@ import type {
   DraftList,
   GeneratedPrompt,
   NgWord,
+  NgWordsResult,
   PostDraft,
   PostingRules,
   ReviewResult,
@@ -169,7 +170,9 @@ describe("Threads の運用の窓口", () => {
       expect(
         (await call(app, other, `${BASE}/${mine.id}`, "PATCH", { name: "乗っ取り" })).status,
       ).toBe(404);
-      expect((await call(app, other, `${BASE}/${mine.id}`, "DELETE")).status).toBe(404);
+      expect(
+        (await call(app, other, `${BASE}/${mine.id}`, "DELETE", { confirmName: mine.name })).status,
+      ).toBe(404);
       expect((await call(app, other, `${BASE}/${mine.id}/strategy`)).status).toBe(404);
       const list = (await (await call(app, other, BASE)).json()) as ThreadsAccountList;
       expect(list.accounts).toEqual([]);
@@ -186,11 +189,33 @@ describe("Threads の運用の窓口", () => {
       expect((await call(app, cookie, `${BASE}/not-a-uuid`)).status).toBe(404);
     });
 
+    it("消すときは名前を入れる。違う名前・空は 400 で消えない（threads-012）", async () => {
+      const created = await createAccount("消す練習");
+      const url = `${BASE}/${created.id}`;
+      const wrong = await call(app, cookie, url, "DELETE", { confirmName: "違う名前" });
+      expect(wrong.status).toBe(400);
+      expect(((await wrong.json()) as ErrorBody).error.code).toBe("THREADS_ACCOUNT_NAME_MISMATCH");
+      expect((await call(app, cookie, url, "DELETE", { confirmName: "" })).status).toBe(400);
+      expect((await call(app, cookie, url, "DELETE")).status).toBe(400);
+      expect((await call(app, cookie, url)).status).toBe(200);
+      // 前後の空白は除いて比べる
+      expect((await call(app, cookie, url, "DELETE", { confirmName: " 消す練習 " })).status).toBe(
+        204,
+      );
+      expect(
+        (await call(app, cookie, `${BASE}/${MISSING_ID}`, "DELETE", { confirmName: "消す練習" }))
+          .status,
+      ).toBe(404);
+    });
+
     it("消すと、戦略・案・NG ワードも一緒に消える", async () => {
       const created = await createAccount();
-      await call(app, cookie, `${BASE}/${created.id}/ng-words`, "POST", { word: "絶対" });
+      await call(app, cookie, `${BASE}/${created.id}/ng-words`, "POST", { words: ["絶対"] });
       await paste(created.id, "A の本文\n@@@\nB の本文");
-      expect((await call(app, cookie, `${BASE}/${created.id}`, "DELETE")).status).toBe(204);
+      expect(
+        (await call(app, cookie, `${BASE}/${created.id}`, "DELETE", { confirmName: created.name }))
+          .status,
+      ).toBe(204);
       expect((await call(app, cookie, `${BASE}/${created.id}`)).status).toBe(404);
       const drafts = await database.pool.query<{ n: number }>(
         "SELECT count(*)::int AS n FROM threads_post_draft",
@@ -296,7 +321,7 @@ describe("Threads の運用の窓口", () => {
       await call(app, cookie, `${BASE}/${id}/core-rules`, "PUT", {
         coreRules: "絵文字は1つまで\n\n",
       });
-      await call(app, cookie, `${BASE}/${id}/ng-words`, "POST", { word: "必ず儲かる" });
+      await call(app, cookie, `${BASE}/${id}/ng-words`, "POST", { words: ["必ず儲かる"] });
       const batch = await paste(id, "却下する案の本文です\n@@@\n残す案の本文です");
       const target = batch.drafts[0];
       if (!target) throw new Error("案がありません");
@@ -324,15 +349,19 @@ describe("Threads の運用の窓口", () => {
   });
 
   describe("投稿のルールと NG ワード", () => {
-    it("NG ワードは足した順に並び、照合の形で同じものは 409。外すと消える", async () => {
+    it("NG ワードは足した順に並び、照合の形で同じものは足さずに返す。外すと消える", async () => {
       const { id } = await createAccount();
-      const first = await call(app, cookie, `${BASE}/${id}/ng-words`, "POST", { word: "絶対" });
+      const first = await call(app, cookie, `${BASE}/${id}/ng-words`, "POST", { words: ["絶対"] });
       expect(first.status).toBe(201);
-      const added = (await first.json()) as NgWord;
-      await call(app, cookie, `${BASE}/${id}/ng-words`, "POST", { word: "最強" });
-      const dup = await call(app, cookie, `${BASE}/${id}/ng-words`, "POST", { word: " 絶対 " });
-      expect(dup.status).toBe(409);
-      expect(((await dup.json()) as ErrorBody).error.code).toBe("THREADS_NG_WORD_DUPLICATE");
+      const added = ((await first.json()) as NgWordsResult).added[0] as NgWord;
+      await call(app, cookie, `${BASE}/${id}/ng-words`, "POST", { words: ["最強"] });
+      const dup = await call(app, cookie, `${BASE}/${id}/ng-words`, "POST", { words: [" 絶対 "] });
+      expect(dup.status).toBe(201);
+      expect((await dup.json()) as NgWordsResult).toEqual({
+        added: [],
+        duplicates: ["絶対"],
+        reopenedCount: 0,
+      });
 
       const rules = (await (
         await call(app, cookie, `${BASE}/${id}/posting-rules`)
@@ -422,7 +451,7 @@ describe("Threads の運用の窓口", () => {
   });
 
   describe("案の一覧と直す", () => {
-    it("状態ごとに読め、比べる相手は承認待ち・承認済み（と投稿中・投稿済み）", async () => {
+    it("状態ごとに読め、比べる相手は承認待ち・承認済み・却下（threads-011）", async () => {
       const { id } = await createAccount();
       const { drafts } = await paste(id, "あ\n@@@\nい\n@@@\nう");
       const [first, second] = drafts;
@@ -444,14 +473,15 @@ describe("Threads の運用の窓口", () => {
         ["い", "薄い"],
       ]);
       expect(rejected.compareWith.map((item) => item.id).sort()).toEqual(
-        [first.id, drafts[2]?.id].sort(),
+        [first.id, second.id, drafts[2]?.id].sort(),
       );
+      expect(rejected.compareWith.find((item) => item.id === second.id)?.status).toBe("rejected");
       expect((await list("published")).drafts).toEqual([]);
       const bad = await call(app, cookie, `${BASE}/${id}/drafts?status=publishing`);
       expect(bad.status).toBe(400);
     });
 
-    it("承認待ちの本文を直すと版が増える。古い版は 409、承認済みは THREADS_DRAFT_STATE", async () => {
+    it("承認待ちの本文を直すと版が増える。古い版は 409、承認済みは直すと承認待ちに戻る（threads-011）", async () => {
       const { id } = await createAccount();
       const { drafts } = await paste(id, "直す前\n@@@\n承認する");
       const [target, other] = drafts;
@@ -472,10 +502,17 @@ describe("Threads の運用の窓口", () => {
 
       await review(id, { action: "approve", items: [{ id: other.id, version: other.version }] });
       const approved = await call(app, cookie, `${BASE}/${id}/drafts/${other.id}`, "PUT", {
-        body: "承認済みを直す",
+        body: "  承認済みを直す  ",
         version: other.version + 1,
       });
-      expect(((await approved.json()) as ErrorBody).error.code).toBe("THREADS_DRAFT_STATE");
+      expect(approved.status).toBe(200);
+      const reopened = (await approved.json()) as PostDraft;
+      expect([reopened.status, reopened.body, reopened.reviewedAt]).toEqual([
+        "needs_review",
+        "承認済みを直す",
+        null,
+      ]);
+      expect(reopened.editedAt).not.toBeNull();
     });
 
     it("案を消せる。ない案は 404", async () => {
@@ -540,52 +577,48 @@ describe("Threads の運用の窓口", () => {
       expect(((await response.json()) as ErrorBody).error.fields?.[0]?.path).toBe("reasons");
     });
 
-    it("NG ワードを含む案と、500文字を超える案は承認できない（409）", async () => {
+    it("NG ワードを含む案と、500文字を超える案は承認せず、理由を返す（threads-011）", async () => {
       const { id } = await createAccount();
-      await call(app, cookie, `${BASE}/${id}/ng-words`, "POST", { word: "必ず儲かる" });
+      await call(app, cookie, `${BASE}/${id}/ng-words`, "POST", { words: ["必ず儲かる"] });
       const { drafts } = await paste(id, `これは必ず儲かる話です\n@@@\n${"い".repeat(501)}`);
-      for (const draft of drafts) {
-        const response = await review(id, {
-          action: "approve",
-          items: [{ id: draft.id, version: draft.version }],
-        });
-        expect(response.status).toBe(409);
-        expect(((await response.json()) as ErrorBody).error.code).toBe(
-          "THREADS_DRAFT_NOT_APPROVABLE",
-        );
-      }
+      const response = await review(id, {
+        action: "approve",
+        items: drafts.map((draft) => ({ id: draft.id, version: draft.version })),
+      });
+      expect(response.status).toBe(200);
+      const result = (await response.json()) as ReviewResult;
+      expect(result.drafts).toEqual([]);
+      expect(result.skipped.map((item) => item.reason)).toEqual(["NG_WORD", "OVER_THREADS_LIMIT"]);
     });
 
-    it("1つでも合わなければ、どれも変えない（版・状態・ない案）", async () => {
+    it("合わない案（版・状態・ない案）は飛ばし、合う案だけ変える（threads-011）", async () => {
       const { id } = await createAccount();
       const { drafts } = await paste(id, "A\n@@@\nB");
       const [first, second] = drafts;
       if (!first || !second) throw new Error("案がありません");
-      const stale = await review(id, {
-        action: "approve",
-        items: [
-          { id: first.id, version: first.version },
-          { id: second.id, version: second.version + 5 },
-        ],
-      });
-      expect(((await stale.json()) as ErrorBody).error.code).toBe("THREADS_VERSION_CONFLICT");
-      const state = await review(id, {
-        action: "reopen",
-        items: [{ id: first.id, version: first.version }],
-      });
-      expect(((await state.json()) as ErrorBody).error.code).toBe("THREADS_DRAFT_STATE");
-      const missing = await review(id, {
-        action: "approve",
-        items: [{ id: MISSING_ID, version: 1 }],
-      });
-      expect(missing.status).toBe(404);
-      const list = (await (
-        await call(app, cookie, `${BASE}/${id}/drafts?status=needs_review`)
-      ).json()) as DraftList;
-      expect(list.drafts.map((draft) => draft.version)).toEqual([1, 1]);
+      const result = (await (
+        await review(id, {
+          action: "approve",
+          items: [
+            { id: first.id, version: first.version },
+            { id: second.id, version: second.version + 5 },
+            { id: MISSING_ID, version: 1 },
+          ],
+        })
+      ).json()) as ReviewResult;
+      expect(result.drafts.map((draft) => draft.id)).toEqual([first.id]);
+      expect(result.skipped).toEqual([
+        { id: second.id, reason: "STALE" },
+        { id: MISSING_ID, reason: "NOT_FOUND" },
+      ]);
+      expect(result.counts).toMatchObject({ needsReview: 1, approved: 1 });
+      const state = (await (
+        await review(id, { action: "reopen", items: [{ id: second.id, version: second.version }] })
+      ).json()) as ReviewResult;
+      expect(state.skipped).toEqual([{ id: second.id, reason: "STALE" }]);
     });
 
-    it("ほかの運用アカウントの案は、ないのと同じ 404", async () => {
+    it("ほかの運用アカウントの案は、ないのと同じ（NOT_FOUND で飛ばす）", async () => {
       const mine = await createAccount("1つ目");
       const another = await createAccount("2つ目");
       const { drafts } = await paste(mine.id, "1つ目の案");
@@ -595,7 +628,10 @@ describe("Threads の運用の窓口", () => {
         action: "approve",
         items: [{ id: target.id, version: target.version }],
       });
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(200);
+      expect(((await response.json()) as ReviewResult).skipped).toEqual([
+        { id: target.id, reason: "NOT_FOUND" },
+      ]);
     });
   });
 

@@ -26,6 +26,7 @@ import type {
   PromptSettings,
   ReviewInput,
   StrategyInput,
+  ThreadsAssignmentInput,
 } from "@workspace/contracts/threads";
 import type { ModuleRoutes } from "../../../../api/src/client.ts";
 import { createApiClient, request } from "../../lib/api.ts";
@@ -88,6 +89,26 @@ export function fetchAccount(accountId: string) {
 }
 
 /**
+ * 運用アカウントのホームの材料の数を読む（threads-012）。
+ * @param accountId 運用アカウントの ID
+ * @returns 材料の数
+ */
+export function fetchAccountHome(accountId: string) {
+  const { endpoint, param } = account(accountId);
+  return request(() => endpoint.home.$get({ param }));
+}
+
+/**
+ * 運用アカウントを開いたことを残す（つないでいればプロフィールを読み直す。threads-012）。
+ * @param accountId 運用アカウントの ID
+ * @returns 読み直した運用アカウント
+ */
+export function openAccount(accountId: string) {
+  const { endpoint, param } = account(accountId);
+  return request(() => endpoint.open.$post({ param }));
+}
+
+/**
  * 運用アカウントの名前を直す。
  * @param accountId 運用アカウントの ID
  * @param name 名前
@@ -99,13 +120,14 @@ export function renameAccount(accountId: string, name: string) {
 }
 
 /**
- * 運用アカウントを消す。
+ * 運用アカウントを消す（アカウントの名前をそのまま入れて確かめる。threads-012）。
  * @param accountId 運用アカウントの ID
+ * @param confirmName 入れたアカウントの名前
  * @returns なし
  */
-export function deleteAccount(accountId: string) {
+export function deleteAccount(accountId: string, confirmName: string) {
   const { endpoint, param } = account(accountId);
-  return request(() => endpoint.$delete({ param }));
+  return request(() => endpoint.$delete({ param, json: { confirmName } }));
 }
 
 /**
@@ -182,14 +204,14 @@ export function saveCoreRules(accountId: string, coreRules: string) {
 }
 
 /**
- * NG ワードを足す。
+ * NG ワードをまとめて足す（threads-011）。
  * @param accountId 運用アカウントの ID
- * @param word NG ワード
- * @returns 足した NG ワード
+ * @param words 足す語
+ * @returns 足した語・もうあった語・承認待ちに戻した数
  */
-export function addNgWord(accountId: string, word: string) {
+export function addNgWords(accountId: string, words: string[]) {
   const { endpoint, param } = account(accountId);
-  return request(() => endpoint["ng-words"].$post({ param, json: { word } }));
+  return request(() => endpoint["ng-words"].$post({ param, json: { words } }));
 }
 
 /**
@@ -217,18 +239,56 @@ export function createDraftBatch(accountId: string, input: DraftBatchInput) {
 }
 
 /**
- * 投稿の案の一覧を読む。
+ * ためた1回分を取り消す（そのまとまりの承認待ちの案だけを消す。threads-011）。
  * @param accountId 運用アカウントの ID
- * @param status 状態
- * @returns 案の一覧と比べる相手
+ * @param batchId まとまりの ID
+ * @returns 消した数
  */
-export function fetchDrafts(accountId: string, status: DraftListStatus) {
-  const { endpoint, param } = account(accountId);
-  return request(() => endpoint.drafts.$get({ param, query: { status } }));
+export function undoDraftBatch(accountId: string, batchId: string) {
+  const { endpoint } = account(accountId);
+  return request(() =>
+    endpoint["draft-batches"][":batchId"].$delete({ param: { accountId, batchId } }),
+  );
 }
 
 /**
- * 承認待ちの案の本文を直す。
+ * 投稿の案の一覧を読む。
+ * @param accountId 運用アカウントの ID
+ * @param status 状態
+ * @param before 投稿済みの続きを読むときの、前の応答の nextCursor
+ * @returns 案の一覧と比べる相手
+ */
+export function fetchDrafts(accountId: string, status: DraftListStatus, before?: string) {
+  const { endpoint, param } = account(accountId);
+  return request(() =>
+    endpoint.drafts.$get({ param, query: { status, ...(before ? { before } : {}) } }),
+  );
+}
+
+/**
+ * 案をまとめて消す（承認待ちと却下だけ。threads-011）。
+ * @param accountId 運用アカウントの ID
+ * @param ids 案の ID
+ * @returns 消した数
+ */
+export function deleteDrafts(accountId: string, ids: string[]) {
+  const { endpoint, param } = account(accountId);
+  return request(() => endpoint.drafts.delete.$post({ param, json: { ids } }));
+}
+
+/**
+ * 選んだ承認待ちの案に、「いつも付ける」の人で時間差のメンションをまとめて付ける（threads-011）。
+ * @param accountId 運用アカウントの ID
+ * @param items 案と版
+ * @returns 付けた案と、付けられなかった案
+ */
+export function attachMentionsBulk(accountId: string, items: { id: string; version: number }[]) {
+  const { endpoint, param } = account(accountId);
+  return request(() => endpoint.drafts.mentions.$post({ param, json: { items } }));
+}
+
+/**
+ * 承認待ち・承認済みの案の本文を直す（承認済みは承認待ちに戻る）。
  * @param accountId 運用アカウントの ID
  * @param draftId 案の ID
  * @param input 本文と版
@@ -253,10 +313,10 @@ export function deleteDraft(accountId: string, draftId: string) {
 }
 
 /**
- * 案を承認する・却下する・承認待ちに戻す。
+ * 案を承認する・却下する・承認待ちに戻す（できるものだけ変える。できなかったものは理由が返る）。
  * @param accountId 運用アカウントの ID
  * @param input 操作と案
- * @returns 変えた案
+ * @returns 変えた案・変えなかった案と理由・数
  */
 export function reviewDrafts(accountId: string, input: ReviewInput) {
   const { endpoint, param } = account(accountId);
@@ -302,6 +362,16 @@ export function disconnectThreads(accountId: string) {
 export function checkConnection(accountId: string) {
   const { endpoint, param } = account(accountId);
   return request(() => endpoint.connection.check.$post({ param }));
+}
+
+/**
+ * Threads に投稿できる状態かと、直近24時間の投稿の数を確かめる（投稿はしない。threads-012）。
+ * @param accountId 運用アカウントの ID
+ * @returns 確かめた結果
+ */
+export function checkThreadsPublish(accountId: string) {
+  const { endpoint, param } = account(accountId);
+  return request(() => endpoint["threads-check"].$post({ param }));
 }
 
 /**
@@ -360,14 +430,17 @@ export function setDraftPriority(accountId: string, draftId: string, input: Prio
 }
 
 /**
- * 反応の画面を読む（threads-003）。
+ * 反応の画面を読む（threads-003。50件ずつ。threads-012）。
  * @param accountId 運用アカウントの ID
  * @param tab 絞りこみ
- * @returns 集計と一覧
+ * @param before 続きを読むときの、前の応答の nextCursor
+ * @returns 集計と一覧と、続きの位置
  */
-export function fetchPerformance(accountId: string, tab: PerformanceTab) {
+export function fetchPerformance(accountId: string, tab: PerformanceTab, before?: string) {
   const { endpoint, param } = account(accountId);
-  return request(() => endpoint.performance.$get({ param, query: { tab } }));
+  return request(() =>
+    endpoint.performance.$get({ param, query: { tab, ...(before ? { before } : {}) } }),
+  );
 }
 
 /**
@@ -489,6 +562,29 @@ export function createReferencePosts(accountId: string, items: ReferencePostInpu
 }
 
 /**
+ * 参考の投稿を直す（読んだ版と同じときだけ。threads-012）。
+ * @param accountId 運用アカウントの ID
+ * @param itemId 参考の投稿の ID
+ * @param post 入力
+ * @param version 読んだ版
+ * @returns 直した参考の投稿
+ */
+export function updateReferencePost(
+  accountId: string,
+  itemId: string,
+  post: ReferencePostInput,
+  version: number,
+) {
+  const { endpoint } = account(accountId);
+  return request(() =>
+    endpoint["reference-posts"][":itemId"].$put({
+      param: { accountId, itemId },
+      json: { post, version },
+    }),
+  );
+}
+
+/**
  * 参考の投稿を消す。
  * @param accountId 運用アカウントの ID
  * @param itemId 参考の投稿の ID
@@ -502,13 +598,19 @@ export function deleteReferencePost(accountId: string, itemId: string) {
 }
 
 /**
- * 解説のプロンプトを作る。
+ * 解説のプロンプトを作る（itemId を渡せばその1件、なければ解説がまだのものをまとめて）。
  * @param accountId 運用アカウントの ID
+ * @param itemId 1件だけのときの参考の投稿の ID
  * @returns プロンプト
  */
-export function fetchExplainPrompt(accountId: string) {
+export function fetchExplainPrompt(accountId: string, itemId?: string) {
   const { endpoint, param } = account(accountId);
-  return request(() => endpoint["reference-posts"]["explain-prompt"].$get({ param, query: {} }));
+  return request(() =>
+    endpoint["reference-posts"]["explain-prompt"].$get({
+      param,
+      query: itemId ? { id: itemId } : {},
+    }),
+  );
 }
 
 /**
@@ -541,6 +643,29 @@ export function fetchKeywords(accountId: string) {
 export function createKeywords(accountId: string, items: ResearchKeywordInput[]) {
   const { endpoint, param } = account(accountId);
   return request(() => endpoint["research-keywords"].$post({ param, json: { items } }));
+}
+
+/**
+ * キーワードを直す（読んだ版と同じときだけ。threads-012）。
+ * @param accountId 運用アカウントの ID
+ * @param itemId キーワードの ID
+ * @param input 入力
+ * @param version 読んだ版
+ * @returns 直したキーワード
+ */
+export function updateKeyword(
+  accountId: string,
+  itemId: string,
+  input: ResearchKeywordInput,
+  version: number,
+) {
+  const { endpoint } = account(accountId);
+  return request(() =>
+    endpoint["research-keywords"][":itemId"].$put({
+      param: { accountId, itemId },
+      json: { ...input, version },
+    }),
+  );
 }
 
 /**
@@ -843,4 +968,126 @@ export function completeOauth(input: OauthCompleteInput) {
  */
 export function fetchDataDeletion(code: string) {
   return request(() => threads()["data-deletion"][":code"].$get({ param: { code } }));
+}
+
+// ---- チーム運用（threads-013。組織そのものは suite の窓口。ここは Threads の組織の画面・担当・運用状況・知らせ）----
+
+/**
+ * 今の利用者の、この運用アカウントでの関わりとできること（画面の出し分け。判定の正は API）。
+ * @param accountId 運用アカウントの ID
+ * @returns 関わりとできること
+ */
+export function fetchAccountAccess(accountId: string) {
+  const { endpoint, param } = account(accountId);
+  return request(() => endpoint.access.$get({ param }));
+}
+
+/**
+ * このアカウントのチームと、入れられる組織（持ち主と担当の人だけ）。
+ * @param accountId 運用アカウントの ID
+ * @returns チーム
+ */
+export function fetchAccountTeam(accountId: string) {
+  const { endpoint, param } = account(accountId);
+  return request(() => endpoint.team.$get({ param }));
+}
+
+/**
+ * 運用アカウントを組織に入れる・外す（null で外す。持ち主だけ）。
+ * @param accountId 運用アカウントの ID
+ * @param organizationId 入れる組織（null で外す）
+ * @returns 変えたあとのチーム
+ */
+export function placeAccount(accountId: string, organizationId: string | null) {
+  const { endpoint, param } = account(accountId);
+  return request(() => endpoint.team.placement.$put({ param, json: { organizationId } }));
+}
+
+/**
+ * 組織に見せるを切り替える（持ち主だけ）。
+ * @param accountId 運用アカウントの ID
+ * @param shared 見せるか
+ * @returns 変えたあとのチーム
+ */
+export function setAccountShared(accountId: string, shared: boolean) {
+  const { endpoint, param } = account(accountId);
+  return request(() => endpoint.team.shared.$put({ param, json: { shared } }));
+}
+
+/**
+ * 担当の人に承認を任せる・やめる（持ち主だけ）。
+ * @param accountId 運用アカウントの ID
+ * @param personId 担当の人
+ * @param delegated 任せるか
+ * @returns 変えたあとのチーム
+ */
+export function setDelegation(accountId: string, personId: string, delegated: boolean) {
+  const { endpoint, param } = account(accountId);
+  return request(() =>
+    endpoint.team.delegations[":personId"].$put({
+      param: { ...param, personId },
+      json: { delegated },
+    }),
+  );
+}
+
+/**
+ * 入っている組織と、組織に入っている運用アカウントの数。
+ * @returns 組織の一覧
+ */
+export function fetchTeamOrganizations() {
+  return request(() => threads().organizations.$get());
+}
+
+/**
+ * Threads の組織の画面。
+ * @param organizationId 組織の ID
+ * @returns 組織の画面
+ */
+export function fetchTeamOrganization(organizationId: string) {
+  return request(() =>
+    threads().organizations[":organizationId"].$get({ param: { organizationId } }),
+  );
+}
+
+/**
+ * 担当を付け外しする（管理者だけ）。
+ * @param organizationId 組織の ID
+ * @param input 運用アカウント・担当の人・付けるか
+ * @returns 変えたあとの組織の画面
+ */
+export function setAssignment(organizationId: string, input: ThreadsAssignmentInput) {
+  return request(() =>
+    threads().organizations[":organizationId"].assignments.$put({
+      param: { organizationId },
+      json: input,
+    }),
+  );
+}
+
+/**
+ * 運用状況（数と日付だけ）。
+ * @param organizationId 組織の ID
+ * @returns 運用状況
+ */
+export function fetchTeamStatus(organizationId: string) {
+  return request(() =>
+    threads().organizations[":organizationId"].status.$get({ param: { organizationId } }),
+  );
+}
+
+/**
+ * はじめの画面に1回だけ出す知らせ（担当が付いた・退会で引き継いだ）。
+ * @returns 知らせ
+ */
+export function fetchTeamNotices() {
+  return request(() => threads()["team-notices"].$get());
+}
+
+/**
+ * 知らせを見たことにする。
+ * @returns なし
+ */
+export function seeTeamNotices() {
+  return request(() => threads()["team-notices"].seen.$post());
 }

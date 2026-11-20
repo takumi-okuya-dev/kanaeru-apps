@@ -410,3 +410,22 @@ export function countFilled(values: StrategyValues): number {
     return !isBlank(values[f.key]);
   }).length;
 }
+
+/**
+ * 2つの戦略の値が同じか（保存していない変更があるかを見る。threads-012）。
+ * @param a - 1つ目の値
+ * @param b - 2つ目の値
+ * @returns どの項目も同じなら true
+ */
+export function sameStrategyValues(a: StrategyValues, b: StrategyValues): boolean {
+  return a.tonePreset === b.tonePreset && STRATEGY_TEXT_KEYS.every((k) => a[k] === b[k]);
+}
+
+/**
+ * 目的の5問（Q1〜Q5）のどれかに答えがあるか（活動の軸を AI と整理するのに要る。めぐる 014 FR-036。threads-012）。
+ * @param values - 戦略の値
+ * @returns 1問でも答えがあれば true
+ */
+export function hasPurposeAnswer(values: StrategyValues): boolean {
+  return PURPOSE_KEYS.some((k) => k !== "activityAxis" && !isBlank(values[k]));
+}

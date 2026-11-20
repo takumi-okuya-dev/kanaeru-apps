@@ -49,3 +49,15 @@ export function findNgWords(body: string, ngWords: NgWordForMatch[]): NgWordHit[
   }
   return hits;
 }
+
+/**
+ * 入れた文字を、改行・「、」・「,」で区切って NG ワードの一覧にする（まとめて足す。threads-011）。
+ * @param text - 入れた文字
+ * @returns 空でない語（前後の空白を除く。入れた順）
+ */
+export function splitNgWords(text: string): string[] {
+  return text
+    .split(/[\n、,，]/)
+    .map((word) => word.trim())
+    .filter((word) => word !== "");
+}

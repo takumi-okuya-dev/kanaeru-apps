@@ -1,10 +1,11 @@
 // Threads の運用（threads-001・002）：運用アカウントを作り、戦略を書き、NG ワードを足し、プロンプトを作って AI の答えを貼り、
-// 案をためて承認・却下する（001）。偽の Threads につなぎ、自動投稿の時刻を決める（002）。反応の画面と CSV（003）。宣伝とリサーチ（004）。分析の設定（006）。時間差のメンション（007）。外部メディアの掲載文（008）。戦略のガイドと壁打ち（009）。Meta のアプリでの接続とデータの削除の状況（010）。両方の幅で axe・CSP・横のスクロールを確かめる。
+// 案をためて承認・却下する（001。011：ためたのを取り消す・離れる前の確かめ・まとめて承認・まとめて消す・承認済みを直す）。偽の Threads につなぎ、自動投稿の時刻を決める（002）。反応の画面と CSV（003）。宣伝とリサーチ（004）。分析の設定（006）。時間差のメンション（007）。外部メディアの掲載文（008）。戦略のガイドと壁打ち（009）。Meta のアプリでの接続とデータの削除の状況（010）。両方の幅で axe・CSP・横のスクロールを確かめる。
 // ログインは account の試験用のログイン。DB は消さない（LINE のユーザー ID に幅と時刻を入れて、前の回と見分ける）。
 // Threads のアプリは、台帳に行がない間は運営者だけに見える（AD-16）。始めに運営者として「公開」にし、終わりに「切」に戻す（E2E の立ち上げと同じ状態。apps/api/test/e2e-server.ts）。
 import { expect, test } from "@playwright/test";
 import type { APIRequest, Page } from "@playwright/test";
 import { createHmac } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import {
   E2E_FAKE_THREADS_URL,
   E2E_JOB_TRIGGER_SECRET,
@@ -105,17 +106,20 @@ test("運用アカウントを作り、案をためて承認・却下する", as
   });
   expect(login.status()).toBe(200);
 
-  // 一覧（空）→ 名前が空なら欄のそばに誤り → 作ると戦略へ
+  // 入口（まだ開いたアカウントがない）→ 一覧（空）→ 名前が空なら欄のそばに誤り → 作るとホームへ（threads-012）→ 戦略へ
   await page.goto("/threads");
   await expect(page.getByRole("heading", { level: 1, name: "Threads のアカウント" })).toBeVisible();
+  await expect(page).toHaveURL(/\/threads\/accounts$/);
   await expect(page.getByText("まだアカウントはありません。")).toBeVisible();
   await checkPage(page, "アカウントの一覧（空）");
   await page.getByRole("button", { name: "作る" }).click();
   await expect(page.getByText("アカウントの名前を入れてください。")).toBeVisible();
   await page.getByRole("textbox", { name: /アカウントの名前/ }).fill("AI部");
   await page.getByRole("button", { name: "作る" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "ホーム" })).toBeVisible();
+  await expect(page.getByText("「AI部」を作りました（登録済み 1/10件）。")).toBeVisible();
+  await page.getByRole("link", { name: "戦略", exact: true }).first().click();
   await expect(page.getByRole("heading", { level: 1, name: "戦略" })).toBeVisible();
-  await expect(page.getByText("アカウントを作りました。まず戦略を書いてください。")).toBeVisible();
   await checkPage(page, "戦略");
 
   // 戦略：口調を選んで保存
@@ -131,25 +135,53 @@ test("運用アカウントを作り、案をためて承認・却下する", as
   await expect(page.getByText("「必ず儲かる」を足しました。")).toBeVisible();
   await checkPage(page, "設定");
 
-  // 案を作る：プロンプトを作り、答えを貼ると何件に分かれるかが出る
+  // 案を作る：開くとプロンプトができ、答えを貼ると何件に分かれるかが出る
   await page.getByRole("link", { name: "案を作る" }).first().click();
   await expect(page.getByRole("heading", { level: 1, name: "案を作る" })).toBeVisible();
-  await page.getByRole("button", { name: "プロンプトを作る" }).click();
   await expect(page.getByText(/NGワード 1個/)).toBeVisible();
+  await page.getByText("プロンプトに入っている情報").click();
+  await expect(page.getByText("投稿のルール：0行／NGワード：1個")).toBeVisible();
   await page.getByRole("textbox", { name: /AI の答え/ }).fill(AI_ANSWER);
   await expect(page.getByText("3件の案に分かれます。")).toBeVisible();
   await checkPage(page, "案を作る");
   await page.getByRole("button", { name: "案をためる" }).click();
 
-  // 投稿の案：NG ワードを含む案は承認できない。1件目を承認し、もう1件を理由つきで却下する
+  // ためたあとも画面に残り、取り消すと貼った文が欄に戻る（threads-011）
+  await expect(page.getByText("3件の案をためました。")).toBeVisible();
+  await checkPage(page, "案を作る（ためたあと）");
+  await page.getByRole("button", { name: "取り消す" }).click();
+  await expect(
+    page.getByText("3件のためた案を取り消しました。貼った文を欄に戻しました。"),
+  ).toBeVisible();
+  await expect(page.getByRole("textbox", { name: /AI の答え/ })).toHaveValue(AI_ANSWER);
+  // 貼った文があるまま離れようとすると確かめる
+  await page.getByRole("link", { name: "投稿の案" }).first().click();
+  const leaveDialog = page.getByRole("alertdialog");
+  await expect(leaveDialog.getByText("貼った文が、まだためていません")).toBeVisible();
+  await leaveDialog.getByRole("button", { name: "この画面に残る" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "案を作る" })).toBeVisible();
+  await page.getByRole("button", { name: "案をためる" }).click();
+  await expect(page.getByText("3件の案をためました。")).toBeVisible();
+  await page.getByRole("link", { name: "投稿の案で確かめる" }).click();
+
+  // 投稿の案：NG ワードを含む案は承認できない。1件目を承認し、承認できるものを選んでまとめて承認し、残りを理由つきで却下する
   await expect(page.getByRole("heading", { level: 1, name: "投稿の案" })).toBeVisible();
-  await expect(page.getByText("3件の案をためました。承認するか却下してください。")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: /にためた3件/ })).toBeVisible();
   await expect(page.getByText("NGワード：必ず儲かる")).toBeVisible();
   await checkPage(page, "投稿の案");
-  const cards = page.getByRole("listitem").filter({ hasText: "文字" });
+  const cards = page.locator('li[id^="threads-draft-card-"]');
   await expect(cards.nth(1).getByRole("button", { name: "承認する" })).toBeDisabled();
   await cards.nth(0).getByRole("button", { name: "承認する" }).click();
   await expect(page.getByRole("radio", { name: "承認済み（1）" })).toBeVisible();
+
+  await page.getByRole("button", { name: "承認できるものを選ぶ（1件）" }).click();
+  await page.getByRole("button", { name: "選んだ1件を承認" }).click();
+  const approveDialog = page.getByRole("alertdialog");
+  await expect(approveDialog.getByText(/あなた（アカウントの運用者）の責任のもとで/)).toBeVisible();
+  await checkPage(page, "まとめて承認の枠");
+  await approveDialog.getByRole("button", { name: "1件を承認する" }).click();
+  await expect(page.getByText("1件を承認しました。")).toBeVisible();
+  await expect(page.getByRole("radio", { name: "承認済み（2）" })).toBeVisible();
 
   await page.getByRole("button", { name: "却下する" }).first().click();
   const dialog = page.getByRole("dialog");
@@ -160,8 +192,26 @@ test("運用アカウントを作り、案をためて承認・却下する", as
   await dialog.getByRole("button", { name: "却下する" }).click();
   await expect(page.getByText("1件を却下しました。")).toBeVisible();
 
+  // 選んだ状態は道に残る。却下は選んでまとめて消せる（消す前に確かめる）
   await page.getByRole("radio", { name: /^却下/ }).click();
+  await expect(page).toHaveURL(/tab=rejected/);
   await expect(page.getByText("却下の理由：内容が薄い")).toBeVisible();
+  await page.getByRole("button", { name: "すべて選ぶ" }).click();
+  await page.getByRole("button", { name: "選んだ1件を消す" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "消す" }).click();
+  await expect(page.getByText("1件の案を消しました。")).toBeVisible();
+
+  // 承認済みの案も直せる。直すと承認待ちに戻る
+  await page.getByRole("radio", { name: /^承認済み/ }).click();
+  await cards.first().getByRole("button", { name: "直す" }).click();
+  const editDialog = page.getByRole("dialog");
+  await expect(editDialog.getByText(/保存すると承認待ちに戻り/)).toBeVisible();
+  await editDialog.getByRole("textbox", { name: /本文/ }).fill("直した承認済みの案です。");
+  await editDialog.getByRole("button", { name: "保存" }).click();
+  await expect(
+    page.getByText("直したので、承認待ちに戻しました。もう一度承認してください。"),
+  ).toBeVisible();
+  await expect(page.getByRole("radio", { name: "承認済み（1）" })).toBeVisible();
 
   // 一覧：数が出る
   await page.getByRole("link", { name: "アカウント" }).first().click();
@@ -196,8 +246,8 @@ test("Threads につなぎ、自動投稿の時刻を決める（threads-002）"
   await page.goto("/threads");
   await page.getByRole("textbox", { name: /アカウントの名前/ }).fill("自動投稿部");
   await page.getByRole("button", { name: "作る" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "戦略" })).toBeVisible();
-  await page.getByRole("link", { name: "投稿の案" }).first().click();
+  await expect(page.getByRole("heading", { level: 1, name: "ホーム" })).toBeVisible();
+  await page.getByRole("link", { name: "投稿の案", exact: true }).first().click();
   await expect(page.getByText("Threads にまだつないでいません。")).toBeVisible();
   await expect(page.getByText("自動投稿はオフです。")).toBeVisible();
   await checkPage(page, "投稿の案（未接続）");
@@ -205,7 +255,10 @@ test("Threads につなぎ、自動投稿の時刻を決める（threads-002）"
   // 設定：トークンを貼ってつなぐ
   await threadsSettingsLink(page).click();
   await expect(page.getByRole("heading", { level: 2, name: "Threads への接続" })).toBeVisible();
-  await expect(page.getByText("未接続")).toBeVisible();
+  // 題の上の切り替えにも「未接続」が出るので、接続の節の中で探す
+  await expect(
+    page.getByRole("region", { name: "Threads への接続" }).getByText("未接続", { exact: true }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "つなぐ", exact: true }).click();
   await expect(page.getByText("トークンを貼ってください。")).toBeVisible();
   await page.getByLabel(/長期のアクセストークン/).fill(token);
@@ -243,7 +296,16 @@ test("Threads につなぎ、自動投稿の時刻を決める（threads-002）"
   await checkPage(page, "反応");
   const downloading = page.waitForEvent("download");
   await page.getByRole("button", { name: "投稿ごとに書き出す" }).click();
-  expect((await downloading).suggestedFilename()).toMatch(/^threads-posts-\d{4}-\d{2}-\d{2}\.csv$/);
+  const download = await downloading;
+  expect(download.suggestedFilename()).toMatch(/^threads-posts-\d{4}-\d{2}-\d{2}\.csv$/);
+  // 列はめぐると同じ37列（threads-012）
+  const csv = await readFile(await download.path(), "utf8");
+  expect(
+    csv
+      .replace(/^\uFEFF/, "")
+      .split("\r\n")[0]
+      ?.split(","),
+  ).toHaveLength(37);
 
   // 定期の仕事の窓口は、合言葉がなければ 404・あれば動く（Cloud Scheduler と同じ JSON の本文）
   const denied = await page.request.post("/api/v1/threads/jobs/tick", { data: {} });
@@ -278,8 +340,8 @@ test("宣伝とリサーチを足し、プロンプトに入れる（threads-004
   await page.goto("/threads");
   await page.getByRole("textbox", { name: /アカウントの名前/ }).fill("リサーチ部");
   await page.getByRole("button", { name: "作る" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "戦略" })).toBeVisible();
-  await page.getByRole("link", { name: "リサーチ" }).first().click();
+  await expect(page.getByRole("heading", { level: 1, name: "ホーム" })).toBeVisible();
+  await page.getByRole("link", { name: "リサーチ", exact: true }).first().click();
   await expect(page.getByRole("heading", { level: 1, name: "宣伝とリサーチ" })).toBeVisible();
   await checkPage(page, "宣伝とリサーチ（空）");
 
@@ -297,12 +359,14 @@ test("宣伝とリサーチを足し、プロンプトに入れる（threads-004
   await expect(page.getByText("宣伝を足しました。")).toBeVisible();
   await expect(page.getByText("転職を考えている人の交流会です。")).toBeVisible();
 
-  // 参考の投稿：足して、解説のプロンプトを作り、答えを貼って保存する
-  await page
-    .getByRole("textbox", { name: /参考の投稿の本文/ })
-    .fill("仕事を辞めたい夜にやったこと。");
+  // 参考の投稿：枠で足して、解説のプロンプトを作り、答えを貼って保存する（threads-012：枠で足す・保存する答えを選ぶ）
   await page.getByRole("button", { name: "参考の投稿を足す" }).click();
-  await expect(page.getByText("参考の投稿を足しました。")).toBeVisible();
+  const referenceDialog = page.getByRole("dialog", { name: "参考の投稿を足す" });
+  await referenceDialog
+    .getByRole("textbox", { name: /^本文/ })
+    .fill("仕事を辞めたい夜にやったこと。");
+  await referenceDialog.getByRole("button", { name: "足す", exact: true }).click();
+  await expect(page.getByText("参考の投稿を1件足しました。")).toBeVisible();
   const shortId = (
     (await page
       .getByText(/^ID:[0-9a-f]+$/)
@@ -314,8 +378,8 @@ test("宣伝とリサーチを足し、プロンプトに入れる（threads-004
   await page
     .getByRole("textbox", { name: /AI の解説の答え/ })
     .fill(`【ID:${shortId}】\n共感から入っている`);
-  await expect(page.getByText(`ID:${shortId}：保存します`)).toBeVisible();
-  await page.getByRole("button", { name: "解説を保存" }).click();
+  await expect(page.getByRole("checkbox", { name: new RegExp(`ID:${shortId}`) })).toBeChecked();
+  await page.getByRole("button", { name: "1件の解説を保存" }).click();
   await expect(page.getByText("1件の解説を保存しました。")).toBeVisible();
   await expect(page.getByText("なぜ良いか：共感から入っている")).toBeVisible();
 
@@ -339,14 +403,14 @@ test("宣伝とリサーチを足し、プロンプトに入れる（threads-004
   // 案を作る：宣伝と参考の投稿がプロンプトに入る
   await page.getByRole("link", { name: "案を作る" }).first().click();
   await expect(page.getByRole("heading", { level: 1, name: "案を作る" })).toBeVisible();
-  await page.getByRole("button", { name: "プロンプトを作る", exact: true }).click();
+  // 開くとプロンプトができる（threads-011）
   await expect(page.getByText(/宣伝 1件・参考の投稿 1件/)).toBeVisible();
 
   expect(await readCspViolations()).toEqual([]);
 });
 
 /**
- * 試験用のログインをして、運用アカウントを1つ作る（戦略の画面で終わる）。
+ * 試験用のログインをして、運用アカウントを1つ作る（ホームで終わる。threads-012）。
  * @param page Playwright の画面
  * @param tag 幅ごとの印（前の回・ほかの幅と見分ける）
  * @param name 運用アカウントの名前
@@ -361,7 +425,7 @@ async function loginAndCreateAccount(page: Page, tag: string, name: string): Pro
   await page.goto("/threads");
   await page.getByRole("textbox", { name: /アカウントの名前/ }).fill(name);
   await page.getByRole("button", { name: "作る" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "戦略" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "ホーム" })).toBeVisible();
 }
 
 test("分析の画面で、テーマと傾向の設定を保存する（threads-006）", async ({ page }, testInfo) => {
@@ -434,8 +498,9 @@ test("時間差のメンションの人を足し、案に付けて承認する�
   await page.getByRole("link", { name: "案を作る" }).first().click();
   await page.getByRole("textbox", { name: /AI の答え/ }).fill("週末のイベントのお知らせです。");
   await page.getByRole("button", { name: "案をためる" }).click();
+  await page.getByRole("link", { name: "投稿の案で確かめる" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "投稿の案" })).toBeVisible();
-  await page.getByRole("button", { name: "メンションを付ける" }).click();
+  await page.getByRole("button", { name: "メンションを付ける", exact: true }).click();
   await expect(page.getByText("投稿の1時間後にメンション")).toBeVisible();
   await expect(page.getByRole("button", { name: /港の運営/ })).toHaveAttribute(
     "aria-pressed",
@@ -462,7 +527,7 @@ test("宣伝から外部メディアの掲載文を作り、コピーして状�
   const readCspViolations = await collectCspViolations(page);
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await loginAndCreateAccount(page, testInfo.project.name === "mobile" ? "a2" : "a1", "掲載部");
-  const accountId = /\/threads\/accounts\/([^/]+)\//.exec(page.url())?.[1] ?? "";
+  const accountId = /\/threads\/accounts\/([^/?#]+)/.exec(page.url())?.[1] ?? "";
   const year = new Date().getFullYear() + 1;
   const created = await page.request.post(`/api/v1/threads/accounts/${accountId}/promotions`, {
     headers: ORIGIN,
@@ -538,7 +603,9 @@ test("戦略をヒントと AI の答えで埋める（threads-009）", async ({
   const readCspViolations = await collectCspViolations(page);
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await loginAndCreateAccount(page, testInfo.project.name === "mobile" ? "a4" : "a3", "壁打ち部");
-  await expect(page.getByText(/十分に書けた項目：0／16/)).toBeVisible();
+  await page.getByRole("link", { name: "戦略", exact: true }).first().click();
+  await expect(page.getByRole("heading", { level: 1, name: "戦略" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^次におすすめ：/ })).toBeVisible();
   await page.getByText("「どんな人に投稿を届けたいか」の考えるヒント").click();
   await expect(
     page

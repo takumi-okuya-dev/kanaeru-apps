@@ -10,6 +10,7 @@ import type { ActivityAction, ActivityEntry, ActivityKind } from "@workspace/con
 import { and, desc, eq, lt } from "drizzle-orm";
 import type { Executor } from "../../kernel/db.ts";
 import type { DomainRouteDeps } from "../../kernel/http.ts";
+import { findDisplayNames } from "../account/index.ts";
 import { threadsActivityLog } from "./schema.ts";
 
 /** 記録する操作。 */
@@ -20,6 +21,8 @@ export type ActivityInput = {
   itemCount?: number;
   /** 対象の要約（本文なら書き出しにする） */
   summary?: string | null;
+  /** した人（threads-013。自動の操作は書かない） */
+  actorAccountId?: string | null;
 };
 
 /**
@@ -53,6 +56,7 @@ export async function recordActivity(
       action: input.action,
       itemCount: input.itemCount ?? 1,
       summary: input.summary ? excerptOf(input.summary) : null,
+      actorAccountId: input.actorAccountId ?? null,
     });
   } catch (error) {
     deps.logger.warn(
@@ -67,12 +71,14 @@ export async function recordActivity(
  * @param db DB
  * @param threadsAccountId 運用アカウントの ID
  * @param kind 種類で絞る（なければすべて）
+ * @param withActor した人の表示名を付けるか（組織に入っている運用アカウントだけ。threads-013）
  * @returns 記録
  */
 export async function listActivity(
   db: Executor,
   threadsAccountId: string,
   kind: ActivityKind | undefined,
+  withActor = false,
 ): Promise<ActivityEntry[]> {
   const rows = await db
     .select()
@@ -85,6 +91,12 @@ export async function listActivity(
     )
     .orderBy(desc(threadsActivityLog.createdAt), desc(threadsActivityLog.id))
     .limit(ACTIVITY_LIST_MAX);
+  const names = withActor
+    ? await findDisplayNames(
+        db,
+        rows.flatMap((row) => (row.actorAccountId ? [row.actorAccountId] : [])),
+      )
+    : new Map<string, string>();
   return rows.map((row) => ({
     id: row.id,
     kind: row.kind,
@@ -92,6 +104,15 @@ export async function listActivity(
     label: (ACTIVITY_ACTIONS as Record<string, string>)[row.action] ?? row.action,
     itemCount: row.itemCount,
     summary: row.summary,
+    ...(withActor
+      ? {
+          actorName: row.actorAccountId
+            ? (names.get(row.actorAccountId) ?? "退会した人")
+            : row.kind === "autopost"
+              ? null
+              : "退会した人",
+        }
+      : {}),
     createdAt: row.createdAt.toISOString(),
   }));
 }

@@ -26,6 +26,7 @@ import type { ThreadsCredentials } from "./connection.ts";
 import {
   threadsAccount,
   threadsPostDraft,
+  threadsPostMention,
   threadsPostingSchedule,
   threadsPublishAttempt,
 } from "./schema.ts";
@@ -674,6 +675,13 @@ class AttemptContext {
         carryoverAttemptId: null,
       },
     );
+    // 時間差のメンションも出せなかったことにする（予定のまま残すと、その人をほかの投稿で選べない。めぐるの markFailed。threads-011）
+    await this.deps.db
+      .update(threadsPostMention)
+      .set({ state: "failed", failureReason: "post_failed", leaseToken: null, leaseUntil: null })
+      .where(
+        and(eq(threadsPostMention.draftId, this.draft.id), eq(threadsPostMention.state, "pending")),
+      );
     await recordActivity(this.deps, this.attempt.threadsAccountId, {
       kind: "autopost",
       action: "auto_publish_failed",

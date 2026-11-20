@@ -25,6 +25,7 @@ import {
   listingAsText,
   parsePolishAnswer,
   polishPrompt,
+  previewListingFixes,
   refixListing,
   workSteps,
 } from "./media.ts";
@@ -199,6 +200,25 @@ describe("ルールのチェック", () => {
     );
     expect(r.fields.intro).toBe("よい会です");
     expect(r.fixes).toHaveLength(1);
+  });
+
+  // 画面は、直している値に自動の直しを通して「保存すると外す内容」をその場で出す（threads-012）。
+  // 作ったばかりの掲載文では何も出ないこと（直しをもう一度通しても、値も外すものも変わらない）
+  it.each(MEDIA)("%s：作った掲載文に直しをもう一度通しても、外すものはない", (m) => {
+    const b = buildListing(m, itSource());
+    const r = previewListingFixes(m, b.fields, itSource());
+    expect(r.fixes).toEqual([]);
+    expect(r.fields).toEqual(b.fields);
+  });
+
+  it("直した欄に足した LINE の行は、保存すると外す内容に出る", () => {
+    const b = buildListing("jmty", itSource());
+    const r = previewListingFixes(
+      "jmty",
+      { ...b.fields, body: `${b.fields.body ?? ""}\nLINEで連絡ください` },
+      itSource(),
+    );
+    expect(r.fixes.map((fix) => fix.excerpt)).toEqual(["LINEで連絡ください"]);
   });
 });
 

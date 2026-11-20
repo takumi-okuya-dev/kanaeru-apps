@@ -1,6 +1,9 @@
-// 運用アカウントの一覧（Threads の運用の入口）。アカウントごとに承認待ち・承認済みの数を出し、名前から投稿の案へ移る。
-// 下に「アカウントを作る」（名前だけ。Threads への接続はあとで足す）。入力の誤りは欄のそば、送った結果はボタンの近く。
-import type { ThreadsAccount } from "@workspace/contracts/threads";
+// 運用アカウントの一覧（/threads/accounts）。アカウントごとに @ユーザー名か未接続・要再接続・承認待ち・承認済みの数を出し、
+// 名前からそのアカウントのホームへ移る（threads-012）。下に「アカウントを作る」（名前だけ。Threads への接続はあとで足す。
+// 作ったらホームへ移る。めぐるの account-new と同じく、1つ以上あれば「登録済み n/上限件」を出す）。
+// 入力の誤りは欄のそば、送った結果はボタンの近く。
+// 組織で担当している運用アカウントは「担当している運用アカウント」に分けて出し、上限に数えない（threads-013）。
+import type { ThreadsAccount, ThreadsAssignedAccount } from "@workspace/contracts/threads";
 import { ThreadsAccountInput } from "@workspace/contracts/threads";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -14,17 +17,19 @@ import type * as React from "react";
 import { errorMessage } from "../../lib/api.ts";
 import { fieldErrorsFromApi, fieldErrorsFromIssues } from "../../lib/form.ts";
 import { showNotice } from "../../lib/notice.ts";
-import { Page } from "../../lib/page.tsx";
+import { ThreadsPage } from "./ThreadsPage.tsx";
 import { SessionGate } from "../account/index.ts";
 import { LoadFailure, Loading } from "./AccountGate.tsx";
+import { accountSecondary } from "./AccountSwitcher.tsx";
 import { createAccount } from "./api.ts";
 import { threadsPaths } from "./paths.ts";
 import { THREADS_QUERY_KEYS, useThreadsAccounts } from "./queries.ts";
+import { TeamNotices } from "./TeamNotices.tsx";
 
 /** AccountCard が受け取るもの。 */
 type AccountCardProps = {
-  /** 運用アカウント */
-  account: ThreadsAccount;
+  /** 運用アカウント（担当しているものは持ち主の表示名と組織の名前つき） */
+  account: ThreadsAccount | ThreadsAssignedAccount;
 };
 
 /**
@@ -41,13 +46,24 @@ function AccountCard({ account }: AccountCardProps) {
     >
       <h2 id={headingId} className="text-l leading-tight font-bold">
         <Link
-          to="/threads/accounts/$accountId/stock"
+          to="/threads/accounts/$accountId"
           params={{ accountId: account.id }}
           className="text-text-link underline"
         >
           {account.name}
         </Link>
       </h2>
+      {"ownerName" in account ? (
+        <p className="text-m text-text-sub">
+          {account.ownerName}さんの運用アカウント・組織「{account.organizationName}」
+        </p>
+      ) : null}
+      <p className="flex flex-wrap items-center gap-x-xxs text-m text-text-sub">
+        {accountSecondary(account)}
+        {account.connectionStatus === "needs_reconnect" ? (
+          <Badge variant="danger">要再接続</Badge>
+        ) : null}
+      </p>
       <dl className="flex flex-wrap gap-x-s gap-y-x3s text-m">
         <div className="flex gap-x-xxs">
           <dt className="text-text-sub">承認待ち</dt>
@@ -69,16 +85,19 @@ function AccountCard({ account }: AccountCardProps) {
 
 /** CreateAccountForm が受け取るもの。 */
 type CreateAccountFormProps = {
-  /** 上限に達しているか */
-  full: boolean;
+  /** 作った数 */
+  used: number;
+  /** 持てる数の上限 */
+  limit: number;
 };
 
 /**
- * アカウントを作るフォーム。作ったら、そのアカウントの戦略の画面へ移る。
- * @param props 上限に達しているか（full）
+ * アカウントを作るフォーム。作ったら、そのアカウントのホームへ移る。
+ * @param props 作った数（used）・上限（limit）
  * @returns フォームの要素
  */
-function CreateAccountForm({ full }: CreateAccountFormProps) {
+function CreateAccountForm({ used, limit }: CreateAccountFormProps) {
+  const full = used >= limit;
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [name, setName] = useState("");
@@ -106,14 +125,14 @@ function CreateAccountForm({ full }: CreateAccountFormProps) {
     try {
       const created = await createAccount(parsed.data.name);
       await queryClient.invalidateQueries({ queryKey: THREADS_QUERY_KEYS.accounts });
-      const path = threadsPaths.strategy(created.id);
+      const path = threadsPaths.home(created.id);
       showNotice({
         tone: "success",
-        message: "アカウントを作りました。まず戦略を書いてください。",
+        message: `「${created.name}」を作りました（登録済み ${used + 1}/${limit}件）。次にやることから始めてください。`,
         path,
       });
       await navigate({
-        to: "/threads/accounts/$accountId/strategy",
+        to: "/threads/accounts/$accountId",
         params: { accountId: created.id },
       });
     } catch (caught) {
@@ -131,9 +150,17 @@ function CreateAccountForm({ full }: CreateAccountFormProps) {
 
   return (
     <section aria-labelledby="threads-create-account" className="flex flex-col gap-xs">
-      <h2 id="threads-create-account" className="text-l font-bold">
-        アカウントを作る
-      </h2>
+      <div className="flex flex-col gap-x3s">
+        <h2 id="threads-create-account" className="text-l font-bold">
+          アカウントを作る
+        </h2>
+        {/* はじめての人には数を見せない（めぐるの account-new） */}
+        {used > 0 ? (
+          <p className="text-m text-text-sub">
+            登録済み {used}/{limit}件
+          </p>
+        ) : null}
+      </div>
       <form
         noValidate
         onSubmit={(submitEvent) => void submit(submitEvent)}
@@ -191,11 +218,14 @@ function Accounts() {
     );
   }
   const { accounts, limit } = query.data;
+  // 担当している運用アカウント（ほかの人のもの。上限に数えない。threads-013）
+  const assigned = query.data.assigned ?? [];
   return (
-    <Page
+    <ThreadsPage
       title="Threads のアカウント"
       lead="運用する Threads のアカウントごとに、戦略・投稿の案・承認を管理します。"
     >
+      <TeamNotices />
       {accounts.length === 0 ? (
         <p className="text-m">
           まだアカウントはありません。下の「アカウントを作る」から始めてください。
@@ -207,8 +237,20 @@ function Accounts() {
           ))}
         </ul>
       )}
-      <CreateAccountForm full={accounts.length >= limit} />
-    </Page>
+      {assigned.length > 0 ? (
+        <section aria-labelledby="threads-assigned-accounts" className="flex flex-col gap-xs">
+          <h2 id="threads-assigned-accounts" className="text-l font-bold">
+            担当している運用アカウント
+          </h2>
+          <ul aria-label="担当している運用アカウント" className="flex flex-col gap-xs">
+            {assigned.map((account) => (
+              <AccountCard key={account.id} account={account} />
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      <CreateAccountForm used={accounts.length} limit={limit} />
+    </ThreadsPage>
   );
 }
 

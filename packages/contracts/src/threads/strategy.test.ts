@@ -8,6 +8,8 @@ import {
   TONE_PRESETS,
   countFilled,
   emptyStrategyValues,
+  hasPurposeAnswer,
+  sameStrategyValues,
 } from "./strategy.ts";
 
 describe("strategy", () => {
@@ -80,5 +82,22 @@ describe("strategy", () => {
     const v = emptyStrategyValues();
     for (const k of PURPOSE_KEYS) v[k] = "書いた";
     expect(countFilled(v)).toBe(0);
+  });
+});
+
+describe("保存していない変更と、目的の5問の答え（threads-012）", () => {
+  it("どれか1つでも違えば同じではない（口調も比べる）", () => {
+    const a = emptyStrategyValues();
+    expect(sameStrategyValues(a, emptyStrategyValues())).toBe(true);
+    expect(sameStrategyValues(a, { ...a, finalAction: "相談" })).toBe(false);
+    expect(sameStrategyValues(a, { ...a, tonePreset: "formal" })).toBe(false);
+  });
+
+  it("Q1〜Q5のどれかに空白でない答えがあるときだけ true（活動の軸だけでは false）", () => {
+    const a = emptyStrategyValues();
+    expect(hasPurposeAnswer(a)).toBe(false);
+    expect(hasPurposeAnswer({ ...a, activityAxis: "人をつなぐ" })).toBe(false);
+    expect(hasPurposeAnswer({ ...a, purposeSelf: "　 " })).toBe(false);
+    expect(hasPurposeAnswer({ ...a, purposeFuture: "居場所を作る" })).toBe(true);
   });
 });
