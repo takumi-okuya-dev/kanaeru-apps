@@ -25,14 +25,21 @@ const IMMUTABLE_CACHE = "public, max-age=31536000, immutable";
 /** index.html など、毎回確かめるファイルのキャッシュ。 */
 const REVALIDATE_CACHE = "no-cache";
 
-/** 画面の CSP（Hono の secureHeaders の形）。LINE の源は research.md R7。 */
+/** 画面の CSP（Hono の secureHeaders の形）。LINE の源は research.md R7。Threads の画像の源は core-008。 */
 export const WEB_CSP_DIRECTIVES = {
   defaultSrc: ["'self'"],
   // LIFF の古い拡張と、古い Android の外のブラウザで読む部品（static.line-scdn.net）
   scriptSrc: ["'self'", "https://static.line-scdn.net"],
   styleSrc: ["'self'"],
-  // LINE のプロフィールの画像（liff.getProfile の pictureUrl）
-  imgSrc: ["'self'", "data:", "https://profile.line-scdn.net"],
+  // LINE のプロフィールの画像（liff.getProfile の pictureUrl）と、Threads のプロフィールの画像（Threads の API の
+  // threads_profile_picture_url。Meta の画像の置き場所 *.cdninstagram.com・*.fbcdn.net）
+  imgSrc: [
+    "'self'",
+    "data:",
+    "https://profile.line-scdn.net",
+    "https://*.cdninstagram.com",
+    "https://*.fbcdn.net",
+  ],
   fontSrc: ["'self'"],
   // LIFF の SDK が呼ぶ LINE の窓口と、SDK の文言の取り寄せ
   connectSrc: [
