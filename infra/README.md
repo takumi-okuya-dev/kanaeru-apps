@@ -1,7 +1,7 @@
 # infra（GCP の資源の Terraform）
 
 - 作成日：2026-11-19（core-002）
-- 直した日：2026-11-20（threads-002：`threads.tf` と9章）
+- 直した日：2026-11-20（threads-002：`threads.tf` と9章。threads-015：9章の5に OAuth を入にする手順）
 - 読む人：本番の置き場所を作る・直す人（主催者）。Terraform と GCP の考え方は [Terraformの学び](../docs/study/terraform.md)・[GCPの学び](../docs/study/gcp.md)。
 - 決めごとの正本は[構成の決めごと](../_bmad-output/architecture-kanaeru/architecture-kanaeru.md) AD-8〜AD-11、デプロイの決まりは[開発の流れの決まり](../docs/rules/development-flow.md) 5章。なぜこの形にしたかは [specs/core/002-infra/research.md](../specs/core/002-infra/research.md)。
 
@@ -21,7 +21,7 @@
 | `cloud_run.tf` | Cloud Run のサービス（画面と `/api`）と、DB の変更を当てる job |
 | `scheduler.tf` | 毎日0時に DB を止め、8時に動かす（日本時間） |
 | `budget.tf` | 請求の予算（月2,000円・50%と100%でメール） |
-| `threads.tf` | Threads の運用アプリ（`threads_enabled` が true のときだけ）：トークンを包む鍵の束と定期の仕事の合言葉の秘密・5分おきの定期の仕事（9章） |
+| `threads.tf` | Threads の運用アプリ（`threads_enabled` が true のときだけ）：トークンを包む鍵の束と定期の仕事の合言葉の秘密・5分おきの定期の仕事。`threads_oauth_enabled` も true なら Meta のアプリの秘密の値の入れ物（9章） |
 
 Terraform は**手元から**流す（GitHub Actions からは流さない）。GitHub Actions が変えるのはイメージだけで、ほかの設定（台数・環境の値・権限）は Terraform だけが変える。
 
@@ -152,4 +152,18 @@ Cloud SQL は `prevent_destroy`・`deletion_protection`・`deletion_protection_e
 
 3. 鍵を替えるとき：今の鍵を残したまま新しい版を足した JSON（`{"1":"<古い鍵>","2":"<新しい鍵>"}`）を新しい版として足し、`threads_token_key_version = 2` にして apply する。古い鍵で包んだトークンも開ける（新しく包むときだけ新しい鍵を使う）。古い鍵は、すべてのトークンが延長で包み直された（最長60日）あとに外す。
 4. 定期の仕事（`kanaeru-threads-tick`）は日本時間 8時〜23時台の5分おき。DB の夜間の停止（7章）の間は動かさない。止めたいときは `gcloud scheduler jobs pause kanaeru-threads-tick --location=asia-northeast1`。
-5. OAuth の接続と Meta の Webhook（threads-010。機能の印 `threads.oauth`）は、まだこの Terraform で設定しない。使うときは、Meta のアプリの ID（`THREADS_APP_ID`）と秘密の値（`THREADS_APP_SECRET`。Secret Manager）・`DOMAIN_FEATURES=threads.oauth` を Cloud Run に足す変更を、別に入れる（Meta のアプリの審査のあと）。それまでは、トークンを貼り付けてつなぐ。
+5. OAuth の接続と Meta の Webhook（threads-010。機能の印 `threads.oauth`）を入にするとき（既定は切。それまでは、トークンを貼り付けてつなぐ）：
+   1. Meta の開発者の画面で、Threads の API を使うアプリを作り、審査を通す。アプリの設定に次を登録する（`<WEB_URL>` は本番の画面の源）：
+      - リダイレクトの URL：`<WEB_URL>/api/v1/threads/oauth/callback`
+      - 連携の解除の Webhook：`<WEB_URL>/api/v1/threads/webhooks/uninstall`
+      - データの削除の Webhook：`<WEB_URL>/api/v1/threads/webhooks/data-deletion`
+   2. `threads_app_id = "<アプリの ID（数字）>"` を入れて apply する（`threads_enabled = true` も要る。秘密の値の入れ物と読む権限だけができ、Cloud Run は変わらない）
+   3. 秘密の値（App Secret）の版を足す（手元で入れ、ファイルや履歴に残さない）：
+
+      ```bash
+      read -rs THREADS_APP_SECRET && printf '%s' "$THREADS_APP_SECRET" | \
+        gcloud secrets versions add kanaeru-threads-app-secret --data-file=- && unset THREADS_APP_SECRET
+      ```
+
+   4. `threads_oauth_enabled = true` にして apply する（Cloud Run に `THREADS_APP_ID`・`THREADS_APP_SECRET`・`DOMAIN_FEATURES=threads.oauth` が足される）。設定の「Threads への接続」に「Meta のアプリでつなぐ」が出る
+   5. 止めたいときは `threads_oauth_enabled = false` にして apply する（OAuth と Webhook の窓口は 404 になり、貼り付けた接続はそのまま使える。秘密の値は残るので、入に戻すときは 4 だけでよい）
