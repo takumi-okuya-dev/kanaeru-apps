@@ -5,6 +5,7 @@
 // - 送る前に形を確かめ、合わなければ欄のそばに出す（数える失敗にしない）
 // - 確かめの失敗が続いて待たされたら、待ちが終わるまでボタンを止める
 // - 自分の別の運用アカウントがつないでいたら、アカウントの一覧へ案内する
+// - 注意の文のあとに、利用規約とプライバシーポリシーへのリンク（新しいタブ。貼りかけのトークンを失わないため。suite-002）
 // トークンの値は保存しない（送ったら欄を空にする）。入力の誤りは欄のそば、送った結果はボタンの近く（EXPERIENCE.md）。
 import {
   THREADS_ERRORS,
@@ -23,6 +24,7 @@ import { useEffect, useState } from "react";
 import type * as React from "react";
 import { ApiError, errorMessage } from "../../lib/api.ts";
 import { fieldErrorsFromApi } from "../../lib/form.ts";
+import { LegalLink } from "../suite/index.ts";
 import { connectThreads } from "./api.ts";
 import { AccountSwitchSteps } from "./ConnectGuide.tsx";
 import {
@@ -193,6 +195,11 @@ export function TokenConnectForm({
       <p className="text-s text-text-sub">
         トークンは暗号にして持ち、画面には二度と出しません。この Threads
         のアカウントの投稿と、プロフィール・反応の数を読むためだけに使います。
+      </p>
+      <p className="text-s text-text-sub">
+        トークンと投稿の扱いは、
+        <LegalLink to="terms" newTab />と<LegalLink to="privacy" newTab />
+        に書いています（どちらも新しいタブで開きます）。
       </p>
       <div className="flex flex-col items-start gap-xxs">
         <Button

@@ -10,6 +10,7 @@ export const COMMON_DOMAINS: readonly string[] = ["account", "suite"];
 /**
  * アプリの key に使えない言葉（道の頭・窓口の頭と取り合うもの。AD-15）。
  * settings は設定の画面（/settings）の道の頭。join は組織の招待の道（/join/{token}。AD-22 の仮決め）。
+ * terms・privacy は利用規約とプライバシーポリシーのページ（/terms・/privacy。suite-002）。
  */
 export const RESERVED_APP_KEYS: readonly string[] = [
   "api",
@@ -24,6 +25,8 @@ export const RESERVED_APP_KEYS: readonly string[] = [
   "well-known",
   "settings",
   "join",
+  "terms",
+  "privacy",
 ];
 
 /** アプリの key の形（英小文字で始まる英小文字・数字。40文字まで）。 */

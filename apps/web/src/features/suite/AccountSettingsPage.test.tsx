@@ -59,6 +59,22 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("規約とポリシー", () => {
+  it("利用規約とプライバシーポリシーへのリンクを出す（suite-002）", async () => {
+    stubApi();
+    renderWithRouter(<AccountSettingsPage />);
+    const section = await screen.findByRole("region", { name: "規約とポリシー" });
+    expect(within(section).getByRole("link", { name: "利用規約" })).toHaveAttribute(
+      "href",
+      "/terms",
+    );
+    expect(within(section).getByRole("link", { name: "プライバシーポリシー" })).toHaveAttribute(
+      "href",
+      "/privacy",
+    );
+  });
+});
+
 describe("退会の確かめ", () => {
   it("枠を開いたら、組織・引き継がれる記録・消える記録に分けて出す", async () => {
     const sent = stubApi();
