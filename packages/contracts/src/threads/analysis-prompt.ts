@@ -2,7 +2,7 @@
 // contracts/analysis.md）。分類は外のAIに頼み、答えを貼る（018と同じ形。原則III）。
 import { ANALYSIS_MAX_TRENDS } from "./limits.ts";
 import { findNgWords } from "./ng-words.ts";
-import { normalizeForMatch } from "./normalize.ts";
+import { nameMatchKey, normalizeForMatch } from "./normalize.ts";
 import {
   OPENING_TYPE_LABELS,
   OPENING_TYPES,
@@ -92,12 +92,13 @@ export type ClassifyItem = {
 /** 読み取れなかった投稿。 */
 export type ClassifyProblem = { index: number; reason: string };
 
-// 名前の比べ方：前後の空白と「」『』"" を除き、全角・半角をそろえる
-const keyOf = (s: string) => normalizeForMatch(s.replace(/[「」『』"“”\s]/g, "")).normalized;
+// 名前の比べ方：前後の空白と「」『』"" を除き、全角・半角をそろえる（nameMatchKey）
+const keyOf = nameMatchKey;
 
 const LINE_RE = /【\s*([0-9０-９]+)\s*】(.*)$/;
 const OPENING_RE = /書き出しの型\s*[:：]\s*([^／/、,]*)/;
-const THEME_RE = /テーマ\s*[:：]\s*([^／/、,]*)/;
+// テーマは行の終わりまで読む（名前に「、」「／」などを使えるため）。テーマのあとに書き出しの型が続くときは、その前まで
+const THEME_RE = /テーマ\s*[:：]\s*(.*?)(?:\s*[／/、,]\s*書き出しの型\s*[:：].*)?$/;
 
 /**
  * 分類の答えを読む（contracts/analysis.md「答えの読み取り」）。目印の行だけを読み、前後の文は無視する。
@@ -112,7 +113,15 @@ export function parseClassifyAnswer(
   themes: readonly AnalysisTheme[],
 ): { items: ClassifyItem[]; problems: ClassifyProblem[] } {
   const openings = new Map(OPENING_TYPES.map((t) => [keyOf(OPENING_TYPE_LABELS[t]), t] as const));
-  const themeIds = new Map(themes.map((t) => [keyOf(t.name), t.id] as const));
+  // そのままの名前で先に探し、なければ鍵で探す（鍵が同じテーマが2つあるときは、鍵では選ばない）
+  const exactThemeIds = new Map(themes.map((t) => [t.name.trim(), t.id] as const));
+  const keyCounts = new Map<string, number>();
+  for (const t of themes) keyCounts.set(keyOf(t.name), (keyCounts.get(keyOf(t.name)) ?? 0) + 1);
+  const themeIds = new Map(
+    themes
+      .filter((t) => keyCounts.get(keyOf(t.name)) === 1)
+      .map((t) => [keyOf(t.name), t.id] as const),
+  );
   const byIndex = new Map<number, ClassifyItem | ClassifyProblem>();
   for (const line of text.replace(/\r\n/g, "\n").split("\n")) {
     const m = LINE_RE.exec(line);
@@ -130,7 +139,7 @@ export function parseClassifyAnswer(
     const themeKey = keyOf(themeName);
     let themeId: string | null = null;
     if (themeKey !== "" && themeKey !== keyOf("なし")) {
-      const id = themeIds.get(themeKey);
+      const id = exactThemeIds.get(themeName) ?? themeIds.get(themeKey);
       if (!id) {
         byIndex.set(index, { index, reason: `知らないテーマ「${themeName}」` });
         continue;

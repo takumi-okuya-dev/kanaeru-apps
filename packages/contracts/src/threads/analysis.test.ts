@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { POST_LENGTH_DEFAULTS } from "./limits.ts";
 import { analyzePosts } from "./analysis.ts";
 import { classifyPrompt, parseClassifyAnswer, trendsForPrompt } from "./analysis-prompt.ts";
+import { AnalysisThemesInput } from "./analysis-schemas.ts";
 import type { AnalysisPost, Trend } from "./analysis-types.ts";
 import { lengthBuckets, postValues } from "./analysis-values.ts";
 import { isJapaneseHoliday } from "./holidays.ts";
@@ -570,6 +571,37 @@ describe("parseClassifyAnswer", () => {
     ]);
   });
 
+  it("テーマの名前の中の「、」「／」で切らない。テーマが先でも読む", () => {
+    const named = [
+      { id: "t1", name: "仕事" },
+      { id: "t2", name: "仕事、日常" },
+      { id: "t3", name: "AI／自動化" },
+    ];
+    const text =
+      "【1】書き出しの型：体験談／テーマ：仕事、日常\n【2】書き出しの型：体験談／テーマ：AI／自動化\n【3】テーマ：仕事／書き出しの型：あるある";
+    const r = parseClassifyAnswer(text, posts, named);
+    expect(r.items).toEqual([
+      { index: 1, draftId: "d1", openingType: "story", themeId: "t2" },
+      { index: 2, draftId: "d2", openingType: "story", themeId: "t3" },
+      { index: 3, draftId: "d3", openingType: "aruaru", themeId: "t1" },
+    ]);
+    expect(r.problems).toEqual([]);
+  });
+
+  it("鍵が同じテーマが2つあれば、そのままの名前で選ぶ（鍵では選ばない）", () => {
+    const pair = [
+      { id: "t1", name: "AI" },
+      { id: "t2", name: "ai" },
+    ];
+    const r = parseClassifyAnswer(
+      "【1】書き出しの型：体験談／テーマ：AI\n【2】書き出しの型：体験談／テーマ：Ａｉ",
+      posts.slice(0, 2),
+      pair,
+    );
+    expect(r.items).toEqual([{ index: 1, draftId: "d1", openingType: "story", themeId: "t1" }]);
+    expect(r.problems).toEqual([{ index: 2, reason: "知らないテーマ「Ａｉ」" }]);
+  });
+
   it("テーマがないときは型だけで付ける", () => {
     const r = parseClassifyAnswer("【1】書き出しの型：あるある", posts.slice(0, 1), []);
     expect(r.items).toEqual([{ index: 1, draftId: "d1", openingType: "aruaru", themeId: null }]);
@@ -598,6 +630,18 @@ describe("analyzePosts（書き出しの型・テーマ）", () => {
     );
     expect(r.trends.find((t) => t.dimension === "theme")?.text).toBe(
       "テーマ「転職」の投稿が伸びやすい",
+    );
+  });
+});
+
+describe("AnalysisThemesInput", () => {
+  it("分類の答えを読むときに同じになる名前（大文字・小文字、全角・半角）を止める", () => {
+    expect(AnalysisThemesInput.safeParse([{ name: "AI" }, { name: "ai" }]).success).toBe(false);
+    expect(AnalysisThemesInput.safeParse([{ name: "転職" }, { name: "「転職」" }]).success).toBe(
+      false,
+    );
+    expect(AnalysisThemesInput.safeParse([{ name: "仕事" }, { name: "仕事、日常" }]).success).toBe(
+      true,
     );
   });
 });

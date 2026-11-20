@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { OPENING_TYPES } from "./analysis-types.ts";
 import { ANALYSIS_CLASSIFY_BATCH, ANALYSIS_THEMES_MAX, ANALYSIS_THEME_NAME_MAX } from "./limits.ts";
+import { nameMatchKey } from "./normalize.ts";
 import { countChars } from "./text.ts";
 
 /** テーマの ID（`t`＋英数字8文字まで）。 */
@@ -57,13 +58,15 @@ export const AnalysisThemesInput = z
     const names = new Set<string>();
     const ids = new Set<string>();
     items.forEach((theme, index) => {
-      if (names.has(theme.name))
+      // 分類の答えを読むときと同じ鍵で比べる（「AI」と「ai」、全角と半角を同じ名前とみなす）
+      const key = nameMatchKey(theme.name);
+      if (names.has(key))
         ctx.addIssue({
           code: "custom",
           path: [index, "name"],
           message: "同じ名前のテーマがあります。",
         });
-      names.add(theme.name);
+      names.add(key);
       if (theme.id) {
         if (ids.has(theme.id))
           ctx.addIssue({
