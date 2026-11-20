@@ -111,6 +111,24 @@ export async function findEventById(db: Executor, id: string): Promise<EventReco
   return row ?? null;
 }
 
+/**
+ * 交流会の持ち主の account を引く（ほかの領域も index.ts から使う。booking の列の対応を持ち主ごとに覚えるため。booking-001）。
+ * @param db DB
+ * @param eventId 交流会の ID
+ * @returns 持ち主の account の ID（交流会がない・持ち主のない今の交流会は null）
+ */
+export async function findEventOwnerAccountId(
+  db: Executor,
+  eventId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({ ownerAccountId: event.ownerAccountId })
+    .from(event)
+    .where(eq(event.id, eventId))
+    .limit(1);
+  return row?.ownerAccountId ?? null;
+}
+
 /** 一覧の行（交流会・入れた組織・今の利用者が受付係か）。 */
 export type AccessibleEventRow = {
   event: EventRecord;

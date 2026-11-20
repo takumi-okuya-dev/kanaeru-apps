@@ -1,6 +1,6 @@
 # 交流会（event）の地図
 
-2026-11-19 作成（event-001。決めた理由は [specs/event/001-events/research.md](../../specs/event/001-events/research.md)）。2026-11-19 直した（reception-002：交流会ごとの割引。理由は [specs/reception/002-discounts/research.md](../../specs/reception/002-discounts/research.md)）。2026-11-20 直した（event-002：交流会の持ち主・組織に入れる・主催者の決め方〈持ち主と組織の管理者・編集者〉・部員・退会の段。理由は [specs/event/002-owner-organization/research.md](../../specs/event/002-owner-organization/research.md)）。
+2026-11-19 作成（event-001。決めた理由は [specs/event/001-events/research.md](../../specs/event/001-events/research.md)）。2026-11-19 直した（reception-002：交流会ごとの割引。理由は [specs/reception/002-discounts/research.md](../../specs/reception/002-discounts/research.md)）。2026-11-20 直した（event-002：交流会の持ち主・組織に入れる・主催者の決め方〈持ち主と組織の管理者・編集者〉・部員・退会の段。理由は [specs/event/002-owner-organization/research.md](../../specs/event/002-owner-organization/research.md)）。2026-11-20 直した（booking-001：持ち主と個人の交流会を booking に出す関数・準備の画面の差しこみの場所）。
 
 交流会・持ち主・組織に入れる・割引・受付係・招待のリンク・アンケートの開閉を持ち、交流会ごとの権限（主催者・受付係・部員）と、参加者に見せてよい交流会の要約を、ほかの領域に1つの仕組みで出す（構成の決めごと AD-3・AD-5・AD-7・AD-13・AD-14・AD-19・AD-23）。
 
@@ -89,6 +89,8 @@ const summary = await getEventSummary(deps.db, deps.config, eventId); // 参加�
 | `eventDiscountTable` | 外部キーのためだけ（reception の `checkin` の `(event_id, discount_id)`） |
 | `eventForbiddenResponse`・`eventNotFoundResponse` | `createRoute` の 403・404 の応答 |
 | `withdrawal` | 退会の段（組み立てが suite の段のあとに流す。上の2章） |
+| `findEventOwnerAccountId(db, eventId)` | 交流会の持ち主の account の ID（ない・持ち主のない今の交流会は `null`）。booking が CSV の列の対応を持ち主ごとに覚えるのに使う |
+| `listPersonalEventIds(db, accountId)` | その人が持ち主の、組織に入れていない交流会の ID（退会で消える交流会）。booking の退会の確かめが使う |
 
 約束（`@workspace/contracts/event`）：`EventSummary`・`EventView`・`EventRole`（答えの `myRole`：主催者・受付係）・`EventAccessRole`（判定：主催者・受付係・部員。`EVENT_ACCESS_ROLE_LABELS`）・`EventOrganizationState`・`EventOrganizationInput`・`EventDiscountInput`・`EventDiscountView`・`EVENT_ERRORS`、管理の画面の道 `ADMIN_ROUTE_PATTERNS`（path の形）と `adminPaths`（値を入れた道）：
 
@@ -110,6 +112,7 @@ const summary = await getEventSummary(deps.db, deps.config, eventId); // 参加�
 | `useEvent(eventId)`・`useEventSummary(eventId)`・`EVENT_QUERY_KEYS` | 交流会（`myRole` つき）と要約の問い合わせ・鍵 |
 | `formatEventDateTime`・`formatJstDate`・`formatFee` | 日本時間の日時（2026年11月25日（水）19:00）・参加費（1,000円） |
 | `InternalLink` | 道の木にまだない道（ほかの領域の画面）へのリンク |
+| `registerSetupSection({ id, Component })` | 準備の画面（A4）の「持ち主と組織」のあとに節を足す差しこみの場所。`Component` は `{ event: EventView }` を受け取り、見出し h2 から始める（booking の「使い方」）。登録は、その領域の入口で1度だけ |
 
 テスト：API は `apps/api/test/helpers/event.ts` の `createEvent(app, cookie, input?)`（その人が持ち主）・`makeStaff(app, organizerCookie, eventId)`（招待のリンクで受付係を作る）・`placeEvent(app, ownerCookie, eventId, organizationId)`（組織に入れる・外す）・`call(app, cookie, path, method?, body?)`。組織は `test/helpers/organization.ts`。E2E の主催者は `e2e/env.ts` の `E2E_ORGANIZER_LINE_USER_ID`。
 
@@ -119,7 +122,7 @@ const summary = await getEventSummary(deps.db, deps.config, eventId); // 参加�
 |---|---|---|
 | `/admin/events` | A1 交流会の一覧 | 自分が主催者の交流会と受付係の交流会。行ごとに持ち主（自分なら「あなた」）と組織（なければ「個人」）。組織の交流会があれば「組織で絞る」のチップ（すべて・組織ごと・個人）。「交流会を追加」はだれにも出す。主催者には行ごとの「準備」「直す」。名前は、その役目の最初の管理の画面へのリンク（なければ文字だけ）。ナビの「交流会の一覧」・はじめの画面（`/`）から来る |
 | `/admin/events/new`・`/admin/events/$eventId/edit` | A2 作成（だれでも）・編集（主催者だけ） | 名前・日付と時刻（日本時間）・会場・参加費・割引の節（行ごとに名前・額・「紹介者の名前を聞く」・「外す」、下に「割引を足す」。交流会と一緒に保存し、並び全体を送る。`DiscountFields.tsx`）・GoogleフォームのURL（任意）・LINEグループの招待リンク（任意）。直すときは「参加費を直しても、すでにあるチェックインの金額は変わりません」「割引を直しても外しても、すでにあるチェックインの割引と金額は変わりません」。作ったら準備へ、直したら一覧へ |
-| `/admin/events/$eventId/setup` | A4 準備（主催者だけ） | 「持ち主と組織」（持ち主の名前・説明の文。持ち主には「入れる組織」のチップ〈入っている組織と「入れない（個人）」〉と「保存」、持ち主でない主催者には今の組織と「組織に入れる・外すのは、持ち主だけです。」。`OwnerOrganizationSection.tsx`）・受付QR・アンケートQR（並べる。中身の URL も出す）と印刷の画面への入口・アンケートの開閉・招待のリンク（写す・作り直す〈確かめ〉・期限）・受付係の一覧（外す〈確かめ。招待のリンクも作り直すと伝える〉） |
+| `/admin/events/$eventId/setup` | A4 準備（主催者だけ） | 「持ち主と組織」（持ち主の名前・説明の文。持ち主には「入れる組織」のチップ〈入っている組織と「入れない（個人）」〉と「保存」、持ち主でない主催者には今の組織と「組織に入れる・外すのは、持ち主だけです。」。`OwnerOrganizationSection.tsx`）・登録された節（booking の「使い方」）・受付QR・アンケートQR（並べる。中身の URL も出す）と印刷の画面への入口・アンケートの開閉・招待のリンク（写す・作り直す〈確かめ〉・期限）・受付係の一覧（外す〈確かめ。招待のリンクも作り直すと伝える〉） |
 | `/admin/events/$eventId/setup/qr/$kind` | QR の印刷（主催者だけ） | 「受付QR」「アンケートQR」の見出し・交流会の名前・大きな QR。「印刷する」。印刷では外枠と操作を隠す（`print.css`） |
 | `/invite/$inviteToken` | P3 受付係の招待（外枠のナビなし。`staticData: { layout: "bare" }`） | 交流会の名前と「受ける」。受けたら一覧画面（なければ交流会の一覧）へ。すでに受付係・主催者ならそのまま移る。使えないリンクは「この招待のリンクは使えません。主催者に新しいリンクをもらってください」 |
 
@@ -132,6 +135,6 @@ const summary = await getEventSummary(deps.db, deps.config, eventId); // 参加�
 | 約束 | `packages/contracts/src/event/`（`event.ts`・`roles.ts`・`admin-paths.ts`・`errors.ts`・`index.ts`） |
 | API | `apps/api/src/modules/event/`（`schema.ts`・`repository.ts`・`discounts.ts`・`access.ts`〈判定の1か所〉・`organization.ts`〈組織に入れる〉・`withdrawal.ts`〈退会の段〉・`summary.ts`・`ids.ts`・`routes.ts`・`index.ts`・テスト） |
 | DB の変更 | `apps/api/drizzle/0003_event.sql`・`0006_event_discount.sql`・`0014_event_owner.sql` |
-| 画面 | `apps/web/src/features/event/`（`api.ts`・`queries.ts`・`format.ts`・`links.ts`・`admin-tabs.ts`・`nav-items.ts`・`navigation.tsx`・`EventAccessGate.tsx`・`QrCode.tsx`・`EventListPage.tsx`・`EventFormPage.tsx`・`DiscountFields.tsx`・`EventSetupPage.tsx`・`OwnerOrganizationSection.tsx`・`QrPrintPage.tsx`・`print.css`・`InviteAcceptPage.tsx`・`routes.ts`・`index.ts`） |
+| 画面 | `apps/web/src/features/event/`（`api.ts`・`queries.ts`・`format.ts`・`links.ts`・`admin-tabs.ts`・`nav-items.ts`・`navigation.tsx`・`EventAccessGate.tsx`・`QrCode.tsx`・`EventListPage.tsx`・`EventFormPage.tsx`・`DiscountFields.tsx`・`EventSetupPage.tsx`・`OwnerOrganizationSection.tsx`・`setup-slots.ts`〈準備の画面の差しこみの場所〉・`QrPrintPage.tsx`・`print.css`・`InviteAcceptPage.tsx`・`routes.ts`・`index.ts`） |
 | テストの手伝い | `apps/api/test/helpers/event.ts` |
 | 通しのテスト | `e2e/tests/event.spec.ts` |

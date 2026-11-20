@@ -62,8 +62,8 @@ type Attendance = "came" | "no_show" | "pending"; // 来た・来なかった・
 // RosterImportInput（ファイルは送らない。research R5）
 {
   applicationSource: ApplicationSource;
-  rows: { line: number; name: string }[]; // 1〜2000行。name は空でもよい（「名前が空」になる）・50文字まで
-  mapping?: { headers: string[]; nameColumn: string }; // CSV のときだけ。見出しは100列・200文字まで
+  rows: { line: number; name: string }[]; // 1〜500行。name は空でもよい（「名前が空」になる）・50文字まで
+  mapping?: { headers: string[]; nameColumn: string }; // CSV のときだけ。見出しは50列・100文字まで
 }
 
 // RosterImportPreview
