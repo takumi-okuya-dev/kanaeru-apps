@@ -14,6 +14,8 @@ export { currentEventRole, getEventRole, requireEventRole } from "./access.ts";
 export { getEventSummary } from "./summary.ts";
 // 交流会の持ち主（booking が CSV の列の対応を持ち主ごとに覚えるため。booking-001）
 export { findEventOwnerAccountId } from "./repository.ts";
+// 交流会を入れた組織（booking が知らせに使う公式アカウントの設定を決めるため。booking-002）
+export { findEventOrganizationId } from "./repository.ts";
 export { eventForbiddenResponse, eventNotFoundResponse } from "./routes.ts";
 // 退会の手順（AD-22 の (2)。組み立てが suite の段のあとに流す。event-002）
 export { eventWithdrawal as withdrawal, listPersonalEventIds } from "./withdrawal.ts";

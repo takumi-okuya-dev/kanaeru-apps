@@ -6,6 +6,12 @@ import { buildApp, testConfig } from "../../../test/helpers/app.ts";
 import type { TestApp } from "../../../test/helpers/app.ts";
 import { loginAs } from "../../../test/helpers/account.ts";
 import { bookingBase, importNames, readRoster, useRoster } from "../../../test/helpers/booking.ts";
+import {
+  followAndLink,
+  lineUser,
+  notifyConfig,
+  saveLine,
+} from "../../../test/helpers/booking-notify.ts";
 import { truncateAllTables, useTestDatabase } from "../../../test/helpers/db.ts";
 import { call, createEvent, makeStaff, placeEvent } from "../../../test/helpers/event.ts";
 import { setUpOrganization } from "../../../test/helpers/organization.ts";
@@ -80,5 +86,29 @@ describe("退会の booking の段", () => {
     expect((await call(app, staff.cookie, "/api/v1/accounts/me", "DELETE")).status).toBe(204);
     const roster = await readRoster(app, owner.cookie, eventId);
     expect(roster.entries[0]).toMatchObject({ name: "鈴木 まこと", enteredByName: null });
+  });
+
+  it("個人の公式アカウントの設定があれば確かめに出て、退会で設定・紐づけ・連絡のメールアドレスが消える（booking-002）", async () => {
+    const notifyApp = buildApp(database, notifyConfig());
+    const owner = await loginAs(notifyApp, { displayName: "持ち主" });
+    const channelId = (await saveLine(notifyApp, owner.cookie)).line?.channelId ?? "";
+    await followAndLink(notifyApp, owner.cookie, channelId, lineUser("a"));
+    await call(notifyApp, owner.cookie, "/api/v1/booking/me/contact", "PUT", {
+      email: "taro@example.com",
+    });
+    const preview = await call(notifyApp, owner.cookie, "/api/v1/accounts/me/withdrawal");
+    const { items } = (await preview.json()) as { items: { kind: string; text: string }[] };
+    expect(items).toContainEqual(
+      expect.objectContaining({
+        kind: "delete",
+        text: "個人の LINE 公式アカウントとメールの設定（予約の知らせ）も一緒に消えます。",
+      }),
+    );
+    expect((await call(notifyApp, owner.cookie, "/api/v1/accounts/me", "DELETE")).status).toBe(204);
+    const left = await database.pool.query<{ n: string }>(
+      `SELECT (SELECT count(*) FROM booking_line_channel) + (SELECT count(*) FROM booking_line_link)
+        + (SELECT count(*) FROM booking_contact) AS n`,
+    );
+    expect(Number(left.rows[0]?.n)).toBe(0);
   });
 });

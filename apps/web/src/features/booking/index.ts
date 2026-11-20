@@ -7,14 +7,49 @@ import { registerReceptionSection } from "../reception/index.ts";
 import { ModeSection } from "./ModeSection.tsx";
 import { useBookingNavItems } from "./nav-items.ts";
 import { ReceptionRosterSection } from "./ReceptionRosterSection.tsx";
-import { rosterImportRoute, rosterMatchRoute, rosterRoute } from "./routes.ts";
+import { bookingSettingsPaths } from "@workspace/contracts/booking";
+import {
+  lineLinkRoute,
+  notifySettingsRoute,
+  organizationNotifySettingsRoute,
+  rosterImportRoute,
+  rosterMatchRoute,
+  rosterRoute,
+} from "./routes.ts";
 
 registerSetupSection({ id: "booking-mode", Component: ModeSection });
 registerReceptionSection({ id: "booking-roster", Component: ReceptionRosterSection });
 
-/** 予約の領域が出すもの（ナビは名簿を使う交流会の中だけ「名簿」）。 */
+/**
+ * 予約の領域が出すもの（ナビは名簿を使う交流会の中だけ「名簿」）。設定の画面に「予約の知らせ」、組織の画面に
+ * 「予約の知らせの設定」の入口を出す（booking-002。受付アプリが見えないときは suite が出さない）。
+ */
 export const feature = {
   id: "booking",
-  routes: [rosterRoute, rosterImportRoute, rosterMatchRoute],
+  routes: [
+    rosterRoute,
+    rosterImportRoute,
+    rosterMatchRoute,
+    notifySettingsRoute,
+    organizationNotifySettingsRoute,
+    lineLinkRoute,
+  ],
   useNavItems: useBookingNavItems,
+  settings: [
+    {
+      id: "booking-notify",
+      label: "予約の知らせ",
+      to: bookingSettingsPaths.notify(),
+      group: "app",
+      icon: "setup",
+    },
+  ],
+  organization: {
+    links: (organizationId: string) => [
+      {
+        label: "予約の知らせの設定（LINE・メール）",
+        to: bookingSettingsPaths.notifyOrganization(organizationId),
+      },
+    ],
+  },
 } satisfies WebFeature;

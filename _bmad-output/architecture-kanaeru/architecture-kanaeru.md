@@ -15,7 +15,7 @@ companions: ['./.memlog.md']
 
 # 構成の決めごと — kanaeru
 
-作成：2026-11-19（決めた理由は [.memlog.md](./.memlog.md)。いまのコードの形は [docs/architecture.md](../../docs/architecture.md)。点検の記録は [reviews/](./reviews/)）。2026-11-19 直した（reception-002：交流会ごとの割引。AD-3・AD-5・AD-6・AD-7・Capability map。理由は [specs/reception/002-discounts/research.md](../../specs/reception/002-discounts/research.md)）。2026-11-19 直した（スイートとして並行開発できる構成への見直し：AD-15〜AD-21 を足し、AD-1・AD-3・AD-5・AD-9 を直した）。2026-11-19 主催者が確かめた（仮決めをすべて採用。AD-18 は共通にしてよいものを技術の道具に絞り、AD-20 の外の AI は本人の記録だけに決め、B1 はこのリポジトリの中。Constitution 1.1.0）。2026-11-20 直した（core-005：AD-3・AD-16 の売り方の列は売り始めるときに足す〈主催者が決めた〉・AD-15 の予約語に `settings`【仮決め】）。2026-11-20 直した（スイートの組織と契約の持ち主：AD-22 を足し、AD-3・AD-16・AD-19・Capability map・Deferred を直した。主催者が決めた〈組織単位の契約も見越す〉。同じ日に主催者の確かめで、持ち主の退会では組織に入れた記録を組織の管理者に引き継ぐ形と、退会の手順の順番〈suite → アプリ → account〉を AD-19・AD-22 に足した。範囲は [PRD 組織と Threads のチーム運用](../prd-kanaeru-org/prd-kanaeru-org.md)。【仮決め】の印は主催者の確かめを待つ）。2026-11-20 直した（受付アプリの予約と、ほかの主催者に開くこと：AD-23・AD-24 を足し、AD-1・AD-3・AD-5・AD-14・AD-19・Conventions・Capability map・Open Questions・Deferred を直した。主催者が決めた〈SaaS として複数の組織・個人に出す・予約はオプション・各組織の LINE 公式アカウント・メールを使う〈Constitution 1.2.0〉〉。範囲は [PRD 受付アプリの予約](../prd-kanaeru-booking/prd-kanaeru-booking.md)。【仮決め】の印は主催者の確かめを待つ）
+作成：2026-11-19（決めた理由は [.memlog.md](./.memlog.md)。いまのコードの形は [docs/architecture.md](../../docs/architecture.md)。点検の記録は [reviews/](./reviews/)）。2026-11-19 直した（reception-002：交流会ごとの割引。AD-3・AD-5・AD-6・AD-7・Capability map。理由は [specs/reception/002-discounts/research.md](../../specs/reception/002-discounts/research.md)）。2026-11-19 直した（スイートとして並行開発できる構成への見直し：AD-15〜AD-21 を足し、AD-1・AD-3・AD-5・AD-9 を直した）。2026-11-19 主催者が確かめた（仮決めをすべて採用。AD-18 は共通にしてよいものを技術の道具に絞り、AD-20 の外の AI は本人の記録だけに決め、B1 はこのリポジトリの中。Constitution 1.1.0）。2026-11-20 直した（core-005：AD-3・AD-16 の売り方の列は売り始めるときに足す〈主催者が決めた〉・AD-15 の予約語に `settings`【仮決め】）。2026-11-20 直した（スイートの組織と契約の持ち主：AD-22 を足し、AD-3・AD-16・AD-19・Capability map・Deferred を直した。主催者が決めた〈組織単位の契約も見越す〉。同じ日に主催者の確かめで、持ち主の退会では組織に入れた記録を組織の管理者に引き継ぐ形と、退会の手順の順番〈suite → アプリ → account〉を AD-19・AD-22 に足した。範囲は [PRD 組織と Threads のチーム運用](../prd-kanaeru-org/prd-kanaeru-org.md)。【仮決め】の印は主催者の確かめを待つ）。2026-11-20 直した（受付アプリの予約と、ほかの主催者に開くこと：AD-23・AD-24 を足し、AD-1・AD-3・AD-5・AD-14・AD-19・Conventions・Capability map・Open Questions・Deferred を直した。主催者が決めた〈SaaS として複数の組織・個人に出す・予約はオプション・各組織の LINE 公式アカウント・メールを使う〈Constitution 1.2.0〉〉。範囲は [PRD 受付アプリの予約](../prd-kanaeru-booking/prd-kanaeru-booking.md)。【仮決め】の印は主催者の確かめを待つ）。2026-11-20 直した（booking-002：AD-14 に紐づけの道、AD-24 に Webhook の道・あいさつと許可リスト・設定の行の中身・送る道具の型の置き場所の注。理由は [specs/booking/002-notify/research.md](../../specs/booking/002-notify/research.md)）
 
 ## Design Paradigm
 
@@ -172,7 +172,7 @@ flowchart TB
 
 - **Binds:** event・reception・survey・画面、FR-2・FR-21
 - **Prevents:** QR を作る領域と画面を作る領域で URL の形が食い違うこと。置き場所の URL を変えると、印刷した QR が使えなくなること
-- **Rule:** 参加者が外から開く画面の道（`/e/{eventId}/checkin`・`/e/{eventId}/survey`・`/invite/{inviteToken}`。2026-11-20 に予約の申込みのページ `/e/{eventId}` と、メールで申し込んだ人が開く `/e/{eventId}/entry/{entryToken}` を足した【仮決め】。AD-23）と、それを LINEミニアプリの URL（パーマリンク）にする関数は、`packages/contracts/src/core` に1つだけ置く。reception・survey・event の画面はこの道で作り、event はこの関数で QR と招待のリンクを作る。QR には Cloud Run の URL を直接入れない。
+- **Rule:** 参加者が外から開く画面の道（`/e/{eventId}/checkin`・`/e/{eventId}/survey`・`/invite/{inviteToken}`。2026-11-20 に予約の申込みのページ `/e/{eventId}` と、メールで申し込んだ人が開く `/e/{eventId}/entry/{entryToken}` を足した【仮決め】。AD-23。2026-11-20 に LINE 公式アカウントとの紐づけ `/line-link/{linkToken}` を足した【仮決め】。booking-002・AD-24。`-` を含むのでアプリの key とぶつからない。友だち追加のあいさつに入れる URL は、API が LIFF ID を知らないので画面の源＋道）と、それを LINEミニアプリの URL（パーマリンク）にする関数は、`packages/contracts/src/core` に1つだけ置く。reception・survey・event の画面はこの道で作り、event はこの関数で QR と招待のリンクを作る。QR には Cloud Run の URL を直接入れない。
 
 ### AD-15 — アプリは静的な一覧に1行で登録し、key・道・表の名前を取り合わない [ADOPTED]
 
@@ -312,10 +312,10 @@ flowchart TB
 - **Prevents:** ステージングがないまま、本番で誤って外の人に送ること。LINE のユーザー ID をプロバイダーをまたいで使い、届かない・別人に送ること。鍵・メールアドレスが漏れること。夜中に打診の期限が切れて処理されないこと。送る道具がアプリごとに作られること
 - **Rule:**
   - **送る道具**（LINE の Messaging API の push・メールの送信・本物に送らない偽の送り手・守りの判定）は、技術の道具として `platform/notify` に置く（AD-18）。業務（何をいつ誰に送るか・文面）は booking が持つ。
-  - **公式アカウントの設定**：`booking_line_channel`（持ち主は account か organization のどちらか1つ。チャネル ID と、シークレットとアクセストークンの暗号文〈`packages/secret-box`〉）。画面には末尾だけを出す。組織のものを変えられるのは組織の管理者だけ、個人のものは本人だけ。メッセージの費用は各組織の LINE の契約で払う（原則 V）。
-  - **紐づけ**：LINE ログインの `sub` を、公式アカウントの送り先に使わない（プロバイダーが違うと ID が違う）。Webhook（`/api/v1/booking/line-webhook/{channelRowId}`。その設定のシークレットで署名を確かめる。CSRF の確かめの外）で友だち追加を受けたら、使い切りの札（SHA-256 だけを持つ）つきのリンクをあいさつで送る。参加者がリンクを開いて LINE ログインすると、`booking_line_link`（設定・公式アカウントから見えるユーザー ID・account）を作る。ブロックされたら消す。
+  - **公式アカウントの設定**：`booking_line_channel`（持ち主は account か organization のどちらか1つ。チャネル ID と、シークレットとアクセストークンの暗号文〈`packages/secret-box`〉。2026-11-20 booking-002：末尾4文字・ベーシック ID・メールの返信先も同じ行に持つ）。送る道具の型は土台（`kernel/notifier.ts`）に置き、組み立てが `DomainRouteDeps.notifier` で渡す（土台は共通を読めないため）。画面には末尾だけを出す。組織のものを変えられるのは組織の管理者だけ、個人のものは本人だけ。メッセージの費用は各組織の LINE の契約で払う（原則 V）。
+  - **紐づけ**：LINE ログインの `sub` を、公式アカウントの送り先に使わない（プロバイダーが違うと ID が違う）。Webhook（`/api/v1/booking/webhooks/line/{channelId}`。その設定のシークレットで署名を確かめる。CSRF の確かめの外。2026-11-20 booking-002 で、組み立てが外のサービスの Webhook として扱う形〈`/api/v1/<領域>/webhooks/…`〉にそろえた【仮決め】）で友だち追加を受けたら、使い切りの札（SHA-256 だけを持つ）つきのリンクをあいさつで送る。参加者がリンクを開いて LINE ログインすると、`booking_line_link`（設定・公式アカウントから見えるユーザー ID・account）を作る。ブロックされたら消す。
   - **メール**：kanaeru 共通の送り主（kanaeru のドメイン）から送る。送り主の名前に組織（持ち主）の名前を入れ、返信先は設定のアドレス（任意）。送信のサービスは無料枠のあるものを選ぶ（Open Questions 8）。メールで申し込む人には、確認のリンク（札は SHA-256 だけ・24時間）を送る。
-  - **守り**：設定 `NOTIFY_MODE`（`off`・`allowlist`・`on`。本番の既定は `off`）と `NOTIFY_ALLOWLIST`（LINE のユーザー ID とメールアドレスの並び。秘密の値と同じく Secret Manager）。`allowlist` では並びにない宛先には送らず、知らせの記録に「送らなかった」を残す。`APP_ENV` が `local`・`test` のときは偽の送り手だけを使う（本物の API を呼ばない）。
+  - **守り**：設定 `NOTIFY_MODE`（`off`・`allowlist`・`on`。本番の既定は `off`）と `NOTIFY_ALLOWLIST`（LINE のユーザー ID とメールアドレスの並び。秘密の値と同じく Secret Manager）。`allowlist` では並びにない宛先には送らず、知らせの記録に「送らなかった」を残す（2026-11-20 booking-002：友だち追加へのあいさつ〈reply〉は `off` だけで止め、許可リストは見ない。許可リストに足す ID を、紐づけたあとの確かめのメッセージで本人に出すため【仮決め】）。`APP_ENV` が `local`・`test` のときは偽の送り手だけを使う（本物の API を呼ばない）。
   - **定時の処理**：打診の期限切れと次の人への打診は、Cloud Scheduler からジョブの合言葉つきの窓口を呼んで行う（core-006 の形）。DB が動いている時間（8時〜24時）だけ。期限は夜（0時〜9時）に切れない形で決める（PRD FR-B65）。
   - **記録**：`booking_notice`（相手の申込み・種類・手段・結果・時刻）。本文・メールアドレス・トークン・札はログに出さない。
 

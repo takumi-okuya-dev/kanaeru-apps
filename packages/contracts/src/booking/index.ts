@@ -24,7 +24,31 @@ export {
 export type { NoticeKind, NoticeMethod, NoticeResult, NotifyMode } from "./notify-options.ts";
 export { BOOKING_ERRORS } from "./errors.ts";
 export type { BookingErrorKey } from "./errors.ts";
-export { BOOKING_ROUTE_PATTERNS, bookingPaths } from "./paths.ts";
+export {
+  BOOKING_ROUTE_PATTERNS,
+  BOOKING_SETTINGS_ROUTE_PATTERNS,
+  bookingPaths,
+  bookingSettingsPaths,
+} from "./paths.ts";
+export {
+  ContactInput,
+  ContactView,
+  EMAIL_MAX,
+  EmailAddress,
+  FakeOutbox,
+  LINE_LINK_TTL_DAYS,
+  LineChannelInput,
+  LineChannelView,
+  LineLinkPreview,
+  LineLinkResult,
+  MailSettingInput,
+  NoticeResultSchema,
+  NotifyHolder,
+  NotifyModeSchema,
+  NotifySettings,
+  SECRET_TAIL_LENGTH,
+  TestMessageResult,
+} from "./notify.ts";
 export {
   AttendanceSchema,
   BookingModeSchema,
