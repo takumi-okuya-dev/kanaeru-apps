@@ -95,3 +95,13 @@ export function toOriginalRange(
   }
   return [from, to];
 }
+
+/**
+ * 名前を比べるための鍵（前後の空白と「」『』"" を除き、全角・半角と大文字・小文字をそろえる）。
+ * 分類の答えのテーマ・書き出しの型を読むときと、同じ鍵になるテーマの名前を止めるときに使う。
+ * @param name - 名前
+ * @returns 比べる鍵
+ */
+export function nameMatchKey(name: string): string {
+  return normalizeForMatch(name.replace(/[「」『』"“”\s]/g, "")).normalized;
+}
