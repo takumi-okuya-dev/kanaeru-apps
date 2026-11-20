@@ -1,0 +1,342 @@
+// 文字数・件数などの上限（specs/002-strategy-profile spec FR-021・FR-022、research.md R8）。
+// Web の表示・入力の検証、API の検証、DB の CHECK 制約で同じ値を使う。
+
+/** 課題の各項目の文字数の上限。 */
+export const STRATEGY_TEXT_MAX = 2000;
+/** 宣伝したい内容の文字数の上限。 */
+export const PROMOTION_CONTENT_MAX = 2000;
+/** 参考投稿の本文の文字数の上限。 */
+export const REFERENCE_BODY_MAX = 2000;
+/** 参考投稿の「なぜ良いか」の文字数の上限。 */
+export const REFERENCE_WHY_GOOD_MAX = 2000;
+/** 短いテキスト（管理用タイトル・届けたい属性・CTA・キーワード・狙いのメモ）の文字数の上限。 */
+export const SHORT_TEXT_MAX = 100;
+/** URL の文字数の上限。 */
+export const URL_MAX = 2000;
+
+/** 1つのAccountに登録できる宣伝内容の件数。 */
+export const PROMOTION_LIMIT = 50;
+/** 1つのAccountに登録できる参考投稿の件数。 */
+export const REFERENCE_POST_LIMIT = 200;
+/** 1つのAccountに登録できるキーワードの件数。 */
+export const KEYWORD_LIMIT = 100;
+
+/** 宣伝内容の優先度の下限。 */
+export const PRIORITY_MIN = 0;
+/** 宣伝内容の優先度の上限。 */
+export const PRIORITY_MAX = 100;
+/** 宣伝投稿の割合の既定値（%）。 */
+export const PROMOTION_RATIO_DEFAULT = 20;
+
+// ---- 投稿ストック（specs/003-prompt-bulk-register FR-004・FR-014、research.md R6・R12）----
+
+/** 1回の貼り付けで登録できる下書きの件数。 */
+export const PASTE_MAX_DRAFTS = 50;
+/** 1回の貼り付けの全体の文字数の上限。 */
+export const PASTE_MAX_CHARS = 50000;
+/** 下書き1件の本文の文字数の上限（登録・編集とも）。 */
+export const DRAFT_BODY_MAX = 2000;
+/** 1つのAccountの要確認の下書きの件数の上限。 */
+export const NEEDS_REVIEW_LIMIT = 500;
+/** プロンプトで作る件数の下限。 */
+export const PROMPT_COUNT_MIN = 1;
+/** プロンプトで作る件数の上限。 */
+export const PROMPT_COUNT_MAX = 50;
+/** プロンプトで作る件数の既定値。 */
+export const PROMPT_COUNT_DEFAULT = 30;
+/** プロンプトに含める参考投稿の件数の上限。 */
+export const PROMPT_REFERENCE_POSTS = 10;
+/** プロンプトに含める直近の下書きの件数の上限。 */
+export const PROMPT_RECENT_DRAFTS = 20;
+/** プロンプトの長さの目安（これを超えたら、下書き → 参考投稿の順に古いものから減らす）。 */
+export const PROMPT_LENGTH_TARGET = 30000;
+
+// ---- 課題の入力の手助け・リサーチ・投稿をつくる（specs/014-strategy-guidance research.md R6〜R12）----
+
+/** プロンプトがこの文字数を超えたら、2つに分けて送るのをすすめる。 */
+export const PROMPT_SPLIT_THRESHOLD = 12000;
+/** 参考投稿をまとめて登録できる件数。 */
+export const REFERENCE_BATCH_MAX = 20;
+/** まとめて解説を頼める参考投稿の件数。 */
+export const EXPLAIN_BATCH_MAX = 10;
+/** キーワードをまとめて登録できる件数。 */
+export const KEYWORD_BATCH_MAX = 20;
+/** 参考投稿の投稿者（アカウント名）の文字数の上限。 */
+export const REFERENCE_AUTHOR_MAX = 100;
+/** 参考投稿のメモの文字数の上限。 */
+export const REFERENCE_MEMO_MAX = 500;
+/** 参考投稿の数字（いいね・閲覧数など）の上限（Postgres の integer の最大）。 */
+export const REFERENCE_METRIC_MAX = 2147483647;
+/** 鮮度「最新」の日数（投稿日から0〜この日数）。 */
+export const FRESHNESS_LATEST_DAYS = 30;
+/** 鮮度「現役」の日数（「最新」の次の日から、この日数まで）。 */
+export const FRESHNESS_ACTIVE_DAYS = 90;
+/** 1投稿の文字数の目標と、短文・中文・長文の文字数と割合の初めの値（今のプロンプトの範囲に合わせる）。 */
+export const POST_LENGTH_DEFAULTS = {
+  target: 150,
+  shortLength: 55,
+  mediumLength: 100,
+  longLength: 135,
+  shortRatio: 35,
+  mediumRatio: 45,
+  longRatio: 20,
+} as const;
+/** 1投稿の文字数の目標の下限。 */
+export const POST_LENGTH_TARGET_MIN = 50;
+/** 1投稿の文字数の目標の上限。 */
+export const POST_LENGTH_TARGET_MAX = 500;
+/** 1投稿の文字数の目標の刻み。 */
+export const POST_LENGTH_TARGET_STEP = 10;
+/** 短文・中文・長文の文字数の下限。 */
+export const POST_KIND_LENGTH_MIN = 10;
+/** 短文・中文・長文の文字数の上限。 */
+export const POST_KIND_LENGTH_MAX = 500;
+/** 短文・中文・長文の文字数の刻み。 */
+export const POST_KIND_LENGTH_STEP = 5;
+/** 短文・中文・長文の割合の刻み。 */
+export const POST_KIND_RATIO_STEP = 5;
+
+// ---- 承認・却下・NGワード（specs/004-review-approval research.md R6・R8・R9・R11・R12）----
+
+/** 1つのAccountの承認済みの下書きの件数の上限。 */
+export const APPROVED_LIMIT = 500;
+/** 一覧のAPIで返す却下の下書きの件数（新しい順）。 */
+export const REJECTED_LIST_MAX = 500;
+/** 1回の状態の変更で送れる下書きの件数。 */
+export const REVIEW_MAX_ITEMS = 500;
+/** 1つのAccountのNGワードの件数の上限。 */
+export const NG_WORD_LIMIT = 200;
+/** NGワード1語の文字数の上限。 */
+export const NG_WORD_MAX = 50;
+/** 投稿ルール（CORE RULES）の文字数の上限。 */
+export const CORE_RULES_MAX = 2000;
+/** 却下理由の自由記述の文字数の上限。 */
+export const REJECT_NOTE_MAX = 200;
+/** プロンプトに含める却下の下書きの件数。 */
+export const PROMPT_REJECTED_DRAFTS = 10;
+/** 類似度の警告の閾値（%）。 */
+export const SIMILARITY_THRESHOLD = 80;
+/** 類似度を求める本文の長さの下限（正規化した後の文字数）。 */
+export const SIMILARITY_MIN_LENGTH = 10;
+/** 似ている相手として出す件数。 */
+export const SIMILARITY_TOP_MATCHES = 3;
+/** 編集距離を求める本文の長さの上限（正規化した後）。超える組はDice係数だけで判定する。 */
+export const SIMILARITY_EDIT_DISTANCE_MAX_LENGTH = 300;
+
+// ---- 自動投稿（specs/005-auto-post contracts/auto-post-job.md「定数」）----
+
+/** 1日に投稿する時刻の上限（FR-001）。024で、運営者が決める上限の既定値（DEFAULT_DAILY_POST_LIMIT）に置き換える。 */
+export const AUTOPOST_SLOT_LIMIT = 10;
+/** 時刻をずらすときの、時刻どうしの間（分。FR-001a）。 */
+export const AUTOPOST_MIN_GAP_MINUTES = 30;
+/** ずらす幅（秒。前後10分）。 */
+export const AUTOPOST_JITTER_SECONDS = 600;
+/** 予定を過ぎても投稿してよい幅（分。FR-011）。 */
+export const AUTOPOST_LATE_WINDOW_MINUTES = 60;
+/** 1つの時刻の中でのやり直しの回数（FR-013）。 */
+export const AUTOPOST_RETRY_MAX = 3;
+/** やり直しまでの間（分。1回目・2回目・3回目）。 */
+export const AUTOPOST_RETRY_DELAYS_MINUTES = [5, 10, 15] as const;
+/** 24時間の投稿の上限（FR-017）。 */
+export const AUTOPOST_DAILY_API_LIMIT = 250;
+/** 1回の定期処理で進める試みの数（Workers Freeのサブリクエストの上限のため。research.md R3）。 */
+export const AUTOPOST_MAX_PER_TICK = 4;
+/** 試みを進める処理の持ち時間（秒）。 */
+export const AUTOPOST_LEASE_SECONDS = 120;
+/** 関所の待ちの上限（分。research.md R3）。 */
+export const AUTOPOST_GATE_MAX_SLEEP_MINUTES = 1440;
+/** これを超える遅れ（分）で warn を出す（SC-004）。 */
+export const AUTOPOST_LATE_WARN_MINUTES = 10;
+/** 結果がわからない投稿を探し続ける時間（時間。research.md R6）。 */
+export const AUTOPOST_FIND_PUBLISHED_HOURS = 24;
+/** 結果がわからない投稿を探すとき、公開を送った時刻より前に見てよい幅（秒。Threadsとの時計のずれ。R6）。 */
+export const AUTOPOST_RECONCILE_SKEW_SECONDS = 60;
+/**
+ * 結果を確かめられず待機にした試みを、次に確かめるまでの間の最小（分。research.md R6）。
+ * 間は試みの古さの1/4をこの範囲に収める。最初は次の回（5分ごと）に確かめ、解決しない試みほど間をあける。
+ */
+export const AUTOPOST_RECHECK_MIN_MINUTES = 4;
+/** 結果を確かめられず待機にした試みを、次に確かめるまでの間の最大（分）。 */
+export const AUTOPOST_RECHECK_MAX_MINUTES = 60;
+/** 投稿のURLの取り直しに失敗した投稿を、次に取り直すまでの間（分。contracts/auto-post-job.md 手順5）。 */
+export const AUTOPOST_PERMALINK_RETRY_MINUTES = 60;
+/** 投稿の試みを残す日数（日次の処理で、これより古い行を消す）。 */
+export const AUTOPOST_ATTEMPT_RETENTION_DAYS = 30;
+/** 設定の画面で深夜の案内を出す時間帯（0時からの分。2:00〜4:59。終わりは含まない。FR-001b）。 */
+export const LATE_NIGHT_HINT_MINUTES = [120, 300] as const;
+/**
+ * 投稿の時刻を選べる幅（kanaeru。0時からの分。8:30〜23:00。両端を含む）。DB が 0時〜8時に止まる（構成の決めごと AD-10）ので、
+ * ずらす幅（前後10分）・やり直し（最大30分）・DB が動き出すまでの間を見こんで、この外の時刻は選べない（PRD B7【仮】）。
+ */
+export const AUTOPOST_SLOT_WINDOW_MINUTES = [510, 1380] as const;
+/** 投稿済みの一覧の1回の件数（research.md R14）。 */
+export const PUBLISHED_PAGE_SIZE = 50;
+
+// ---- パフォーマンス分析と改善フィードバック（specs/006-performance-feedback plan.md「制約」） ----
+
+/** 反応数を取り込む時点（投稿からの時間。research.md R4）。 */
+export const METRICS_MILESTONE_HOURS = { h24: 24, d3: 72, d7: 168 } as const;
+/** 時点の取り込みの幅（前後の分。FR-002d）。 */
+export const METRICS_WINDOW_MINUTES = 60;
+/** これを超えてから確定の値を取ったら「遅れて確定」（時間。FR-002a）。 */
+export const METRICS_LATE_AFTER_HOURS = 192;
+/** 公開のない回に、反応数の段階で使える外部への呼び出しの数（research.md R3）。 */
+export const METRICS_MAX_CALLS_PER_TICK = 24;
+/** 公開を1件進めるごとに、反応数の段階から引く呼び出しの数（research.md R3）。 */
+export const METRICS_CALLS_PER_PUBLISH = 8;
+/** 補い（毎日の処理）を始める時刻（日本時間の時。research.md R2）。 */
+export const METRICS_CATCHUP_HOUR_JST = 3;
+/** 基準値に使う確定の投稿の数（FR-007）。 */
+export const PERFORMANCE_BASELINE_SAMPLE = 30;
+/** 判定を始める確定の投稿の数（FR-009）。 */
+export const PERFORMANCE_MIN_JUDGEABLE = 5;
+/** これ以上で好調（基準値に対する倍率。FR-008）。 */
+export const PERFORMANCE_GOOD_RATIO = 2;
+/** これ以下で低調（基準値に対する倍率。FR-008）。 */
+export const PERFORMANCE_POOR_RATIO = 0.5;
+/** パフォーマンスの一覧の1回の件数（FR-019）。 */
+export const PERFORMANCE_PAGE_SIZE = 50;
+/** 書き出しの1回の件数（research.md R7）。 */
+export const PERFORMANCE_EXPORT_PAGE_SIZE = 200;
+/** 傾向メモの上限（文字。FR-021）。 */
+export const FEEDBACK_MEMO_MAX = 200;
+/** プロンプトに入れる低調の投稿の数（FR-026）。 */
+export const PROMPT_POOR_POSTS = 5;
+/** フォロワー数を記録するAccountの条件：この日数のうちに自動投稿した投稿がある（FR-002c）。 */
+export const FOLLOWER_ACTIVE_DAYS = 30;
+
+// ---- チーム運用（specs/008-team-operations plan.md「制約」）----
+/** 1チームの編集者の上限（FR-021）。 */
+export const TEAM_EDITOR_LIMIT = 10;
+/** 操作の記録を残す日数（FR-051）。 */
+export const ACTIVITY_LOG_RETENTION_DAYS = 90;
+/** まとめての操作の記録に入れる、対象の書き出しの件数（FR-050a）。 */
+export const ACTIVITY_DETAILS_EXCERPT_LIMIT = 50;
+/** 操作の記録の要約に入れる投稿の書き出しの文字数。 */
+export const ACTIVITY_SUMMARY_CHARS = 30;
+/** チーム名の上限（文字。FR-015）。 */
+export const TEAM_NAME_MAX = 50;
+/** 1チームの人数の上限（管理者・メンバー・編集者を合わせて。specs/011 Assumptions）。 */
+export const TEAM_MEMBER_LIMIT = 50;
+
+// ---- チームの運用状況（specs/020-team-monitoring data-model.md「定数」）----
+/** 「止まっている」の日数と、「この7日」の数の期間（FR-010・FR-011）。 */
+export const TEAM_STATUS_STOPPED_DAYS = 7;
+/** 伸びを比べる期間（日。直近とその前。FR-020）。 */
+export const TEAM_STATUS_GROWTH_WINDOW_DAYS = 30;
+/** 伸びの判定に要る、それぞれの期間の確定した投稿の数（006の判定を始める件数にそろえる。FR-020a）。 */
+export const TEAM_STATUS_GROWTH_MIN_POSTS = 5;
+/** この比以下で「伸びていない」（仮の値。research.md R4）。 */
+export const TEAM_STATUS_GROWTH_POOR_RATIO = 0.8;
+/** 人の動きに数える操作の記録（案を作る・直す・承認・却下。research.md R1）。 */
+export const TEAM_STATUS_ACTIVITY_ACTIONS = [
+  "drafts_registered",
+  "draft_edited",
+  "drafts_approved",
+  "drafts_rejected",
+] as const;
+/** 1人が管理者のチームの上限（specs/011 Assumptions）。 */
+export const TEAMS_PER_ADMIN = 20;
+/** 操作の記録の1回の件数（既定。FR-052）。 */
+export const ACTIVITY_PAGE_SIZE = 50;
+/** 操作の記録の1回の件数の上限。 */
+export const ACTIVITY_PAGE_MAX = 100;
+
+// 自分のMetaアプリのトークンでの接続（specs/010-token-account-add plan.md「制約」）
+/** トークンの確認の失敗を数える回数（FR-015）。 */
+export const TOKEN_CHECK_FAILURE_LIMIT = 5;
+/** トークンの確認の失敗を数える時間（分）。 */
+export const TOKEN_CHECK_WINDOW_MINUTES = 10;
+/** 失敗が上限に達した後に待ってもらう時間（分）。 */
+export const TOKEN_CHECK_LOCK_MINUTES = 10;
+/** 期限を確かめられなかったトークンを確かめ直すまでの時間（分。FR-012）。 */
+export const TOKEN_RECHECK_DELAY_MINUTES = 120;
+/** 確かめ直しが一時的に失敗したときに、やり直すまでの時間（分）。 */
+export const TOKEN_RECHECK_RETRY_MINUTES = 10;
+/** 1回の定期処理で確かめ直す接続の数。 */
+export const TOKEN_RECHECK_BATCH = 20;
+/** これより短い期限のトークンは短期トークンとみなす（時間）。 */
+export const TOKEN_MIN_LIFETIME_HOURS = 48;
+/** 期限を確かめられないトークンの期限とみなす日数（長期トークンの期限）。 */
+export const TOKEN_ASSUMED_LIFETIME_DAYS = 60;
+/** トークンの長さの下限（文字）。 */
+export const TOKEN_MIN_LENGTH = 32;
+/** トークンの長さの上限（文字）。 */
+export const TOKEN_MAX_LENGTH = 2048;
+
+// ---- アカウントを先に作る（specs/012-accounts-before-connect data-model.md「定数」）----
+/** アカウントの名前の上限（文字。FR-002・FR-040）。 */
+export const ACCOUNT_NAME_MAX = 50;
+
+// テスト用のグループ（specs/016-test-groups data-model.md）
+/** グループ名の上限（文字）。 */
+export const TEST_GROUP_NAME_MAX = 50;
+/** グループの人数の上限の下限。 */
+export const TEST_GROUP_CAPACITY_MIN = 1;
+/** グループの人数の上限の上限。 */
+export const TEST_GROUP_CAPACITY_MAX = 1000;
+/** 運営者の画面に出す、グループの記録の件数（research.md R6）。 */
+export const TEST_GROUP_EVENTS_LIMIT = 50;
+
+// 紹介リンク（specs/017-referral-links research.md R2・R3）
+/** 紹介リンクを開いたことを、ブラウザに覚えておく日数。 */
+export const REFERRAL_REMEMBER_DAYS = 30;
+/** 紹介の文字列の形（「r_」＋16バイトの base64url 22文字）。画面とAPIで同じ形を使う。 */
+export const REFERRAL_CODE_PATTERN = /^r_[A-Za-z0-9_-]{22}$/;
+
+// アルゴリズムの解析（specs/022-algorithm-analysis data-model.md「共有の定数」）。しきい値は仮の値（spec Assumptions）
+/** 解析の期間（日。FR-001）。 */
+export const ANALYSIS_PERIOD_DAYS = 90;
+/** 表と傾向を出す最小の件数（research.md R11）。 */
+export const ANALYSIS_MIN_TOTAL = 20;
+/** 区切りの件数のしきい値（FR-011・FR-030）。 */
+export const ANALYSIS_MIN_BUCKET = 10;
+/** 傾向にする中央値の差（倍。FR-030）。 */
+export const ANALYSIS_TREND_RATIO = 1.5;
+/** おすすめに乗った目安の上位の割合（FR-020）。 */
+export const ANALYSIS_RECOMMENDED_TOP = 0.2;
+/** 傾向の数の上限（FR-040）。 */
+export const ANALYSIS_MAX_TRENDS = 5;
+/** 分類のプロンプトに入れる投稿の数（FR-051）。 */
+export const ANALYSIS_CLASSIFY_BATCH = 50;
+/** テーマの数の上限（FR-050）。 */
+export const ANALYSIS_THEMES_MAX = 10;
+/** テーマの名前の上限（文字）。 */
+export const ANALYSIS_THEME_NAME_MAX = 20;
+
+// 時間差のメンション（specs/023-delayed-mention data-model.md「共有の定数」）。人数・回数・期間は仮の値（spec Assumptions）
+/** メンションする人の上限。 */
+export const MENTION_PEOPLE_MAX = 20;
+/** 1つの返信で選べる人。 */
+export const MENTION_PER_REPLY_MAX = 5;
+/** ひとことの上限（文字）。 */
+export const MENTION_MESSAGE_MAX = 100;
+/** 呼び名の上限（文字）。 */
+export const MENTION_LABEL_MAX = 30;
+/** 時間差（分）。 */
+export const MENTION_DELAY_OPTIONS = [10, 30, 60, 180, 360, 720, 1440] as const;
+/** 時間差の初めの値（分）。 */
+export const MENTION_DELAY_DEFAULT = 30;
+/** 同じ人へのメンションの間隔（時間）。 */
+export const MENTION_SAME_PERSON_HOURS = 24;
+/** この時間を過ぎたら返信を出さない（時間）。 */
+export const MENTION_EXPIRE_HOURS = 24;
+/** 投稿済みの投稿に付けられる期間（日）。 */
+export const MENTION_PUBLISHED_DAYS = 7;
+/** 一時的な失敗の上限。 */
+export const MENTION_MAX_ATTEMPTS = 3;
+/** 1回の処理で出す返信の上限。 */
+export const MENTION_MAX_PER_TICK = 10;
+
+// ---- アカウントの数と1日の投稿数の上限（specs/024-tester-invite-connect data-model.md 3） ----
+
+/** アカウントの数の上限の、全員共通の既定値の初めの値（FR-016）。 */
+export const DEFAULT_ACCOUNT_LIMIT = 3;
+/** 1日の投稿数の上限（1アカウント）の、全員共通の既定値の初めの値。今までの1日10件と同じ（FR-016）。 */
+export const DEFAULT_DAILY_POST_LIMIT = AUTOPOST_SLOT_LIMIT;
+/** アカウントの数の上限の最大。 */
+export const ACCOUNT_LIMIT_MAX = 1000;
+/** 1日の投稿数の上限の最大（Threadsの24時間の上限）。運営者にはこの値をかける（research.md R7）。 */
+export const DAILY_POST_LIMIT_MAX = 250;
+/** 運営者の上限の記録を出す件数。 */
+export const LIMIT_EVENTS_LIMIT = 50;
