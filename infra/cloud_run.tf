@@ -28,13 +28,25 @@ locals {
 
   # Threads の運用アプリ（threads.tf）を入にしたときだけ足す設定と秘密
   # （アプリを見せるかは、アプリの台帳〈設定 → アプリの台帳〉で決める。AD-16）
-  threads_env = var.threads_enabled ? {
-    TOKEN_ENCRYPTION_KEY_VERSION = tostring(var.threads_token_key_version)
-  } : {}
-  threads_secret_env = var.threads_enabled ? {
-    TOKEN_ENCRYPTION_KEYS = google_secret_manager_secret.threads_token_keys[0].secret_id
-    JOB_TRIGGER_SECRET    = google_secret_manager_secret.job_trigger[0].secret_id
-  } : {}
+  # OAuth の接続と Meta の Webhook（threads-010）を入にしたときは、Meta のアプリの ID・秘密の値と、機能の印 threads.oauth も足す
+  threads_env = merge(
+    var.threads_enabled ? {
+      TOKEN_ENCRYPTION_KEY_VERSION = tostring(var.threads_token_key_version)
+    } : {},
+    local.threads_oauth ? {
+      THREADS_APP_ID  = var.threads_app_id
+      DOMAIN_FEATURES = "threads.oauth"
+    } : {},
+  )
+  threads_secret_env = merge(
+    var.threads_enabled ? {
+      TOKEN_ENCRYPTION_KEYS = google_secret_manager_secret.threads_token_keys[0].secret_id
+      JOB_TRIGGER_SECRET    = google_secret_manager_secret.job_trigger[0].secret_id
+    } : {},
+    local.threads_oauth ? {
+      THREADS_APP_SECRET = google_secret_manager_secret.threads_app_secret[0].secret_id
+    } : {},
+  )
 }
 
 resource "google_cloud_run_v2_service" "app" {
@@ -142,6 +154,7 @@ resource "google_cloud_run_v2_service" "app" {
     google_secret_manager_secret_iam_member.runtime_threads_token_keys,
     google_secret_manager_secret_iam_member.runtime_job_trigger,
     google_secret_manager_secret_version.job_trigger,
+    google_secret_manager_secret_iam_member.runtime_threads_app_secret,
   ]
 }
 

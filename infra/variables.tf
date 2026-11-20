@@ -104,3 +104,21 @@ variable "threads_token_key_version" {
   description = "Threads のトークンを包む今の鍵の版（TOKEN_ENCRYPTION_KEY_VERSION。鍵の束の JSON にある版）"
   default     = 1
 }
+
+variable "threads_oauth_enabled" {
+  type        = bool
+  description = "Threads の OAuth の接続と Meta の Webhook（threads-010。機能の印 threads.oauth）を入にするか。threads_enabled と threads_app_id が要る。true にする前に、Meta のアプリの秘密の値の秘密に版を足す（README の 9）"
+  default     = false
+}
+
+variable "threads_app_id" {
+  type        = string
+  description = "Meta のアプリ（Threads の API を使うアプリ）の ID（数字。公開してよい値）。threads_oauth_enabled のときだけ使う"
+  default     = ""
+
+  validation {
+    condition     = var.threads_app_id == "" || can(regex("^[0-9]+$", var.threads_app_id))
+    error_message = "threads_app_id は数字だけにしてください（Meta の開発者の画面のアプリ ID）。"
+  }
+}
+

@@ -6,6 +6,8 @@
 #     var.threads_token_key_version を上げる
 #   - JOB_TRIGGER_SECRET：定期の仕事の合言葉。Cloud Scheduler の見出しに入れるので、Terraform が作り（random_password）、
 #     state に残る（state のバケットは非公開。Cloud Scheduler の見出しは秘密の参照を使えないため）
+#   - THREADS_APP_SECRET：Meta のアプリの秘密の値（threads-010。var.threads_oauth_enabled のときだけ）。鍵の束と同じく
+#     Terraform は入れ物だけを作り、値は手で版を足す（README の 9。state に残さないため）。アプリの ID は秘密でないので変数で渡す
 # - 定期の仕事：5分おき・日本時間 8時〜23時台（DB の夜間の停止の外。AD-10）に POST /api/v1/threads/jobs/tick を呼ぶ。
 #   Cloud Scheduler の仕事は、夜間の停止の2つと合わせて3つ（無料の枠の中。原則 V）
 
@@ -96,3 +98,38 @@ resource "google_cloud_scheduler_job" "threads_tick" {
 
   depends_on = [google_project_service.apis]
 }
+
+# ---- OAuth の接続と Meta の Webhook（threads-010。var.threads_enabled と var.threads_oauth_enabled の両方が true のときだけ）
+locals {
+  threads_oauth = var.threads_enabled && var.threads_oauth_enabled
+}
+
+resource "google_secret_manager_secret" "threads_app_secret" {
+  count     = local.threads_oauth ? 1 : 0
+  secret_id = "${local.name}-threads-app-secret"
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition     = var.threads_app_id != ""
+      error_message = "threads_oauth_enabled を true にするときは、threads_app_id（Meta のアプリの ID）も入れてください。"
+    }
+  }
+
+  depends_on = [google_project_service.apis]
+}
+
+resource "google_secret_manager_secret_iam_member" "runtime_threads_app_secret" {
+  count     = local.threads_oauth ? 1 : 0
+  secret_id = google_secret_manager_secret.threads_app_secret[0].id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = google_service_account.runtime.member
+}
+
