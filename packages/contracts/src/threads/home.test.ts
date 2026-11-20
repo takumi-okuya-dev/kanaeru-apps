@@ -33,5 +33,9 @@ describe("homeNextStep", () => {
   it("未接続で承認済みの案があれば、まずつなぐ", () => {
     expect(homeNextStep(home(), { connected: false, approvedCount: 1 }).target).toBe("connect");
     expect(homeNextStep(home(), { connected: true, approvedCount: 1 }).target).toBe("strategy");
+    // つなげない人（持ち主でない担当の人）には、つなぐ手順を出さない
+    expect(
+      homeNextStep(home(), { connected: false, approvedCount: 1, canConnect: false }).target,
+    ).toBe("strategy");
   });
 });

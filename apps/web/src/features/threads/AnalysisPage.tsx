@@ -40,6 +40,7 @@ import { useMemo, useState } from "react";
 import { errorMessage } from "../../lib/api.ts";
 import { fieldErrorsFromApi, fieldErrorsFromIssues } from "../../lib/form.ts";
 import { ThreadsPage } from "./ThreadsPage.tsx";
+import { useThreadsCan } from "./team-access.ts";
 import { AccountGate, LoadFailure, Loading } from "./AccountGate.tsx";
 import { saveAnalysisSettings, saveClassifications } from "./api.ts";
 import { CopyButton } from "./CopyButton.tsx";
@@ -939,6 +940,7 @@ function SettingsSection({
 function AnalysisContent({ account }: { account: ThreadsAccount }) {
   const [scope, setScope] = useState<AnalysisScope>("all");
   const query = useAnalysis(account.id, scope);
+  const can = useThreadsCan();
   if (query.isPending) return <Loading />;
   if (query.isError) return <LoadFailure error={query.error} retry={() => void query.refetch()} />;
   const view = query.data;
@@ -982,7 +984,23 @@ function AnalysisContent({ account }: { account: ThreadsAccount }) {
       ) : null}
       <ClassifySection accountId={account.id} />
       <ManualClassifySection accountId={account.id} />
-      <SettingsSection accountId={account.id} settings={view.settings} />
+      {can.manage ? (
+        <SettingsSection accountId={account.id} settings={view.settings} />
+      ) : (
+        <section aria-labelledby="threads-analysis-settings" className="flex flex-col gap-xxs">
+          <h2 id="threads-analysis-settings" className="text-l font-bold">
+            分析の設定
+          </h2>
+          <p className="text-m">
+            伸びた傾向を投稿のプロンプトに{view.settings.trendsInPrompt ? "入れます" : "入れません"}
+            。 テーマ：
+            {view.settings.themes.length > 0
+              ? view.settings.themes.map((theme) => theme.name).join("、")
+              : "まだありません"}
+          </p>
+          <p className="text-s text-text-sub">分析の設定は、持ち主だけが変えられます。</p>
+        </section>
+      )}
     </ThreadsPage>
   );
 }

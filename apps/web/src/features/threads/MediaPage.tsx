@@ -20,6 +20,7 @@ import { useState } from "react";
 import { errorMessage } from "../../lib/api.ts";
 import { fieldErrorsFromApi } from "../../lib/form.ts";
 import { ThreadsPage } from "./ThreadsPage.tsx";
+import { useThreadsCan } from "./team-access.ts";
 import { AccountGate, LoadFailure, Loading } from "./AccountGate.tsx";
 import { saveMediaDefaults } from "./api.ts";
 import { threadsPaths } from "./paths.ts";
@@ -180,6 +181,7 @@ function DefaultsForm({
  */
 function DefaultsSection({ accountId }: { accountId: string }) {
   const query = useMediaDefaults(accountId);
+  const can = useThreadsCan();
   return (
     <section aria-labelledby="threads-media-defaults" className="flex flex-col gap-xs">
       <h2 id="threads-media-defaults" className="text-l font-bold">
@@ -188,7 +190,11 @@ function DefaultsSection({ accountId }: { accountId: string }) {
       <p className="text-s text-text-sub">
         事務局名・連絡先・主催のグループなど、毎回同じものを入れておくと、掲載文を作るときに入ります。
       </p>
-      {query.isPending ? (
+      {!can.manage ? (
+        <p className="text-s text-text-sub">
+          既定値は、持ち主だけが変えられます。掲載文を作るときは、持ち主が入れた既定値が入ります。
+        </p>
+      ) : query.isPending ? (
         <Loading />
       ) : query.isError ? (
         <LoadFailure error={query.error} retry={() => void query.refetch()} />
