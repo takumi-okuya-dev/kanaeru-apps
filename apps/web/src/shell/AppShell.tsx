@@ -356,8 +356,8 @@ export function AppShell({ useNavItems, useApps = useNoApps }: AppShellProps) {
             ref={mainRef}
             tabIndex={-1}
             className={cn(
-              "flex w-full max-w-page min-w-0 flex-col gap-s px-xs py-s outline-none wide:px-m wide:py-m",
-              layout === "bare" && "mx-auto",
+              // 本文は幅の上限まで広げ、広い画面では中央に寄せる（左右に同じ余白）
+              "mx-auto flex w-full max-w-page min-w-0 flex-col gap-s px-xs py-s outline-none wide:px-m wide:py-m",
             )}
           >
             {notice && notice.path === pathname ? (
