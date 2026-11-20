@@ -13,6 +13,7 @@ import {
   check,
   customType,
   date,
+  foreignKey,
   doublePrecision,
   index,
   integer,
@@ -34,6 +35,7 @@ import {
 import type { PromotionEvent } from "@workspace/contracts/threads";
 import { primaryId, timestamps, timestamptz } from "../../kernel/columns.ts";
 import { accountTable } from "../account/index.ts";
+import { organizationMemberTable } from "../suite/index.ts";
 
 /** バイトの列（包んだトークン。Postgres の bytea）。 */
 const bytea = customType<{ data: Uint8Array; driverData: Buffer }>({
@@ -87,6 +89,17 @@ export const threadsAccount = pgTable(
     promotionRatioPercent: smallint("promotion_ratio_percent")
       .notNull()
       .default(PROMOTION_RATIO_DEFAULT),
+    /** Threads のプロフィールの画像の URL（つないだとき・開いたときに読み直す。threads-012） */
+    profilePictureUrl: text("profile_picture_url"),
+    /** 最後に開いた日時（/threads で最後に使った運用アカウントへ移るのに使う。threads-012） */
+    lastOpenedAt: timestamptz("last_opened_at"),
+    /** プロンプトの材料（宣伝・リサーチ・投稿のルール）を最後に変えた日時（消したときも含む。threads-012） */
+    promotionsChangedAt: timestamptz("promotions_changed_at"),
+    researchChangedAt: timestamptz("research_changed_at"),
+    coreRulesChangedAt: timestamptz("core_rules_changed_at"),
+    /** 持ち主の退会で、組織の管理者が引き継いだ日時と、前の持ち主の表示名（新しい持ち主に1回だけ知らせ、知らせたら名前を消す。threads-013） */
+    handedOverAt: timestamptz("handed_over_at"),
+    handoverFromName: text("handover_from_name"),
     ...timestamps(),
   },
   (table) => [
@@ -191,6 +204,11 @@ export const threadsDraftBatch = pgTable(
     draftCount: smallint("draft_count").notNull(),
     /** 区切り（@@@）が見つかったか */
     delimiterFound: boolean("delimiter_found").notNull(),
+    /** ためたときのプロンプトの材料の版（戦略を保存した日時と、宣伝・リサーチ・投稿のルールを変えた日時。前のまとまりは null。threads-012） */
+    strategyUpdatedAt: timestamptz("strategy_updated_at"),
+    promotionsChangedAt: timestamptz("promotions_changed_at"),
+    researchChangedAt: timestamptz("research_changed_at"),
+    coreRulesChangedAt: timestamptz("core_rules_changed_at"),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
   },
   (table) => [
@@ -253,6 +271,20 @@ export const threadsPostDraft = pgTable(
     blockedAt: timestamptz("blocked_at"),
     blockedReason: text("blocked_reason"),
     blockedWords: text("blocked_words").array(),
+    /** 最後に状態を変えた承認・却下の操作の ID（threads-011。同じ操作の送り直しを見分ける。直す・戻すで消す） */
+    lastReviewRequestId: uuid("last_review_request_id"),
+    /** ためたあとに人が本文を直した日時（threads-011。前後の空白だけの違いは直したことにしない） */
+    bodyEditedAt: timestamptz("body_edited_at"),
+    /** 誰がしたか（threads-013。作った人・最後に直した人・承認／却下した人。退会した人は null。今ある行は null） */
+    createdByAccountId: uuid("created_by_account_id").references(() => accountTable.id, {
+      onDelete: "set null",
+    }),
+    updatedByAccountId: uuid("updated_by_account_id").references(() => accountTable.id, {
+      onDelete: "set null",
+    }),
+    reviewedByAccountId: uuid("reviewed_by_account_id").references(() => accountTable.id, {
+      onDelete: "set null",
+    }),
     ...timestamps(),
   },
   (table) => [
@@ -818,9 +850,17 @@ export const threadsActivityLog = pgTable(
     itemCount: integer("item_count").notNull().default(1),
     /** 対象の要約（本文の書き出しなど。30文字まで） */
     summary: text("summary"),
+    /** した人（threads-013。退会した人・自動の操作・今ある行は null） */
+    actorAccountId: uuid("actor_account_id").references(() => accountTable.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
   },
   (table) => [
+    index("threads_activity_log_actor_account_id_created_at_idx").on(
+      table.actorAccountId,
+      table.createdAt.desc(),
+    ),
     index("threads_activity_log_threads_account_id_created_at_idx").on(
       table.threadsAccountId,
       table.createdAt.desc(),
@@ -1117,6 +1157,8 @@ export const threadsDeletionRequest = pgTable(
     requestFingerprint: text("request_fingerprint").notNull(),
     /** Threads のユーザーの ID（終わったら null） */
     threadsUserId: text("threads_user_id"),
+    /** Threads のユーザーの ID のハッシュ（終わったあと、接続を止めるために1日だけ残す。threads-012） */
+    threadsUserHash: text("threads_user_hash"),
     status: text("status", { enum: ["pending", "completed", "failed"] })
       .notNull()
       .default("pending"),
@@ -1127,6 +1169,7 @@ export const threadsDeletionRequest = pgTable(
   },
   (table) => [
     uniqueIndex("threads_deletion_request_request_fingerprint_unique").on(table.requestFingerprint),
+    index("threads_deletion_request_threads_user_hash_idx").on(table.threadsUserHash),
     check(
       "threads_deletion_request_status_check",
       sql`${table.status} in ('pending', 'completed', 'failed')`,
@@ -1140,5 +1183,95 @@ export const threadsDeletionRequest = pgTable(
       "threads_deletion_request_code_format",
       sql`${table.confirmationCode} ~ '^[0-9a-f]{32}$'`,
     ),
+  ],
+);
+
+/**
+ * Meta の連携の解除の知らせ（15分だけ持つ。threads-012。めぐるの threads_revocations を写した）。
+ * つないでいる運用アカウントがなくても記録し、許可の画面から戻る途中の接続を止める。Threads のユーザーの ID はハッシュだけを持つ。
+ */
+export const threadsRevocation = pgTable(
+  "threads_revocation",
+  {
+    id: primaryId(),
+    /** Threads のユーザーの ID のハッシュ（SHA-256 の16進） */
+    threadsUserHash: text("threads_user_hash").notNull(),
+    /** Meta が知らせを出した時刻（なければ受け取った時刻） */
+    issuedAt: timestamptz("issued_at").notNull(),
+    receivedAt: timestamptz("received_at").notNull(),
+  },
+  (table) => [
+    index("threads_revocation_threads_user_hash_issued_at_idx").on(
+      table.threadsUserHash,
+      table.issuedAt,
+    ),
+    index("threads_revocation_received_at_idx").on(table.receivedAt),
+    check("threads_revocation_hash_format", sql`${table.threadsUserHash} ~ '^[0-9a-f]{64}$'`),
+  ],
+);
+
+// ---- チーム運用（threads-013。PRD 組織 5章。めぐるの team_accounts・memberships を、suite の組織の上に写した）----
+// 組織そのもの（人・役割・招待）は suite が持つ。threads が持つのは「組織に入れる」・担当・承認を任せるだけ（AD-22）。
+// どちらも organization_member(organization_id, account_id) を指す複合の外部キーを CASCADE で持つので、
+// 人が抜ける・外れる・組織が消えると、suite がほかの領域を触らずに、その人の分が消える。
+
+/** 組織に入れた運用アカウント（1つの運用アカウントは1つの組織にだけ入る）。持ち主は threads_account.account_id のまま。 */
+export const threadsOrganizationAccount = pgTable(
+  "threads_organization_account",
+  {
+    threadsAccountId: uuid("threads_account_id")
+      .primaryKey()
+      .references(() => threadsAccount.id, { onDelete: "cascade" }),
+    organizationId: uuid("organization_id").notNull(),
+    /** 入れた持ち主（threads_account.account_id と同じ。持ち主が組織から抜けると、この行が消える） */
+    ownerAccountId: uuid("owner_account_id").notNull(),
+    /** 組織に見せる（オンのとき、組織の人が投稿の案と戦略を読むだけで見られる。初めはオフ） */
+    shared: boolean("shared").notNull().default(false),
+    placedAt: timestamptz("placed_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "threads_organization_account_member_fk",
+      columns: [table.organizationId, table.ownerAccountId],
+      foreignColumns: [organizationMemberTable.organizationId, organizationMemberTable.accountId],
+    }).onDelete("cascade"),
+    index("threads_organization_account_organization_id_idx").on(table.organizationId),
+  ],
+);
+
+/** 担当（管理者が、編集者と自分ごとに決める）と、持ち主が担当の人ごとに決める「承認を任せる」。 */
+export const threadsAssignment = pgTable(
+  "threads_assignment",
+  {
+    /** 組織に入れた運用アカウント（組織から外れると、担当も消える。組織は入れた組織と同じものを書く） */
+    threadsAccountId: uuid("threads_account_id").notNull(),
+    organizationId: uuid("organization_id").notNull(),
+    /** 担当の人 */
+    accountId: uuid("account_id").notNull(),
+    assignedAt: timestamptz("assigned_at").defaultNow().notNull(),
+    /** 承認を任せる（承認・却下・承認を戻す・承認済みと却下の案を消す。初めはオフ） */
+    delegated: boolean("delegated").notNull().default(false),
+    delegatedAt: timestamptz("delegated_at"),
+    /** 担当が付いた知らせを見た日時（Threads のはじめの画面に1回だけ出す） */
+    noticeSeenAt: timestamptz("notice_seen_at"),
+  },
+  (table) => [
+    primaryKey({ columns: [table.threadsAccountId, table.accountId] }),
+    foreignKey({
+      name: "threads_assignment_organization_account_fk",
+      columns: [table.threadsAccountId],
+      foreignColumns: [threadsOrganizationAccount.threadsAccountId],
+    }).onDelete("cascade"),
+    // 担当の人が組織から抜けると、担当も消える
+    foreignKey({
+      name: "threads_assignment_member_fk",
+      columns: [table.organizationId, table.accountId],
+      foreignColumns: [organizationMemberTable.organizationId, organizationMemberTable.accountId],
+    }).onDelete("cascade"),
+    index("threads_assignment_organization_id_account_id_idx").on(
+      table.organizationId,
+      table.accountId,
+    ),
+    index("threads_assignment_account_id_idx").on(table.accountId),
   ],
 );

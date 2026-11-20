@@ -71,6 +71,34 @@
       "when": 1795128774219,
       "tag": "0009_threads",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795143212083,
+      "tag": "0010_threads_stock_parity",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795144935698,
+      "tag": "0011_threads_screens_parity",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795147891408,
+      "tag": "0012_suite_organization",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795148222208,
+      "tag": "0013_threads_team",
+      "breakpoints": true
     }
   ]
 }

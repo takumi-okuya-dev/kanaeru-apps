@@ -6,6 +6,13 @@ import { suiteRoutes } from "./routes.ts";
 export { INITIAL_APP_SETTINGS, restoreInitialAppSettings, upsertVisibility } from "./repository.ts";
 export { appVisibility, isAppVisible, requireApp, requireAppNotOff } from "./visibility.ts";
 
+// ほかの領域が読むもの（組織。AD-22）
+// - 表は外部キーのためだけ（.references() と foreignKey() にだけ使う。読み書きに使わない。AD-3）
+export {
+  organization as organizationTable,
+  organizationMember as organizationMemberTable,
+} from "./schema.ts";
+
 /**
  * スイートの領域の道。戻り値の型は書かない（書くと画面に渡す型が消える）。
  * @param deps 土台が渡す道具
