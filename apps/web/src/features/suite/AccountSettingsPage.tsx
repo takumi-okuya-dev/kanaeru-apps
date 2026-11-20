@@ -1,10 +1,11 @@
 // 設定 › アカウント（/settings/account。core-005）。どのアプリでも使う、本人のアカウント。
 // - ログインしている人：表示名・ログインの方法（LINE）・登録した日・使えるアプリ。「ログアウト」（結果はボタンのそば）
 // - 退会する：アカウントと、すべてのアプリの本人の記録を消す。消える記録と、元に戻せないことを確かめの枠に書く（AD-7・AD-19）。
+//   枠を開いたら、各領域が出す確かめの中身（組織・引き継がれる記録・消える記録。AD-22・PRD 組織 FR-O54）を読んで分けて出す。
 //   ほかの人が書きこむ記録を持っていれば、API が 409 を返すので、枠の中にその文を出す
 // ログアウト・退会のあとは、すべてのアプリの画面へ移り、画面の上の知らせの帯で伝える（画面が切り替わるため）。
-import type { CurrentAccountView } from "@workspace/contracts/account";
-import { useQueryClient } from "@tanstack/react-query";
+import type { CurrentAccountView, WithdrawalItem } from "@workspace/contracts/account";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listApps } from "@workspace/contracts/core";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
@@ -14,7 +15,13 @@ import { useState } from "react";
 import { errorMessage } from "../../lib/api.ts";
 import { showNotice } from "../../lib/notice.ts";
 import { Page } from "../../lib/page.tsx";
-import { SessionGate, signOut, useSession, withdrawAccount } from "../account/index.ts";
+import {
+  SessionGate,
+  fetchWithdrawalPreview,
+  signOut,
+  useSession,
+  withdrawAccount,
+} from "../account/index.ts";
 import { useVisibleApps } from "./queries.ts";
 
 /** 登録した日の見せ方（日本時間の「2026年11月19日」）。 */
@@ -101,6 +108,65 @@ function AccountSummary({ account }: { account: CurrentAccountView }) {
   );
 }
 
+/** 確かめの中身の種類ごとの見出し（画面の順）。 */
+const WITHDRAWAL_GROUPS = [
+  { kind: "organization", title: "組織" },
+  { kind: "handover", title: "引き継がれる記録" },
+  { kind: "delete", title: "消える記録" },
+] as const satisfies readonly { kind: WithdrawalItem["kind"]; title: string }[];
+
+/**
+ * 退会の確かめの中身（組織・引き継がれる記録・消える記録に分けて出す。読めないときは出さない）。
+ * @param props 枠が開いているか（open）
+ * @param props.open 枠が開いているか（開いたときだけ読む）
+ * @returns 要素
+ */
+function WithdrawalPreviewList({ open }: { open: boolean }) {
+  const query = useQuery({
+    queryKey: ["suite", "withdrawal-preview"],
+    queryFn: fetchWithdrawalPreview,
+    enabled: open,
+    staleTime: 0,
+    gcTime: 0,
+  });
+  if (query.isPending) {
+    return (
+      <p aria-busy="true" className="text-s text-text-sub">
+        退会で起きることを読みこんでいます…
+      </p>
+    );
+  }
+  if (query.isError) {
+    return (
+      <p className="text-s text-text-sub">
+        {`退会で起きることを読みこめませんでした（${errorMessage(query.error)}）。`}
+      </p>
+    );
+  }
+  const { items } = query.data;
+  return (
+    <>
+      {WITHDRAWAL_GROUPS.map(({ kind, title }) => {
+        const rows = items.filter((item) => item.kind === kind);
+        if (rows.length === 0) return null;
+        return (
+          <section key={kind} aria-label={title} className="flex flex-col gap-x3s">
+            <h3 className="text-m font-bold">{title}</h3>
+            <ul className="flex list-disc flex-col gap-x3s pl-s">
+              {rows.map((item) => (
+                <li key={`${item.source}:${item.text}`}>
+                  {item.source !== "スイート" ? `${item.source}：` : ""}
+                  {item.text}
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
+    </>
+  );
+}
+
 /**
  * 退会のまとまり（消える記録を書き、確かめの枠で確かめてから消す）。
  * @returns 要素
@@ -166,10 +232,14 @@ function Withdraw() {
         error={error}
         onConfirm={() => void confirm()}
       >
-        <p>
-          アカウントと、すべてのアプリのあなたの記録{records}
-          を消します。ログインもできなくなります。消したものは元に戻せません。
-        </p>
+        <div className="flex flex-col gap-xs">
+          <p>
+            アカウントと、すべてのアプリのあなたの記録{records}
+            を消します。ログインもできなくなります。
+          </p>
+          <WithdrawalPreviewList open={open} />
+          <p className="font-bold">元に戻せません。</p>
+        </div>
       </ConfirmDialog>
     </section>
   );

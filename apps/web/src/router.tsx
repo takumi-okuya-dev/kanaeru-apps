@@ -16,6 +16,8 @@ import type { ShellApp, ShellAppsView, ShellPlace } from "./lib/apps.ts";
 import type { WebFeature } from "./lib/feature.ts";
 import { rootRoute } from "./lib/router.ts";
 import type { NavItem } from "./lib/feature.ts";
+import { provideOrganizationExtensions } from "./lib/organization.ts";
+import type { ResolvedOrganizationExtension } from "./lib/organization.ts";
 import {
   SETTINGS_GROUP_LABELS,
   provideSettingsSections,
@@ -88,6 +90,15 @@ export const settingsSectionList: readonly ResolvedSettingsSection[] = registere
     }),
 );
 provideSettingsSections(settingsSectionList);
+
+/** 領域が組織の画面に足すものに、属するアプリを付けたもの（features.list.ts の順。suite-001）。 */
+export const organizationExtensionList: readonly ResolvedOrganizationExtension[] =
+  registeredFeatures.flatMap((feature: WebFeature) => {
+    if (!feature.organization) return [];
+    const appKey = appOfDomain(feature.id, registeredApps)?.key;
+    return [{ ...feature.organization, domain: feature.id, ...(appKey ? { appKey } : {}) }];
+  });
+provideOrganizationExtensions(organizationExtensionList);
 
 /** 道の ID → その道を出した領域（初めて使うときに作る。道の ID は道の木を作ったあとに決まる）。 */
 let routeDomains: Map<string, string> | undefined;

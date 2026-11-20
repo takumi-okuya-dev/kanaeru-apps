@@ -1,6 +1,6 @@
 // アカウントとセッションの読み書き（表は account の領域だけが読み書きする。AD-3）。
 // セッションは札の SHA-256 で引き、期限（expires_at）を過ぎたものは引けない。
-import { and, eq, gt, lt, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, lt, sql } from "drizzle-orm";
 import type { Executor } from "../../kernel/db.ts";
 import { account, session } from "./schema.ts";
 
@@ -62,6 +62,25 @@ export async function upsertAccount(
 export async function findAccountById(db: Executor, id: string): Promise<AccountRecord | null> {
   const [row] = await db.select(accountColumns).from(account).where(eq(account.id, id)).limit(1);
   return row ?? null;
+}
+
+/**
+ * 表示名をまとめて読む（組織の人の一覧など、ほかの領域が表示名を出すときに使う。ないアカウントは入らない）。
+ * @param db DB
+ * @param ids account の ID
+ * @returns account の ID → 表示名
+ */
+export async function findDisplayNames(
+  db: Executor,
+  ids: readonly string[],
+): Promise<Map<string, string>> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return new Map();
+  const rows = await db
+    .select({ id: account.id, displayName: account.displayName })
+    .from(account)
+    .where(inArray(account.id, unique));
+  return new Map(rows.map((row) => [row.id, row.displayName]));
 }
 
 /**

@@ -6,7 +6,7 @@ import { accountRoutes } from "./routes.ts";
 // ほかの領域が読むもの
 // - 表は外部キーのためだけ（.references(() => accountTable.id, { onDelete: "cascade" })。読み書きに使わない。AD-3）
 export { account as accountTable } from "./schema.ts";
-export { deleteAccount, findAccountById } from "./repository.ts";
+export { deleteAccount, findAccountById, findDisplayNames } from "./repository.ts";
 export type { AccountRecord } from "./repository.ts";
 export {
   currentAccount,

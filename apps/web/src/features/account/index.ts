@@ -7,6 +7,7 @@ import { devLoginRoute } from "./routes.ts";
 export { SessionGate } from "./SessionGate.tsx";
 export type { SessionGateProps } from "./SessionGate.tsx";
 export { requestFriendship } from "./friendship.ts";
+export { fetchWithdrawalPreview } from "./api.ts";
 export {
   SESSION_QUERY_KEY,
   signOut,
