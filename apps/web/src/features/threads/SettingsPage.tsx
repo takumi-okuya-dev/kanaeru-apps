@@ -1,12 +1,16 @@
 // 運用アカウントの設定：名前・Threads への接続と自動投稿（threads-002。AutoPostSettings.tsx）・投稿のルール（1行に1つ。プロンプトに入る）・
-// 時間差のメンション（threads-007。MentionSettingsSection.tsx）・NG ワード（含む案は承認できない）・操作の記録（threads-005。ActivitySection.tsx）・アカウントを消す。
+// 時間差のメンション（threads-007。MentionSettingsSection.tsx）・NG ワード（含む案は承認できない）・組織（threads-013。TeamSection.tsx）・
+// 操作の記録（threads-005。ActivitySection.tsx）・アカウントを消す。担当の人には読むだけの画面を出す（threads-013）。
 // 入力の誤りは欄のそば、送った結果は押したボタンの近く。消す前は確かめ、消したら一覧へ移って知らせの帯で伝える（EXPERIENCE.md）。
 import {
   CORE_RULES_MAX,
+  NG_WORD_LIMIT,
   NG_WORD_MAX,
   CoreRulesInput,
-  NgWordInput,
+  THREADS_ERRORS,
   ThreadsAccountInput,
+  confirmNameMatches,
+  splitNgWords,
 } from "@workspace/contracts/threads";
 import type { PostingRules, ThreadsAccount } from "@workspace/contracts/threads";
 import { useQueryClient } from "@tanstack/react-query";
@@ -19,17 +23,20 @@ import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { Textarea } from "@workspace/ui/components/textarea";
 import { useState } from "react";
 import type * as React from "react";
-import { errorMessage } from "../../lib/api.ts";
+import { ApiError, errorMessage } from "../../lib/api.ts";
 import { fieldErrorsFromApi, fieldErrorsFromIssues } from "../../lib/form.ts";
 import { showNotice } from "../../lib/notice.ts";
-import { Page } from "../../lib/page.tsx";
+import { ThreadsPage } from "./ThreadsPage.tsx";
 import { AccountGate, LoadFailure, Loading } from "./AccountGate.tsx";
 import { ActivitySection } from "./ActivitySection.tsx";
 import { ConnectionSection, ScheduleSection } from "./AutoPostSettings.tsx";
 import { MentionSettingsSection } from "./MentionSettingsSection.tsx";
-import { addNgWord, deleteAccount, deleteNgWord, renameAccount, saveCoreRules } from "./api.ts";
+import { PolicyInfo } from "./PolicyInfoDialog.tsx";
+import { addNgWords, deleteAccount, deleteNgWord, renameAccount, saveCoreRules } from "./api.ts";
 import { threadsPaths } from "./paths.ts";
 import { THREADS_QUERY_KEYS, usePostingRules } from "./queries.ts";
+import { useThreadsAccess, useThreadsCan } from "./team-access.ts";
+import { TeamSection } from "./TeamSection.tsx";
 
 /** 結果の知らせ。 */
 type Result = { tone: "success" | "danger"; message: string };
@@ -185,12 +192,13 @@ function CoreRulesSection({ accountId, rules }: RulesSectionProps) {
           {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
         </div>
       </form>
+      <PolicyInfo />
     </section>
   );
 }
 
 /**
- * NG ワードの節。
+ * NG ワードの節。threads-011：改行・「、」で区切ってまとめて足せる。もうある語は知らせ、足した語を含む承認済みの案は承認待ちに戻る。
  * @param props 運用アカウントの ID（accountId）・投稿のルールと NG ワード（rules）
  * @returns 節の要素
  */
@@ -198,9 +206,10 @@ function NgWordsSection({ accountId, rules }: RulesSectionProps) {
   const queryClient = useQueryClient();
   const [word, setWord] = useState("");
   const [error, setError] = useState<string>();
-  const [result, setResult] = useState<Result>();
+  const [result, setResult] = useState<{ tone: "success" | "danger" | "info"; message: string }>();
   const [pending, setPending] = useState(false);
   const [removingId, setRemovingId] = useState<string>();
+  const atLimit = rules.ngWords.length >= NG_WORD_LIMIT;
 
   /**
    * 投稿のルールと NG ワードを読み直す（承認の判定も変わるので、運用アカウントの問い合わせをまとめて）。
@@ -217,21 +226,41 @@ function NgWordsSection({ accountId, rules }: RulesSectionProps) {
     submitEvent.preventDefault();
     if (pending) return;
     setResult(undefined);
-    const parsed = NgWordInput.safeParse({ word });
-    if (!parsed.success) {
-      setError(fieldErrorsFromIssues(parsed.error.issues).word);
+    const words = splitNgWords(word);
+    if (words.length === 0) {
+      setError("NGワードを入れてください。");
+      return;
+    }
+    const tooLong = words.find((item) => [...item].length > NG_WORD_MAX);
+    if (tooLong) {
+      setError(`「${tooLong}」が長すぎます。NGワードは1語${NG_WORD_MAX}文字までにしてください。`);
       return;
     }
     setError(undefined);
     setPending(true);
     try {
-      await addNgWord(accountId, parsed.data.word);
+      const saved = await addNgWords(accountId, words);
       await refresh();
       setWord("");
-      setResult({ tone: "success", message: `「${parsed.data.word}」を足しました。` });
+      const parts = [
+        saved.added.length > 0
+          ? `${saved.added.map((item) => `「${item.word}」`).join("")}を足しました。`
+          : "",
+        saved.duplicates.length > 0
+          ? `${saved.duplicates.map((item) => `「${item}」`).join("")}は、もうあります。`
+          : "",
+        saved.reopenedCount > 0
+          ? `NGワードを含む承認済みの案${saved.reopenedCount}件を、承認待ちに戻しました。`
+          : "",
+      ];
+      setResult({
+        tone: saved.added.length > 0 ? "success" : "info",
+        message: parts.join(""),
+      });
     } catch (caught) {
       const fields = fieldErrorsFromApi(caught);
-      if (fields.word) setError(fields.word);
+      const fieldError = Object.entries(fields).find(([path]) => path.startsWith("words"))?.[1];
+      if (fieldError) setError(fieldError);
       else setResult({ tone: "danger", message: `足せませんでした。${errorMessage(caught)}` });
     } finally {
       setPending(false);
@@ -263,7 +292,12 @@ function NgWordsSection({ accountId, rules }: RulesSectionProps) {
       <h2 id="threads-ng-words" className="text-l font-bold">
         NGワード
       </h2>
-      <p className="text-m">NGワードを含む案は承認できません。案を作るプロンプトにも入ります。</p>
+      <p className="text-m">
+        NGワードを含む案は承認できません。案を作るプロンプトにも入ります。全角・半角、大文字・小文字の違いは同じ言葉として扱います。
+      </p>
+      <p className="text-s text-text-sub">
+        {rules.ngWords.length}／{NG_WORD_LIMIT}語
+      </p>
       {rules.ngWords.length === 0 ? (
         <p className="text-m text-text-sub">まだNGワードはありません。</p>
       ) : (
@@ -292,15 +326,25 @@ function NgWordsSection({ accountId, rules }: RulesSectionProps) {
         onSubmit={(submitEvent) => void submit(submitEvent)}
         className="flex flex-col gap-xs"
       >
-        <Field label="足すNGワード" description={`${NG_WORD_MAX}文字まで`} error={error}>
-          <Input
-            autoComplete="off"
+        <Field
+          label="足すNGワード"
+          description={
+            atLimit
+              ? `上限（${NG_WORD_LIMIT}語）に達しています。使わないNGワードを外してから足してください。`
+              : `改行か「、」で区切ると、まとめて足せます（1語${NG_WORD_MAX}文字まで）。足した語を含む承認済みの案は、承認待ちに戻ります。`
+          }
+          error={error}
+        >
+          <Textarea
+            rows={3}
             value={word}
+            disabled={atLimit}
+            placeholder="例：絶対、必ず儲かる"
             onChange={(change) => setWord(change.target.value)}
           />
         </Field>
         <div className="flex flex-col items-start gap-xxs">
-          <Button type="submit" aria-disabled={pending || undefined}>
+          <Button type="submit" disabled={atLimit} aria-disabled={pending || undefined}>
             {pending ? "足しています…" : "NGワードを足す"}
           </Button>
           {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
@@ -321,14 +365,38 @@ function DeleteSection({ account }: SectionProps) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
+  const [confirmName, setConfirmName] = useState("");
+  const [nameError, setNameError] = useState<string>();
 
-  /** 消す。 */
+  /**
+   * 開く・閉じる（閉じたら入れた名前を消す）。
+   * @param next 開くか
+   */
+  const changeOpen = (next: boolean) => {
+    setOpen(next);
+    if (!next) {
+      setConfirmName("");
+      setNameError(undefined);
+      setError(undefined);
+    }
+  };
+
+  /** 消す（名前が合うときだけ送る。API も同じ比べ方で確かめる。threads-012）。 */
   const confirm = async () => {
     if (pending) return;
     setError(undefined);
+    if (!confirmNameMatches(confirmName, account.name)) {
+      setNameError(
+        confirmName.trim() === ""
+          ? "消すアカウントの名前を入れてください。"
+          : THREADS_ERRORS.THREADS_ACCOUNT_NAME_MISMATCH.message,
+      );
+      return;
+    }
+    setNameError(undefined);
     setPending(true);
     try {
-      await deleteAccount(account.id);
+      await deleteAccount(account.id, confirmName);
       queryClient.removeQueries({ queryKey: THREADS_QUERY_KEYS.account(account.id) });
       await queryClient.invalidateQueries({ queryKey: THREADS_QUERY_KEYS.accounts });
       showNotice({
@@ -336,9 +404,14 @@ function DeleteSection({ account }: SectionProps) {
         message: `「${account.name}」を消しました。`,
         path: threadsPaths.accounts(),
       });
-      await navigate({ to: "/threads" });
+      await navigate({ to: "/threads/accounts" });
     } catch (caught) {
-      setError(`消せませんでした。${errorMessage(caught)}`);
+      if (
+        caught instanceof ApiError &&
+        caught.code === THREADS_ERRORS.THREADS_ACCOUNT_NAME_MISMATCH.code
+      )
+        setNameError(THREADS_ERRORS.THREADS_ACCOUNT_NAME_MISMATCH.message);
+      else setError(`消せませんでした。${errorMessage(caught)}`);
       setPending(false);
     }
   };
@@ -358,7 +431,7 @@ function DeleteSection({ account }: SectionProps) {
       </div>
       <ConfirmDialog
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={changeOpen}
         title={`「${account.name}」を消します`}
         confirmLabel="削除"
         pendingLabel="消しています…"
@@ -366,7 +439,26 @@ function DeleteSection({ account }: SectionProps) {
         error={error}
         onConfirm={() => void confirm()}
       >
-        戦略・投稿の案・投稿のルール・NGワードも一緒に消えます。元に戻せません。
+        <div className="flex flex-col gap-xs">
+          <p>戦略・投稿の案・投稿のルール・NGワードも一緒に消えます。元に戻せません。</p>
+          <Field
+            label="確かめのため、アカウントの名前を入れてください"
+            description={`「${account.name}」とそのまま入れます。`}
+            error={nameError}
+          >
+            <Input
+              autoComplete="off"
+              value={confirmName}
+              onChange={(change) => setConfirmName(change.target.value)}
+              onKeyDown={(keyEvent) => {
+                if (keyEvent.key === "Enter") {
+                  keyEvent.preventDefault();
+                  void confirm();
+                }
+              }}
+            />
+          </Field>
+        </div>
       </ConfirmDialog>
     </section>
   );
@@ -379,8 +471,11 @@ function DeleteSection({ account }: SectionProps) {
  */
 function SettingsContent({ account }: SectionProps) {
   const rules = usePostingRules(account.id);
+  const can = useThreadsCan();
+  // 担当の人（持ち主でない人）には、変える操作を出さずに読むだけで出す（threads-013。判定の正は API）
+  if (!can.manage) return <AssigneeSettings account={account} rulesQuery={rules} />;
   return (
-    <Page title="設定" lead={account.name}>
+    <ThreadsPage title="設定" lead={account.name}>
       <div className="flex max-w-form flex-col gap-l">
         <NameSection account={account} />
         <ConnectionSection accountId={account.id} />
@@ -396,10 +491,59 @@ function SettingsContent({ account }: SectionProps) {
             <NgWordsSection accountId={account.id} rules={rules.data} />
           </>
         )}
+        <TeamSection accountId={account.id} owner />
         <ActivitySection accountId={account.id} />
         <DeleteSection account={account} />
       </div>
-    </Page>
+    </ThreadsPage>
+  );
+}
+
+/**
+ * 担当の人の設定の画面（読むだけ。チームのカード・投稿のルールと NG ワード・管理者なら操作の記録。threads-013）。
+ * @param props 運用アカウント（account）・投稿のルールの問い合わせ（rulesQuery）
+ * @returns 画面の要素
+ */
+function AssigneeSettings({
+  account,
+  rulesQuery,
+}: SectionProps & { rulesQuery: ReturnType<typeof usePostingRules> }) {
+  const access = useThreadsAccess();
+  const can = useThreadsCan();
+  return (
+    <ThreadsPage title="設定" lead={account.name}>
+      <div className="flex max-w-form flex-col gap-l">
+        <p role="status" className="rounded-sm border border-border bg-surface-sunken p-xs text-m">
+          {access?.ownerName || "持ち主"}
+          さんの運用アカウントです。設定・Threads
+          への接続・消すのは持ち主だけなので、ここでは読むだけです。
+        </p>
+        <TeamSection accountId={account.id} owner={false} />
+        {rulesQuery.isPending ? (
+          <Loading />
+        ) : rulesQuery.isError ? (
+          <LoadFailure error={rulesQuery.error} retry={() => void rulesQuery.refetch()} />
+        ) : (
+          <section aria-labelledby="threads-rules-readonly" className="flex flex-col gap-xs">
+            <h2 id="threads-rules-readonly" className="text-l font-bold">
+              投稿のルールと NG ワード
+            </h2>
+            {rulesQuery.data.coreRules.trim() ? (
+              <p className="text-m break-words whitespace-pre-wrap">{rulesQuery.data.coreRules}</p>
+            ) : (
+              <p className="text-m">投稿のルールはまだありません。</p>
+            )}
+            <p className="text-m">
+              NGワード：
+              {rulesQuery.data.ngWords.length > 0
+                ? rulesQuery.data.ngWords.map((ngWord) => ngWord.word).join("、")
+                : "なし"}
+            </p>
+          </section>
+        )}
+        {can.activity ? <ActivitySection accountId={account.id} /> : null}
+      </div>
+    </ThreadsPage>
   );
 }
 

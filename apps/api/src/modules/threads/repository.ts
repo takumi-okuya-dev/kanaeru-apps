@@ -3,12 +3,10 @@
 // 版（version）を持つ記録は、読んだ版と同じときだけ書き、違えば null を返す（呼ぶ側が THREADS_VERSION_CONFLICT にする）。
 import {
   NEEDS_REVIEW_LIMIT,
-  NG_WORD_LIMIT,
   REJECTED_LIST_MAX,
   STRATEGY_TEXT_KEYS,
   THREADS_ACCOUNT_LIMIT,
   emptyStrategyValues,
-  normalizeNgWord,
 } from "@workspace/contracts/threads";
 import type {
   DraftListStatus,
@@ -18,7 +16,7 @@ import type {
   StrategyValues,
   TonePreset,
 } from "@workspace/contracts/threads";
-import { and, asc, count, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import type { Db, Executor } from "../../kernel/db.ts";
 import { isUniqueViolation } from "../../kernel/pg-errors.ts";
 import { lockKey } from "./locks.ts";
@@ -196,6 +194,29 @@ export async function renameAccount(
 }
 
 /**
+ * 運用アカウントを開いた日時を残す（/threads で最後に使った運用アカウントへ移るのに使う。threads-012）。
+ * 後から届いた古い要求で戻さないよう、残っている日時より新しいときだけ書く。直した日時（updated_at）は変えない。
+ * @param db DB
+ * @param threadsAccountId 運用アカウントの ID（持ち主を確かめたもの）
+ * @param openedAt 要求を受け取った日時
+ */
+export async function markAccountOpened(
+  db: Executor,
+  threadsAccountId: string,
+  openedAt: Date,
+): Promise<void> {
+  await db
+    .update(threadsAccount)
+    .set({ lastOpenedAt: openedAt, updatedAt: sql`${threadsAccount.updatedAt}` })
+    .where(
+      and(
+        eq(threadsAccount.id, threadsAccountId),
+        or(isNull(threadsAccount.lastOpenedAt), lt(threadsAccount.lastOpenedAt, openedAt)),
+      ),
+    );
+}
+
+/**
  * 運用アカウントを消す（戦略・案・NG ワードも一緒に消える）。
  * @param db DB
  * @param threadsAccountId 運用アカウントの ID（持ち主を確かめたもの）
@@ -344,7 +365,8 @@ export async function saveCoreRules(
 ): Promise<ThreadsAccountRecord | null> {
   const [row] = await db
     .update(threadsAccount)
-    .set({ coreRules })
+    // 材料を変えた日時も残す（ためたまとまりに写し、反応の CSV で見る。threads-012）
+    .set({ coreRules, coreRulesChangedAt: sql`now()` })
     .where(eq(threadsAccount.id, threadsAccountId))
     .returning();
   return row ?? null;
@@ -362,44 +384,6 @@ export async function listNgWords(db: Executor, threadsAccountId: string): Promi
     .from(threadsNgWord)
     .where(eq(threadsNgWord.threadsAccountId, threadsAccountId))
     .orderBy(asc(threadsNgWord.seq));
-}
-
-/** NG ワードを足した結果。 */
-export type AddNgWordResult =
-  { kind: "added"; ngWord: NgWordRecord } | { kind: "duplicate" } | { kind: "limit" };
-
-/**
- * NG ワードを足す（照合の形で同じものは1つ。運用アカウントごとに上限まで）。
- * @param db DB
- * @param threadsAccountId 運用アカウントの ID
- * @param word NG ワード（前後の空白を除いたもの）
- * @returns 足した結果
- * @throws {Error} 一意の制約の違反のほかの DB のエラー
- */
-export async function addNgWord(
-  db: Db,
-  threadsAccountId: string,
-  word: string,
-): Promise<AddNgWordResult> {
-  try {
-    return await db.transaction(async (tx): Promise<AddNgWordResult> => {
-      await lockKey(tx, `threads_ng_word:${threadsAccountId}`);
-      const [owned] = await tx
-        .select({ total: count() })
-        .from(threadsNgWord)
-        .where(eq(threadsNgWord.threadsAccountId, threadsAccountId));
-      if ((owned?.total ?? 0) >= NG_WORD_LIMIT) return { kind: "limit" };
-      const [row] = await tx
-        .insert(threadsNgWord)
-        .values({ threadsAccountId, word, normalized: normalizeNgWord(word) })
-        .returning();
-      if (!row) throw new Error("NGワードを足せませんでした。");
-      return { kind: "added", ngWord: row };
-    });
-  } catch (error) {
-    if (isUniqueViolation(error)) return { kind: "duplicate" };
-    throw error;
-  }
 }
 
 /**
@@ -469,7 +453,8 @@ export async function listQueue(
 }
 
 /**
- * 案を一覧の状態で読む。承認待ちは作った古い順、承認済みは投稿の順（投稿中を含む）、投稿済み・投稿に失敗・却下は新しい順。
+ * 案を一覧の状態で読む。承認待ちはためた新しいまとまりが先（まとまりの中は貼った順。めぐるの FR-018。threads-011）、
+ * 承認済みは投稿の順（投稿中を含む）、投稿に失敗・却下は新しい順（500件まで）。投稿済みは listPublishedPage（50件ずつ）。
  * @param db DB
  * @param threadsAccountId 運用アカウントの ID
  * @param status 一覧の状態
@@ -487,9 +472,10 @@ export async function listDrafts(
   );
   const query = db.select().from(threadsPostDraft).where(where);
   if (status === "needs_review") {
+    // まとまりの ID は uuidv7（時刻の順）なので、作った日時が同じでもまとまりの新しい順に並ぶ
     return query.orderBy(
-      asc(threadsPostDraft.createdAt),
-      asc(threadsPostDraft.batchId),
+      desc(threadsPostDraft.createdAt),
+      desc(threadsPostDraft.batchId),
       asc(threadsPostDraft.position),
     );
   }
@@ -537,24 +523,43 @@ export async function setPriority(
 }
 
 /**
- * 似ている度合いを比べる相手（承認待ち・承認済みの案の ID と本文）。
+ * 似ている度合いを比べる相手（承認待ち・承認済み〈投稿中を含む〉のすべてと、却下の新しい500件。めぐるの FR-026 と同じ。threads-011）。
  * @param db DB
  * @param threadsAccountId 運用アカウントの ID
- * @returns 相手
+ * @returns 相手（ID・本文・状態）
  */
 export async function listCompareBodies(
   db: Executor,
   threadsAccountId: string,
-): Promise<{ id: string; body: string }[]> {
-  return db
-    .select({ id: threadsPostDraft.id, body: threadsPostDraft.body })
-    .from(threadsPostDraft)
-    .where(
-      and(
-        eq(threadsPostDraft.threadsAccountId, threadsAccountId),
-        inArray(threadsPostDraft.status, ["needs_review", "approved", "publishing", "published"]),
+): Promise<{ id: string; body: string; status: DraftStatus }[]> {
+  const columns = {
+    id: threadsPostDraft.id,
+    body: threadsPostDraft.body,
+    status: threadsPostDraft.status,
+  };
+  const [open, rejected] = await Promise.all([
+    db
+      .select(columns)
+      .from(threadsPostDraft)
+      .where(
+        and(
+          eq(threadsPostDraft.threadsAccountId, threadsAccountId),
+          inArray(threadsPostDraft.status, ["needs_review", "approved", "publishing"]),
+        ),
       ),
-    );
+    db
+      .select(columns)
+      .from(threadsPostDraft)
+      .where(
+        and(
+          eq(threadsPostDraft.threadsAccountId, threadsAccountId),
+          eq(threadsPostDraft.status, "rejected"),
+        ),
+      )
+      .orderBy(desc(threadsPostDraft.reviewedAt), desc(threadsPostDraft.id))
+      .limit(LIST_MAX),
+  ]);
+  return [...open, ...rejected];
 }
 
 /**
@@ -614,7 +619,13 @@ export async function listRecentRejected(
 
 /** 案をまとめてためた結果。 */
 export type CreateBatchResult =
-  | { kind: "created"; batchId: string; delimiterFound: boolean; drafts: PostDraftRecord[] }
+  | {
+      kind: "created";
+      batchId: string;
+      draftCount: number;
+      delimiterFound: boolean;
+      drafts: PostDraftRecord[];
+    }
   | { kind: "limit" };
 
 /**
@@ -632,7 +643,13 @@ export type CreateBatchResult =
 export async function createBatch(
   db: Db,
   threadsAccountId: string,
-  input: { clientRequestId: string; parts: string[]; delimiterFound: boolean },
+  input: {
+    clientRequestId: string;
+    parts: string[];
+    delimiterFound: boolean;
+    /** ためた人（threads-013。誰がしたかの記録） */
+    actorAccountId?: string | null;
+  },
 ): Promise<CreateBatchResult> {
   return db.transaction(async (tx): Promise<CreateBatchResult> => {
     await lockKey(tx, `threads_post_draft:${threadsAccountId}`);
@@ -647,20 +664,39 @@ export async function createBatch(
       )
       .limit(1);
     if (existing) {
+      // 送り直しでは、まだ承認待ちのもの（取り消し・承認のあとに残っているもの）だけを返す（めぐると同じ）
       const drafts = await tx
         .select()
         .from(threadsPostDraft)
-        .where(eq(threadsPostDraft.batchId, existing.id))
+        .where(
+          and(
+            eq(threadsPostDraft.batchId, existing.id),
+            eq(threadsPostDraft.status, "needs_review"),
+          ),
+        )
         .orderBy(asc(threadsPostDraft.position));
       return {
         kind: "created",
         batchId: existing.id,
+        draftCount: existing.draftCount,
         delimiterFound: existing.delimiterFound,
         drafts,
       };
     }
     const counts = await countDrafts(tx, threadsAccountId);
     if (counts.needs_review + input.parts.length > NEEDS_REVIEW_LIMIT) return { kind: "limit" };
+    // ためた時点のプロンプトの材料の版（反応の CSV に出す。めぐるの 006 FR-002g。threads-012）
+    const [materials] = await tx
+      .select({
+        strategyUpdatedAt: threadsStrategy.updatedAt,
+        promotionsChangedAt: threadsAccount.promotionsChangedAt,
+        researchChangedAt: threadsAccount.researchChangedAt,
+        coreRulesChangedAt: threadsAccount.coreRulesChangedAt,
+      })
+      .from(threadsAccount)
+      .leftJoin(threadsStrategy, eq(threadsStrategy.threadsAccountId, threadsAccount.id))
+      .where(eq(threadsAccount.id, threadsAccountId))
+      .limit(1);
     const [batch] = await tx
       .insert(threadsDraftBatch)
       .values({
@@ -668,6 +704,10 @@ export async function createBatch(
         clientRequestId: input.clientRequestId,
         draftCount: input.parts.length,
         delimiterFound: input.delimiterFound,
+        strategyUpdatedAt: materials?.strategyUpdatedAt ?? null,
+        promotionsChangedAt: materials?.promotionsChangedAt ?? null,
+        researchChangedAt: materials?.researchChangedAt ?? null,
+        coreRulesChangedAt: materials?.coreRulesChangedAt ?? null,
       })
       .returning();
     if (!batch) throw new Error("案のまとまりを作れませんでした。");
@@ -679,11 +719,19 @@ export async function createBatch(
           batchId: batch.id,
           position,
           body,
+          createdByAccountId: input.actorAccountId ?? null,
+          updatedByAccountId: input.actorAccountId ?? null,
         })),
       )
       .returning();
     drafts.sort((a, b) => a.position - b.position);
-    return { kind: "created", batchId: batch.id, delimiterFound: batch.delimiterFound, drafts };
+    return {
+      kind: "created",
+      batchId: batch.id,
+      draftCount: batch.draftCount,
+      delimiterFound: batch.delimiterFound,
+      drafts,
+    };
   });
 }
 
@@ -712,60 +760,37 @@ export async function findDraft(
   return row ?? null;
 }
 
-/**
- * 承認待ちの案の本文を直す（読んだ版と同じときだけ）。
- * @param db DB
- * @param threadsAccountId 運用アカウントの ID
- * @param draftId 案の ID
- * @param body 本文
- * @param version 読んだ版
- * @returns 直した案。版が合わない・承認待ちでなければ null
- */
-export async function updateDraftBody(
-  db: Db,
-  threadsAccountId: string,
-  draftId: string,
-  body: string,
-  version: number,
-): Promise<PostDraftRecord | null> {
-  const [row] = await db
-    .update(threadsPostDraft)
-    .set({ body, version: sql`${threadsPostDraft.version} + 1` })
-    .where(
-      and(
-        eq(threadsPostDraft.id, draftId),
-        eq(threadsPostDraft.threadsAccountId, threadsAccountId),
-        eq(threadsPostDraft.status, "needs_review"),
-        eq(threadsPostDraft.version, version),
-      ),
-    )
-    .returning();
-  return row ?? null;
-}
+/** 消せる案の状態（めぐると同じ。承認済み・投稿に失敗は承認待ちに戻してから、投稿済みは反応の記録が消えるので消さない。threads-011）。 */
+export const DELETABLE_STATUSES: readonly PostDraftRecord["status"][] = [
+  "needs_review",
+  "rejected",
+];
 
 /**
- * 案を消す（投稿中は消さない）。
+ * 案を消す（承認待ち・却下だけ）。
  * @param db DB
  * @param threadsAccountId 運用アカウントの ID
- * @param draftId 案の ID
- * @returns 消したなら true
+ * @param draftIds 案の ID（ほかの状態・ほかの運用アカウントのものは無視する）
+ * @param statuses 消してよい状態（既定は承認待ちと却下）
+ * @returns 消した案
  */
-export async function deleteDraft(
-  db: Db,
+export async function deleteDrafts(
+  db: Executor,
   threadsAccountId: string,
-  draftId: string,
-): Promise<boolean> {
-  const rows = await db
+  draftIds: readonly string[],
+  statuses: readonly PostDraftRecord["status"][] = DELETABLE_STATUSES,
+): Promise<PostDraftRecord[]> {
+  if (draftIds.length === 0 || statuses.length === 0) return [];
+  return db
     .delete(threadsPostDraft)
     .where(
       and(
-        eq(threadsPostDraft.id, draftId),
+        inArray(threadsPostDraft.id, [...draftIds]),
         eq(threadsPostDraft.threadsAccountId, threadsAccountId),
-        ne(threadsPostDraft.status, "publishing"),
+        inArray(threadsPostDraft.status, [...statuses]),
       ),
     )
-    .returning({ id: threadsPostDraft.id });
-  return rows.length > 0;
+    .returning();
 }
 
 /**
@@ -792,9 +817,10 @@ export async function lockDrafts(
     .for("update");
 }
 
-/** 案の状態を変える値。 */
+/** 案の状態を変える値（requeue：投稿に失敗をもう一度投稿の順の先頭に入れる。承認した日時は元のまま。threads-011）。 */
 export type DraftStateChange =
   | { status: "approved" }
+  | { status: "requeue" }
   | { status: "rejected"; reasons: string[] | null; note: string | null }
   | { status: "needs_review" };
 
@@ -803,16 +829,22 @@ export type DraftStateChange =
  * @param tx トランザクション
  * @param draftIds 案の ID（鍵をかけて確かめたもの）
  * @param change 変える値
+ * @param requestId 変えた承認・却下の操作の ID（送り直しを見分ける。ほかの変え方では null）
+ * @param reviewerAccountId 承認・却下した人（threads-013。人の操作のときだけ渡す。渡さなければ変えない）
  * @returns 変えた案
  */
 export async function changeDraftState(
   tx: Executor,
   draftIds: string[],
   change: DraftStateChange,
+  requestId: string | null = null,
+  reviewerAccountId?: string | null,
 ): Promise<PostDraftRecord[]> {
+  if (draftIds.length === 0) return [];
   // 状態が変わるときは、投稿の順・投稿の記録・直前の確かめの記録を消す（DB の CHECK が状態ごとに縛る）
   const base = {
     version: sql`${threadsPostDraft.version} + 1`,
+    lastReviewRequestId: requestId,
     prioritizedAt: null,
     carryoverAttemptId: null,
     publishFailedAt: null,
@@ -822,32 +854,40 @@ export async function changeDraftState(
     blockedWords: null,
   };
   const values =
-    change.status === "approved"
-      ? {
-          ...base,
-          status: "approved" as const,
-          reviewedAt: sql`now()`,
-          rejectReasons: null,
-          rejectNote: null,
-        }
-      : change.status === "rejected"
+    change.status === "requeue"
+      ? // 投稿の順の先頭（持ち越しの次）に入れ、承認した日時は元のまま残す（めぐるの 005 research.md R4）
+        { ...base, status: "approved" as const, prioritizedAt: sql`now()` }
+      : change.status === "approved"
         ? {
             ...base,
-            status: "rejected" as const,
+            status: "approved" as const,
             reviewedAt: sql`now()`,
-            rejectReasons: change.reasons,
-            rejectNote: change.note,
-          }
-        : {
-            ...base,
-            status: "needs_review" as const,
-            reviewedAt: null,
             rejectReasons: null,
             rejectNote: null,
-          };
+          }
+        : change.status === "rejected"
+          ? {
+              ...base,
+              status: "rejected" as const,
+              reviewedAt: sql`now()`,
+              rejectReasons: change.reasons,
+              rejectNote: change.note,
+            }
+          : {
+              ...base,
+              status: "needs_review" as const,
+              reviewedAt: null,
+              rejectReasons: null,
+              rejectNote: null,
+            };
+  // 承認・却下した人（threads-013）。人の操作のときだけ書き、承認待ちに戻したら消す
+  const reviewer =
+    reviewerAccountId === undefined
+      ? {}
+      : { reviewedByAccountId: values.status === "needs_review" ? null : reviewerAccountId };
   return tx
     .update(threadsPostDraft)
-    .set(values)
+    .set({ ...values, ...reviewer })
     .where(inArray(threadsPostDraft.id, draftIds))
     .returning();
 }

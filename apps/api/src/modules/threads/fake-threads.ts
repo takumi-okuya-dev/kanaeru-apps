@@ -7,8 +7,8 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 
-/** 偽の利用者。 */
-export type FakeUser = { id: string; username: string; name: string };
+/** 偽の利用者（pictureUrl はプロフィールの画像。threads-012）。 */
+export type FakeUser = { id: string; username: string; name: string; pictureUrl?: string };
 
 /** 偽のトークン。 */
 type FakeToken = {
@@ -237,7 +237,12 @@ export function createFakeThreads(options: { clock?: () => number } = {}): FakeT
     if (hit) return hit;
     const auth = authorize(c);
     if (!auth) return c.json(AUTH_ERROR, 401);
-    return c.json({ id: auth.user.id, username: auth.user.username, name: auth.user.name });
+    return c.json({
+      id: auth.user.id,
+      username: auth.user.username,
+      name: auth.user.name,
+      ...(auth.user.pictureUrl ? { threads_profile_picture_url: auth.user.pictureUrl } : {}),
+    });
   });
 
   app.get("/v1.0/debug_token", (c) => {

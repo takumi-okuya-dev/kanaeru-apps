@@ -2,6 +2,7 @@
 import { STRATEGY_TOTAL, countFilled } from "@workspace/contracts/threads";
 import type {
   BlockedReason,
+  DraftCounts,
   NgWord,
   PublishError,
   PostDraft,
@@ -32,15 +33,29 @@ export function toThreadsAccount(
   return {
     id: account.id,
     name: account.name,
-    counts: {
-      needsReview: counts.needs_review,
-      approved: counts.approved + counts.publishing,
-      rejected: counts.rejected,
-      published: counts.published,
-      publishFailed: counts.publish_failed,
-    },
+    counts: toDraftCounts(counts),
+    connectionStatus: account.connectionStatus,
+    username: account.username,
+    displayName: account.displayName,
+    profilePictureUrl: account.profilePictureUrl,
+    lastOpenedAt: account.lastOpenedAt?.toISOString() ?? null,
     createdAt: account.createdAt.toISOString(),
     updatedAt: account.updatedAt.toISOString(),
+  };
+}
+
+/**
+ * 状態ごとの案の数を、返す形にする（承認済みは投稿中を含む）。
+ * @param counts 状態ごとの案の数
+ * @returns 数
+ */
+export function toDraftCounts(counts: DraftCountsRecord): DraftCounts {
+  return {
+    needsReview: counts.needs_review,
+    approved: counts.approved + counts.publishing,
+    rejected: counts.rejected,
+    published: counts.published,
+    publishFailed: counts.publish_failed,
   };
 }
 
@@ -88,6 +103,7 @@ export function toPostDraft(row: PostDraftRecord, mention: PostMention | null = 
     blockedReason: (row.blockedReason as BlockedReason | null) ?? null,
     blockedWords: row.blockedWords,
     mention,
+    editedAt: row.bodyEditedAt ? row.bodyEditedAt.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

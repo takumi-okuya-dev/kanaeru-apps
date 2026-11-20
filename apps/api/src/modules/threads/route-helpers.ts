@@ -5,13 +5,15 @@ import { z } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { routePath } from "hono/route";
+import { THREADS_ERRORS } from "@workspace/contracts/threads";
 import type { ActivityAction, ActivityKind } from "@workspace/contracts/threads";
-import { AppError } from "../../kernel/errors.ts";
+import { domainErrorResponse } from "../../kernel/errors.ts";
 import { notFoundResponse, uuidParam } from "../../kernel/http.ts";
 import type { ApiEnv, DomainRouteDeps } from "../../kernel/http.ts";
 import { currentAccount, requireSession, unauthenticatedResponse } from "../account/index.ts";
+import { authorizeAccount } from "./access.ts";
+import type { AccountAccess, ThreadsOperation } from "./access.ts";
 import { recordActivity } from "./activity-log.ts";
-import { findOwnedAccount } from "./repository.ts";
 import type { ThreadsAccountRecord } from "./repository.ts";
 
 /** 運用アカウントの道の頭。 */
@@ -20,8 +22,12 @@ export const ACCOUNTS_BASE = "/api/v1/threads/accounts";
 /** 窓口の文書のまとまりの名前。 */
 export const TAGS = ["threads"];
 
-/** ログインが要る道のよくあるエラーの応答。 */
-export const COMMON_ERRORS = { 401: unauthenticatedResponse, 404: notFoundResponse } as const;
+/** ログインが要る道のよくあるエラーの応答（403 は、組織の関わりはあるが権限が足りないとき。threads-013）。 */
+export const COMMON_ERRORS = {
+  401: unauthenticatedResponse,
+  403: domainErrorResponse(THREADS_ERRORS.THREADS_TEAM_FORBIDDEN, "権限が足りない（組織の関わり）"),
+  404: notFoundResponse,
+} as const;
 
 /** 道の accountId。 */
 export const AccountParams = z.object({ accountId: uuidParam("accountId", "運用アカウントの ID") });
@@ -61,7 +67,6 @@ const ACTIVITY_ROUTES: Record<string, { kind: ActivityKind; action: ActivityActi
   "PUT /strategy": { kind: "content", action: "strategy_saved" },
   "PUT /prompt-settings": { kind: "settings", action: "prompt_settings_saved" },
   "PUT /core-rules": { kind: "settings", action: "core_rules_saved" },
-  "POST /ng-words": { kind: "settings", action: "ng_word_added" },
   "DELETE /ng-words/:ngWordId": { kind: "settings", action: "ng_word_removed" },
   "POST /connection": { kind: "settings", action: "threads_connected" },
   "DELETE /connection": { kind: "settings", action: "threads_disconnected" },
@@ -106,7 +111,12 @@ function activityRecorder(deps: DomainRouteDeps) {
     if (!path.startsWith(prefix)) return;
     const found = ACTIVITY_ROUTES[`${c.req.method} ${path.slice(prefix.length)}`];
     const accountId = c.req.param("accountId");
-    if (found && accountId) await recordActivity(deps, accountId, found);
+    if (found && accountId) {
+      await recordActivity(deps, accountId, {
+        ...found,
+        actorAccountId: currentAccount(c).accountId,
+      });
+    }
   });
 }
 
@@ -120,21 +130,40 @@ export function accountMiddleware(deps: DomainRouteDeps) {
 }
 
 /**
- * 道の運用アカウントを、今の利用者のものとして読む（ない・ほかの人のものは 404）。
+ * 道の運用アカウントを、今の利用者がその操作をしてよいものとして読む（threads-013。判定は access.ts の1か所）。
+ * 操作を書かなければ持ち主だけ（manage）。ない・関わりがないものは 404、権限が足りなければ 403。
  * @param deps 土台が渡す道具
  * @param c 要求の文脈
  * @param accountId 運用アカウントの ID
+ * @param operation 操作のまとまり（既定は manage＝持ち主だけ）
  * @returns 運用アカウント
- * @throws {AppError} ない・ほかの人のものとき（NOT_FOUND）
+ * @throws {AppError} ない・関わりがない（NOT_FOUND）・権限が足りない（THREADS_TEAM_FORBIDDEN）
  */
 export async function ownedAccount(
   deps: DomainRouteDeps,
   c: Context,
   accountId: string,
+  operation: ThreadsOperation = "manage",
 ): Promise<ThreadsAccountRecord> {
-  const account = await findOwnedAccount(deps.db, currentAccount(c).accountId, accountId);
-  if (!account) throw new AppError("NOT_FOUND");
-  return account;
+  return (await accountAccess(deps, c, accountId, operation)).account;
+}
+
+/**
+ * 道の運用アカウントの判定の結果を読む（関わり・組織・任されているかが要る道が使う）。
+ * @param deps 土台が渡す道具
+ * @param c 要求の文脈
+ * @param accountId 運用アカウントの ID
+ * @param operation 操作のまとまり
+ * @returns 判定の結果
+ * @throws {AppError} ない・関わりがない（NOT_FOUND）・権限が足りない（THREADS_TEAM_FORBIDDEN）
+ */
+export async function accountAccess(
+  deps: DomainRouteDeps,
+  c: Context,
+  accountId: string,
+  operation: ThreadsOperation,
+): Promise<AccountAccess> {
+  return authorizeAccount(deps.db, currentAccount(c).accountId, accountId, operation);
 }
 
 /**

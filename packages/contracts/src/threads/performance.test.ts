@@ -3,6 +3,7 @@ import {
   catchUpKind,
   confirmAtOf,
   elapsedMinutes,
+  formatBaseline,
   formatRatio,
   judge,
   median,
@@ -106,5 +107,13 @@ describe("表示と目安", () => {
     expect(elapsedMinutes(new Date("2026-10-07T00:00:00Z"), new Date("2026-10-07T01:30:59Z"))).toBe(
       90,
     );
+  });
+});
+
+describe("基準値の見える形（threads-012）", () => {
+  it("小数第1位まで、桁の区切りつき", () => {
+    expect(formatBaseline(1234.56)).toBe("1,234.6");
+    expect(formatBaseline(100)).toBe("100");
+    expect(formatBaseline(52.25)).toBe("52.3");
   });
 });

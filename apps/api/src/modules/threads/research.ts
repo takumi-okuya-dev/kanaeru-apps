@@ -36,7 +36,13 @@ import type { Db, Executor } from "../../kernel/db.ts";
 import { AppError } from "../../kernel/errors.ts";
 import { isUniqueViolation } from "../../kernel/pg-errors.ts";
 import { lockKey } from "./locks.ts";
-import { threadsPromotion, threadsReferencePost, threadsResearchKeyword } from "./schema.ts";
+import { touchMaterials } from "./materials.ts";
+import {
+  threadsAccount,
+  threadsPromotion,
+  threadsReferencePost,
+  threadsResearchKeyword,
+} from "./schema.ts";
 
 /** 宣伝の行。 */
 type PromotionRow = typeof threadsPromotion.$inferSelect;
@@ -144,6 +150,7 @@ export async function createPromotion(
       .values({ threadsAccountId, ...promotionColumns(input) })
       .returning();
     if (!row) throw new Error("宣伝を足せませんでした。");
+    await touchMaterials(tx, threadsAccountId, "promotions");
     return row;
   });
 }
@@ -174,7 +181,10 @@ export async function updatePromotion(
     .set({ ...promotionColumns(input), version: sql`${threadsPromotion.version} + 1` })
     .where(and(where, eq(threadsPromotion.version, version)))
     .returning();
-  if (row) return row;
+  if (row) {
+    await touchMaterials(db, threadsAccountId, "promotions");
+    return row;
+  }
   const [exists] = await db.select({ id: threadsPromotion.id }).from(threadsPromotion).where(where);
   throw new AppError(exists ? THREADS_ERRORS.THREADS_VERSION_CONFLICT : "NOT_FOUND");
 }
@@ -200,7 +210,9 @@ export async function deletePromotion(
       ),
     )
     .returning({ id: threadsPromotion.id });
-  return rows.length > 0;
+  if (rows.length === 0) return false;
+  await touchMaterials(db, threadsAccountId, "promotions");
+  return true;
 }
 
 /**
@@ -244,6 +256,18 @@ export async function listPromptPromotions(
 }
 
 // ---- 参考の投稿 ----
+
+/**
+ * リサーチ（参考の投稿・キーワード）を変えた日時を、運用アカウントに残す（threads-012。ためたまとまりに材料の版として写す）。
+ * @param db DB か、書きこみの中の道具
+ * @param threadsAccountId 運用アカウントの ID
+ */
+async function touchResearch(db: Executor, threadsAccountId: string): Promise<void> {
+  await db
+    .update(threadsAccount)
+    .set({ researchChangedAt: sql`now()` })
+    .where(eq(threadsAccount.id, threadsAccountId));
+}
 
 /**
  * 参考の投稿の行の反応の数。
@@ -368,7 +392,7 @@ export async function createReferencePosts(
     if ((owned?.total ?? 0) + items.length > REFERENCE_POST_LIMIT)
       throw new AppError(THREADS_ERRORS.THREADS_ITEM_LIMIT);
     const base = now.getTime();
-    return tx
+    const inserted = await tx
       .insert(threadsReferencePost)
       .values(
         items.map((input, index) => ({
@@ -379,6 +403,8 @@ export async function createReferencePosts(
         })),
       )
       .returning();
+    await touchResearch(tx, threadsAccountId);
+    return inserted;
   });
   const today = jstToday(now);
   return rows.map((row) => toReferencePost(row, undefined, today));
@@ -407,11 +433,15 @@ export async function updateReferencePost(
     eq(threadsReferencePost.id, id),
     eq(threadsReferencePost.threadsAccountId, threadsAccountId),
   );
-  const [row] = await db
-    .update(threadsReferencePost)
-    .set({ ...referenceColumns(input), version: sql`${threadsReferencePost.version} + 1` })
-    .where(and(where, eq(threadsReferencePost.version, version)))
-    .returning();
+  const row = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(threadsReferencePost)
+      .set({ ...referenceColumns(input), version: sql`${threadsReferencePost.version} + 1` })
+      .where(and(where, eq(threadsReferencePost.version, version)))
+      .returning();
+    if (updated) await touchResearch(tx, threadsAccountId);
+    return updated;
+  });
   if (row) return toReferencePost(row, undefined, jstToday(now));
   const [exists] = await db
     .select({ id: threadsReferencePost.id })
@@ -432,16 +462,19 @@ export async function deleteReferencePost(
   threadsAccountId: string,
   id: string,
 ): Promise<boolean> {
-  const rows = await db
-    .delete(threadsReferencePost)
-    .where(
-      and(
-        eq(threadsReferencePost.id, id),
-        eq(threadsReferencePost.threadsAccountId, threadsAccountId),
-      ),
-    )
-    .returning({ id: threadsReferencePost.id });
-  return rows.length > 0;
+  return db.transaction(async (tx) => {
+    const rows = await tx
+      .delete(threadsReferencePost)
+      .where(
+        and(
+          eq(threadsReferencePost.id, id),
+          eq(threadsReferencePost.threadsAccountId, threadsAccountId),
+        ),
+      )
+      .returning({ id: threadsReferencePost.id });
+    if (rows.length > 0) await touchResearch(tx, threadsAccountId);
+    return rows.length > 0;
+  });
 }
 
 /**
@@ -517,6 +550,7 @@ export async function saveExplanations(
         .where(where);
       skipped.push({ id: item.id, reason: exists ? "already_explained" : "not_found" });
     }
+    if (saved.length > 0) await touchResearch(tx, threadsAccountId);
     return { saved, skipped };
   });
 }
@@ -642,6 +676,7 @@ export async function createKeywords(
           })),
         )
         .returning();
+      await touchResearch(tx, threadsAccountId);
       return rows.map(toKeyword);
     }),
   );
@@ -668,17 +703,21 @@ export async function updateKeyword(
     eq(threadsResearchKeyword.id, id),
     eq(threadsResearchKeyword.threadsAccountId, threadsAccountId),
   );
-  const [row] = await withDuplicateCheck(() =>
-    db
-      .update(threadsResearchKeyword)
-      .set({
-        keyword: input.keyword,
-        keywordNormalized: normalizeKeyword(input.keyword),
-        purpose: input.purpose,
-        version: sql`${threadsResearchKeyword.version} + 1`,
-      })
-      .where(and(where, eq(threadsResearchKeyword.version, version)))
-      .returning(),
+  const row = await withDuplicateCheck(() =>
+    db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(threadsResearchKeyword)
+        .set({
+          keyword: input.keyword,
+          keywordNormalized: normalizeKeyword(input.keyword),
+          purpose: input.purpose,
+          version: sql`${threadsResearchKeyword.version} + 1`,
+        })
+        .where(and(where, eq(threadsResearchKeyword.version, version)))
+        .returning();
+      if (updated) await touchResearch(tx, threadsAccountId);
+      return updated;
+    }),
   );
   if (row) return toKeyword(row);
   const [exists] = await db
@@ -700,14 +739,17 @@ export async function deleteKeyword(
   threadsAccountId: string,
   id: string,
 ): Promise<boolean> {
-  const rows = await db
-    .delete(threadsResearchKeyword)
-    .where(
-      and(
-        eq(threadsResearchKeyword.id, id),
-        eq(threadsResearchKeyword.threadsAccountId, threadsAccountId),
-      ),
-    )
-    .returning({ id: threadsResearchKeyword.id });
-  return rows.length > 0;
+  return db.transaction(async (tx) => {
+    const rows = await tx
+      .delete(threadsResearchKeyword)
+      .where(
+        and(
+          eq(threadsResearchKeyword.id, id),
+          eq(threadsResearchKeyword.threadsAccountId, threadsAccountId),
+        ),
+      )
+      .returning({ id: threadsResearchKeyword.id });
+    if (rows.length > 0) await touchResearch(tx, threadsAccountId);
+    return rows.length > 0;
+  });
 }

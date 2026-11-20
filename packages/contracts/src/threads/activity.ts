@@ -29,6 +29,9 @@ export const ACTIVITY_ACTIONS = {
   drafts_added: "案をためた",
   draft_edited: "案を直した",
   draft_deleted: "案を消した",
+  drafts_deleted: "案をまとめて消した",
+  batch_undone: "ためた案を取り消した",
+  drafts_requeued: "投稿に失敗した案を投稿の順に入れ直した",
   strategy_saved: "戦略を保存した",
   promotion_saved: "宣伝を保存した",
   promotion_deleted: "宣伝を消した",
@@ -47,6 +50,7 @@ export const ACTIVITY_ACTIONS = {
   mention_person_removed: "メンションする人を消した",
   mention_attached: "時間差のメンションを付けた",
   mention_detached: "時間差のメンションを外した",
+  mentions_attached: "時間差のメンションをまとめて付けた",
   listing_generated: "外部メディアの掲載文を作った",
   listing_saved: "外部メディアの掲載文を保存した",
   media_defaults_saved: "外部メディアの既定値を保存した",
@@ -61,6 +65,13 @@ export const ACTIVITY_ACTIONS = {
   schedule_saved: "自動投稿の設定を保存した",
   auto_published: "自動で投稿した",
   auto_publish_failed: "自動の投稿に失敗した",
+  organization_placed: "組織に入れた",
+  organization_removed: "組織から外した",
+  organization_shared: "組織に見せるを切り替えた",
+  assignment_added: "担当を付けた",
+  assignment_removed: "担当を外した",
+  delegation_changed: "承認を任せるを切り替えた",
+  account_handed_over: "退会した持ち主から引き継いだ",
 } as const;
 
 /** 操作の code。 */
@@ -76,6 +87,8 @@ export const ActivityEntry = z.object({
   itemCount: z.number().int(),
   /** 対象の要約（本文の書き出しなど） */
   summary: z.string().nullable(),
+  /** した人の表示名（組織に入っている運用アカウントだけ。退会した人は「退会した人」。threads-013） */
+  actorName: z.string().nullable().optional(),
   createdAt: DateTime,
 });
 

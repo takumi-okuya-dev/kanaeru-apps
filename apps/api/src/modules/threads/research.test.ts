@@ -12,6 +12,7 @@ import type {
   ResearchKeyword,
   ThreadsAccount,
 } from "@workspace/contracts/threads";
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { buildApp, testConfig } from "../../../test/helpers/app.ts";
 import type { TestApp } from "../../../test/helpers/app.ts";
@@ -21,6 +22,7 @@ import { showThreadsApp } from "../../../test/helpers/threads.ts";
 import { call } from "../../../test/helpers/event.ts";
 import type { ErrorBody } from "../../../test/helpers/event.ts";
 import { createDomainFeatures } from "../../kernel/features.ts";
+import { threadsAccount } from "./schema.ts";
 
 const database = useTestDatabase();
 const BASE = "/api/v1/threads/accounts";
@@ -275,6 +277,175 @@ describe("宣伝とリサーチ", () => {
     expect(idea.prompt).toContain("キーワード｜狙い");
   });
 
+  it("参考の投稿とキーワードを直せる（版が合わなければ 409・ない ID とほかの人は 404・直すと同じキーワードは 409。threads-012）", async () => {
+    const { items } = (await (
+      await call(app, cookie, `${BASE}/${id}/reference-posts`, "POST", { items: [REFERENCE] })
+    ).json()) as { items: ReferencePost[] };
+    const post = items[0];
+    if (!post) throw new Error("参考の投稿がありません");
+    const edited = await call(app, cookie, `${BASE}/${id}/reference-posts/${post.id}`, "PUT", {
+      post: {
+        ...REFERENCE,
+        postUrl: "https://www.threads.com/@someone/post/abc",
+        whyGood: "手で書いた解説",
+        metrics: { likes: 820, replies: 12, views: 32000, saves: 40, reposts: 5, followers: 1500 },
+        author: "someone",
+        memo: "書き出しが気になった",
+      },
+      version: post.version,
+    });
+    expect(edited.status).toBe(200);
+    const saved = (await edited.json()) as ReferencePost;
+    expect(saved).toMatchObject({
+      whyGood: "手で書いた解説",
+      author: "someone",
+      memo: "書き出しが気になった",
+      metrics: { views: 32000, followers: 1500 },
+      version: post.version + 1,
+    });
+    // 古い版で直すと 409、ない ID は 404、URL の形が違えば欄の誤り
+    const stale = await call(app, cookie, `${BASE}/${id}/reference-posts/${post.id}`, "PUT", {
+      post: REFERENCE,
+      version: post.version,
+    });
+    expect(await codeOf(stale)).toBe("THREADS_VERSION_CONFLICT");
+    const missing = await call(
+      app,
+      cookie,
+      `${BASE}/${id}/reference-posts/0193a1b2-0000-7000-8000-000000000999`,
+      "PUT",
+      { post: REFERENCE, version: 1 },
+    );
+    expect(missing.status).toBe(404);
+    const badUrl = await call(app, cookie, `${BASE}/${id}/reference-posts/${post.id}`, "PUT", {
+      post: { ...REFERENCE, postUrl: "threads.com/x" },
+      version: saved.version,
+    });
+    expect(((await badUrl.json()) as ErrorBody).error.fields?.[0]?.path).toBe("post.postUrl");
+    const other = (await loginAs(app, { displayName: "ほかの人" })).cookie;
+    expect(
+      (
+        await call(app, other, `${BASE}/${id}/reference-posts/${post.id}`, "PUT", {
+          post: REFERENCE,
+          version: saved.version,
+        })
+      ).status,
+    ).toBe(404);
+    // 1件の解説のプロンプトに、入れた反応の数が入る（不明にしない）
+    const single = (await (
+      await call(app, cookie, `${BASE}/${id}/reference-posts/explain-prompt?id=${post.id}`)
+    ).json()) as ExplainPrompt;
+    expect(single.prompt).toContain("閲覧数: 32000");
+    expect(single.prompt).toContain("投稿者のフォロワー数: 1500");
+    expect(single.prompt).toContain("登録者のメモ: 書き出しが気になった");
+
+    const { items: keywords } = (await (
+      await call(app, cookie, `${BASE}/${id}/research-keywords`, "POST", {
+        items: [
+          { keyword: "転職", purpose: "" },
+          { keyword: "副業", purpose: "" },
+        ],
+      })
+    ).json()) as { items: ResearchKeyword[] };
+    const side = keywords.find((item) => item.keyword === "副業");
+    if (!side) throw new Error("キーワードがありません");
+    const clash = await call(app, cookie, `${BASE}/${id}/research-keywords/${side.id}`, "PUT", {
+      keyword: "転職",
+      purpose: "",
+      version: side.version,
+    });
+    expect(await codeOf(clash)).toBe("THREADS_KEYWORD_DUPLICATE");
+    const staleKeyword = await call(
+      app,
+      cookie,
+      `${BASE}/${id}/research-keywords/${side.id}`,
+      "PUT",
+      { keyword: "副業 始め方", purpose: "", version: side.version + 5 },
+    );
+    expect(await codeOf(staleKeyword)).toBe("THREADS_VERSION_CONFLICT");
+    const blank = await call(app, cookie, `${BASE}/${id}/research-keywords/${side.id}`, "PUT", {
+      keyword: " ",
+      purpose: "",
+      version: side.version,
+    });
+    expect(((await blank.json()) as ErrorBody).error.fields?.[0]?.path).toBe("keyword");
+    expect(
+      (
+        await call(app, other, `${BASE}/${id}/research-keywords/${side.id}`, "PUT", {
+          keyword: "x",
+          purpose: "",
+          version: side.version,
+        })
+      ).status,
+    ).toBe(404);
+  });
+
+  it("参考の投稿・キーワードを足す・直す・消す・解説を保存すると、リサーチを変えた日時が進む（threads-012）", async () => {
+    /**
+     * リサーチを変えた日時を読む。
+     * @returns 日時（まだなら null）
+     */
+    async function changedAt(): Promise<Date | null> {
+      const [row] = await database.db
+        .select({ at: threadsAccount.researchChangedAt })
+        .from(threadsAccount)
+        .where(eq(threadsAccount.id, id));
+      return row?.at ?? null;
+    }
+    /** 日時を空に戻す（次の操作で進んだかを見分ける）。 */
+    async function reset(): Promise<void> {
+      await database.db
+        .update(threadsAccount)
+        .set({ researchChangedAt: null })
+        .where(eq(threadsAccount.id, id));
+    }
+    expect(await changedAt()).toBeNull();
+    const { items } = (await (
+      await call(app, cookie, `${BASE}/${id}/reference-posts`, "POST", { items: [REFERENCE] })
+    ).json()) as { items: ReferencePost[] };
+    const post = items[0];
+    if (!post) throw new Error("参考の投稿がありません");
+    expect(await changedAt()).not.toBeNull();
+    await reset();
+    await call(app, cookie, `${BASE}/${id}/reference-posts/explanations`, "POST", {
+      items: [{ id: post.id, whyGood: "解説" }],
+    });
+    expect(await changedAt()).not.toBeNull();
+    await reset();
+    await call(app, cookie, `${BASE}/${id}/reference-posts/${post.id}`, "PUT", {
+      post: { ...REFERENCE, body: "直した" },
+      version: post.version + 1,
+    });
+    expect(await changedAt()).not.toBeNull();
+    await reset();
+    // 版が合わずに直せなかったときは進めない
+    await call(app, cookie, `${BASE}/${id}/reference-posts/${post.id}`, "PUT", {
+      post: REFERENCE,
+      version: 1,
+    });
+    expect(await changedAt()).toBeNull();
+    await call(app, cookie, `${BASE}/${id}/reference-posts/${post.id}`, "DELETE");
+    expect(await changedAt()).not.toBeNull();
+    await reset();
+    const { items: keywords } = (await (
+      await call(app, cookie, `${BASE}/${id}/research-keywords`, "POST", {
+        items: [{ keyword: "転職", purpose: "" }],
+      })
+    ).json()) as { items: ResearchKeyword[] };
+    expect(await changedAt()).not.toBeNull();
+    await reset();
+    const keyword = keywords[0];
+    await call(app, cookie, `${BASE}/${id}/research-keywords/${keyword?.id}`, "PUT", {
+      keyword: "転職 迷い",
+      purpose: "",
+      version: keyword?.version,
+    });
+    expect(await changedAt()).not.toBeNull();
+    await reset();
+    await call(app, cookie, `${BASE}/${id}/research-keywords/${keyword?.id}`, "DELETE");
+    expect(await changedAt()).not.toBeNull();
+  });
+
   it("ほかの人の運用アカウントの宣伝・参考の投稿・キーワードは 404", async () => {
     const other = (await loginAs(app, { displayName: "ほかの人" })).cookie;
     expect((await call(app, other, `${BASE}/${id}/promotions`)).status).toBe(404);
@@ -294,7 +465,7 @@ describe("操作の記録（threads-005）", () => {
     const id = (
       (await (await call(app, cookie, BASE, "POST", { name: "運用" })).json()) as ThreadsAccount
     ).id;
-    await call(app, cookie, `${BASE}/${id}/ng-words`, "POST", { word: "必ず" });
+    await call(app, cookie, `${BASE}/${id}/ng-words`, "POST", { words: ["必ず"] });
     const pasted = await call(app, cookie, `${BASE}/${id}/draft-batches`, "POST", {
       clientRequestId: "0193a1b2-0000-7000-8000-0000000000aa",
       text: "記録される案の本文です\n@@@\nもう1つ",
@@ -304,8 +475,8 @@ describe("操作の記録（threads-005）", () => {
       action: "approve",
       items: drafts.map((draft) => ({ id: draft.id, version: draft.version })),
     });
-    // 失敗した書きこみは記録しない
-    await call(app, cookie, `${BASE}/${id}/ng-words`, "POST", { word: "必ず" });
+    // もうある語だけを足しても、変えていないので記録しない（threads-011）
+    await call(app, cookie, `${BASE}/${id}/ng-words`, "POST", { words: ["必ず"] });
     const all = (await (await call(app, cookie, `${BASE}/${id}/activity`)).json()) as {
       items: { action: string; label: string; itemCount: number; summary: string | null }[];
     };

@@ -20,6 +20,7 @@ import type { ApiEnv, DomainRouteDeps } from "../../kernel/http.ts";
 import { currentAccount } from "../account/index.ts";
 import { getAutoPostStatus } from "./auto-post-status.ts";
 import {
+  checkPublish,
   connectWithToken,
   disconnect,
   readConnection,
@@ -97,7 +98,7 @@ function defineRoutes(deps: DomainRouteDeps) {
         ),
         409: domainErrorResponse(
           THREADS_ERRORS.THREADS_RECONNECT_MISMATCH,
-          "前と違うアカウント（THREADS_RECONNECT_MISMATCH）・ほかの運用アカウントがつないでいる（THREADS_ACCOUNT_TAKEN）",
+          "前と違うアカウント（THREADS_RECONNECT_MISMATCH）・ほかの人の運用アカウントがつないでいる（THREADS_ACCOUNT_TAKEN）・自分の別の運用アカウントがつないでいる（THREADS_ACCOUNT_REGISTERED）",
         ),
         429: domainErrorResponse(THREADS_ERRORS.THREADS_TOKEN_CHECK_LOCKED, "確かめの失敗が続いた"),
         503: domainErrorResponse(
@@ -132,6 +133,20 @@ function defineRoutes(deps: DomainRouteDeps) {
       responses: {
         200: json(contract.Connection, "確かめたあとの接続"),
         503: domainErrorResponse(THREADS_ERRORS.THREADS_UNAVAILABLE, "Threads が答えない"),
+        ...errors,
+      },
+    }),
+    threadsCheck: createRoute({
+      method: "post",
+      path: `${base}/{accountId}/threads-check`,
+      tags,
+      operationId: "threadsCheckPublish",
+      summary:
+        "Threads に投稿できる状態かと、直近24時間の投稿の数を確かめる（投稿はしない。認証のエラーなら「接続し直しが要る」にする。threads-012）",
+      middleware,
+      request: { params: AccountParams },
+      responses: {
+        200: json(contract.ThreadsCheck.openapi("ThreadsCheck"), "確かめた結果"),
         ...errors,
       },
     }),
@@ -264,7 +279,7 @@ export function autopostRoutes(deps: DomainRouteDeps) {
 
   return new OpenAPIHono<ApiEnv>()
     .openapi(routes.getConnection, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "read_private");
       return c.json(await connectionOf(account.id), 200);
     })
     .openapi(routes.connect, async (c) => {
@@ -293,8 +308,12 @@ export function autopostRoutes(deps: DomainRouteDeps) {
       await verifyConnection(deps, account.id);
       return c.json(await connectionOf(account.id), 200);
     })
-    .openapi(routes.getSchedule, async (c) => {
+    .openapi(routes.threadsCheck, async (c) => {
       const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      return c.json(await checkPublish(deps, account.id), 200);
+    })
+    .openapi(routes.getSchedule, async (c) => {
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "read_private");
       const schedule = toPostingSchedule(await readPostingSchedule(db, account.id));
       return c.json({ schedule, limits }, 200);
     })
@@ -303,7 +322,7 @@ export function autopostRoutes(deps: DomainRouteDeps) {
       return c.json(await savePostingSchedule(deps, account.id, c.req.valid("json")), 200);
     })
     .openapi(routes.getAutoPost, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "read_private");
       return c.json(await getAutoPostStatus(db, account), 200);
     })
     .openapi(routes.seeBlockedNotice, async (c) => {
@@ -313,7 +332,7 @@ export function autopostRoutes(deps: DomainRouteDeps) {
     })
     .openapi(routes.setPriority, async (c) => {
       const { accountId, draftId } = c.req.valid("param");
-      const account = await ownedAccount(deps, c, accountId);
+      const account = await ownedAccount(deps, c, accountId, "review");
       const input = c.req.valid("json");
       const updated = await setPriority(db, account.id, draftId, input.prioritized, input.version);
       if (updated) return c.json(toPostDraft(updated), 200);

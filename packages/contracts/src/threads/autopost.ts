@@ -195,6 +195,29 @@ export const ThreadsCheck = z.object({
 /** 投稿の権限の確かめの結果の型。 */
 export type ThreadsCheck = z.infer<typeof ThreadsCheck>;
 
+/** 投稿の権限の確かめの結果の文（投稿できる状態のときは threadsCheckOkMessage。めぐるの THREADS_CHECK_MESSAGES。threads-012）。 */
+export const THREADS_CHECK_MESSAGES: Record<Exclude<ThreadsCheck["status"], "ok">, string> = {
+  needs_reconnect: "Threads との接続が切れています。トークンを貼り直して、つなぎ直してください。",
+  not_connected: "Threads につなぐと確かめられます。",
+  no_publish_permission:
+    "Threads へ投稿する権限がありません。Meta のアプリで投稿の権限を足して、トークンを作り直してください。",
+  unknown: "Threads との接続を確かめられませんでした。少し待ってから、もう一度お試しください。",
+};
+
+/**
+ * 投稿できる状態だったときの文（直近24時間の投稿の数と上限）。
+ * @param quotaUsage 直近24時間の投稿の数（読めなければ null）
+ * @param quotaTotal 上限（読めなければ null）
+ * @returns 文
+ */
+export function threadsCheckOkMessage(
+  quotaUsage: number | null,
+  quotaTotal: number | null,
+): string {
+  if (quotaUsage === null || quotaTotal === null) return "投稿できる状態です。";
+  return `投稿できる状態です（直近24時間の投稿 ${quotaUsage}/${quotaTotal}件）。`;
+}
+
 /** 投稿の設定を保存した結果。 */
 export const PostingScheduleSaved = z.object({
   schedule: PostingSchedule,

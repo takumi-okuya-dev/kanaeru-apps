@@ -4,7 +4,7 @@ import { jstDateTime } from "@workspace/contracts/core";
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { ApiError } from "../../lib/api.ts";
-import { Page } from "../../lib/page.tsx";
+import { ThreadsPage } from "./ThreadsPage.tsx";
 import { LoadFailure, Loading } from "./AccountGate.tsx";
 import { fetchDataDeletion } from "./api.ts";
 import { THREADS_QUERY_KEYS } from "./queries.ts";
@@ -26,7 +26,7 @@ export function DataDeletionRoute() {
   if (query.isError) {
     if (query.error instanceof ApiError && query.error.status === 404) {
       return (
-        <Page
+        <ThreadsPage
           title="この確認のコードは見つかりません"
           lead="URL が違う可能性があります。Meta から届いた URL をそのまま開いてください。"
         />
@@ -36,7 +36,7 @@ export function DataDeletionRoute() {
   }
   const status = query.data;
   return (
-    <Page
+    <ThreadsPage
       title="データの削除の状況"
       lead="Threads の運用アプリに、Meta から届いたデータの削除の要求の状況です。"
     >
@@ -58,6 +58,6 @@ export function DataDeletionRoute() {
         削除するのは、その Threads
         のアカウントにつないだ運用アカウントと、そこにためた戦略・投稿の案・反応などです。
       </p>
-    </Page>
+    </ThreadsPage>
   );
 }

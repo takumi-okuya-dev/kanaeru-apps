@@ -95,6 +95,26 @@ export function refixListing(
 }
 
 /**
+ * 直している値で、保存すると外す内容を出す（画面のその場の見せ方と、保存のときの記録。threads-012）。
+ * 外したあとに足し直すもの（ジモティーの「■詳細・お申し込み」の URL など、finalize が最後に足す行）は、外さないので入れない。
+ * @param media - 媒体
+ * @param values - 欄の値
+ * @param src - 材料
+ * @returns 直したあとの値と、本当に外れる内容
+ */
+export function previewListingFixes(
+  media: Media,
+  values: ListingValues,
+  src: ListingSource,
+): { fields: ListingValues; fixes: ListingFix[] } {
+  const refixed = refixListing(media, values, src);
+  return {
+    fields: refixed.fields,
+    fixes: refixed.fixes.filter((fix) => !(refixed.fields[fix.field] ?? "").includes(fix.excerpt)),
+  };
+}
+
+/**
  * ルールのチェック（その場で計算する。保存しない。research.md R5）。
  * @param media - 媒体
  * @param values - 欄の値

@@ -12,11 +12,16 @@ import {
   buildListing,
   checkListing,
   countChars,
+  formatEventAddress,
+  formatEventFee,
+  formatEventPlace,
+  formatEventWhen,
   imagePrompt,
   listingAsText,
   listingBodyKey,
   parsePolishAnswer,
   polishPrompt,
+  previewListingFixes,
   workSteps,
 } from "@workspace/contracts/threads";
 import type {
@@ -26,10 +31,11 @@ import type {
   ListingStatus,
   Media,
   MediaField,
+  Promotion,
   ThreadsAccount,
 } from "@workspace/contracts/threads";
 import { useQueryClient } from "@tanstack/react-query";
-import { Link, getRouteApi } from "@tanstack/react-router";
+import { Link, getRouteApi, useBlocker } from "@tanstack/react-router";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
@@ -38,10 +44,10 @@ import { Field, useFieldControl } from "@workspace/ui/components/field";
 import { Input, inputClassName } from "@workspace/ui/components/input";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { Textarea } from "@workspace/ui/components/textarea";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { errorMessage } from "../../lib/api.ts";
 import { fieldErrorsFromApi, fieldErrorsFromIssues } from "../../lib/form.ts";
-import { Page } from "../../lib/page.tsx";
+import { ThreadsPage } from "./ThreadsPage.tsx";
 import { AccountGate, LoadFailure, Loading } from "./AccountGate.tsx";
 import { generateListing, updateListing } from "./api.ts";
 import { CopyButton } from "./CopyButton.tsx";
@@ -119,11 +125,12 @@ function OptionSelect({
 }
 
 /**
- * 欄1つ（名前・必須・登録後は変えられない・文字数・選んだ理由・コピー）。
- * @param props 欄・値・理由・誤り・変えたとき
+ * 欄1つ（名前・必須・登録後は変えられない・文字数・選んだ理由・タイトルのほかの案・コピー）。
+ * @param props 欄・値・理由・ほかの案・誤り・変えたとき
  * @param props.field 欄
  * @param props.value 値
  * @param props.reason 選んだ理由
+ * @param props.candidates タイトルのほかの案（押すと入れ替える）
  * @param props.error 誤り
  * @param props.onChange 変えたとき
  * @returns 要素
@@ -132,12 +139,14 @@ function FieldRow({
   field,
   value,
   reason,
+  candidates = [],
   error,
   onChange,
 }: {
   field: MediaField;
   value: string;
   reason: string | undefined;
+  candidates?: readonly string[];
   error: string | undefined;
   onChange: (value: string) => void;
 }) {
@@ -180,6 +189,25 @@ function FieldRow({
           )}
         </Field>
       )}
+      {candidates.length > 0 ? (
+        <div className="flex flex-col gap-x3s">
+          <p className="text-s text-text-sub">ほかの案（押すと入れ替えます）</p>
+          <ul aria-label={`「${field.label}」のほかの案`} className="flex flex-col gap-x3s">
+            {candidates.map((candidate) => (
+              <li key={candidate}>
+                <Button
+                  size="small"
+                  className="h-auto w-full justify-start py-x3s text-left whitespace-normal"
+                  aria-pressed={candidate === value}
+                  onClick={() => onChange(candidate)}
+                >
+                  {candidate}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {value !== "" ? (
         <CopyButton
           text={value}
@@ -188,6 +216,56 @@ function FieldRow({
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * 宣伝の元の情報（読むだけ。掲載文を直しても変わらない。めぐるの SourcePanel）。
+ * @param props 宣伝
+ * @param props.promotion 宣伝
+ * @returns 要素
+ */
+function SourcePanel({ promotion }: { promotion: Promotion }) {
+  const event = promotion.event;
+  const rows: [string, string][] = [
+    ["タイトル", promotion.title],
+    ...(event
+      ? ([
+          ["開催日時", formatEventWhen(event)],
+          ["場所", formatEventPlace(event)],
+          ["住所", event.format === "venue" ? formatEventAddress(event) : ""],
+          [
+            "定員・参加費",
+            [event.capacity !== null ? `${event.capacity}名` : "", formatEventFee(event)]
+              .filter(Boolean)
+              .join("・"),
+          ],
+        ] as [string, string][])
+      : []),
+  ];
+  return (
+    <aside
+      aria-labelledby="threads-listing-source"
+      className="flex flex-col gap-xxs rounded-md border border-border bg-surface-sunken p-xs"
+    >
+      <h2 id="threads-listing-source" className="text-m font-bold">
+        宣伝の元の情報（変わりません）
+      </h2>
+      <dl className="flex flex-col gap-xxs text-s">
+        {rows
+          .filter(([, value]) => value !== "")
+          .map(([label, value]) => (
+            <div key={label} className="flex flex-col">
+              <dt className="text-text-sub">{label}</dt>
+              <dd className="break-words whitespace-pre-wrap">{value}</dd>
+            </div>
+          ))}
+      </dl>
+      <details className="text-s">
+        <summary className="cursor-pointer text-text-sub">宣伝したい内容</summary>
+        <p className="mt-x3s break-words whitespace-pre-wrap">{promotion.content}</p>
+      </details>
+    </aside>
   );
 }
 
@@ -326,9 +404,32 @@ function ListingEditor({ accountId, detail }: { accountId: string; detail: Listi
   const [statusResult, setStatusResult] = useState<Result>();
   const [polishResult, setPolishResult] = useState<Result>();
   const [pending, setPending] = useState(false);
-  const reasons = buildListing(media, source).reasons;
-  const checks = checkListing(media, values, source, detail.listing.fixes.length);
+  const built = buildListing(media, source);
+  const reasons = built.reasons;
+  // 直している値に自動の直しを通した結果（保存しない。保存すると、この内容を外す）
+  const previewFixes = previewListingFixes(media, values, source).fixes;
+  const checks = checkListing(
+    media,
+    values,
+    source,
+    detail.listing.fixes.length + previewFixes.length,
+  );
   const redCount = checks.filter((check) => check.level === "red").length;
+  // 保存していない変更（欄・状況・掲載 URL・画像の種類）があれば、画面を離れる前に確かめる
+  const dirty =
+    def.fields.some(
+      (field) => (values[field.key] ?? "") !== (detail.listing.fields?.[field.key] ?? ""),
+    ) ||
+    status !== detail.listing.status ||
+    postedUrl !== (detail.listing.postedUrl ?? "") ||
+    imageStyle !== detail.listing.imageStyle;
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  const blocker = useBlocker({
+    shouldBlockFn: () => dirtyRef.current,
+    enableBeforeUnload: () => dirtyRef.current,
+    withResolver: true,
+  });
 
   /**
    * 保存する。
@@ -393,53 +494,77 @@ function ListingEditor({ accountId, detail }: { accountId: string; detail: Listi
         />
       ) : (
         <>
-          <section aria-labelledby="threads-listing-fields" className="flex flex-col gap-s">
-            <h2 id="threads-listing-fields" className="text-l font-bold">
-              掲載文
-            </h2>
-            {def.steps.map((step, index) => (
-              <div key={step} className="flex flex-col gap-xs">
-                <h3 className="text-m font-bold">{`${index + 1}. ${step}`}</h3>
-                {def.fields
-                  .filter((field) => field.step === index)
-                  .map((field) => (
-                    <FieldRow
-                      key={field.key}
-                      field={field}
-                      value={values[field.key] ?? ""}
-                      reason={reasons[field.key]}
-                      error={errors[`fields.${field.key}`]}
-                      onChange={(value) =>
-                        setValues((current) => ({ ...current, [field.key]: value }))
-                      }
-                    />
-                  ))}
+          <div className="flex flex-col gap-s wide:grid wide:grid-cols-3 wide:items-start">
+            <SourcePanel promotion={detail.promotion} />
+            <section
+              aria-labelledby="threads-listing-fields"
+              className="flex min-w-0 flex-col gap-s wide:col-span-2"
+            >
+              <h2 id="threads-listing-fields" className="text-l font-bold">
+                掲載文
+              </h2>
+              {def.steps.map((step, index) => (
+                <div key={step} className="flex flex-col gap-xs">
+                  <h3 className="text-m font-bold">{`${index + 1}. ${step}`}</h3>
+                  {def.fields
+                    .filter((field) => field.step === index)
+                    .map((field) => (
+                      <FieldRow
+                        key={field.key}
+                        field={field}
+                        value={values[field.key] ?? ""}
+                        reason={reasons[field.key]}
+                        candidates={field.key === "title" ? built.titleCandidates : []}
+                        error={errors[`fields.${field.key}`]}
+                        onChange={(value) =>
+                          setValues((current) => ({ ...current, [field.key]: value }))
+                        }
+                      />
+                    ))}
+                </div>
+              ))}
+              <div className="flex flex-col items-start gap-xxs">
+                <Button
+                  variant="primary"
+                  aria-disabled={pending || undefined}
+                  onClick={() =>
+                    void save(
+                      { fields: values },
+                      setResult,
+                      "掲載文を保存しました（ルールに合わない行は外しました）。",
+                    )
+                  }
+                >
+                  掲載文を保存
+                </Button>
+                {result ? (
+                  <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage>
+                ) : null}
               </div>
-            ))}
-            <div className="flex flex-col items-start gap-xxs">
-              <Button
-                variant="primary"
-                aria-disabled={pending || undefined}
-                onClick={() =>
-                  void save(
-                    { fields: values },
-                    setResult,
-                    "掲載文を保存しました（ルールに合わない行は外しました）。",
-                  )
-                }
-              >
-                掲載文を保存
-              </Button>
-              {result ? (
-                <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage>
-              ) : null}
-            </div>
-            <CopyButton
-              text={listingAsText(media, values)}
-              label="まとめてコピー"
-              successMessage="コピーしました。"
-            />
-          </section>
+              <CopyButton
+                text={listingAsText(media, values)}
+                label="まとめてコピー"
+                successMessage="コピーしました。"
+              />
+            </section>
+          </div>
+          {previewFixes.length > 0 ? (
+            <section
+              aria-labelledby="threads-listing-preview-fixes"
+              className="flex flex-col gap-x3s rounded-md border border-border bg-surface p-xs"
+            >
+              <h2 id="threads-listing-preview-fixes" className="text-m font-bold">
+                {`保存すると外す内容（${previewFixes.length}件）`}
+              </h2>
+              <ul className="flex flex-col gap-x3s text-s">
+                {previewFixes.map((fix, index) => (
+                  <li
+                    key={`${fix.field}-${index.toString()}`}
+                  >{`「${fix.excerpt}」を外します（${fix.reason}）`}</li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
           {detail.listing.fixes.length > 0 ? (
             <details>
               <summary className="cursor-pointer text-m font-bold">{`自動で直した内容（${detail.listing.fixes.length}件）`}</summary>
@@ -555,6 +680,20 @@ function ListingEditor({ accountId, detail }: { accountId: string; detail: Listi
           ) : null}
         </div>
       </section>
+      <ConfirmDialog
+        open={blocker.status === "blocked"}
+        onOpenChange={(open) => {
+          if (!open && blocker.status === "blocked") blocker.reset();
+        }}
+        title="保存していない変更があります"
+        confirmLabel="保存せずに離れる"
+        cancelLabel="この画面に残る"
+        onConfirm={() => {
+          if (blocker.status === "blocked") blocker.proceed();
+        }}
+      >
+        画面を離れると、直した掲載文・状況・掲載 URL は消えます。
+      </ConfirmDialog>
     </>
   );
 }
@@ -612,7 +751,8 @@ function ListingContent({
   };
 
   return (
-    <Page
+    <ThreadsPage
+      wide
       title={`${MEDIA_LABELS[media]}の掲載文`}
       lead={`宣伝「${detail.promotion.title}」から、${MEDIA_LABELS[media]}の登録画面と同じ順で作ります。宣伝の文は変わりません。`}
     >
@@ -673,7 +813,7 @@ function ListingContent({
       >
         直した欄は、宣伝から作った文に戻ります。状況と掲載 URL は残ります。
       </ConfirmDialog>
-    </Page>
+    </ThreadsPage>
   );
 }
 
@@ -700,7 +840,7 @@ export function ListingPage({ accountId, promotionId, media }: ListingPageProps)
         known ? (
           <ListingContent account={account} promotionId={promotionId} media={media as Media} />
         ) : (
-          <Page title="この媒体は見つかりません" lead="URL が違う可能性があります。" />
+          <ThreadsPage title="この媒体は見つかりません" lead="URL が違う可能性があります。" />
         )
       }
     </AccountGate>

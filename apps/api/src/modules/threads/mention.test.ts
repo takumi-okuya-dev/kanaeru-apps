@@ -8,8 +8,10 @@ import type {
   ActivityEntry,
   DraftBatchResult,
   DraftList,
+  MentionBulkResult,
   MentionSettings,
   PostDraft,
+  ReviewResult,
   ThreadsAccount,
 } from "@workspace/contracts/threads";
 import { addDays, jstDateOf, jstMidnight } from "@workspace/contracts/threads";
@@ -187,7 +189,7 @@ describe("時間差のメンション", () => {
   it("設定：初めの値・NG ワードのひとことは断る・人の形と自分と同じ人を断る", async () => {
     let settings = (await (await api("/mention-settings")).json()) as MentionSettings;
     expect(settings).toMatchObject({ message: "", delayMinutes: 30, version: 0, people: [] });
-    await api("/ng-words", "POST", { word: "拡散希望" });
+    await api("/ng-words", "POST", { words: ["拡散希望"] });
     let response = await api("/mention-settings", "PUT", {
       message: "拡散希望です",
       delayMinutes: 60,
@@ -334,9 +336,11 @@ describe("時間差のメンション", () => {
       text: "ぜひ拡散して @minato_place",
     });
     let current = (await response.json()) as PostDraft;
-    await api("/ng-words", "POST", { word: "拡散" });
+    await api("/ng-words", "POST", { words: ["拡散"] });
     response = await review("approve", [current]);
-    expect(await codeOf(response)).toBe("THREADS_DRAFT_NOT_APPROVABLE");
+    expect(((await response.json()) as ReviewResult).skipped).toEqual([
+      { id: draft.id, reason: "NG_WORD" },
+    ]);
 
     // 文を直して承認 → 承認済みに付け直すと承認待ちに戻る
     response = await api(`/drafts/${draft.id}/mention`, "PUT", {
@@ -479,5 +483,66 @@ describe("時間差のメンション", () => {
   it("ほかの人の運用アカウントは 404", async () => {
     const other = (await loginAs(app, { lineUserId: `U${"8".repeat(32)}` })).cookie;
     expect((await call(app, other, `${BASE}/${accountId}/mention-settings`)).status).toBe(404);
+  });
+
+  it("選んだ承認待ちの案に、「いつも付ける」の人でまとめて付ける。付けられない案は理由を返す（threads-011）", async () => {
+    await setUp();
+    const [first, second, third] = await paste(["一つ目", "二つ目", "三つ目"]);
+    if (!first || !second || !third) throw new Error("案がない");
+    const response = await api("/drafts/mentions", "POST", {
+      items: [
+        { id: first.id, version: first.version },
+        { id: second.id, version: second.version },
+        { id: third.id, version: third.version + 3 },
+      ],
+    });
+    expect(response.status).toBe(200);
+    const result = (await response.json()) as MentionBulkResult;
+    // 1つ目に付けると、minato_place はほかの案の予定に入るので、2つ目には付けられない
+    expect(result.drafts.map((draft) => [draft.id, draft.mention?.usernames])).toEqual([
+      [first.id, ["minato_place"]],
+    ]);
+    expect(result.skipped).toEqual([
+      { id: second.id, reason: "NO_PEOPLE" },
+      { id: third.id, reason: "STALE" },
+    ]);
+    const logged = (await (await api("/activity")).json()) as { items: ActivityEntry[] };
+    expect(logged.items[0]).toMatchObject({ action: "mentions_attached", itemCount: 1 });
+  });
+
+  it("投稿に失敗したら、まだ出していないメンションは「投稿されませんでした」にする（threads-011）", async () => {
+    await setUp();
+    const [draft] = await paste(["失敗するお知らせ"]);
+    if (!draft) throw new Error("案がない");
+    const attached = (await (
+      await api(`/drafts/${draft.id}/mention`, "PUT", {
+        version: draft.version,
+        usernames: ["minato_place"],
+      })
+    ).json()) as PostDraft;
+    expect((await review("approve", [attached])).status).toBe(200);
+    expect(
+      (
+        await api("/posting-schedule", "PUT", {
+          enabled: true,
+          slotTimes: ["10:00"],
+          jitter: false,
+          version: 0,
+        })
+      ).status,
+    ).toBe(200);
+    // Threads が受け付けない（やり直さない失敗）
+    fake.failNext("create", { status: 400, body: { error: { message: "bad", code: 100 } } });
+    expect((await tick(tomorrowAt(10, 1))).failed).toBe(1);
+    const failed = (await list("publish_failed")).find((item) => item.id === draft.id);
+    expect(failed?.mention).toMatchObject({ state: "failed", failureReason: "post_failed" });
+    // 予定に入っていないので、その人をほかの案で選べる
+    const [other] = await paste(["ほかのお知らせ"]);
+    if (!other) throw new Error("案がない");
+    const response = await api(`/drafts/${other.id}/mention`, "PUT", {
+      version: other.version,
+      usernames: ["minato_place"],
+    });
+    expect(response.status).toBe(200);
   });
 });

@@ -19,7 +19,7 @@ import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useState } from "react";
 import { errorMessage } from "../../lib/api.ts";
 import { fieldErrorsFromApi } from "../../lib/form.ts";
-import { Page } from "../../lib/page.tsx";
+import { ThreadsPage } from "./ThreadsPage.tsx";
 import { AccountGate, LoadFailure, Loading } from "./AccountGate.tsx";
 import { saveMediaDefaults } from "./api.ts";
 import { threadsPaths } from "./paths.ts";
@@ -219,7 +219,7 @@ function MediaContent({ account }: { account: ThreadsAccount }) {
   if (query.isError) return <LoadFailure error={query.error} retry={() => void query.refetch()} />;
   const { promotions } = query.data;
   return (
-    <Page
+    <ThreadsPage
       title="外部メディア"
       lead={`${account.name}：宣伝のイベントを、外のイベントの掲載サイトに載せる文を作ります。`}
     >
@@ -251,7 +251,7 @@ function MediaContent({ account }: { account: ThreadsAccount }) {
         )}
       </section>
       <DefaultsSection accountId={account.id} />
-    </Page>
+    </ThreadsPage>
   );
 }
 

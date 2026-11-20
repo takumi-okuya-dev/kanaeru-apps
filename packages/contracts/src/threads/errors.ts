@@ -88,6 +88,13 @@ export const THREADS_ERRORS = {
     message:
       "この Threads のアカウントは、ほかの運用アカウントでつながっています。そちらの接続を切ってから、つないでください。",
   },
+  /** その Threads のアカウントは、自分の別の運用アカウントがつないでいる（threads-012。ほかの人のときは THREADS_ACCOUNT_TAKEN） */
+  THREADS_ACCOUNT_REGISTERED: {
+    code: "THREADS_ACCOUNT_REGISTERED",
+    status: 409,
+    message:
+      "この Threads のアカウントは、あなたの別の運用アカウントでつながっています。そのアカウントの設定から接続し直してください。",
+  },
   /** トークンを包む鍵の設定がない（サーバーの準備ができていない） */
   THREADS_CONNECTION_UNAVAILABLE: {
     code: "THREADS_CONNECTION_UNAVAILABLE",
@@ -139,6 +146,53 @@ export const THREADS_ERRORS = {
     code: "THREADS_MENTION_SENT",
     status: 409,
     message: "この返信は、もう出したか出している途中なので、変えられません。",
+  },
+  /** OAuth の接続：許可の画面から戻る途中で、Meta の連携が解かれた（threads-012） */
+  THREADS_AUTH_REVOKED: {
+    code: "THREADS_AUTH_REVOKED",
+    status: 409,
+    message:
+      "つなぐ途中で、Threads の側で連携が解かれました。もう一度つなぐなら、設定の画面から始めてください。",
+  },
+  /** OAuth の接続：その Threads のアカウントのデータの削除の要求を受けている（threads-012） */
+  THREADS_DATA_DELETION_REQUESTED: {
+    code: "THREADS_DATA_DELETION_REQUESTED",
+    status: 409,
+    message:
+      "この Threads のアカウントは、データの削除の要求を受けているため、今はつなげません。削除が終わって1日たってから、もう一度つないでください。",
+  },
+  /** 運用アカウントを消す：入れた名前が合わない（threads-012） */
+  THREADS_ACCOUNT_NAME_MISMATCH: {
+    code: "THREADS_ACCOUNT_NAME_MISMATCH",
+    status: 400,
+    message:
+      "入れた名前がアカウントの名前と違います。消すアカウントの名前をそのまま入れてください。",
+  },
+  /** チーム運用：権限が足りない（関わりはあるが、その操作は許されていない。threads-013） */
+  THREADS_TEAM_FORBIDDEN: {
+    code: "THREADS_TEAM_FORBIDDEN",
+    status: 403,
+    message:
+      "この運用アカウントでは、この操作はできません。持ち主か、承認を任された担当の人に頼んでください。",
+  },
+  /** チーム運用：組織がない・組織の人でない（threads-013） */
+  THREADS_TEAM_NOT_FOUND: {
+    code: "THREADS_TEAM_NOT_FOUND",
+    status: 404,
+    message: "組織が見つかりません。組織から外れたか、組織が消えた可能性があります。",
+  },
+  /** チーム運用：担当にできない（メンバー・持ち主自身・組織に入っていない運用アカウント。threads-013） */
+  THREADS_ASSIGNMENT_NOT_ALLOWED: {
+    code: "THREADS_ASSIGNMENT_NOT_ALLOWED",
+    status: 409,
+    message:
+      "この人は、この運用アカウントの担当にできません。編集者か管理者で、運用アカウントの持ち主でない人を選んでください。",
+  },
+  /** チーム運用：承認を任せられない（担当の人でない。threads-013） */
+  THREADS_DELEGATION_NOT_ALLOWED: {
+    code: "THREADS_DELEGATION_NOT_ALLOWED",
+    status: 409,
+    message: "承認を任せられるのは、この運用アカウントの担当の人だけです。読みこみ直してください。",
   },
 } as const;
 

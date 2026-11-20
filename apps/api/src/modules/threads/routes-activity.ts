@@ -11,7 +11,7 @@ import {
   TAGS,
   accountMiddleware,
   json,
-  ownedAccount,
+  accountAccess,
 } from "./route-helpers.ts";
 
 /** 操作の記録の問い合わせ（文書の説明つき）。 */
@@ -43,9 +43,17 @@ export function activityRoutes(deps: DomainRouteDeps) {
     },
   });
   return new OpenAPIHono<ApiEnv>().openapi(route, async (c) => {
-    const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+    const access = await accountAccess(deps, c, c.req.valid("param").accountId, "activity");
+    // 組織に入っている運用アカウントでは、した人の表示名を出す（threads-013 FR-T50）
     return c.json(
-      { items: await listActivity(deps.db, account.id, c.req.valid("query").kind) },
+      {
+        items: await listActivity(
+          deps.db,
+          access.account.id,
+          c.req.valid("query").kind,
+          access.placed,
+        ),
+      },
       200,
     );
   });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findNgWords, normalizeNgWord } from "./ng-words.ts";
+import { findNgWords, normalizeNgWord, splitNgWords } from "./ng-words.ts";
 
 const ng = (...words: string[]) =>
   words.map((word) => ({ word, normalized: normalizeNgWord(word) }));
@@ -103,5 +103,18 @@ describe("登録済みの normalized が古いとき", () => {
 
   it("word が空白だけなら、何にも当てない（全文一致にしない）", () => {
     expect(findNgWords("絶対に稼げる", [{ word: "  ", normalized: "" }])).toEqual([]);
+  });
+});
+
+describe("まとめて足す語の区切り（threads-011）", () => {
+  it("改行・「、」・「,」で区切り、前後の空白と空の語を除く", () => {
+    expect(splitNgWords("絶対、 必ず儲かる\n\n最強,No.1，激安 ")).toEqual([
+      "絶対",
+      "必ず儲かる",
+      "最強",
+      "No.1",
+      "激安",
+    ]);
+    expect(splitNgWords(" 、\n")).toEqual([]);
   });
 });

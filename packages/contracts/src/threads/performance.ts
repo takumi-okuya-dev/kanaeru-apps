@@ -98,6 +98,15 @@ export function formatRatio(ratio: number): string {
 }
 
 /**
+ * 表示する基準値（小数第1位まで。めぐるの BaselineCard と同じ。threads-012）。
+ * @param baseline - 基準値
+ * @returns 「1,234.5」などの文字列
+ */
+export function formatBaseline(baseline: number): string {
+  return (Math.round(baseline * 10) / 10).toLocaleString("ja-JP", { maximumFractionDigits: 1 });
+}
+
+/**
  * 確定して判定する日の目安（投稿から7日後。FR-017）。
  * @param publishedAt - 投稿した日時
  * @returns 目安の日時

@@ -523,6 +523,69 @@ export async function attachMention(
   return { draft: result, mention: mentions.get(result.id) ?? null };
 }
 
+/** まとめて付けた結果（threads-011）。 */
+export type MentionBulkOutcome = {
+  drafts: { draft: PostDraftRecord; mention: PostMention | null }[];
+  skipped: { id: string; reason: "NOT_FOUND" | "STALE" | "NO_PEOPLE" }[];
+};
+
+/**
+ * 選んだ承認待ちの案に、「いつも付ける」の人でまとめて付ける（めぐるの attachMentionsBulk。threads-011）。
+ * 案ごとに、今は選べない人を外した「いつも付ける」の人（5人まで）とひとことで付ける。付けられない案は理由を返す。
+ * @param db DB
+ * @param account 運用アカウント
+ * @param items 案と読んだ版
+ * @param now 今
+ * @returns 付けた案と、付けられなかった案
+ * @throws {Error} 案ごとの付けるで、予期しない失敗のとき
+ */
+export async function attachMentionsBulk(
+  db: Db,
+  account: ThreadsAccountRecord,
+  items: readonly { id: string; version: number }[],
+  now: Date,
+): Promise<MentionBulkOutcome> {
+  const settings = await readSettings(db, account.id);
+  const always = settings.people.filter((person) => person.always).map((p) => p.username);
+  const outcome: MentionBulkOutcome = { drafts: [], skipped: [] };
+  for (const item of items) {
+    const [draft] = await db
+      .select()
+      .from(threadsPostDraft)
+      .where(
+        and(eq(threadsPostDraft.id, item.id), eq(threadsPostDraft.threadsAccountId, account.id)),
+      )
+      .limit(1);
+    if (!draft) {
+      outcome.skipped.push({ id: item.id, reason: "NOT_FOUND" });
+      continue;
+    }
+    if (draft.status !== "needs_review" || draft.version !== item.version) {
+      outcome.skipped.push({ id: item.id, reason: "STALE" });
+      continue;
+    }
+    const blocked = await blockedUsernames(db, account.id, item.id, now);
+    const usernames = always.filter((name) => !blocked.has(name)).slice(0, MENTION_PER_REPLY_MAX);
+    if (usernames.length === 0) {
+      outcome.skipped.push({ id: item.id, reason: "NO_PEOPLE" });
+      continue;
+    }
+    try {
+      outcome.drafts.push(
+        await attachMention(db, account, item.id, { version: item.version, usernames }, now),
+      );
+    } catch (error) {
+      // 確かめのあとにほかの画面で変わった・今は選べない人になった
+      if (error instanceof AppError) {
+        outcome.skipped.push({ id: item.id, reason: "STALE" });
+        continue;
+      }
+      throw error;
+    }
+  }
+  return outcome;
+}
+
 /**
  * 時間差のメンションを外す・やめる。承認待ち・承認済みの案からは外し（版を上げる）、投稿済みの予定は「やめた」にする。
  * @param db DB

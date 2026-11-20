@@ -68,3 +68,102 @@ export function checkPublishable(body: string, ngWords: NgWordForMatch[]): Publi
     approvable: ng.length === 0 && !overThreadsLimit,
   };
 }
+
+/**
+ * 案の本文と時間差のメンションの返信の文の判定を1つにする（どちらかに当たれば当たり。threads-011）。
+ * 承認のとき、返信の文も案と一緒に承認するため（API の承認の確かめと画面の判定で同じものを使う）。
+ * @param body - 本文の判定
+ * @param reply - 返信の文の判定（なければ null）
+ * @returns まとめた判定
+ */
+export function mergeChecks(body: PublishCheck, reply: PublishCheck | null): PublishCheck {
+  if (!reply) return body;
+  return {
+    ngWords: [...body.ngWords, ...reply.ngWords],
+    overThreadsLimit: body.overThreadsLimit || reply.overThreadsLimit,
+    policyCautions: [...body.policyCautions, ...reply.policyCautions],
+    approvable: body.approvable && reply.approvable,
+  };
+}
+
+// ---- まとめての承認・却下で飛ばした理由（threads-011。めぐるの SkipReason を写した）----
+
+/** 状態を変えなかった理由。 */
+export const REVIEW_SKIP_REASONS = [
+  "NOT_FOUND",
+  "STALE",
+  "PUBLISHING",
+  "NG_WORD",
+  "OVER_THREADS_LIMIT",
+  "POLICY_CONFIRM_REQUIRED",
+  "LIMIT",
+] as const;
+
+/** 状態を変えなかった理由の型。 */
+export type ReviewSkipReason = (typeof REVIEW_SKIP_REASONS)[number];
+
+/** まとめての操作で飛ばした理由の短い名前（「NGワード 1件・Threads の上限 2件」に使う）。 */
+export const REVIEW_SKIP_LABELS: Record<ReviewSkipReason, string> = {
+  NOT_FOUND: "消えていた",
+  STALE: "ほかの画面で変わった",
+  PUBLISHING: "投稿中",
+  NG_WORD: "NGワード",
+  OVER_THREADS_LIMIT: "Threads の上限",
+  POLICY_CONFIRM_REQUIRED: "規約の確かめがない",
+  LIMIT: "件数の上限",
+};
+
+/**
+ * 1件の操作で状態を変えられなかったときの文（何が起きたか・どうすればよいか）。
+ * @param reason - 変えなかった理由
+ * @param action - 操作
+ * @param limits - 件数の上限（承認済み・承認待ち）
+ * @param limits.approved - 承認済みの上限
+ * @param limits.needsReview - 承認待ちの上限
+ * @returns 文
+ */
+export function reviewSkipMessage(
+  reason: ReviewSkipReason,
+  action: "approve" | "reject" | "reopen",
+  limits: { approved: number; needsReview: number },
+): string {
+  switch (reason) {
+    case "NG_WORD":
+      return "NGワードを含むため、承認できませんでした。本文を直してください。";
+    case "OVER_THREADS_LIMIT":
+      return "Threads の上限（500文字・リンク5つ）を超えるため、承認できませんでした。本文を直してください。";
+    case "POLICY_CONFIRM_REQUIRED":
+      return "規約に注意の表現があります。内容を確かめてから承認してください。";
+    case "STALE":
+      return "ほかの画面で先に変わっていました。読みこみ直したので、もう一度確かめてください。";
+    case "NOT_FOUND":
+      return "この案は、もう消えています。";
+    case "PUBLISHING":
+      return "Threads に投稿している途中です。数分待ってから、もう一度お試しください。";
+    case "LIMIT":
+      return action === "reopen"
+        ? `承認待ちの案が上限（${limits.needsReview}件）に達しています。承認か却下をしてから戻してください。`
+        : `承認済みの案が上限（${limits.approved}件）に達しています。投稿されるのを待つか、承認待ちに戻してから承認してください。`;
+  }
+}
+
+/**
+ * まとめての操作の結果の文。飛ばしたものがあれば、理由ごとの件数を添える（例：3件を承認しました。2件は承認できませんでした（NGワード 1件・件数の上限 1件））。
+ * @param doneLabel - 変えた件数の文（例：「3件を承認しました」）
+ * @param verb - できなかったことの言い方（例：「承認」）
+ * @param skipped - 飛ばした理由
+ * @returns 文
+ */
+export function reviewSummary(
+  doneLabel: string,
+  verb: string,
+  skipped: readonly { reason: ReviewSkipReason }[],
+): string {
+  if (skipped.length === 0) return `${doneLabel}。`;
+  const counts = new Map<ReviewSkipReason, number>();
+  for (const item of skipped) counts.set(item.reason, (counts.get(item.reason) ?? 0) + 1);
+  const detail = [...counts]
+    .map(([reason, count]) => `${REVIEW_SKIP_LABELS[reason]} ${count}件`)
+    .join("・");
+  return `${doneLabel}。${skipped.length}件は${verb}できませんでした（${detail}）。`;
+}

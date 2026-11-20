@@ -6,7 +6,7 @@ import {
   MEDIA_DEFINITIONS,
   THREADS_ERRORS,
   buildListing,
-  refixListing,
+  previewListingFixes,
 } from "@workspace/contracts/threads";
 import type {
   ExternalMediaList,
@@ -350,7 +350,8 @@ export async function updateListing(
         if ([...value].length > max)
           throw invalid(`fields.${key}`, `「${field.label}」は${max}文字までにしてください。`);
       }
-      const refixed = refixListing(
+      // 外したあとに足し直す行（ジモティーの申し込みの URL）は、外した内容に数えない（threads-012。画面の見せ方と同じ）
+      const refixed = previewListingFixes(
         media,
         { ...(listing?.fields ?? {}), ...input.fields },
         sourceOf(promotion, defaults),

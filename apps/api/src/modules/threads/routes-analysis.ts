@@ -125,7 +125,7 @@ export function analysisRoutes(deps: DomainRouteDeps) {
 
   return new OpenAPIHono<ApiEnv>()
     .openapi(routes.getAnalysis, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "read_private");
       const ngWords = await listNgWords(deps.db, account.id);
       const view = await getAnalysisView(deps.db, {
         threadsAccountId: account.id,
@@ -143,13 +143,13 @@ export function analysisRoutes(deps: DomainRouteDeps) {
       return c.json(await saveAnalysisSettings(deps.db, account.id, c.req.valid("json")), 200);
     })
     .openapi(routes.getClassifications, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "read_private");
       const { mode } = c.req.valid("query");
       c.header("Cache-Control", "no-store");
       return c.json(await listClassificationTargets(deps.db, account.id, mode, new Date()), 200);
     })
     .openapi(routes.putClassifications, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "write_content");
       return c.json(
         await saveClassifications(deps.db, account.id, c.req.valid("json"), new Date()),
         200,

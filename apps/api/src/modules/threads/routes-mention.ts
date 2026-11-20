@@ -6,9 +6,11 @@ import { THREADS_ERRORS } from "@workspace/contracts/threads";
 import { domainErrorResponse } from "../../kernel/errors.ts";
 import { invalidInputResponse, uuidParam } from "../../kernel/http.ts";
 import type { ApiEnv, DomainRouteDeps } from "../../kernel/http.ts";
+import { currentAccount } from "../account/index.ts";
 import {
   addMentionPerson,
   attachMention,
+  attachMentionsBulk,
   detachMention,
   getMentionSettings,
   loadMentions,
@@ -27,6 +29,7 @@ import {
   json,
   ownedAccount,
 } from "./route-helpers.ts";
+import { recordActivity } from "./activity-log.ts";
 import { toPostDraft } from "./views.ts";
 
 /** 道の accountId と personId。 */
@@ -144,6 +147,24 @@ export function mentionRoutes(deps: DomainRouteDeps) {
         ...errors,
       },
     }),
+    attachBulk: createRoute({
+      method: "post",
+      path: `${base}/{accountId}/drafts/mentions`,
+      tags,
+      operationId: "threadsAttachMentionsBulk",
+      summary:
+        "選んだ承認待ちの案に、「いつも付ける」の人で時間差のメンションをまとめて付ける（付けられない案は理由を返す。threads-011）",
+      middleware,
+      request: {
+        params: AccountParams,
+        body: body(contract.MentionBulkInput.openapi("ThreadsMentionBulkInput")),
+      },
+      responses: {
+        200: json(contract.MentionBulkResult.openapi("ThreadsMentionBulkResult"), "付けた結果"),
+        400: invalidInputResponse,
+        ...errors,
+      },
+    }),
     detach: createRoute({
       method: "delete",
       path: `${base}/{accountId}/drafts/{draftId}/mention`,
@@ -162,7 +183,7 @@ export function mentionRoutes(deps: DomainRouteDeps) {
 
   return new OpenAPIHono<ApiEnv>()
     .openapi(routes.getSettings, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "read_private");
       c.header("Cache-Control", "no-store");
       return c.json(await getMentionSettings(deps.db, account, new Date()), 200);
     })
@@ -189,7 +210,7 @@ export function mentionRoutes(deps: DomainRouteDeps) {
     })
     .openapi(routes.attach, async (c) => {
       const { accountId, draftId } = c.req.valid("param");
-      const account = await ownedAccount(deps, c, accountId);
+      const account = await ownedAccount(deps, c, accountId, "review");
       const { draft, mention } = await attachMention(
         deps.db,
         account,
@@ -199,9 +220,34 @@ export function mentionRoutes(deps: DomainRouteDeps) {
       );
       return c.json(toPostDraft(draft, mention), 200);
     })
+    .openapi(routes.attachBulk, async (c) => {
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "review");
+      const outcome = await attachMentionsBulk(
+        deps.db,
+        account,
+        c.req.valid("json").items,
+        new Date(),
+      );
+      if (outcome.drafts.length > 0) {
+        await recordActivity(deps, account.id, {
+          kind: "review",
+          action: "mentions_attached",
+          itemCount: outcome.drafts.length,
+          summary: outcome.drafts[0]?.draft.body ?? null,
+          actorAccountId: currentAccount(c).accountId,
+        });
+      }
+      return c.json(
+        {
+          drafts: outcome.drafts.map(({ draft, mention }) => toPostDraft(draft, mention)),
+          skipped: outcome.skipped,
+        },
+        200,
+      );
+    })
     .openapi(routes.detach, async (c) => {
       const { accountId, draftId } = c.req.valid("param");
-      const account = await ownedAccount(deps, c, accountId);
+      const account = await ownedAccount(deps, c, accountId, "review");
       const draft = await detachMention(deps.db, account, draftId);
       const mentions = await loadMentions(deps.db, [draft], account.username);
       return c.json(toPostDraft(draft, mentions.get(draft.id) ?? null), 200);

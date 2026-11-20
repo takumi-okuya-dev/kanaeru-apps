@@ -2,7 +2,22 @@
 // どれも管理の外枠（staticData.layout を書かない）で、ログインが要る（画面の中で SessionGate で包む）。
 import { createRoute, lazyRouteComponent } from "@tanstack/react-router";
 import { rootRoute } from "../../lib/router.ts";
-import { THREADS_ROUTE_PATTERNS } from "./paths.ts";
+import { STOCK_TABS, THREADS_ROUTE_PATTERNS } from "./paths.ts";
+import type { StockTab } from "./paths.ts";
+
+/** Threads の入口（最後に開いた運用アカウントのホームか、一覧へ移る。threads-012）。 */
+export const threadsLandingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: THREADS_ROUTE_PATTERNS.landing,
+  component: lazyRouteComponent(() => import("./LandingPage.tsx"), "LandingPage"),
+});
+
+/** 運用アカウントのホーム（次にやること・材料のカード。threads-012）。 */
+export const threadsHomeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: THREADS_ROUTE_PATTERNS.home,
+  component: lazyRouteComponent(() => import("./HomePage.tsx"), "HomeRoute"),
+});
 
 /** 運用アカウントの一覧。 */
 export const threadsAccountsRoute = createRoute({
@@ -11,10 +26,14 @@ export const threadsAccountsRoute = createRoute({
   component: lazyRouteComponent(() => import("./AccountsPage.tsx"), "AccountsPage"),
 });
 
-/** 投稿の案（承認待ち・承認済み・却下）。 */
+/** 投稿の案（承認待ち・承認済み・投稿済み・投稿に失敗・却下）。選んだ状態は ?tab= に残す（threads-011）。 */
 export const threadsStockRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: THREADS_ROUTE_PATTERNS.stock,
+  validateSearch: (search: Record<string, unknown>): { tab?: StockTab } =>
+    typeof search.tab === "string" && (STOCK_TABS as readonly string[]).includes(search.tab)
+      ? { tab: search.tab as StockTab }
+      : {},
   component: lazyRouteComponent(() => import("./StockPage.tsx"), "StockRoute"),
 });
 
@@ -94,4 +113,45 @@ export const threadsDataDeletionRoute = createRoute({
   path: THREADS_ROUTE_PATTERNS.dataDeletion,
   staticData: { layout: "bare" },
   component: lazyRouteComponent(() => import("./DataDeletionPage.tsx"), "DataDeletionRoute"),
+});
+
+/** トークンの作り方の詳しい手順（threads-012。運用アカウントの外。ログインが要る）。 */
+export const threadsTokenGuideRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: THREADS_ROUTE_PATTERNS.tokenGuide,
+  component: lazyRouteComponent(() => import("./TokenGuidePage.tsx"), "TokenGuideRoute"),
+});
+
+/** 入っている組織（threads-013）。 */
+export const threadsOrganizationsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: THREADS_ROUTE_PATTERNS.organizations,
+  component: lazyRouteComponent(
+    () => import("./TeamOrganizationsPage.tsx"),
+    "TeamOrganizationsPage",
+  ),
+});
+
+/** Threads の組織の画面（運用アカウント・担当を決める。threads-013）。 */
+export const threadsOrganizationRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: THREADS_ROUTE_PATTERNS.organization,
+  component: lazyRouteComponent(
+    () => import("./TeamOrganizationPage.tsx"),
+    "TeamOrganizationRoute",
+  ),
+});
+
+/** 運用状況（数と日付だけ。threads-013）。 */
+export const threadsOrganizationStatusRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: THREADS_ROUTE_PATTERNS.organizationStatus,
+  component: lazyRouteComponent(() => import("./TeamStatusPage.tsx"), "TeamStatusRoute"),
+});
+
+/** 見せてもらっている運用アカウント（投稿の案と戦略を読むだけ。threads-013）。 */
+export const threadsSharedAccountRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: THREADS_ROUTE_PATTERNS.sharedAccount,
+  component: lazyRouteComponent(() => import("./SharedAccountPage.tsx"), "SharedAccountRoute"),
 });

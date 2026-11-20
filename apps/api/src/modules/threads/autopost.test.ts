@@ -16,7 +16,7 @@ import type {
   PostingScheduleView,
   ThreadsAccount,
 } from "@workspace/contracts/threads";
-import { addDays, jstDateOf, jstMidnight } from "@workspace/contracts/threads";
+import { addDays, jstDateOf, jstMidnight, normalizeNgWord } from "@workspace/contracts/threads";
 import { createSecretBox } from "@workspace/secret-box";
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -178,6 +178,8 @@ describe("Threads への接続と自動投稿", () => {
     const response = await call(app, cookie, `${BASE}/${accountId}/drafts/review`, "POST", {
       action: "approve",
       items: drafts.map((draft) => ({ id: draft.id, version: draft.version })),
+      // 規約に注意の表現（「必ず儲かる」など）を含む案も、確かめたものとして承認する（threads-011）
+      confirmPolicyCaution: true,
     });
     expect(response.status).toBe(200);
     return ((await response.json()) as { drafts: PostDraft[] }).drafts.sort(
@@ -457,7 +459,11 @@ describe("Threads への接続と自動投稿", () => {
       const { id } = await connectedAccount();
       await saveSchedule(id, {});
       await approved(id, ["必ず儲かる話です", "ふつうの話です"]);
-      await call(app, cookie, `${BASE}/${id}/ng-words`, "POST", { word: "必ず儲かる" });
+      // 窓口で足すと承認済みはすぐ承認待ちに戻る（threads-011）ので、直前の確かめを見るために DB に直に入れる
+      await database.pool.query(
+        "INSERT INTO threads_ng_word (threads_account_id, word, normalized) VALUES ($1, $2, $3)",
+        [id, "必ず儲かる", normalizeNgWord("必ず儲かる")],
+      );
       const summary = await tick(tomorrowAt(10, 1));
       expect(summary).toMatchObject({ published: 1, blocked: 1 });
       const review = await drafts(id, "needs_review");
@@ -538,7 +544,7 @@ describe("Threads への接続と自動投稿", () => {
       );
       fake.failNext("create", { status: 500, body: { error: { message: "x", code: 2 } } });
       expect((await tick(tomorrowAt(12, 1))).retried).toBe(1);
-      await call(app, cookie, `${BASE}/${id}/ng-words`, "POST", { word: "やり直し" });
+      await call(app, cookie, `${BASE}/${id}/ng-words`, "POST", { words: ["やり直し"] });
       expect((await tick(tomorrowAt(12, 7))).blocked).toBe(1);
       expect(fake.posts()).toHaveLength(0);
       expect((await drafts(id, "needs_review")).drafts[0]).toMatchObject({
@@ -615,6 +621,80 @@ describe("Threads への接続と自動投稿", () => {
         await call(app, cookie, `${BASE}/${id}/connection`)
       ).json()) as Connection;
       expect(connection.status).toBe("needs_reconnect");
+    });
+
+    it("「接続し直しが要る」でもトークンが残っていれば延ばしてみて、延ばせたら接続済みに戻す。だめなら1日あける（threads-012）", async () => {
+      const { id } = await connectedAccount();
+      await database.pool.query(
+        "UPDATE threads_account SET connection_status = 'needs_reconnect', updated_at = now() - interval '2 days'",
+      );
+      await database.pool.query(
+        "UPDATE threads_connection SET expires_at = now() + interval '3 days', issued_at = now() - interval '57 days'",
+      );
+      expect((await tick(new Date())).refreshed).toBe(1);
+      const restored = (await (
+        await call(app, cookie, `${BASE}/${id}/connection`)
+      ).json()) as Connection;
+      expect(restored.status).toBe("connected");
+
+      // 延ばせない（トークンが使えない）：状態は変えず、試した日時を残して続けては試さない
+      await database.pool.query(
+        "UPDATE threads_account SET connection_status = 'needs_reconnect', updated_at = now() - interval '2 days'",
+      );
+      await database.pool.query(
+        "UPDATE threads_connection SET expires_at = now() + interval '3 days', issued_at = now() - interval '57 days'",
+      );
+      fake.failNext("refresh", {
+        status: 401,
+        body: { error: { message: "invalid", type: "OAuthException", code: 190 } },
+      });
+      expect((await tick(new Date())).refreshed).toBe(0);
+      const tried = await database.pool.query<{ status: string; recent: boolean }>(
+        "SELECT connection_status AS status, updated_at > now() - interval '1 hour' AS recent FROM threads_account",
+      );
+      expect(tried.rows[0]).toEqual({ status: "needs_reconnect", recent: true });
+    });
+  });
+
+  describe("投稿の権限の確かめ（threads-check。threads-012）", () => {
+    it("未接続・接続済み（直近24時間の投稿の数）・投稿の権限がない・接続し直しが要るを返す", async () => {
+      const bare = await createAccount();
+      const check = (id: string) => call(app, cookie, `${BASE}/${id}/threads-check`, "POST");
+      expect(await (await check(bare.id)).json()).toEqual({
+        status: "not_connected",
+        quotaUsage: null,
+        quotaTotal: null,
+      });
+
+      const { id, token } = await connectedAccount();
+      expect(await (await check(id)).json()).toEqual({
+        status: "ok",
+        quotaUsage: 0,
+        quotaTotal: 250,
+      });
+
+      fake.invalidate(token);
+      expect(((await (await check(id)).json()) as { status: string }).status).toBe(
+        "needs_reconnect",
+      );
+      const connection = (await (
+        await call(app, cookie, `${BASE}/${id}/connection`)
+      ).json()) as Connection;
+      expect(connection.status).toBe("needs_reconnect");
+
+      const someone = (await loginAs(app, { displayName: "ほかの人" })).cookie;
+      expect((await call(app, someone, `${BASE}/${id}/threads-check`, "POST")).status).toBe(404);
+    });
+
+    it("投稿の権限のないトークンは no_publish_permission", async () => {
+      const { id } = await createAccount();
+      const token = fake.issueToken({
+        userId: "9001",
+        scopes: ["threads_basic", "threads_manage_insights", "threads_manage_replies"],
+      });
+      expect((await connect(id, token)).status).toBe(200);
+      const result = await call(app, cookie, `${BASE}/${id}/threads-check`, "POST");
+      expect(((await result.json()) as { status: string }).status).toBe("no_publish_permission");
     });
   });
 });

@@ -1,4 +1,5 @@
 // Threads の運用の窓口（運用アカウント・戦略・プロンプト・投稿のルール・投稿の案・承認と却下）。threads-001。
+// threads-011：承認・却下はできるものだけ変える・まとめて消す・ためたのを取り消す・承認済みも直せる・NG ワードをまとめて足す・投稿済みは50件ずつ。
 // 道はすべて createRoute で書き、道の頭は /api/v1/threads（AD-15）。どの道もログインが要る（account の requireSession）。
 // 記録は持ち主の kanaeru のアカウントのもので、ほかの人の運用アカウントは、ないのと同じ 404 にする（AD-19）。
 // アプリの台帳（suite の app_setting）で見えなければ、どの道も 404（組み立てが requireApp を付ける。AD-16）。
@@ -11,8 +12,8 @@ import {
   THREADS_ACCOUNT_LIMIT,
   THREADS_ERRORS,
   buildPrompt,
-  checkPublishable,
   findPasteProblem,
+  isOverThreadsLimit,
   jstToday,
   rejectReasonLabel,
   splitDrafts,
@@ -22,13 +23,10 @@ import { invalidInputResponse, uuidParam } from "../../kernel/http.ts";
 import type { ApiEnv, DomainRouteDeps } from "../../kernel/http.ts";
 import { currentAccount } from "../account/index.ts";
 import {
-  addNgWord,
-  changeDraftState,
   countDrafts,
   createAccount,
   createBatch,
   deleteAccount,
-  deleteDraft,
   deleteNgWord,
   emptyDraftCounts,
   findDraft,
@@ -39,16 +37,22 @@ import {
   listNgWords,
   listRecentDraftBodies,
   listRecentRejected,
-  lockDrafts,
   renameAccount,
   saveCoreRules,
   savePromptSettings,
   saveStrategy,
   toPromptSettings,
   toStrategyValues,
-  updateDraftBody,
 } from "./repository.ts";
-import type { PostDraftRecord, ThreadsAccountRecord } from "./repository.ts";
+import type { ThreadsAccountRecord } from "./repository.ts";
+import {
+  addNgWords,
+  deleteDraftsLocked,
+  editDraft,
+  listPublishedPage,
+  reviewDrafts,
+  undoBatch,
+} from "./drafts.ts";
 import {
   ACCOUNTS_BASE,
   AccountParams,
@@ -58,22 +62,37 @@ import {
   accountMiddleware,
   body,
   coreRuleLines,
+  accountAccess,
   json,
   ownedAccount,
 } from "./route-helpers.ts";
+import {
+  deletableDraftIds,
+  deletableStatuses,
+  draftActorNames,
+  listAssignedAccounts,
+  withDraftActors,
+} from "./team.ts";
+import { allows } from "./access.ts";
 import { recordActivity } from "./activity-log.ts";
 import { queueSchedule } from "./auto-post-status.ts";
 import { trendsForAccountPrompt } from "./analysis.ts";
-import { dropPendingMentions, loadMentions, pendingMentionTexts } from "./mention.ts";
+import { loadMentions } from "./mention.ts";
 import { listPoorForPrompt } from "./performance.ts";
 import { listPromptPromotions, listPromptReferencePosts } from "./research.ts";
 import { readPostingSchedule } from "./posting-schedule.ts";
-import { toNgWord, toPostDraft, toStrategy, toThreadsAccount } from "./views.ts";
+import { toDraftCounts, toNgWord, toPostDraft, toStrategy, toThreadsAccount } from "./views.ts";
 
 /** 道の accountId と ngWordId。 */
 const NgWordParams = z.object({
   accountId: uuidParam("accountId", "運用アカウントの ID"),
   ngWordId: uuidParam("ngWordId", "NG ワードの ID"),
+});
+
+/** 道の accountId と batchId。 */
+const BatchParams = z.object({
+  accountId: uuidParam("accountId", "運用アカウントの ID"),
+  batchId: uuidParam("batchId", "ためたまとまりの ID"),
 });
 
 /** 案の一覧の問い合わせ（文書の説明つき）。 */
@@ -82,6 +101,10 @@ const DraftQuery = z.object({
     param: { name: "status", in: "query" },
     description:
       "状態（needs_review：承認待ち・approved：承認済み〈投稿中を含む〉・published：投稿済み・publish_failed：投稿に失敗・rejected：却下）",
+  }),
+  before: contract.DraftListQuery.shape.before.openapi({
+    param: { name: "before", in: "query" },
+    description: "投稿済みの続きを読むときの、前の応答の nextCursor（threads-011）",
   }),
 });
 
@@ -162,10 +185,21 @@ function defineRoutes(deps: DomainRouteDeps) {
       path: `${base}/{accountId}`,
       tags,
       operationId: "threadsDeleteAccount",
-      summary: "運用アカウントを消す（戦略・案・NG ワードも一緒に消える。元に戻せない）",
+      summary:
+        "運用アカウントを消す（戦略・案・NG ワードも一緒に消える。元に戻せない。アカウントの名前を入れて確かめる）",
       middleware,
-      request: { params: AccountParams },
-      responses: { 204: { description: "消した" }, ...errors },
+      request: {
+        params: AccountParams,
+        body: body(contract.ThreadsAccountDeleteInput.openapi("ThreadsAccountDeleteInput")),
+      },
+      responses: {
+        204: { description: "消した" },
+        400: domainErrorResponse(
+          THREADS_ERRORS.THREADS_ACCOUNT_NAME_MISMATCH,
+          "入れた名前が合わない（THREADS_ACCOUNT_NAME_MISMATCH）・入力の誤り",
+        ),
+        ...errors,
+      },
     }),
     getStrategy: createRoute({
       method: "get",
@@ -266,20 +300,24 @@ function defineRoutes(deps: DomainRouteDeps) {
         ...errors,
       },
     }),
-    addNgWord: createRoute({
+    addNgWords: createRoute({
       method: "post",
       path: `${base}/{accountId}/ng-words`,
       tags,
-      operationId: "threadsAddNgWord",
-      summary: "NG ワードを足す（照合の形で同じものは1つ）",
+      operationId: "threadsAddNgWords",
+      summary:
+        "NG ワードをまとめて足す（照合の形で同じものは足さずに返す。足した語を含む承認済みの案は承認待ちに戻す。threads-011）",
       middleware,
-      request: { params: AccountParams, body: body(contract.NgWordInput) },
+      request: {
+        params: AccountParams,
+        body: body(contract.NgWordsInput.openapi("ThreadsNgWordsInput")),
+      },
       responses: {
-        201: json(contract.NgWord.openapi("ThreadsNgWord"), "足した NG ワード"),
+        201: json(contract.NgWordsResult.openapi("ThreadsNgWordsResult"), "足した結果"),
         400: invalidInputResponse,
         409: domainErrorResponse(
-          THREADS_ERRORS.THREADS_NG_WORD_DUPLICATE,
-          "同じ NG ワードがある（THREADS_NG_WORD_DUPLICATE）か、上限（THREADS_NG_WORD_LIMIT）",
+          THREADS_ERRORS.THREADS_NG_WORD_LIMIT,
+          "上限を超える（何も足さない）",
         ),
         ...errors,
       },
@@ -313,12 +351,45 @@ function defineRoutes(deps: DomainRouteDeps) {
         ...errors,
       },
     }),
+    undoBatch: createRoute({
+      method: "delete",
+      path: `${base}/{accountId}/draft-batches/{batchId}`,
+      tags,
+      operationId: "threadsUndoDraftBatch",
+      summary:
+        "ためた1回分を取り消す（そのまとまりの承認待ちの案だけを消す。承認・却下したものは残す。threads-011）",
+      middleware,
+      request: { params: BatchParams },
+      responses: {
+        200: json(contract.DeletedCount.openapi("ThreadsDeletedCount"), "消した数"),
+        ...errors,
+      },
+    }),
+    deleteDrafts: createRoute({
+      method: "post",
+      path: `${base}/{accountId}/drafts/delete`,
+      tags,
+      operationId: "threadsDeleteDrafts",
+      summary:
+        "案をまとめて消す（承認待ちと却下だけ。ほかの状態・ない ID は無視する。元に戻せない。threads-011）",
+      middleware,
+      request: {
+        params: AccountParams,
+        body: body(contract.DraftDeleteInput.openapi("ThreadsDraftDeleteInput")),
+      },
+      responses: {
+        200: json(contract.DeletedCount, "消した数"),
+        400: invalidInputResponse,
+        ...errors,
+      },
+    }),
     listDrafts: createRoute({
       method: "get",
       path: `${base}/{accountId}/drafts`,
       tags,
       operationId: "threadsListDrafts",
-      summary: "投稿の案の一覧（状態ごと）と、似ている度合いを比べる相手",
+      summary:
+        "投稿の案の一覧（状態ごと。投稿済みは50件ずつ）と、似ている度合いを比べる相手（承認待ち・承認済み・却下）",
       middleware,
       request: { params: AccountParams, query: DraftQuery },
       responses: {
@@ -332,7 +403,8 @@ function defineRoutes(deps: DomainRouteDeps) {
       path: `${base}/{accountId}/drafts/{draftId}`,
       tags,
       operationId: "threadsUpdateDraft",
-      summary: "承認待ちの案の本文を直す（読んだ版と同じときだけ）",
+      summary:
+        "承認待ち・承認済みの案の本文を直す（読んだ版と同じときだけ。承認済みは承認待ちに戻る。threads-011）",
       middleware,
       request: { params: DraftParams, body: body(contract.DraftUpdateInput) },
       responses: {
@@ -340,7 +412,7 @@ function defineRoutes(deps: DomainRouteDeps) {
         400: invalidInputResponse,
         409: domainErrorResponse(
           THREADS_ERRORS.THREADS_VERSION_CONFLICT,
-          "版が合わない（THREADS_VERSION_CONFLICT）か、承認待ちでない（THREADS_DRAFT_STATE）",
+          "版が合わない（THREADS_VERSION_CONFLICT）・承認待ちでも承認済みでもない（THREADS_DRAFT_STATE）・投稿中（THREADS_PUBLISHING）",
         ),
         ...errors,
       },
@@ -350,12 +422,16 @@ function defineRoutes(deps: DomainRouteDeps) {
       path: `${base}/{accountId}/drafts/{draftId}`,
       tags,
       operationId: "threadsDeleteDraft",
-      summary: "投稿の案を消す（投稿中は消せない）",
+      summary:
+        "投稿の案を消す（承認待ち・却下だけ。承認済み・投稿に失敗は承認待ちに戻してから。投稿済み・投稿中は消せない。threads-011）",
       middleware,
       request: { params: DraftParams },
       responses: {
         204: { description: "消した" },
-        409: domainErrorResponse(THREADS_ERRORS.THREADS_PUBLISHING, "投稿中"),
+        409: domainErrorResponse(
+          THREADS_ERRORS.THREADS_DRAFT_STATE,
+          "今の状態では消せない（THREADS_DRAFT_STATE）・投稿中（THREADS_PUBLISHING）",
+        ),
         ...errors,
       },
     }),
@@ -365,19 +441,18 @@ function defineRoutes(deps: DomainRouteDeps) {
       tags,
       operationId: "threadsReviewDrafts",
       summary:
-        "案を承認する・却下する・承認待ちに戻す（まとめて。どれか1つでも合わなければ、どれも変えない）",
+        "案を承認する・却下する・承認待ちに戻す（まとめて。1件ずつ確かめ、できるものだけ変え、できなかったものは理由を返す。同じ requestId の送り直しは二重に変えない。threads-011）",
       middleware,
       request: {
         params: AccountParams,
         body: body(contract.ReviewInput.openapi("ThreadsReviewInput")),
       },
       responses: {
-        200: json(contract.ReviewResult.openapi("ThreadsReviewResult"), "変えた案"),
-        400: invalidInputResponse,
-        409: domainErrorResponse(
-          THREADS_ERRORS.THREADS_DRAFT_STATE,
-          "今の状態ではできない（THREADS_DRAFT_STATE）・版が合わない（THREADS_VERSION_CONFLICT）・NG ワードや文字数で承認できない（THREADS_DRAFT_NOT_APPROVABLE）",
+        200: json(
+          contract.ReviewResult.openapi("ThreadsReviewResult"),
+          "変えた案・変えなかった案と理由（NOT_FOUND・STALE・PUBLISHING・NG_WORD・OVER_THREADS_LIMIT・POLICY_CONFIRM_REQUIRED・LIMIT）・変えたあとの数",
         ),
+        400: invalidInputResponse,
         ...errors,
       },
     }),
@@ -398,67 +473,6 @@ async function postingRules(
   return { coreRules: account.coreRules, ngWords: ngWords.map(toNgWord) };
 }
 
-/** 操作ごとに、変えてよい今の状態。 */
-const REVIEW_FROM: Record<contract.ReviewInput["action"], readonly contract.DraftStatus[]> = {
-  approve: ["needs_review", "publish_failed"],
-  reject: ["needs_review", "approved", "publish_failed"],
-  reopen: ["approved", "rejected", "publish_failed"],
-};
-
-/**
- * 承認・却下・承認待ちに戻すを確かめて、変える（どれか1つでも合わなければ、どれも変えない）。
- * @param deps 土台が渡す道具
- * @param account 運用アカウント
- * @param input 承認・却下の入力
- * @returns 変えた案
- * @throws {AppError} ない案（NOT_FOUND）・版が合わない・今の状態ではできない・承認できない本文
- */
-async function reviewDrafts(
-  deps: DomainRouteDeps,
-  account: ThreadsAccountRecord,
-  input: contract.ReviewInput,
-): Promise<PostDraftRecord[]> {
-  const ids = [...new Set(input.items.map((item) => item.id))];
-  const ngWords = input.action === "approve" ? await listNgWords(deps.db, account.id) : [];
-  return deps.db.transaction(async (tx) => {
-    const drafts = await lockDrafts(tx, account.id, ids);
-    if (drafts.length !== ids.length) throw new AppError("NOT_FOUND");
-    const byId = new Map(drafts.map((draft) => [draft.id, draft]));
-    // 時間差のメンション（threads-007）：承認では返信の文も確かめ、却下ではまだ出していないものを消す
-    const mentionTexts =
-      input.action === "approve" ? await pendingMentionTexts(tx, ids) : new Map<string, string>();
-    for (const item of input.items) {
-      const draft = byId.get(item.id);
-      if (!draft || draft.version !== item.version) {
-        throw new AppError(THREADS_ERRORS.THREADS_VERSION_CONFLICT);
-      }
-      // 投稿中・投稿済みは変えない。投稿に失敗は、承認（もう一度投稿の順に入れる）・却下・承認待ちに戻すができる
-      const allowed = REVIEW_FROM[input.action].includes(draft.status);
-      if (!allowed) throw new AppError(THREADS_ERRORS.THREADS_DRAFT_STATE);
-      if (input.action === "approve" && !checkPublishable(draft.body, ngWords).approvable) {
-        throw new AppError(THREADS_ERRORS.THREADS_DRAFT_NOT_APPROVABLE);
-      }
-      const mentionText = mentionTexts.get(draft.id);
-      if (mentionText !== undefined && !checkPublishable(mentionText, ngWords).approvable) {
-        throw new AppError(THREADS_ERRORS.THREADS_DRAFT_NOT_APPROVABLE);
-      }
-    }
-    const change =
-      input.action === "approve"
-        ? ({ status: "approved" } as const)
-        : input.action === "reject"
-          ? ({
-              status: "rejected",
-              reasons:
-                input.reasons && input.reasons.length > 0 ? [...new Set(input.reasons)] : null,
-              note: input.note ? input.note : null,
-            } as const)
-          : ({ status: "needs_review" } as const);
-    if (input.action === "reject") await dropPendingMentions(tx, ids);
-    return changeDraftState(tx, ids, change);
-  });
-}
-
 /**
  * Threads の運用の窓口を作る。戻り値の型は書かない（.openapi() のつながりのまま返し、画面の型を残す）。
  * @param deps 土台が渡す道具
@@ -470,11 +484,21 @@ export function threadsRoutes(deps: DomainRouteDeps) {
 
   return new OpenAPIHono<ApiEnv>()
     .openapi(routes.listAccounts, async (c) => {
-      const rows = await listAccounts(db, currentAccount(c).accountId);
+      const me = currentAccount(c).accountId;
+      const rows = await listAccounts(db, me);
+      // 担当している運用アカウント（ほかの人のもの。持ち主の上限に数えない。threads-013 FR-T24）
+      const assigned = await listAssignedAccounts(db, me);
       return c.json(
         {
           accounts: rows.map(({ account, counts }) => toThreadsAccount(account, counts)),
           limit: THREADS_ACCOUNT_LIMIT,
+          assigned: assigned.map((row) => ({
+            ...toThreadsAccount(row.account, row.counts),
+            // 持ち主の「最後に開いた」は担当の人に見せない
+            lastOpenedAt: null,
+            ownerName: row.ownerName,
+            organizationName: row.organizationName,
+          })),
         },
         200,
       );
@@ -486,7 +510,7 @@ export function threadsRoutes(deps: DomainRouteDeps) {
       return c.json(toThreadsAccount(account, emptyDraftCounts()), 201);
     })
     .openapi(routes.getAccount, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "read_content");
       return c.json(toThreadsAccount(account, await countDrafts(db, account.id)), 200);
     })
     .openapi(routes.renameAccount, async (c) => {
@@ -497,22 +521,25 @@ export function threadsRoutes(deps: DomainRouteDeps) {
     })
     .openapi(routes.deleteAccount, async (c) => {
       const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      // 消す前に、アカウントの名前をそのまま入れてもらう（めぐるの account-service.ts。threads-012）
+      if (!contract.confirmNameMatches(c.req.valid("json").confirmName, account.name))
+        throw new AppError(THREADS_ERRORS.THREADS_ACCOUNT_NAME_MISMATCH);
       if (!(await deleteAccount(db, account.id))) throw new AppError("NOT_FOUND");
       return c.body(null, 204);
     })
     .openapi(routes.getStrategy, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "read_content");
       return c.json(toStrategy(await findStrategy(db, account.id)), 200);
     })
     .openapi(routes.putStrategy, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "write_content");
       const { version, ...values } = c.req.valid("json");
       const saved = await saveStrategy(db, account.id, values, version);
       if (!saved) throw new AppError(THREADS_ERRORS.THREADS_VERSION_CONFLICT);
       return c.json(toStrategy(saved), 200);
     })
     .openapi(routes.getPromptSettings, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "read_private");
       return c.json(toPromptSettings(account), 200);
     })
     .openapi(routes.putPromptSettings, async (c) => {
@@ -522,7 +549,8 @@ export function threadsRoutes(deps: DomainRouteDeps) {
       return c.json(toPromptSettings(saved), 200);
     })
     .openapi(routes.getPrompt, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      // 段階1（コピーして貼る）は担当の人も使える（PRD 組織 O13。kanaeru からは何も送らない）
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "read_private");
       const [strategy, ngWords, recentDrafts, rejected, poorPosts, schedule] = await Promise.all([
         findStrategy(db, account.id),
         listNgWords(db, account.id),
@@ -575,7 +603,7 @@ export function threadsRoutes(deps: DomainRouteDeps) {
       );
     })
     .openapi(routes.getPostingRules, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "read_private");
       return c.json(await postingRules(deps, account), 200);
     })
     .openapi(routes.putCoreRules, async (c) => {
@@ -584,12 +612,28 @@ export function threadsRoutes(deps: DomainRouteDeps) {
       if (!saved) throw new AppError("NOT_FOUND");
       return c.json(await postingRules(deps, saved), 200);
     })
-    .openapi(routes.addNgWord, async (c) => {
+    .openapi(routes.addNgWords, async (c) => {
       const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
-      const result = await addNgWord(db, account.id, c.req.valid("json").word);
-      if (result.kind === "duplicate") throw new AppError(THREADS_ERRORS.THREADS_NG_WORD_DUPLICATE);
+      const result = await addNgWords(db, account.id, c.req.valid("json").words);
       if (result.kind === "limit") throw new AppError(THREADS_ERRORS.THREADS_NG_WORD_LIMIT);
-      return c.json(toNgWord(result.ngWord), 201);
+      // すべてもうある語なら、変えていないので記録しない
+      if (result.added.length > 0) {
+        await recordActivity(deps, account.id, {
+          kind: "settings",
+          action: "ng_word_added",
+          itemCount: result.added.length,
+          summary: result.added.map((row) => row.word).join("、"),
+          actorAccountId: currentAccount(c).accountId,
+        });
+      }
+      return c.json(
+        {
+          added: result.added.map(toNgWord),
+          duplicates: result.duplicates,
+          reopenedCount: result.reopened,
+        },
+        201,
+      );
     })
     .openapi(routes.deleteNgWord, async (c) => {
       const { accountId, ngWordId } = c.req.valid("param");
@@ -598,7 +642,7 @@ export function threadsRoutes(deps: DomainRouteDeps) {
       return c.body(null, 204);
     })
     .openapi(routes.createBatch, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "write_content");
       const input = c.req.valid("json");
       const { parts, delimiterFound } = splitDrafts(input.text);
       const problem = parts.length === 0 ? "empty" : findPasteProblem(input.text, parts);
@@ -617,76 +661,163 @@ export function threadsRoutes(deps: DomainRouteDeps) {
         clientRequestId: input.clientRequestId,
         parts,
         delimiterFound,
+        actorAccountId: currentAccount(c).accountId,
       });
       if (result.kind === "limit") throw new AppError(THREADS_ERRORS.THREADS_DRAFT_LIMIT);
       return c.json(
         {
           batchId: result.batchId,
+          draftCount: result.draftCount,
           delimiterFound: result.delimiterFound,
+          overLimitCount: result.drafts.filter((draft) => isOverThreadsLimit(draft.body)).length,
           drafts: result.drafts.map((draft) => toPostDraft(draft)),
         },
         201,
       );
     })
+    .openapi(routes.undoBatch, async (c) => {
+      const { accountId, batchId } = c.req.valid("param");
+      const account = await ownedAccount(deps, c, accountId, "write_content");
+      const deleted = await undoBatch(db, account.id, batchId);
+      if (!deleted) throw new AppError("NOT_FOUND");
+      if (deleted.length > 0) {
+        await recordActivity(deps, account.id, {
+          kind: "draft",
+          action: "batch_undone",
+          itemCount: deleted.length,
+          summary: deleted[0]?.body ?? null,
+          actorAccountId: currentAccount(c).accountId,
+        });
+      }
+      return c.json({ deletedCount: deleted.length }, 200);
+    })
+    .openapi(routes.deleteDrafts, async (c) => {
+      const access = await accountAccess(deps, c, c.req.valid("param").accountId, "write_content");
+      const { account } = access;
+      // 承認を任されていない担当の人は、承認待ちの案だけを消せる（却下の案を消すのは承認と同じ扱い。PRD 組織 5.2）
+      const ids = await deletableDraftIds(db, access, c.req.valid("json").ids);
+      const deleted = await deleteDraftsLocked(db, account.id, ids, deletableStatuses(access));
+      if (deleted.length > 0) {
+        await recordActivity(deps, account.id, {
+          kind: "draft",
+          action: "drafts_deleted",
+          itemCount: deleted.length,
+          summary: deleted[0]?.body ?? null,
+          actorAccountId: currentAccount(c).accountId,
+        });
+      }
+      return c.json({ deletedCount: deleted.length }, 200);
+    })
     .openapi(routes.listDrafts, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
-      const { status } = c.req.valid("query");
-      const [drafts, compareWith] = await Promise.all([
-        listDrafts(db, account.id, status),
+      const access = await accountAccess(deps, c, c.req.valid("param").accountId, "read_content");
+      const { account } = access;
+      const { status, before } = c.req.valid("query");
+      // 投稿済みは50件ずつ読む（タブを開いたときだけ。めぐるの 005 research.md R14）
+      const [page, compareWith] = await Promise.all([
+        status === "published"
+          ? listPublishedPage(db, account.id, before)
+          : listDrafts(db, account.id, status).then((rows) => ({
+              drafts: rows,
+              nextCursor: null,
+            })),
         listCompareBodies(db, account.id),
       ]);
+      const { drafts } = page;
       const [schedule, mentions] = await Promise.all([
-        status === "approved" ? queueSchedule(db, account, drafts, new Date()) : {},
+        // 投稿の予定の時刻は、自動投稿の予定を読める人だけに返す（見せてもらうだけの組織の人には出さない）
+        status === "approved" && allows(access, "read_private")
+          ? queueSchedule(db, account, drafts, new Date())
+          : {},
         // 時間差のメンション（threads-007）
         loadMentions(db, drafts, account.username),
       ]);
+      // 組織に入っている運用アカウントでは、作った人・最後に直した人の表示名を出す（threads-013 FR-T50）
+      const actors = access.placed ? await draftActorNames(db, drafts) : null;
       return c.json(
         {
-          drafts: drafts.map((draft) => toPostDraft(draft, mentions.get(draft.id) ?? null)),
+          drafts: drafts.map((draft) =>
+            withDraftActors(toPostDraft(draft, mentions.get(draft.id) ?? null), draft, actors),
+          ),
           schedule,
           compareWith,
+          nextCursor: page.nextCursor,
         },
         200,
       );
     })
     .openapi(routes.updateDraft, async (c) => {
       const { accountId, draftId } = c.req.valid("param");
-      const account = await ownedAccount(deps, c, accountId);
-      const input = c.req.valid("json");
-      const updated = await updateDraftBody(db, account.id, draftId, input.body, input.version);
-      if (updated) return c.json(toPostDraft(updated), 200);
-      // 直せなかった理由を分ける（ない・承認待ちでない・版が合わない）
-      const current = await findDraft(db, account.id, draftId);
-      if (!current) throw new AppError("NOT_FOUND");
-      if (current.status !== "needs_review") throw new AppError(THREADS_ERRORS.THREADS_DRAFT_STATE);
-      throw new AppError(THREADS_ERRORS.THREADS_VERSION_CONFLICT);
+      const account = await ownedAccount(deps, c, accountId, "write_content");
+      const outcome = await editDraft(
+        db,
+        account.id,
+        draftId,
+        c.req.valid("json"),
+        currentAccount(c).accountId,
+      );
+      // 直せなかった理由を分ける（ない・投稿中・今の状態・版が合わない）
+      if (outcome.kind === "not_found") throw new AppError("NOT_FOUND");
+      if (outcome.kind === "publishing") throw new AppError(THREADS_ERRORS.THREADS_PUBLISHING);
+      if (outcome.kind === "state") throw new AppError(THREADS_ERRORS.THREADS_DRAFT_STATE);
+      if (outcome.kind === "conflict") throw new AppError(THREADS_ERRORS.THREADS_VERSION_CONFLICT);
+      const mentions = await loadMentions(db, [outcome.draft], account.username);
+      return c.json(toPostDraft(outcome.draft, mentions.get(outcome.draft.id) ?? null), 200);
     })
     .openapi(routes.deleteDraft, async (c) => {
       const { accountId, draftId } = c.req.valid("param");
-      const account = await ownedAccount(deps, c, accountId);
-      if (!(await deleteDraft(db, account.id, draftId))) {
-        // 投稿中の案は消さない（投稿の試みが使っている）
+      const access = await accountAccess(deps, c, accountId, "write_content");
+      const { account } = access;
+      if ((await deletableDraftIds(db, access, [draftId])).length === 0) {
+        throw new AppError(THREADS_ERRORS.THREADS_TEAM_FORBIDDEN);
+      }
+      const [deleted] = await deleteDraftsLocked(
+        db,
+        account.id,
+        [draftId],
+        deletableStatuses(access),
+      );
+      if (!deleted) {
+        // 消せなかった理由を分ける（ない・投稿中・今の状態では消せない）
         const current = await findDraft(db, account.id, draftId);
-        if (current) throw new AppError(THREADS_ERRORS.THREADS_PUBLISHING);
-        throw new AppError("NOT_FOUND");
+        if (!current) throw new AppError("NOT_FOUND");
+        if (current.status === "publishing") throw new AppError(THREADS_ERRORS.THREADS_PUBLISHING);
+        throw new AppError(THREADS_ERRORS.THREADS_DRAFT_STATE);
       }
       return c.body(null, 204);
     })
     .openapi(routes.review, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      // 承認・却下は持ち主か、承認を任された担当の人だけ。どちらも同じ確かめ（NG ワード・上限・規約の注意）を通る（FR-T11）
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "review");
       const input = c.req.valid("json");
-      const drafts = await reviewDrafts(deps, account, input);
-      await recordActivity(deps, account.id, {
-        kind: "review",
-        action:
-          input.action === "approve"
-            ? "drafts_approved"
-            : input.action === "reject"
-              ? "drafts_rejected"
-              : "drafts_reopened",
-        itemCount: drafts.length,
-        summary: drafts[0]?.body ?? null,
-      });
-      return c.json({ drafts: drafts.map((draft) => toPostDraft(draft)) }, 200);
+      const actorAccountId = currentAccount(c).accountId;
+      const outcome = await reviewDrafts(db, account.id, input, actorAccountId);
+      // 1回の操作を1行で記録する。同じ requestId の送り直しでは変えていないので書かない
+      if (outcome.changed.length > 0) {
+        await recordActivity(deps, account.id, {
+          kind: "review",
+          action:
+            input.action === "approve"
+              ? outcome.requeuedOnly
+                ? "drafts_requeued"
+                : "drafts_approved"
+              : input.action === "reject"
+                ? "drafts_rejected"
+                : "drafts_reopened",
+          itemCount: outcome.changed.length,
+          summary: outcome.changed[0]?.body ?? null,
+          actorAccountId,
+        });
+      }
+      const mentions = await loadMentions(db, outcome.updated, account.username);
+      return c.json(
+        {
+          drafts: outcome.updated.map((draft) =>
+            toPostDraft(draft, mentions.get(draft.id) ?? null),
+          ),
+          skipped: outcome.skipped,
+          counts: toDraftCounts(outcome.counts),
+        },
+        200,
+      );
     });
 }

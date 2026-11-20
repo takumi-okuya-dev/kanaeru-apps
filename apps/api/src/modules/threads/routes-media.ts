@@ -143,12 +143,12 @@ export function mediaRoutes(deps: DomainRouteDeps) {
 
   return new OpenAPIHono<ApiEnv>()
     .openapi(routes.list, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "read_private");
       return c.json(await listExternalMedia(deps.db, account.id, new Date()), 200);
     })
     .openapi(routes.detail, async (c) => {
       const { accountId, promotionId, media } = c.req.valid("param");
-      const account = await ownedAccount(deps, c, accountId);
+      const account = await ownedAccount(deps, c, accountId, "read_private");
       return c.json(
         await getListingDetail(deps.db, account.id, promotionId, media, new Date()),
         200,
@@ -156,7 +156,7 @@ export function mediaRoutes(deps: DomainRouteDeps) {
     })
     .openapi(routes.generate, async (c) => {
       const { accountId, promotionId, media } = c.req.valid("param");
-      const account = await ownedAccount(deps, c, accountId);
+      const account = await ownedAccount(deps, c, accountId, "write_content");
       return c.json(
         await generateListing(
           deps.db,
@@ -171,7 +171,7 @@ export function mediaRoutes(deps: DomainRouteDeps) {
     })
     .openapi(routes.update, async (c) => {
       const { accountId, promotionId, media } = c.req.valid("param");
-      const account = await ownedAccount(deps, c, accountId);
+      const account = await ownedAccount(deps, c, accountId, "write_content");
       return c.json(
         await updateListing(
           deps.db,
@@ -185,7 +185,7 @@ export function mediaRoutes(deps: DomainRouteDeps) {
       );
     })
     .openapi(routes.defaults, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "read_private");
       return c.json(await listMediaDefaults(deps.db, account.id), 200);
     })
     .openapi(routes.saveDefaults, async (c) => {

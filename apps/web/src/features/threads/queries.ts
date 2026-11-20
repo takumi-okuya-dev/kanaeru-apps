@@ -7,9 +7,10 @@ import type {
   DraftListStatus,
   PerformanceTab,
 } from "@workspace/contracts/threads";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
   fetchAccount,
+  fetchAccountHome,
   fetchActivity,
   fetchAnalysis,
   fetchClassifications,
@@ -29,6 +30,12 @@ import {
   fetchPostingRules,
   fetchPromptSettings,
   fetchStrategy,
+  fetchAccountAccess,
+  fetchAccountTeam,
+  fetchTeamNotices,
+  fetchTeamOrganization,
+  fetchTeamOrganizations,
+  fetchTeamStatus,
 } from "./api.ts";
 
 /** Threads の運用の問い合わせの鍵。 */
@@ -49,6 +56,12 @@ export const THREADS_QUERY_KEYS = {
    * @returns 鍵
    */
   detail: (accountId: string) => ["threads", "account", accountId, "detail"] as const,
+  /**
+   * ホームの材料の数（threads-012）。
+   * @param accountId 運用アカウントの ID
+   * @returns 鍵
+   */
+  home: (accountId: string) => ["threads", "account", accountId, "home"] as const,
   /**
    * 戦略。
    * @param accountId 運用アカウントの ID
@@ -176,6 +189,35 @@ export const THREADS_QUERY_KEYS = {
    */
   mediaDefaults: (accountId: string) =>
     ["threads", "account", accountId, "media-defaults"] as const,
+  /**
+   * 今の利用者の、この運用アカウントでの関わり（threads-013）。
+   * @param accountId 運用アカウントの ID
+   * @returns 鍵
+   */
+  access: (accountId: string) => ["threads", "account", accountId, "access"] as const,
+  /**
+   * このアカウントのチーム（threads-013）。
+   * @param accountId 運用アカウントの ID
+   * @returns 鍵
+   */
+  team: (accountId: string) => ["threads", "account", accountId, "team"] as const,
+  /** 入っている組織（threads-013。ナビの「組織」を出すかにも使う） */
+  organizations: ["threads", "organizations"] as const,
+  /**
+   * Threads の組織の画面（threads-013）。
+   * @param organizationId 組織の ID
+   * @returns 鍵
+   */
+  organization: (organizationId: string) => ["threads", "organizations", organizationId] as const,
+  /**
+   * 運用状況（threads-013）。
+   * @param organizationId 組織の ID
+   * @returns 鍵
+   */
+  teamStatus: (organizationId: string) =>
+    ["threads", "organizations", organizationId, "status"] as const,
+  /** はじめの画面の知らせ（threads-013） */
+  teamNotices: ["threads", "team-notices"] as const,
 };
 
 /**
@@ -195,6 +237,18 @@ export function useThreadsAccount(accountId: string) {
   return useQuery({
     queryKey: THREADS_QUERY_KEYS.detail(accountId),
     queryFn: () => fetchAccount(accountId),
+  });
+}
+
+/**
+ * 運用アカウントのホームの材料の数を読む（threads-012）。
+ * @param accountId 運用アカウントの ID
+ * @returns 問い合わせ
+ */
+export function useAccountHome(accountId: string) {
+  return useQuery({
+    queryKey: THREADS_QUERY_KEYS.home(accountId),
+    queryFn: () => fetchAccountHome(accountId),
   });
 }
 
@@ -238,12 +292,30 @@ export function usePostingRules(accountId: string) {
  * 投稿の案の一覧を読む。
  * @param accountId 運用アカウントの ID
  * @param status 状態
+ * @param enabled 読むか（既定は読む）
  * @returns 問い合わせ
  */
-export function useDrafts(accountId: string, status: DraftListStatus) {
+export function useDrafts(accountId: string, status: DraftListStatus, enabled = true) {
   return useQuery({
     queryKey: THREADS_QUERY_KEYS.drafts(accountId, status),
     queryFn: () => fetchDrafts(accountId, status),
+    enabled,
+  });
+}
+
+/**
+ * 投稿済みの案を50件ずつ読む（threads-011。「もっと見る」で続きを読む）。
+ * @param accountId 運用アカウントの ID
+ * @param enabled 読むか（投稿済みのチップを選んでいるときだけ）
+ * @returns 問い合わせ
+ */
+export function usePublishedDrafts(accountId: string, enabled: boolean) {
+  return useInfiniteQuery({
+    queryKey: [...THREADS_QUERY_KEYS.drafts(accountId, "published"), "pages"] as const,
+    queryFn: ({ pageParam }) => fetchDrafts(accountId, "published", pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    enabled,
   });
 }
 
@@ -285,15 +357,17 @@ export function useAutoPost(accountId: string) {
 }
 
 /**
- * 反応の画面を読む。
+ * 反応の画面を読む（50件ずつ。続きは fetchNextPage。threads-012）。
  * @param accountId 運用アカウントの ID
  * @param tab 絞りこみ
  * @returns 問い合わせ
  */
 export function usePerformance(accountId: string, tab: PerformanceTab) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: THREADS_QUERY_KEYS.performance(accountId, tab),
-    queryFn: () => fetchPerformance(accountId, tab),
+    queryFn: ({ pageParam }) => fetchPerformance(accountId, tab, pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
 }
 
@@ -420,4 +494,72 @@ export function useMediaDefaults(accountId: string) {
     queryKey: THREADS_QUERY_KEYS.mediaDefaults(accountId),
     queryFn: () => fetchMediaDefaults(accountId),
   });
+}
+
+/**
+ * 今の利用者の、この運用アカウントでの関わりとできること（threads-013）。
+ * @param accountId 運用アカウントの ID
+ * @param enabled 読むか
+ * @returns 問い合わせ
+ */
+export function useAccountAccess(accountId: string, enabled = true) {
+  return useQuery({
+    queryKey: THREADS_QUERY_KEYS.access(accountId),
+    queryFn: () => fetchAccountAccess(accountId),
+    enabled,
+  });
+}
+
+/**
+ * このアカウントのチーム（threads-013）。
+ * @param accountId 運用アカウントの ID
+ * @param enabled 読むか
+ * @returns 問い合わせ
+ */
+export function useAccountTeam(accountId: string, enabled = true) {
+  return useQuery({
+    queryKey: THREADS_QUERY_KEYS.team(accountId),
+    queryFn: () => fetchAccountTeam(accountId),
+    enabled,
+  });
+}
+
+/**
+ * 入っている組織（threads-013。ナビの「組織」はこの読みこみの結果を使う）。
+ * @returns 問い合わせ
+ */
+export function useTeamOrganizations() {
+  return useQuery({ queryKey: THREADS_QUERY_KEYS.organizations, queryFn: fetchTeamOrganizations });
+}
+
+/**
+ * Threads の組織の画面（threads-013）。
+ * @param organizationId 組織の ID
+ * @returns 問い合わせ
+ */
+export function useTeamOrganization(organizationId: string) {
+  return useQuery({
+    queryKey: THREADS_QUERY_KEYS.organization(organizationId),
+    queryFn: () => fetchTeamOrganization(organizationId),
+  });
+}
+
+/**
+ * 運用状況（threads-013。数と日付だけ）。
+ * @param organizationId 組織の ID
+ * @returns 問い合わせ
+ */
+export function useTeamStatus(organizationId: string) {
+  return useQuery({
+    queryKey: THREADS_QUERY_KEYS.teamStatus(organizationId),
+    queryFn: () => fetchTeamStatus(organizationId),
+  });
+}
+
+/**
+ * はじめの画面の知らせ（threads-013）。
+ * @returns 問い合わせ
+ */
+export function useTeamNotices() {
+  return useQuery({ queryKey: THREADS_QUERY_KEYS.teamNotices, queryFn: fetchTeamNotices });
 }

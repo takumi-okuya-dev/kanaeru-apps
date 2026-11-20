@@ -8,6 +8,8 @@ import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useState } from "react";
 import { errorMessage } from "../../lib/api.ts";
 import { fetchOauthAvailability, startOauth } from "./api.ts";
+import { AccountSwitchSteps, ThreadsAccountGuide } from "./ConnectGuide.tsx";
+import { isAccountSwitchError } from "./connect-guide.ts";
 import { THREADS_QUERY_KEYS } from "./queries.ts";
 
 /**
@@ -26,14 +28,23 @@ function resultOf(code: string | undefined) {
   };
 }
 
+/** OauthConnect が受け取るもの。 */
+export type OauthConnectProps = {
+  /** 運用アカウントの ID */
+  accountId: string;
+  /** 接続しているか（接続し直しも含む） */
+  connected: boolean;
+  /** 今つないでいる Threads のユーザー名（@ なし。未接続は null。押す前の案内に出す。threads-012） */
+  username?: string | null;
+};
+
 /**
- * アプリの Meta のアプリでつなぐボタンと、戻ってきたときの結果。
- * @param props 運用アカウントの ID（accountId）・接続しているか（connected）
- * @param props.accountId 運用アカウントの ID
- * @param props.connected 接続しているか（接続し直しも含む）
+ * アプリの Meta のアプリでつなぐボタンと、押す前の案内と、戻ってきたときの結果。
+ * 違うアカウントで許可して戻ったときは、切り替えの手順を添える（threads-012。めぐるの specs/025）。
+ * @param props 運用アカウントの ID（accountId）・接続しているか（connected）・今のユーザー名（username）
  * @returns 要素（使えなければ、結果だけか null）
  */
-export function OauthConnect({ accountId, connected }: { accountId: string; connected: boolean }) {
+export function OauthConnect({ accountId, connected, username = null }: OauthConnectProps) {
   const search: { oauth?: unknown } = useSearch({ strict: false });
   const query = useQuery({
     queryKey: [...THREADS_QUERY_KEYS.all, "oauth-availability"],
@@ -41,7 +52,10 @@ export function OauthConnect({ accountId, connected }: { accountId: string; conn
   });
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
-  const result = resultOf(typeof search.oauth === "string" ? search.oauth : undefined);
+  const code = typeof search.oauth === "string" ? search.oauth : undefined;
+  const result = resultOf(code);
+  const buttonLabel = connected ? "Meta のアプリでつなぎ直す" : "Meta のアプリでつなぐ";
+  const expected = connected ? username : null;
 
   /** 始めて、Threads の許可の画面へ移る。 */
   const start = async () => {
@@ -60,6 +74,9 @@ export function OauthConnect({ accountId, connected }: { accountId: string; conn
   return (
     <div className="flex flex-col items-start gap-xxs">
       {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
+      {result && query.data?.available && isAccountSwitchError(code) ? (
+        <AccountSwitchSteps expected={expected} again={buttonLabel} />
+      ) : null}
       {query.data?.available ? (
         <>
           <p className="text-s text-text-sub">
@@ -70,12 +87,9 @@ export function OauthConnect({ accountId, connected }: { accountId: string; conn
             onClick={() => void start()}
             aria-disabled={pending || undefined}
           >
-            {pending
-              ? "Threads へ移っています…"
-              : connected
-                ? "Meta のアプリでつなぎ直す"
-                : "Meta のアプリでつなぐ"}
+            {pending ? "Threads へ移っています…" : buttonLabel}
           </Button>
+          <ThreadsAccountGuide expected={expected} again={buttonLabel} />
           {error ? <ResponseMessage tone="danger">{error}</ResponseMessage> : null}
         </>
       ) : null}

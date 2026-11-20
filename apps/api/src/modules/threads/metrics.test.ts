@@ -1,9 +1,10 @@
 // 反応の分析（threads-003）の結合のテスト（本物の PostgreSQL・偽の Threads の API）：
 // 24時間・3日・7日の取りこみと確定・過ぎた時点の補い（遅れて確定）・投稿が見つからない・権限がない・フォロワーの数（1日1回）・
 // 判定（新しい30件の中央値の2倍以上で好調・0.5倍以下で低調。5件に足りなければしない）・反応の画面・改善のメモ（版）・
-// 次のプロンプトに低調の投稿が入る・CSV の書き出し。
+// 次のプロンプトに低調の投稿が入る・CSV の書き出し（threads-012：めぐると同じ列・ためたときの材料の版）・一覧の続き（50件ずつ）。
 import "@hono/zod-openapi";
 import { listApps } from "@workspace/contracts/core";
+import { POST_CSV_HEADER, SNAPSHOT_CSV_HEADER } from "@workspace/contracts/threads";
 import type {
   GeneratedPrompt,
   PerformanceItem,
@@ -325,14 +326,123 @@ describe("反応の分析", () => {
     const bytes = new Uint8Array(await posts.arrayBuffer());
     expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
     const text = new TextDecoder().decode(bytes);
-    expect(text.startsWith("投稿の日時,本文")).toBe(true);
+    const [header, first] = text.replace(/^\uFEFF/, "").split("\r\n");
+    expect(header?.split(",")).toEqual([...POST_CSV_HEADER]);
+    expect(header?.split(",")).toHaveLength(37);
     expect(text).toContain("'=SUM(A1)");
+    // 投稿した日時は日本時間の時差つき・文字数・閲覧（42）・24時間時点の閲覧・まとまりの中の順番（1から）
+    const cells = first?.split(",") ?? [];
+    expect(cells[1]).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+09:00$/);
+    expect(cells[5]).toBe("8");
+    expect(cells[6]).toBe("42");
+    expect(cells[17]).toBe("更新中");
+    expect(cells[19]).toBe("42");
+    expect(cells[26]).toBe("1");
+    expect(cells[31]).toBe("いいえ");
     const snapshots = await (
       await call(app, cookie, `${BASE}/${accountId}/performance/export?kind=snapshots`)
     ).text();
-    expect(snapshots).toContain("24時間");
+    const [snapshotHeader] = snapshots.replace(/^\uFEFF/, "").split("\r\n");
+    expect(snapshotHeader?.split(",")).toEqual([...SNAPSHOT_CSV_HEADER]);
+    expect(snapshots).toContain("24時間時点");
+    expect(snapshots).toContain("時刻の処理");
     expect(snapshots).toContain(",42,");
     const bad = await call(app, cookie, `${BASE}/${accountId}/performance/export?kind=other`);
+    expect(bad.status).toBe(400);
+  });
+
+  it("ためたまとまりに、そのときの材料の版（戦略・宣伝・リサーチ・投稿のルール）を残し、CSV に出す", async () => {
+    const strategyAt = new Date("2026-11-01T01:02:03Z");
+    await database.pool.query(
+      "INSERT INTO threads_strategy (threads_account_id, updated_at) VALUES ($1, $2)",
+      [accountId, strategyAt],
+    );
+    await database.pool.query(
+      "UPDATE threads_account SET promotions_changed_at = $2, research_changed_at = $3 WHERE id = $1",
+      [accountId, new Date("2026-11-02T00:00:00Z"), new Date("2026-11-03T00:00:00Z")],
+    );
+    expect(
+      (
+        await call(app, cookie, `${BASE}/${accountId}/core-rules`, "PUT", {
+          coreRules: "絵文字は使わない",
+        })
+      ).status,
+    ).toBe(200);
+    const created = await call(app, cookie, `${BASE}/${accountId}/draft-batches`, "POST", {
+      clientRequestId: randomUUID(),
+      text: "材料の版を残す案",
+    });
+    expect(created.status).toBe(201);
+    const { batchId } = (await created.json()) as { batchId: string };
+    const batch = await database.pool.query<{
+      strategy_updated_at: Date;
+      promotions_changed_at: Date;
+      research_changed_at: Date;
+      core_rules_changed_at: Date | null;
+    }>(
+      "SELECT strategy_updated_at, promotions_changed_at, research_changed_at, core_rules_changed_at FROM threads_draft_batch WHERE id = $1",
+      [batchId],
+    );
+    const row = batch.rows[0];
+    expect(row?.strategy_updated_at.toISOString()).toBe(strategyAt.toISOString());
+    expect(row?.promotions_changed_at.toISOString()).toBe("2026-11-02T00:00:00.000Z");
+    expect(row?.research_changed_at.toISOString()).toBe("2026-11-03T00:00:00.000Z");
+    expect(row?.core_rules_changed_at).not.toBeNull();
+
+    // 投稿済みにして CSV の最後の4列を見る（日本時間の時差つき）
+    await database.pool.query(
+      "UPDATE threads_post_draft SET status = 'published', reviewed_at = now(), published_at = now() WHERE batch_id = $1",
+      [batchId],
+    );
+    const text = await (
+      await call(app, cookie, `${BASE}/${accountId}/performance/export?kind=posts`)
+    ).text();
+    const cells =
+      text
+        .replace(/^\uFEFF/, "")
+        .split("\r\n")[1]
+        ?.split(",") ?? [];
+    expect(cells.slice(33, 36)).toEqual([
+      "2026-11-01T10:02:03+09:00",
+      "2026-11-02T09:00:00+09:00",
+      "2026-11-03T09:00:00+09:00",
+    ]);
+    expect(cells[36]).toMatch(/\+09:00$/);
+  });
+
+  it("一覧は50件ずつ。続きは nextCursor で読み、壊れた位置は 400", async () => {
+    const batchId = randomUUID();
+    await database.pool.query(
+      "INSERT INTO threads_draft_batch (id, threads_account_id, client_request_id, draft_count, delimiter_found) VALUES ($1, $2, $3, 1, false)",
+      [batchId, accountId, randomUUID()],
+    );
+    // 同じまとまりの中の順番は50まで（0〜49）なので、まとまりを分けて51件にする
+    const second = randomUUID();
+    await database.pool.query(
+      "INSERT INTO threads_draft_batch (id, threads_account_id, client_request_id, draft_count, delimiter_found) VALUES ($1, $2, $3, 1, false)",
+      [second, accountId, randomUUID()],
+    );
+    for (let i = 0; i < 51; i += 1) {
+      await database.pool.query(
+        `INSERT INTO threads_post_draft (threads_account_id, batch_id, position, body, status, reviewed_at, published_at)
+         VALUES ($1, $2, $3, $4, 'published', now(), now() - ($5 || ' minutes')::interval)`,
+        [accountId, i < 50 ? batchId : second, i % 50, `投稿${i}`, String(i)],
+      );
+    }
+    const first = await view();
+    expect(first.items).toHaveLength(50);
+    expect(first.items[0]?.body).toBe("投稿0");
+    expect(first.nextCursor).not.toBeNull();
+    const rest = (await (
+      await call(
+        app,
+        cookie,
+        `${BASE}/${accountId}/performance?tab=all&before=${encodeURIComponent(first.nextCursor ?? "")}`,
+      )
+    ).json()) as PerformanceView;
+    expect(rest.items.map((item) => item.body)).toEqual(["投稿50"]);
+    expect(rest.nextCursor).toBeNull();
+    const bad = await call(app, cookie, `${BASE}/${accountId}/performance?before=broken`);
     expect(bad.status).toBe(400);
   });
 

@@ -133,8 +133,10 @@ export type PerformanceSummary = z.infer<typeof PerformanceSummary>;
 /** 反応の画面。 */
 export const PerformanceView = z.object({
   summary: PerformanceSummary,
-  /** 投稿した新しい順（最大 PERFORMANCE_LIST_MAX 件） */
+  /** 投稿した新しい順（PERFORMANCE_PAGE_SIZE 件ずつ。threads-012） */
   items: z.array(PerformanceItem),
+  /** 続きを読むときに before に渡す値（続きがなければ null。threads-012） */
+  nextCursor: z.string().nullable(),
 });
 
 /** 反応の画面の型。 */
@@ -143,10 +145,9 @@ export type PerformanceView = z.infer<typeof PerformanceView>;
 /** 反応の一覧の問い合わせ。 */
 export const PerformanceQuery = z.object({
   tab: z.enum(PERFORMANCE_TABS, { error: "絞りこみは、選択肢から選んでください。" }).default("all"),
+  /** 続きを読むときの、前の応答の nextCursor（threads-012） */
+  before: z.string().max(200).optional(),
 });
-
-/** 反応の一覧で返す件数の上限（めぐるのページ送りの代わり）。 */
-export const PERFORMANCE_LIST_MAX = 200;
 
 /** 改善のメモと「次のプロンプトに入れる」を保存する入力。 */
 export const FeedbackInput = z.strictObject({

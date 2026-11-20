@@ -1,7 +1,8 @@
 // 反応（threads-003。めぐるの「パフォーマンス」）：投稿ごとの反応（閲覧・いいね・返信・リポスト・引用・シェア）と、
 // そのアカウントの基準値（確定した新しい30件の閲覧の中央値）に比べた判定（好調・普通・低調）。
 // 低調の投稿には、傾向のメモと「次のプロンプトに入れる」を付けられる（新しい5件が、次に作るプロンプトの「避けること」に入る）。
-// CSV で書き出せる（投稿ごと・取りこみごと）。反応は定期の仕事が 24時間・3日・7日に取りこむ。
+// CSV で書き出せる（投稿ごと・取りこみごと。列はめぐると同じ）。反応は定期の仕事が 24時間・3日・7日に取りこむ。
+// 一覧は50件ずつで、「さらに表示する」で続きを読む。メモは欄から離れたとき、「次のプロンプトに入れる」は押したときに保存する（threads-012）。
 import {
   FEEDBACK_MEMO_MAX,
   FeedbackInput,
@@ -10,6 +11,7 @@ import {
   METRIC_LABELS,
   PERFORMANCE_TABS,
   PERFORMANCE_TAB_LABELS,
+  formatBaseline,
   formatRatio,
 } from "@workspace/contracts/threads";
 import type {
@@ -20,18 +22,18 @@ import type {
 } from "@workspace/contracts/threads";
 import { jstDate, jstDateTime } from "@workspace/contracts/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { getRouteApi } from "@tanstack/react-router";
+import { Link, getRouteApi } from "@tanstack/react-router";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
-import { Field } from "@workspace/ui/components/field";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { Textarea } from "@workspace/ui/components/textarea";
-import { useState } from "react";
-import { errorMessage } from "../../lib/api.ts";
+import { useId, useRef, useState } from "react";
+import { ApiError, errorMessage } from "../../lib/api.ts";
 import { saveFile } from "../../lib/download.ts";
 import { fieldErrorsFromApi, fieldErrorsFromIssues } from "../../lib/form.ts";
-import { Page } from "../../lib/page.tsx";
+import { threadsPaths } from "./paths.ts";
+import { ThreadsPage } from "./ThreadsPage.tsx";
 import { AccountGate, LoadFailure, Loading } from "./AccountGate.tsx";
 import { downloadPerformanceCsv, saveFeedback } from "./api.ts";
 import { THREADS_QUERY_KEYS, usePerformance } from "./queries.ts";
@@ -41,11 +43,18 @@ const EXTERNAL_LINK = { target: "_blank", rel: "noopener noreferrer" } as const;
 
 /**
  * 上の集計。
- * @param props 集計（summary）
+ * @param props 運用アカウントの ID（accountId）・集計（summary）
+ * @param props.accountId 運用アカウントの ID
  * @param props.summary 集計
  * @returns 要素
  */
-function SummarySection({ summary }: { summary: PerformanceSummary }) {
+function SummarySection({
+  accountId,
+  summary,
+}: {
+  accountId: string;
+  summary: PerformanceSummary;
+}) {
   return (
     <section aria-labelledby="threads-performance-summary" className="flex flex-col gap-xxs">
       <h2 id="threads-performance-summary" className="text-l font-bold">
@@ -54,7 +63,7 @@ function SummarySection({ summary }: { summary: PerformanceSummary }) {
       <p className="text-m">
         {summary.baseline === null
           ? `確定した投稿が5件たまると、判定を始めます（今 ${summary.baselineSampleCount}件）。`
-          : `閲覧の基準値：${Math.round(summary.baseline).toLocaleString("ja-JP")}（確定した新しい${summary.baselineSampleCount}件の中央値）。2倍以上で好調、0.5倍以下で低調です。`}
+          : `閲覧の基準値：${formatBaseline(summary.baseline)}（確定した新しい${summary.baselineSampleCount}件の中央値）。2倍以上で好調、0.5倍以下で低調です。`}
       </p>
       {summary.baselineIsZero ? (
         <p className="text-s text-text-sub">基準値が0のため、判定できません。</p>
@@ -72,17 +81,38 @@ function SummarySection({ summary }: { summary: PerformanceSummary }) {
         </p>
       ) : null}
       {summary.insightsDenied ? (
-        <p className="text-m text-danger-text">
-          反応を読む権限（threads_manage_insights）がないため、取りこめません。Meta
-          のアプリで権限を足し、トークンを作り直してつなぎ直してください。
-        </p>
+        <div className="flex flex-col items-start gap-xxs">
+          <p className="text-m text-danger-text">
+            反応を読む権限（threads_manage_insights）がないため、取りこめません。Meta
+            のアプリで権限を足し、トークンを作り直してつなぎ直してください。
+          </p>
+          <Link
+            to={threadsPaths.settings(accountId)}
+            hash="threads-connection"
+            className={buttonVariants({ variant: "secondary", size: "small" })}
+          >
+            つなぎ直す（設定の「Threads への接続」へ）
+          </Link>
+        </div>
       ) : null}
     </section>
   );
 }
 
 /**
- * 改善のメモのフォーム（低調の投稿だけ）。
+ * 次のプロンプトに入るかの説明（めぐるの promptNote）。
+ * @param feedback 改善のメモ
+ * @returns 説明の文
+ */
+function promptNote(feedback: NonNullable<PerformanceItem["feedback"]>): string {
+  if (!feedback.includeInPrompt) return "外しています。次からのプロンプトには入りません。";
+  if (feedback.inNextPrompt) return "次のプロンプトに入ります。";
+  return "低調の新しい5件に入っていないため、今は入りません。";
+}
+
+/**
+ * 改善のメモ（低調の投稿だけ）。保存のボタンはなく、メモは欄から離れたとき（変わっていれば）、
+ * 「次のプロンプトに入れる」は押したときに保存する（めぐるの FeedbackEditor）。
  * @param props 運用アカウントの ID（accountId）・項目（item）
  * @param props.accountId 運用アカウントの ID
  * @param props.item 項目
@@ -90,76 +120,147 @@ function SummarySection({ summary }: { summary: PerformanceSummary }) {
  */
 function FeedbackForm({ accountId, item }: { accountId: string; item: PerformanceItem }) {
   const queryClient = useQueryClient();
-  const feedback = item.feedback;
-  const [memo, setMemo] = useState(feedback?.memo ?? "");
-  const [include, setInclude] = useState(feedback?.includeInPrompt ?? true);
+  const memoId = useId();
+  const errorId = useId();
+  // 保存した値（保存のたびに版が進むので、返った項目で置きかえる）
+  const [current, setCurrent] = useState(item.feedback);
+  const [memo, setMemo] = useState(item.feedback?.memo ?? "");
+  // 次のプロンプトに入れるか（押したらすぐ欄に出し、保存は後ろで行う）
+  const [include, setInclude] = useState(item.feedback?.includeInPrompt ?? true);
   const [error, setError] = useState<string>();
   const [result, setResult] = useState<{ tone: "success" | "danger"; message: string }>();
   const [pending, setPending] = useState(false);
-  if (!feedback) return null;
+  // 保存の途中に来た変更は捨てずに、いちばん新しいものだけを、終わったあとに続けて保存する
+  const savingRef = useRef(false);
+  const queuedRef = useRef<{ memo: string; includeInPrompt: boolean } | null>(null);
+  const versionRef = useRef(item.feedback?.version ?? 0);
+  const savedMemoRef = useRef(item.feedback?.memo ?? "");
+  if (!current) return null;
 
-  /** 保存する。 */
-  const save = async () => {
-    if (pending) return;
-    setResult(undefined);
+  /**
+   * 1回保存する（確かめに通らなければ false）。
+   * @param next 保存する値
+   * @param next.memo メモ
+   * @param next.includeInPrompt 次のプロンプトに入れるか
+   * @returns 続けてよいなら true
+   */
+  const saveOnce = async (next: { memo: string; includeInPrompt: boolean }): Promise<boolean> => {
     const parsed = FeedbackInput.safeParse({
-      memo: memo.trim() ? memo : null,
-      includeInPrompt: include,
-      version: feedback.version,
+      memo: next.memo.trim() ? next.memo : null,
+      includeInPrompt: next.includeInPrompt,
+      version: versionRef.current,
     });
     if (!parsed.success) {
       setError(fieldErrorsFromIssues(parsed.error.issues).memo);
-      return;
+      return false;
     }
     setError(undefined);
-    setPending(true);
     try {
-      await saveFeedback(accountId, item.id, parsed.data);
-      await queryClient.invalidateQueries({ queryKey: THREADS_QUERY_KEYS.account(accountId) });
-      setResult({ tone: "success", message: "メモを保存しました。" });
+      const saved = await saveFeedback(accountId, item.id, parsed.data);
+      setCurrent(saved.feedback);
+      if (saved.feedback) {
+        versionRef.current = saved.feedback.version;
+        savedMemoRef.current = saved.feedback.memo ?? "";
+      }
+      setResult({ tone: "success", message: "保存しました。" });
+      return true;
     } catch (caught) {
       const fields = fieldErrorsFromApi(caught);
       if (fields.memo) setError(fields.memo);
+      else if (caught instanceof ApiError && caught.status === 409)
+        setResult({
+          tone: "danger",
+          message:
+            "ほかの画面で先に保存されたため、保存できませんでした。画面を読みこみ直してから、もう一度入れてください。",
+        });
       else setResult({ tone: "danger", message: `保存できませんでした。${errorMessage(caught)}` });
+      return false;
+    }
+  };
+
+  /**
+   * 保存する（保存の途中なら、いちばん新しい値を覚えておき、終わったあとに続けて保存する）。
+   * @param next 保存する値（メモと、次のプロンプトに入れるか）
+   * @param next.memo メモ
+   * @param next.includeInPrompt 次のプロンプトに入れるか
+   */
+  const save = async (next: { memo: string; includeInPrompt: boolean }) => {
+    if (savingRef.current) {
+      queuedRef.current = next;
+      return;
+    }
+    savingRef.current = true;
+    setPending(true);
+    setResult(undefined);
+    try {
+      let job: { memo: string; includeInPrompt: boolean } | null = next;
+      while (job) {
+        if (!(await saveOnce(job))) {
+          queuedRef.current = null;
+          break;
+        }
+        job = queuedRef.current;
+        queuedRef.current = null;
+      }
+      await queryClient.invalidateQueries({ queryKey: THREADS_QUERY_KEYS.account(accountId) });
     } finally {
+      savingRef.current = false;
       setPending(false);
     }
   };
 
+  /** 欄から離れたとき、変わっていれば保存する。 */
+  const commitMemo = () => {
+    if (memo.trim() === savedMemoRef.current.trim() && !queuedRef.current) return;
+    void save({ memo, includeInPrompt: include });
+  };
+
   return (
     <div className="flex flex-col gap-xxs rounded-sm border border-border bg-surface-sunken p-xs">
-      <Field
-        label="低調の傾向のメモ"
-        description={`任意。${FEEDBACK_MEMO_MAX}文字まで。次に作るプロンプトの「避けること」に入ります。`}
-        error={error}
-      >
-        <Textarea
-          rows={2}
-          maxLength={FEEDBACK_MEMO_MAX}
-          value={memo}
-          onChange={(change) => setMemo(change.target.value)}
-        />
-      </Field>
+      <label htmlFor={memoId} className="text-m font-bold">
+        低調の傾向のメモ
+        <span className="font-normal text-text-sub">（任意・なぜ伸びなかったと思うか）</span>
+      </label>
+      <Textarea
+        id={memoId}
+        rows={2}
+        maxLength={FEEDBACK_MEMO_MAX}
+        placeholder="例：前置きが長く、結論が最後まで出てこない"
+        value={memo}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
+        onChange={(change) => setMemo(change.target.value)}
+        onBlur={commitMemo}
+      />
+      {error ? (
+        <p id={errorId} className="text-s text-danger-text">
+          {error}
+        </p>
+      ) : null}
+      <p className="text-s text-text-sub">
+        欄から離れると保存します。次に作るプロンプトの「避けること」に入ります（{[...memo].length}／
+        {FEEDBACK_MEMO_MAX}文字）。
+      </p>
       <label className="flex min-h-l items-center gap-xxs text-m">
         <input
           type="checkbox"
           className="size-s accent-primary"
           checked={include}
-          onChange={(change) => setInclude(change.target.checked)}
+          onChange={() => {
+            const next = !include;
+            setInclude(next);
+            void save({ memo, includeInPrompt: next });
+          }}
         />
         次のプロンプトに入れる
       </label>
-      <p className="text-s text-text-sub">
-        {feedback.inNextPrompt
-          ? "今は次のプロンプトに入ります（低調の新しい5件まで）。"
-          : "今は次のプロンプトに入りません。"}
-      </p>
-      <div className="flex flex-col items-start gap-xxs">
-        <Button size="small" onClick={() => void save()} aria-disabled={pending || undefined}>
-          {pending ? "保存しています…" : "メモを保存"}
-        </Button>
-        {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
-      </div>
+      <p className="text-s text-text-sub">{promptNote(current)}</p>
+      {pending ? (
+        <p aria-busy="true" className="text-s text-text-sub">
+          保存しています…
+        </p>
+      ) : null}
+      {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
     </div>
   );
 }
@@ -290,14 +391,19 @@ function PerformanceContent({ account }: { account: ThreadsAccount }) {
   const [tab, setTab] = useState<PerformanceTab>("all");
   const query = usePerformance(account.id, tab);
   if (query.isPending) return <Loading />;
-  if (query.isError) return <LoadFailure error={query.error} retry={() => void query.refetch()} />;
-  const { summary, items } = query.data;
+  // 読めたあとの続きの失敗では、画面を差しかえず、ボタンの近くに出す
+  if (query.isLoadingError)
+    return <LoadFailure error={query.error} retry={() => void query.refetch()} />;
+  const [first] = query.data.pages;
+  if (!first) return <Loading />;
+  const { summary } = first;
+  const items = query.data.pages.flatMap((page) => page.items);
   return (
-    <Page
+    <ThreadsPage
       title="反応"
       lead={`${account.name}：投稿ごとの反応を、このアカウントの基準値と比べて判定します。`}
     >
-      <SummarySection summary={summary} />
+      <SummarySection accountId={account.id} summary={summary} />
       <ChoiceChips
         label="表示する投稿"
         options={PERFORMANCE_TABS.map((value) => ({
@@ -320,8 +426,22 @@ function PerformanceContent({ account }: { account: ThreadsAccount }) {
           ))}
         </ul>
       )}
+      {query.hasNextPage ? (
+        <div className="flex flex-col items-start gap-xxs">
+          <Button
+            variant="secondary"
+            aria-disabled={query.isFetchingNextPage || undefined}
+            onClick={() => !query.isFetchingNextPage && void query.fetchNextPage()}
+          >
+            {query.isFetchingNextPage ? "読みこんでいます…" : "さらに表示する"}
+          </Button>
+          {query.isFetchNextPageError ? (
+            <ResponseMessage tone="danger">{`続きを読みこめませんでした。${errorMessage(query.error)}`}</ResponseMessage>
+          ) : null}
+        </div>
+      ) : null}
       <ExportSection accountId={account.id} />
-    </Page>
+    </ThreadsPage>
   );
 }
 

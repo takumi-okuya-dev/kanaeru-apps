@@ -58,6 +58,7 @@ import {
   createThreadsClient,
 } from "./threads-client.ts";
 import type { ThreadsClient, ThreadsProfile, TokenDebugInfo } from "./threads-client.ts";
+import { refreshUsernameOnlyMatch } from "./username-match.ts";
 
 const MINUTE_MS = 60_000;
 const DAY_MS = 86_400_000;
@@ -350,6 +351,9 @@ export type ConnectOutcome = {
   warnings: TokenWarning[];
 };
 
+/** 接続を確定する前の確かめ（接続のトランザクションの中で、Threads のユーザーの鍵を取ったあとに呼ぶ。断るときは AppError を投げる）。 */
+export type ConnectGuard = (tx: Executor, threadsUserId: string) => Promise<void>;
+
 /**
  * トークンを貼って、未接続の運用アカウントにはじめてつなぐ・接続し直す（どちらかは今の状態で決める）。
  * @param deps 土台が渡す道具
@@ -357,6 +361,7 @@ export type ConnectOutcome = {
  * @param account 運用アカウント（持ち主を確かめたもの）
  * @param rawToken 貼った文（前後の空白・引用符は取り除く）
  * @param now 今
+ * @param guard 接続を確定する前の確かめ（OAuth の接続だけ。threads-012）
  * @returns つないだ結果
  * @throws {AppError} 鍵の設定がない・待たせている間・トークンが合わない・別のアカウント・ほかの運用アカウントがつないでいる・Threads が答えない
  */
@@ -366,13 +371,14 @@ export async function connectWithToken(
   account: AccountRow,
   rawToken: string,
   now: Date = new Date(),
+  guard?: ConnectGuard,
 ): Promise<ConnectOutcome> {
   const box = deps.secretBox;
   if (!box) throw new AppError(THREADS_ERRORS.THREADS_CONNECTION_UNAVAILABLE);
   const reservation = await reserveCheck(deps.db, ownerId, now);
   let failure: FailureReason | null = null;
   try {
-    return await checkAndConnect(deps, box, account, rawToken, now);
+    return await checkAndConnect(deps, box, account, rawToken, now, guard);
   } catch (error) {
     if (error instanceof CountedFailure) {
       failure = error.reason;
@@ -408,6 +414,7 @@ export async function connectWithToken(
  * @param account 運用アカウント
  * @param rawToken 貼った文
  * @param now 今
+ * @param guard 接続を確定する前の確かめ
  * @returns つないだ結果
  * @throws {CountedFailure} 数える失敗
  * @throws {AppError} 数えない失敗
@@ -418,6 +425,7 @@ async function checkAndConnect(
   account: AccountRow,
   rawToken: string,
   now: Date,
+  guard?: ConnectGuard,
 ): Promise<ConnectOutcome> {
   const invalid = () => new AppError(THREADS_ERRORS.THREADS_TOKEN_INVALID);
   const token = cleanToken(rawToken);
@@ -440,11 +448,15 @@ async function checkAndConnect(
   const sealed = await box.seal(token, account.id);
   const scopes = debug && debug.scopes.length > 0 ? debug.scopes : [...THREADS_SCOPES];
   const username = normalizeUsername(profile.username);
+  // ユーザー名だけが同じ別の運用アカウントは、持っているトークンで今の名前を読み直してから比べる（threads-012。username-match.ts）
+  await refreshUsernameOnlyMatch(deps, threadsClientOf(deps), profile);
 
   return deps.db.transaction(async (tx) => {
     // 鍵の順は「Threads のユーザー → ユーザー名」。同じ Threads のアカウントを2つの運用アカウントに同時につながない
     await lockKey(tx, `threads_user:${profile.id}`);
     await lockKey(tx, `threads_username:${username}`);
+    // OAuth の接続だけ：認可のあとの連携の解除・データの削除の要求を、鍵を取ったあとに確かめる（threads-012）
+    if (guard) await guard(tx, profile.id);
     const [target] = await tx
       .select()
       .from(threadsAccount)
@@ -464,7 +476,7 @@ async function checkAndConnect(
     }
     // 同じ Threads のアカウント（ユーザー ID か、ユーザー名。ユーザー ID は Meta のアプリごとに違いうる）をつないだ別の運用アカウント
     const [other] = await tx
-      .select({ id: threadsAccount.id })
+      .select({ id: threadsAccount.id, ownerId: threadsAccount.accountId })
       .from(threadsAccount)
       .where(
         and(
@@ -476,7 +488,13 @@ async function checkAndConnect(
         ),
       )
       .limit(1);
-    if (other) throw new AppError(THREADS_ERRORS.THREADS_ACCOUNT_TAKEN);
+    // 自分の別の運用アカウントなら、そう伝える（画面が一覧へ案内する）。ほかの人のものは、だれのものかを明かさない（threads-012）
+    if (other)
+      throw new AppError(
+        other.ownerId === target.accountId
+          ? THREADS_ERRORS.THREADS_ACCOUNT_REGISTERED
+          : THREADS_ERRORS.THREADS_ACCOUNT_TAKEN,
+      );
 
     const values = {
       accessTokenCiphertext: sealed.ciphertext,
@@ -498,6 +516,7 @@ async function checkAndConnect(
         threadsUserId: profile.id,
         username: profile.username,
         displayName: profile.name,
+        profilePictureUrl: profile.profilePictureUrl,
         connectionStatus: "connected",
         reconnectHint: null,
         connectionGeneration: sql`${threadsAccount.connectionGeneration} + 1`,
@@ -525,7 +544,7 @@ async function checkAndConnect(
  * @param threadsAccountId 運用アカウントの ID
  * @param now 今
  */
-async function skipUnsentAttempts(
+export async function skipUnsentAttempts(
   tx: Executor,
   threadsAccountId: string,
   now: Date,
@@ -632,6 +651,7 @@ export async function disconnect(
         threadsUserId: null,
         username: null,
         displayName: null,
+        profilePictureUrl: null,
         reconnectHint: null,
         insightsDeniedAt: null,
         repliesDeniedAt: null,
@@ -669,6 +689,7 @@ export async function verifyConnection(
       .set({
         username: profile.username,
         displayName: profile.name,
+        profilePictureUrl: profile.profilePictureUrl,
         connectionStatus: "connected",
         reconnectHint: null,
       })
@@ -813,6 +834,7 @@ const REFRESH_BATCH = 10;
 
 /**
  * トークンを延ばす：期限を過ぎた接続は接続し直しが要る状態にし、期限まで7日を切って発行から24時間たったものを延ばす。
+ * 接続し直しが要る接続も、トークンが残っていれば延ばしてみて、延ばせたら接続済みに戻す（めぐるの token-refresh.ts。threads-012）。
  * 延ばすと発行の日時が今になるので、同じものを続けて選ばない。1件の失敗で全体を止めない。
  * @param deps 土台が渡す道具
  * @param threads Threads の API の呼び出し
@@ -841,7 +863,14 @@ export async function refreshExpiringTokens(
     .innerJoin(threadsAccount, eq(threadsAccount.id, threadsConnection.threadsAccountId))
     .where(
       and(
-        eq(threadsAccount.connectionStatus, "connected"),
+        // 接続し直しが要るものは、1日に1回だけ試す（試したら運用アカウントの更新の日時が今になる）
+        or(
+          eq(threadsAccount.connectionStatus, "connected"),
+          and(
+            eq(threadsAccount.connectionStatus, "needs_reconnect"),
+            lt(threadsAccount.updatedAt, new Date(now.getTime() - DAY_MS)),
+          ),
+        ),
         lt(threadsConnection.expiresAt, new Date(now.getTime() + 7 * DAY_MS)),
         gt(threadsConnection.expiresAt, now),
         lt(threadsConnection.issuedAt, new Date(now.getTime() - DAY_MS)),
@@ -865,6 +894,7 @@ export async function refreshExpiringTokens(
 
 /**
  * 1件のトークンを延ばす（プロフィールも取り直し、IV は新しく作る）。読んだときの世代が変わっていれば結果を捨てる。
+ * 延ばせたら接続済みにする（接続し直しが要る状態からも戻す）。
  * @param deps 土台が渡す道具
  * @param box 秘密の箱
  * @param threads Threads の API の呼び出し
@@ -880,13 +910,27 @@ async function refreshOne(
   now: Date,
 ): Promise<boolean> {
   const cred = await loadCredentials(deps.db, box, threadsAccountId, deps.logger);
-  if (!cred?.token || cred.connectionStatus !== "connected") return false;
+  if (!cred?.token || cred.connectionStatus === "not_connected") return false;
   let next: { accessToken: string; expiresAt: Date };
   let profile: ThreadsProfile;
   try {
     next = await threads.refresh(cred.token);
     profile = await threads.getProfile(next.accessToken);
   } catch (error) {
+    if (cred.connectionStatus === "needs_reconnect") {
+      // 延ばせなかった：試した日時を残し、次は1日あとに試す
+      await deps.db
+        .update(threadsAccount)
+        .set({ updatedAt: now })
+        .where(
+          and(
+            eq(threadsAccount.id, threadsAccountId),
+            eq(threadsAccount.connectionGeneration, cred.generation),
+          ),
+        );
+      if (error instanceof ThreadsAuthError || error instanceof ThreadsApiError) return false;
+      throw error;
+    }
     if (error instanceof ThreadsAuthError) {
       await markNeedsReconnect(deps.db, threadsAccountId, cred.generation);
       return false;
@@ -902,6 +946,8 @@ async function refreshOne(
         connectionGeneration: cred.generation + 1,
         username: profile.username,
         displayName: profile.name,
+        connectionStatus: "connected",
+        reconnectHint: null,
       })
       .where(
         and(

@@ -328,7 +328,7 @@ export function researchRoutes(deps: DomainRouteDeps) {
 
   return new OpenAPIHono<ApiEnv>()
     .openapi(routes.listPromotions, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "read_private");
       const items = await listPromotions(db, account.id, new Date());
       return c.json(
         { items, limit: PROMOTION_LIMIT, ratioPercent: account.promotionRatioPercent },
@@ -336,20 +336,20 @@ export function researchRoutes(deps: DomainRouteDeps) {
       );
     })
     .openapi(routes.createPromotion, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "write_content");
       const row = await createPromotion(db, account.id, c.req.valid("json"));
       return c.json(toPromotion(row, new Date()), 201);
     })
     .openapi(routes.updatePromotion, async (c) => {
       const { accountId, itemId } = c.req.valid("param");
-      const account = await ownedAccount(deps, c, accountId);
+      const account = await ownedAccount(deps, c, accountId, "write_content");
       const { version, ...input } = c.req.valid("json");
       const row = await updatePromotion(db, account.id, itemId, input, version);
       return c.json(toPromotion(row, new Date()), 200);
     })
     .openapi(routes.deletePromotion, async (c) => {
       const { accountId, itemId } = c.req.valid("param");
-      const account = await ownedAccount(deps, c, accountId);
+      const account = await ownedAccount(deps, c, accountId, "write_content");
       if (!(await deletePromotion(db, account.id, itemId))) throw new AppError("NOT_FOUND");
       return c.body(null, 204);
     })
@@ -363,7 +363,7 @@ export function researchRoutes(deps: DomainRouteDeps) {
       return c.json({ ratioPercent }, 200);
     })
     .openapi(routes.listReferences, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "read_private");
       return c.json(
         {
           items: await listReferencePosts(db, account.id, new Date()),
@@ -373,7 +373,7 @@ export function researchRoutes(deps: DomainRouteDeps) {
       );
     })
     .openapi(routes.createReferences, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "write_content");
       const items = await createReferencePosts(
         db,
         account.id,
@@ -384,7 +384,7 @@ export function researchRoutes(deps: DomainRouteDeps) {
     })
     .openapi(routes.updateReference, async (c) => {
       const { accountId, itemId } = c.req.valid("param");
-      const account = await ownedAccount(deps, c, accountId);
+      const account = await ownedAccount(deps, c, accountId, "write_content");
       const { post, version } = c.req.valid("json");
       return c.json(
         await updateReferencePost(db, account.id, itemId, post, version, new Date()),
@@ -393,12 +393,12 @@ export function researchRoutes(deps: DomainRouteDeps) {
     })
     .openapi(routes.deleteReference, async (c) => {
       const { accountId, itemId } = c.req.valid("param");
-      const account = await ownedAccount(deps, c, accountId);
+      const account = await ownedAccount(deps, c, accountId, "write_content");
       if (!(await deleteReferencePost(db, account.id, itemId))) throw new AppError("NOT_FOUND");
       return c.body(null, 204);
     })
     .openapi(routes.explainPrompt, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "read_private");
       const strategy = toStrategyValues(await findStrategy(db, account.id));
       return c.json(
         await explainPrompt(db, account.id, strategy, c.req.valid("query").id, new Date()),
@@ -406,32 +406,32 @@ export function researchRoutes(deps: DomainRouteDeps) {
       );
     })
     .openapi(routes.saveExplanations, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "write_content");
       return c.json(await saveExplanations(db, account.id, c.req.valid("json").items), 200);
     })
     .openapi(routes.listKeywords, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "read_private");
       return c.json({ items: await listKeywords(db, account.id), limit: KEYWORD_LIMIT }, 200);
     })
     .openapi(routes.createKeywords, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "write_content");
       const items = await createKeywords(db, account.id, c.req.valid("json").items, new Date());
       return c.json({ items }, 201);
     })
     .openapi(routes.updateKeyword, async (c) => {
       const { accountId, itemId } = c.req.valid("param");
-      const account = await ownedAccount(deps, c, accountId);
+      const account = await ownedAccount(deps, c, accountId, "write_content");
       const { version, ...input } = c.req.valid("json");
       return c.json(await updateKeyword(db, account.id, itemId, input, version), 200);
     })
     .openapi(routes.deleteKeyword, async (c) => {
       const { accountId, itemId } = c.req.valid("param");
-      const account = await ownedAccount(deps, c, accountId);
+      const account = await ownedAccount(deps, c, accountId, "write_content");
       if (!(await deleteKeyword(db, account.id, itemId))) throw new AppError("NOT_FOUND");
       return c.body(null, 204);
     })
     .openapi(routes.ideaPrompt, async (c) => {
-      const account = await ownedAccount(deps, c, c.req.valid("param").accountId);
+      const account = await ownedAccount(deps, c, c.req.valid("param").accountId, "read_private");
       const strategy = toStrategyValues(await findStrategy(db, account.id));
       return c.json({ prompt: buildKeywordIdeaPrompt(strategy) }, 200);
     });
