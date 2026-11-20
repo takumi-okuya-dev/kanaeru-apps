@@ -132,6 +132,7 @@ export async function runJob(
     } else if (outcome.kind === "retry") summary.retried += 1;
     else if (outcome.kind === "carried_over") summary.carriedOver += 1;
     else if (outcome.kind === "failed") summary.failed += 1;
+    else if (outcome.kind === "skipped" && outcome.reason === "blocked") summary.blocked += 1;
     else if (outcome.kind === "skipped") summary.skipped += 1;
     else summary.waiting += 1;
   };

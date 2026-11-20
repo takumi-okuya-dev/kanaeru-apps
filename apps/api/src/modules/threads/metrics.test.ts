@@ -170,6 +170,35 @@ describe("反応の分析", () => {
     ]);
   });
 
+  it("次の時点がまだの古い投稿が多くても、新しい投稿の時点を取りこむ", async () => {
+    const at = new Date(Date.now() - 2 * HOUR);
+    // 48時間前に投稿し、24時間の時点はもう取った古い投稿（呼び出しの数の数倍）
+    // 束は50件までなので、35件ずつの2つに分ける
+    const batchIds = [randomUUID(), randomUUID()];
+    for (const id of batchIds)
+      await database.pool.query(
+        "INSERT INTO threads_draft_batch (id, threads_account_id, client_request_id, draft_count, delimiter_found) VALUES ($1, $2, $3, 35, true)",
+        [id, accountId, randomUUID()],
+      );
+    await database.pool.query(
+      `WITH d AS (
+         INSERT INTO threads_post_draft (threads_account_id, batch_id, position, body, status, reviewed_at, published_at, threads_media_id)
+         SELECT $1, (ARRAY[$2::uuid, $5::uuid])[i / 35 + 1], i % 35, '古い投稿' || i, 'published', $3, $3, 'old-' || i
+         FROM generate_series(0, 69) AS i
+         RETURNING id
+       )
+       INSERT INTO threads_post_metric_snapshot (draft_id, threads_account_id, kind, method, fetched_at, elapsed_minutes, views)
+       SELECT id, $1, 'h24', 'slot', $4, 1440, 10 FROM d`,
+      [accountId, batchIds[0], new Date(at.getTime() - 24 * HOUR), at, batchIds[1]],
+    );
+    const { draftId } = await published("新しい投稿", at, 70);
+    await tick(new Date(at.getTime() + 24 * HOUR));
+    expect((await view()).items.find((entry) => entry.id === draftId)).toMatchObject({
+      metrics: { views: 70 },
+      lastElapsedHours: 24,
+    });
+  });
+
   it("過ぎた時点は補い、8日を過ぎていれば遅れて確定にする。投稿が見つからなければ計れない", async () => {
     const lateAt = new Date(Date.now() - 9 * 24 * HOUR);
     const late = await published("遅れた投稿", lateAt);

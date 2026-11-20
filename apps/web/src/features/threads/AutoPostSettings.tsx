@@ -318,6 +318,13 @@ function ScheduleForm({ accountId, view }: { accountId: string; view: PostingSch
   const queryClient = useQueryClient();
   const { schedule, limits } = view;
   const [enabled, setEnabled] = useState(schedule.enabled);
+  // 読み直した設定でオン・オフが変わったら（Threads を切るとオフになる）、欄もそろえる。
+  // そろえないと、つなぎ直したあとに欄だけオンのまま残り、時刻を保存するとオンに戻ってしまう
+  const [loadedEnabled, setLoadedEnabled] = useState(schedule.enabled);
+  if (loadedEnabled !== schedule.enabled) {
+    setLoadedEnabled(schedule.enabled);
+    setEnabled(schedule.enabled);
+  }
   const [rows, setRows] = useState<TimeRow[]>(() =>
     (schedule.slotTimes.length > 0 ? schedule.slotTimes : ["12:00"]).map(timeRow),
   );

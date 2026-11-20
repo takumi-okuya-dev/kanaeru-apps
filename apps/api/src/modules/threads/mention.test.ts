@@ -296,6 +296,34 @@ describe("時間差のメンション", () => {
     expect(fake.posts().filter((item) => item.replyToId === post?.id)).toHaveLength(1);
   });
 
+  it("公開の要求が届かずコンテナーが公開されないまま（FINISHED）なら、やり直しの中で出し直す", async () => {
+    await setUp();
+    const [first] = await paste(["やり直しのお知らせ"]);
+    if (!first) throw new Error("案がない");
+    const attached = (await (
+      await api(`/drafts/${first.id}/mention`, "PUT", {
+        version: first.version,
+        usernames: ["minato_place"],
+      })
+    ).json()) as PostDraft;
+    expect((await review("approve", [attached])).status).toBe(200);
+    await api("/posting-schedule", "PUT", {
+      enabled: true,
+      slotTimes: ["10:00"],
+      jitter: false,
+      version: 0,
+    });
+    await tick(tomorrowAt(10, 0));
+    const post = fake.posts().find((item) => item.text === "やり直しのお知らせ");
+    expect(post).toBeDefined();
+    // 返信の公開が 500（結果がわからない）→ 次の回は FINISHED（公開されていない）→ やり直しの時刻に出す
+    fake.failNext("publish", { status: 500, body: { error: { message: "x", code: 2 } } });
+    expect((await tick(tomorrowAt(10, 31))).mentions).toBe(0);
+    expect((await tick(tomorrowAt(10, 36))).mentions).toBe(0);
+    expect((await tick(tomorrowAt(10, 45))).mentions).toBe(1);
+    expect(fake.posts().filter((item) => item.replyToId === post?.id)).toHaveLength(1);
+  });
+
   it("返信の文に NG ワードがあると承認できない。承認済みに付けると承認し直し。却下すると消える。外せる", async () => {
     await setUp();
     const [draft] = await paste(["お知らせ"]);

@@ -27,6 +27,15 @@ import {
 } from "./threads-client.ts";
 import type { ThreadsClient } from "./threads-client.ts";
 
+/** 公開を送ったはずのコンテナーが、まだ公開されていない（FINISHED）。一時的な失敗として、やり直しの回数の中で出し直す。 */
+class MentionNotPublishedError extends Error {
+  /** 作る */
+  constructor() {
+    super("mention container is not published");
+    this.name = "MentionNotPublishedError";
+  }
+}
+
 const HOUR_MS = 3_600_000;
 const LEASE_MS = 5 * 60_000;
 const RETRY_STEP_MS = 5 * 60_000;
@@ -257,7 +266,20 @@ async function handleOne(
           );
         containerId = null;
       }
-      if (status === "IN_PROGRESS" || status === "FINISHED") {
+      if (status === "FINISHED") {
+        // 公開されていない（公開の要求が届く前に失敗した・送る前に止まった）。同じコンテナーで、やり直しの回数の中で出し直す
+        await db
+          .update(threadsPostMention)
+          .set({ publishRequestedAt: null })
+          .where(
+            and(
+              eq(threadsPostMention.draftId, m.draftId),
+              eq(threadsPostMention.leaseToken, leaseToken),
+            ),
+          );
+        throw new MentionNotPublishedError();
+      }
+      if (status === "IN_PROGRESS") {
         // 処理中のまま時間を過ぎたら、出せなかったことにする（いつまでも借り直さない）
         if (now.getTime() - m.publishRequestedAt.getTime() > MENTION_EXPIRE_HOURS * HOUR_MS)
           return fail(deps, m.draftId, leaseToken, "error");

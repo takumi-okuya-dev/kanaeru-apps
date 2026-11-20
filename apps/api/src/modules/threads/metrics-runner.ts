@@ -54,6 +54,9 @@ import {
 } from "./threads-client.ts";
 import type { ThreadsClient, ThreadsMediaInsights } from "./threads-client.ts";
 
+/** 1回に対象を読む回数の上限（呼び出しの数に足りる仕事が見つかるまで、古い順に読み進める）。 */
+const METRICS_MAX_PAGES = 5;
+
 const HOUR_MS = 3600_000;
 
 /** 取りこむ1件。 */
@@ -87,62 +90,75 @@ export async function runMetricsStage(
   const todayStart = jstMidnight(today);
 
   // 1. 対象：接続済みで、反応を読む権限がない印が今日より前の運用アカウントの、確定していない投稿済み（23時間より前）
-  const rows = await db
-    .select({
-      draftId: threadsPostDraft.id,
-      threadsAccountId: threadsPostDraft.threadsAccountId,
-      publishedAt: threadsPostDraft.publishedAt,
-      mediaId: threadsPostDraft.threadsMediaId,
-      taken: sql<
-        string[]
-      >`coalesce((SELECT array_agg(${threadsPostMetricSnapshot.kind}) FROM ${threadsPostMetricSnapshot} WHERE ${threadsPostMetricSnapshot.draftId} = ${threadsPostDraft.id}), '{}')`,
-    })
-    .from(threadsPostDraft)
-    .innerJoin(threadsAccount, eq(threadsAccount.id, threadsPostDraft.threadsAccountId))
-    .leftJoin(threadsPostMetric, eq(threadsPostMetric.draftId, threadsPostDraft.id))
-    .where(
-      and(
-        eq(threadsPostDraft.status, "published"),
-        eq(threadsAccount.connectionStatus, "connected"),
-        or(
-          isNull(threadsAccount.insightsDeniedAt),
-          lt(threadsAccount.insightsDeniedAt, todayStart),
+  //    古い順に少しずつ読み、取る仕事が呼び出しの数に足りるまで（読む回数に上限をつけて）先へ進む。
+  //    次の時点がまだ来ていない古い投稿が先頭を埋めても、新しい投稿の時点を取りこぼさないため
+  const readPage = (after: { publishedAt: Date; id: string } | null) =>
+    db
+      .select({
+        draftId: threadsPostDraft.id,
+        threadsAccountId: threadsPostDraft.threadsAccountId,
+        publishedAt: threadsPostDraft.publishedAt,
+        mediaId: threadsPostDraft.threadsMediaId,
+        taken: sql<
+          string[]
+        >`coalesce((SELECT array_agg(${threadsPostMetricSnapshot.kind}) FROM ${threadsPostMetricSnapshot} WHERE ${threadsPostMetricSnapshot.draftId} = ${threadsPostDraft.id}), '{}')`,
+      })
+      .from(threadsPostDraft)
+      .innerJoin(threadsAccount, eq(threadsAccount.id, threadsPostDraft.threadsAccountId))
+      .leftJoin(threadsPostMetric, eq(threadsPostMetric.draftId, threadsPostDraft.id))
+      .where(
+        and(
+          eq(threadsPostDraft.status, "published"),
+          eq(threadsAccount.connectionStatus, "connected"),
+          or(
+            isNull(threadsAccount.insightsDeniedAt),
+            lt(threadsAccount.insightsDeniedAt, todayStart),
+          ),
+          or(isNull(threadsPostMetric.state), eq(threadsPostMetric.state, "updating")),
+          lt(threadsPostDraft.publishedAt, new Date(now.getTime() - 23 * HOUR_MS)),
+          after
+            ? sql`(${threadsPostDraft.publishedAt}, ${threadsPostDraft.id}) > (${after.publishedAt}, ${after.id})`
+            : undefined,
         ),
-        or(isNull(threadsPostMetric.state), eq(threadsPostMetric.state, "updating")),
-        lt(threadsPostDraft.publishedAt, new Date(now.getTime() - 23 * HOUR_MS)),
-      ),
-    )
-    .orderBy(asc(threadsPostDraft.publishedAt), asc(threadsPostDraft.id))
-    .limit(calls + 40);
+      )
+      .orderBy(asc(threadsPostDraft.publishedAt), asc(threadsPostDraft.id))
+      .limit(calls + 40);
 
   // 2. 何を取るかを決める（幅の中の時点を先に、次に補い）
   const slot: Work[] = [];
   const daily: Work[] = [];
-  for (const row of rows) {
-    if (!row.publishedAt) continue;
-    const elapsed = elapsedMinutes(row.publishedAt, now);
-    const taken = new Set(
-      row.taken.filter(
-        (kind): kind is MetricsMilestone => kind === "h24" || kind === "d3" || kind === "d7",
-      ),
-    );
-    const base = {
-      draftId: row.draftId,
-      threadsAccountId: row.threadsAccountId,
-      mediaId: row.mediaId,
-      elapsed,
-    };
-    const milestone = milestoneForElapsed(elapsed);
-    if (milestone && !taken.has(milestone)) {
-      if (row.mediaId) slot.push({ ...base, kind: milestone, method: "slot" });
-      continue;
+  let cursor: { publishedAt: Date; id: string } | null = null;
+  for (let page = 0; page < METRICS_MAX_PAGES && slot.length + daily.length < calls; page += 1) {
+    const rows = await readPage(cursor);
+    for (const row of rows) {
+      if (!row.publishedAt) continue;
+      const elapsed = elapsedMinutes(row.publishedAt, now);
+      const taken = new Set(
+        row.taken.filter(
+          (kind): kind is MetricsMilestone => kind === "h24" || kind === "d3" || kind === "d7",
+        ),
+      );
+      const base = {
+        draftId: row.draftId,
+        threadsAccountId: row.threadsAccountId,
+        mediaId: row.mediaId,
+        elapsed,
+      };
+      const milestone = milestoneForElapsed(elapsed);
+      if (milestone && !taken.has(milestone)) {
+        if (row.mediaId) slot.push({ ...base, kind: milestone, method: "slot" });
+        continue;
+      }
+      if (!row.mediaId) {
+        daily.push({ ...base, kind: "no_media", method: "daily" });
+        continue;
+      }
+      const kind = catchUpKind(elapsed, taken);
+      if (kind) daily.push({ ...base, kind, method: "daily" });
     }
-    if (!row.mediaId) {
-      daily.push({ ...base, kind: "no_media", method: "daily" });
-      continue;
-    }
-    const kind = catchUpKind(elapsed, taken);
-    if (kind) daily.push({ ...base, kind, method: "daily" });
+    const last = rows.at(-1);
+    if (!last?.publishedAt || rows.length < calls + 40) break;
+    cursor = { publishedAt: last.publishedAt, id: last.draftId };
   }
 
   // 3. Threads に問い合わせる

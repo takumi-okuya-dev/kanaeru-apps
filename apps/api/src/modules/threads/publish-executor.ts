@@ -11,6 +11,7 @@ import {
   AUTOPOST_RETRY_DELAYS_MINUTES,
   AUTOPOST_RETRY_MAX,
   addDays,
+  checkPublishable,
   jstDateOf,
   jstMidnight,
 } from "@workspace/contracts/threads";
@@ -20,6 +21,7 @@ import type { Executor } from "../../kernel/db.ts";
 import type { DomainRouteDeps } from "../../kernel/http.ts";
 import { recordActivity } from "./activity-log.ts";
 import { loadCredentials, markNeedsReconnect } from "./connection.ts";
+import { listNgWords } from "./repository.ts";
 import type { ThreadsCredentials } from "./connection.ts";
 import {
   threadsAccount,
@@ -40,7 +42,7 @@ type AttemptRow = typeof threadsPublishAttempt.$inferSelect;
 /** 案の行。 */
 type DraftRow = typeof threadsPostDraft.$inferSelect;
 /** 飛ばした理由（公開まで進める途中で）。 */
-type SkipReason = "needs_reconnect" | "rate_limited" | "auto_post_off";
+type SkipReason = "needs_reconnect" | "rate_limited" | "auto_post_off" | "blocked";
 
 /** 公開まで進めた結果。 */
 export type ExecuteOutcome =
@@ -334,6 +336,8 @@ class AttemptContext {
       try {
         const sent = await this.publishFenced(cred, containerId);
         if (sent.kind === "stale") return { kind: "skipped", reason: "needs_reconnect" };
+        if (sent.kind === "off") return { kind: "skipped", reason: "auto_post_off" };
+        if (sent.kind === "blocked") return { kind: "skipped", reason: "blocked" };
         ({ mediaId } = sent);
       } catch (error) {
         if (error instanceof LeaseLostError) throw error;
@@ -363,12 +367,16 @@ class AttemptContext {
    * つなぎ直し・ほかの処理の引き継ぎは送り終わるまで待つので、公開とつなぎ直しの順がどちらかに決まる。
    * @param cred 接続
    * @param containerId 公開するコンテナー
-   * @returns 送った結果。接続し直しが要る・世代が読んだときと違うなら stale（送らずに、試みを飛ばして案を承認済みに戻す）
+   * @returns 送った結果。接続し直しが要る・世代が読んだときと違うなら stale（送らずに、試みを飛ばして案を承認済みに戻す）。
+   *   自動投稿が切になっていれば off（同じく承認済みに戻す）。今の NG ワードに当たれば blocked（試みを飛ばし、案を承認待ちに戻す）。
+   *   やり直しの間に、持ち主が自動投稿を切った・NG ワードを足したときも、新しい公開は送らない（送った公開の照らし合わせは run の confirm）
    */
   private publishFenced(
     cred: UsableCredentials,
     containerId: string,
-  ): Promise<{ kind: "sent"; mediaId: string } | { kind: "stale" }> {
+  ): Promise<
+    { kind: "sent"; mediaId: string } | { kind: "stale" } | { kind: "off" } | { kind: "blocked" }
+  > {
     return this.deps.db.transaction(async (tx) => {
       const [account] = await tx
         .select({
@@ -409,6 +417,57 @@ class AttemptContext {
             and(eq(threadsPostDraft.id, this.draft.id), eq(threadsPostDraft.status, "publishing")),
           );
         return { kind: "stale" } as const;
+      }
+      const skipAttempt = (skipReason: "auto_post_off" | "no_drafts") =>
+        tx
+          .update(threadsPublishAttempt)
+          .set({
+            state: "skipped",
+            skipReason,
+            draftId: null,
+            publishRequestedAt: null,
+            leaseUntil: null,
+            updatedAt: this.now,
+          })
+          .where(eq(threadsPublishAttempt.id, this.attempt.id));
+      const [schedule] = await tx
+        .select({ enabled: threadsPostingSchedule.enabled })
+        .from(threadsPostingSchedule)
+        .where(eq(threadsPostingSchedule.threadsAccountId, this.attempt.threadsAccountId));
+      if (!schedule?.enabled) {
+        await skipAttempt("auto_post_off");
+        await tx
+          .update(threadsPostDraft)
+          .set({ ...this.backToApprovedDraft(), version: sql`${threadsPostDraft.version} + 1` })
+          .where(
+            and(eq(threadsPostDraft.id, this.draft.id), eq(threadsPostDraft.status, "publishing")),
+          );
+        return { kind: "off" } as const;
+      }
+      const check = checkPublishable(
+        this.draft.body,
+        await listNgWords(tx, this.attempt.threadsAccountId),
+      );
+      if (!check.approvable) {
+        // 試みは「出せる案がなかった」として飛ばし、案は承認待ちに戻して理由を残す（取りあいのときの確かめと同じ）
+        await skipAttempt("no_drafts");
+        await tx
+          .update(threadsPostDraft)
+          .set({
+            status: "needs_review",
+            reviewedAt: null,
+            prioritizedAt: null,
+            carryoverAttemptId: null,
+            blockedAt: this.now,
+            blockedReason: check.ngWords.length > 0 ? "ng_word" : "over_threads_limit",
+            blockedWords:
+              check.ngWords.length > 0 ? [...new Set(check.ngWords.map((hit) => hit.word))] : null,
+            version: sql`${threadsPostDraft.version} + 1`,
+          })
+          .where(
+            and(eq(threadsPostDraft.id, this.draft.id), eq(threadsPostDraft.status, "publishing")),
+          );
+        return { kind: "blocked" } as const;
       }
       const { mediaId } = await this.threads.publishContainer(
         cred.token,

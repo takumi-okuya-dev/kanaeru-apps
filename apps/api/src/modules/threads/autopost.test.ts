@@ -518,6 +518,36 @@ describe("Threads への接続と自動投稿", () => {
       expect(again.status).toBe(200);
     });
 
+    it("やり直しの間に自動投稿を切ったら投稿しない。NG ワードを足したら承認待ちに戻す", async () => {
+      const { id } = await connectedAccount();
+      await saveSchedule(id, { slotTimes: ["10:00", "12:00"] });
+      const [draft] = await approved(id, ["やり直しになる案です"]);
+      fake.failNext("create", { status: 500, body: { error: { message: "x", code: 2 } } });
+      expect((await tick(tomorrowAt(10, 1))).retried).toBe(1);
+      expect(
+        (await saveSchedule(id, { enabled: false, slotTimes: ["10:00", "12:00"], version: 1 }))
+          .status,
+      ).toBe(200);
+      expect((await tick(tomorrowAt(10, 7))).published).toBe(0);
+      expect(fake.posts()).toHaveLength(0);
+      expect((await drafts(id, "approved")).drafts[0]).toMatchObject({ id: draft?.id });
+
+      // 入に戻して、もう一度やり直しにしてから NG ワードを足す
+      expect((await saveSchedule(id, { slotTimes: ["10:00", "12:00"], version: 2 })).status).toBe(
+        200,
+      );
+      fake.failNext("create", { status: 500, body: { error: { message: "x", code: 2 } } });
+      expect((await tick(tomorrowAt(12, 1))).retried).toBe(1);
+      await call(app, cookie, `${BASE}/${id}/ng-words`, "POST", { word: "やり直し" });
+      expect((await tick(tomorrowAt(12, 7))).blocked).toBe(1);
+      expect(fake.posts()).toHaveLength(0);
+      expect((await drafts(id, "needs_review")).drafts[0]).toMatchObject({
+        id: draft?.id,
+        blockedReason: "ng_word",
+        blockedWords: ["やり直し"],
+      });
+    });
+
     it("認証のエラーは「接続し直しが要る」にして案を承認済みに戻し、上限は次の日の0時まで止める", async () => {
       const { id, token } = await connectedAccount();
       await saveSchedule(id, { slotTimes: ["10:00", "14:00"] });
