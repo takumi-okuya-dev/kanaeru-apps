@@ -1,7 +1,9 @@
 // 画面の領域（features/<領域>/index.ts）が出すものの形。組み立て（router.tsx）が features.list.ts を読んでつなぐ。
 // ナビの項目の形（NavItem）もここに置く（領域が出し、外枠〈shell〉が描く。外枠は lib だけを読む）。
 // 設定の画面の項目（SettingsSection。lib/settings.ts）も、領域が feature.settings で出す（core-005）。
+// 組織の画面に足すもの（OrganizationExtension。lib/organization.ts）も、領域が feature.organization で出す（suite-001）。
 import type { AnyRoute } from "@tanstack/react-router";
+import type { OrganizationExtension } from "./organization.ts";
 import type { SettingsSection } from "./settings.ts";
 
 /** ナビのアイコンの種類（線は lib/icon.tsx）。 */
@@ -48,4 +50,8 @@ export type WebFeature = {
    * そのアプリが見えないときは出さない（属するアプリは組み立てが apps.list.ts から決める）。
    */
   settings?: readonly SettingsSection[];
+  /**
+   * 組織の画面への入口と、組織の招待の確かめの画面の説明（任意。suite-001）。そのアプリが見えないときは出さない。
+   */
+  organization?: OrganizationExtension;
 };

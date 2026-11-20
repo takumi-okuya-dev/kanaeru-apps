@@ -11,6 +11,7 @@ import { errorResponse } from "./errors.ts";
 import type { DomainFeatures } from "./features.ts";
 import type { MetaApp } from "./meta-app.ts";
 import type { Logger } from "./logger.ts";
+import type { RegisteredWithdrawalStep } from "./withdrawal.ts";
 
 /** 道の文脈の型（要求ごとの値）。 */
 export type ApiEnv = { Variables: RequestIdVariables };
@@ -60,6 +61,11 @@ export type DomainRouteDeps = {
   metaApp?: MetaApp | undefined;
   /** 登録されたアプリ（apps.list.ts の順。テストでは組み立ての extraApps も足す。suite の台帳が読む。AD-15） */
   apps: readonly AppDefinition[];
+  /**
+   * 退会の手順（組み立てが各領域の withdrawal を「共通 → アプリの一覧の順」に並べたもの。account の退会の窓口だけが使う。AD-22）。
+   * 手で組み立てるテストは書かなくてよい（なければ手順なし）
+   */
+  withdrawalSteps?: readonly RegisteredWithdrawalStep[];
 };
 
 /**

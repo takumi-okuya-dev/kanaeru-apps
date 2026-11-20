@@ -12,6 +12,7 @@ import { createLineIdTokenVerifier } from "./line-verifier.ts";
 import type { LineIdTokenVerifier } from "./line-verifier.ts";
 import { isForeignKeyViolation } from "../../kernel/pg-errors.ts";
 import { deleteAccount, deleteSessionByTokenHash, upsertAccount } from "./repository.ts";
+import { collectWithdrawalPreview, runWithdrawalSteps } from "./withdrawal.ts";
 import type { AccountRecord } from "./repository.ts";
 import {
   clearSessionCookie,
@@ -143,6 +144,33 @@ function deleteRoute(deps: DomainRouteDeps) {
 }
 
 /**
+ * 退会の確かめの中身の道（各領域が出す、引き継がれるもの・消えるもの。AD-22）。
+ * @param deps 土台が渡す道具
+ * @returns 道の定義
+ */
+function withdrawalPreviewRoute(deps: DomainRouteDeps) {
+  return createRoute({
+    method: "get",
+    path: "/api/v1/accounts/me/withdrawal",
+    tags: ["account"],
+    operationId: "accountGetWithdrawalPreview",
+    summary: "退会の確かめの中身（組織の引き継ぎ・引き継がれる記録・消える記録。書きこまない）",
+    middleware: [requireSession(deps)] as const,
+    responses: {
+      200: {
+        description: "確かめの中身（退会の手順と同じ順）",
+        content: {
+          "application/json": {
+            schema: contract.WithdrawalPreview.openapi("AccountWithdrawalPreview"),
+          },
+        },
+      },
+      401: unauthenticatedResponse,
+    },
+  });
+}
+
+/**
  * 自分のアカウントを消す道（退会。本人のデータはすべての領域の CASCADE で消える。AD-7・AD-19）。
  * @param deps 土台が渡す道具
  * @returns 道の定義
@@ -156,7 +184,7 @@ function deleteMeRoute(deps: DomainRouteDeps) {
     summary:
       "自分のアカウントを消す（退会。すべてのアプリの本人の記録とセッションも消える。元に戻せない）",
     description:
-      "ほかの人が書きこむ記録（RESTRICT の外部キー）を持っていれば消さずに 409 ACCOUNT_OWNS_SHARED_RECORDS（AD-19）。消したらクッキーも消す。",
+      "先に各領域の退会の手順（組織の管理者の引き継ぎ・組織に入れた記録の引き継ぎ）を共通 → アプリの順に流してから消す（AD-22）。ほかの人自身の本人の記録（RESTRICT の外部キー）がぶら下がっていれば消さずに 409 ACCOUNT_OWNS_SHARED_RECORDS（AD-19）。消したらクッキーも消す。",
     middleware: [requireSession(deps)] as const,
     responses: {
       204: { description: "消した（セッションのクッキーも消した）" },
@@ -248,9 +276,13 @@ export function accountRoutes(
         return c.body(null, 204);
       })
       .openapi(meRoute(deps), (c) => c.json(present(config, currentAccountRecord(c)), 200))
+      .openapi(withdrawalPreviewRoute(deps), async (c) =>
+        c.json({ items: await collectWithdrawalPreview(deps, currentAccountRecord(c).id) }, 200),
+      )
       // /me は /{accountId} より先に足す（道の値の形の確かめで 404 にならないように）
       .openapi(deleteMeRoute(deps), async (c) => {
         try {
+          await runWithdrawalSteps(deps, currentAccountRecord(c).id);
           await deleteAccount(db, currentAccountRecord(c).id);
         } catch (error) {
           if (isForeignKeyViolation(error)) {
@@ -262,7 +294,10 @@ export function accountRoutes(
         return c.body(null, 204);
       })
       .openapi(deleteRoute(deps), async (c) => {
-        const deleted = await deleteAccount(db, c.req.valid("param").accountId);
+        const { accountId } = c.req.valid("param");
+        // 主催者がアカウントを消すときも、退会と同じ順に手順を流す（AD-22）
+        await runWithdrawalSteps(deps, accountId);
+        const deleted = await deleteAccount(db, accountId);
         if (!deleted) throw new AppError("NOT_FOUND");
         return c.body(null, 204);
       })

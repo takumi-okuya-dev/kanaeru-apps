@@ -1,8 +1,8 @@
 # スイート（suite）の地図
 
-2026-11-20 作成（core-005。決めた理由と仮決めは [specs/core/005-app-switcher/spec.md](../../specs/core/005-app-switcher/spec.md)、範囲は [PRD](../../_bmad-output/prd-kanaeru-suite/prd-kanaeru-suite.md)）。
+2026-11-20 作成（core-005。決めた理由と仮決めは [specs/core/005-app-switcher/spec.md](../../specs/core/005-app-switcher/spec.md)、範囲は [PRD](../../_bmad-output/prd-kanaeru-suite/prd-kanaeru-suite.md)）。同じ日に suite-001（組織と退会の手順の組み立て。[specs/suite/001-organization](../../specs/suite/001-organization/spec.md)・[PRD 組織](../../_bmad-output/prd-kanaeru-org/prd-kanaeru-org.md)・AD-22）を足した。
 
-スイートの共通の領域（どのアプリにも属さない）。アプリの台帳（公開の状態）を持ち、アプリが見えるかを決める1か所（構成の決めごと AD-15・AD-16）。画面では、すべてのアプリ・設定（一覧・アカウント・アプリの台帳）を持つ。契約（`entitlement`）と売り方は、売り始めるときに足す。
+スイートの共通の領域（どのアプリにも属さない）。アプリの台帳（公開の状態）を持ち、アプリが見えるかを決める1か所（構成の決めごと AD-15・AD-16）。組織（人と役割・招待）と、契約の持ち主の形（`entitlement`。払うしくみと売り方は売り始めるときに足す）も持つ（AD-22）。画面では、すべてのアプリ・設定（一覧・アカウント・組織・アプリの台帳）・組織の招待の確かめの画面を持つ。
 
 ## 1. アプリの一覧（`packages/contracts/src/core/apps.list.ts`）
 
@@ -10,7 +10,7 @@
 
 | 欄 | 何か |
 |---|---|
-| `key` | 英小文字で始まる英小文字・数字。一意。予約語（`RESERVED_APP_KEYS`：`api`・`admin`・`e`・`invite`・`dev`・`assets`・`apps`・`oauth`・`mcp`・`well-known`・`settings`）は使えない |
+| `key` | 英小文字で始まる英小文字・数字。一意。予約語（`RESERVED_APP_KEYS`：`api`・`admin`・`e`・`invite`・`dev`・`assets`・`apps`・`oauth`・`mcp`・`well-known`・`settings`・`join`）は使えない |
 | `name`・`summary`・`description` | 名前・切り替えの短い説明・すべてのアプリの説明 |
 | `icon` | 線のアイコンの種類（`APP_ICONS`。線は `apps/web/src/lib/icon.tsx`） |
 | `domains` | 属する領域。どの領域も、ちょうど1つのアプリか共通（`COMMON_DOMAINS`：`account`・`suite`）に属する |
@@ -40,6 +40,10 @@
 | 表 | 列 | 決まり |
 |---|---|---|
 | `app_setting` | `id`（uuid）・`app_key`（text）・`visibility`（text）・`created_at`・`updated_at` | `app_key` は一意（`app_setting_app_key_unique`）。`visibility` は `off`・`operator_only`・`public`（CHECK）。行がないアプリは `operator_only`。DB の変更（`0008_suite.sql`）が受付アプリを `public` で入れる。書くのは suite だけ |
+| `organization` | `id`・`name`（1〜50文字の CHECK）・`admin_seen_at`（管理者が組織の画面を最後に見た日時）・`created_at`・`updated_at` | suite-001（`0012_suite_organization.sql`） |
+| `organization_member` | `organization_id`・`account_id`（主キーはこの組）・`role`（`admin`・`editor`・`member`）・`joined_at`・`demoted_at`（最後にメンバーに下げた日時） | 管理者は1組織に1人（`organization_member_admin_unique`。部分の一意）。どちらの外部キーも CASCADE。アプリの「組織に入れる」・担当の表は、この組を指す複合の外部キーを CASCADE で持つ |
+| `organization_invite` | `organization_id`（主キー）・`token_hash`（一意）・`token_ciphertext`・`token_iv`・`key_version`・`created_at` | 照らし合わせは SHA-256 だけ。出し直すための写しを秘密の箱で包む（箱がなければ空） |
+| `entitlement` | `id`・`app_key`・`holder_account_id`・`holder_organization_id`・`created_at`・`updated_at` | 持ち主はどちらか1つ（`entitlement_holder_check`）。どちらも CASCADE。売り始めるまで使わない（料金などの列はそのときに足す） |
 
 ## 3. 窓口
 
@@ -48,6 +52,16 @@
 | GET | `/api/v1/suite/apps` | 見る人に見えるアプリ（登録の順。名前・説明・アイコン・領域・道の頭・公開の状態）と、運営者か。ログインの前でも答える（公開のアプリだけ） | — |
 | GET | `/api/v1/suite/app-settings` | 台帳（登録されたアプリごとに1行。行がなければ `operator_only`・`stored: false`）。運営者だけ | 401・403 |
 | PUT | `/api/v1/suite/app-settings/{appKey}` | 公開の状態を変える（`{ visibility }`）。すぐ効く。運営者だけ | 400・401・403・404（登録されていない key） |
+| GET・POST | `/api/v1/suite/organizations` | 入っている組織（入った順・役割・人数）／組織を作る（作った人が管理者。管理者として持てる組織は20まで） | 400・401・409 `ORGANIZATION_LIMIT` |
+| GET | `/api/v1/suite/organizations/{id}` | 組織の画面（人の表示名・役割・入った日・あなた・新しい人〈管理者だけ〉）。組織の人の全員 | 401・404 `ORGANIZATION_NOT_FOUND` |
+| PATCH・DELETE | `/api/v1/suite/organizations/{id}` | 名前を直す・組織を消す（管理者だけ） | 403 `ORGANIZATION_ADMIN_ONLY`・404 |
+| GET・POST | `/api/v1/suite/organizations/{id}/invite` | 招待の札を読む（なければ・出し直せなければ `null`）・作り直す（管理者だけ） | 403・404 |
+| PUT・DELETE | `/api/v1/suite/organizations/{id}/members/{accountId}` | 役割をメンバー⇔編集者に切り替える（編集者は10人まで）・外す（管理者だけ。自分と管理者は不可） | 403・404・409 |
+| POST | `/api/v1/suite/organizations/{id}/transfer` | 管理者を引き継ぐ（前の管理者は編集者） | 403・404・409 |
+| POST | `/api/v1/suite/organizations/{id}/leave` | 抜ける（管理者は `successorAccountId` が要る） | 404・409 `ORGANIZATION_SUCCESSOR_REQUIRED` |
+| GET・POST | `/api/v1/suite/organization-invites/{token}` | 招待の確かめの中身（名前・管理者・人数・すでに入っているか・満員か）・メンバーとして入る（同じ人は1回だけ） | 404 `ORGANIZATION_INVITE_INVALID`・409 `ORGANIZATION_FULL` |
+
+組織の操作の判定は `routes-organization.ts` の `requireOrganizationRole` の1か所（組織の人でなければ 404・管理者だけの操作は 403）。役割は要求のたびに引く。
 
 ## 4. 見えるか（ほかが使うもの）
 
@@ -63,6 +77,20 @@ API（`apps/api/src/modules/suite/index.ts`）：
 
 アプリの領域は `app_setting` を読まない。領域の中の大きな機能を止めるのは、今までどおり設定 `DOMAIN_FEATURES`（非常の切り替え）。
 
+### 組織と契約（ほかが使うもの。suite-001・AD-22）
+
+| 名前 | 何か |
+|---|---|
+| `organizationTable`・`organizationMemberTable` | 外部キーのためだけ（`.references()`・`foreignKey()`）。読み書きしない |
+| `findMembership(db, organizationId, accountId)` | その人の組織の人の行（役割・入った日時・`demotedAt`）。組織の人でなければ `null`。要求のたびに引く |
+| `listMemberships(db, accountId)`・`listMembers(db, organizationId)` | 入っている組織（組織の名前つき）・組織の人（表示名つき。管理者 → 編集者 → メンバー） |
+| `findOrganization(db, id)`・`findOrganizationAdmin(db, id)` | 組織・管理者（表示名つき） |
+| `adminAfterWithdrawal(db, organizationId, accountId)` | その人が退会したあとの管理者（組織が消えるなら `null`）。アプリが退会の確かめの中身で引き継ぐ先を決める |
+| `withdrawal` | suite の退会の手順（管理者の組織をいちばん長くいる人に引き継ぐ・誰もいなければ消す）。組み立てがアプリより先に流す |
+| `hasEntitlement(db, { ownerAccountId, organizationId }, appKey)`・`ENTITLEMENTS_ENFORCED` | 契約があるか（持ち主の個人の契約か、記録を入れた組織の契約）。売り始めるまで `ENTITLEMENTS_ENFORCED = false` で、いつも true。どの窓口もまだ呼ばない |
+
+退会の手順の組み立て（AD-22）：各領域の `index.ts` の `withdrawal`（`kernel/withdrawal.ts` の形）を、`app.ts` の `orderWithdrawalSteps` が共通（`COMMON_DOMAINS` の順）→ アプリの一覧の順に並べ、`DomainRouteDeps.withdrawalSteps` で account に渡す（account の地図 2章）。
+
 テスト：`apps/api/test/helpers/suite.ts` の見本のアプリ（`DEMO_APP`・`DEMO_MODULE`。key `demo`・道 `GET /api/v1/demo/ping`）を `buildApp(database, config, { extraApps: [DEMO_APP], extraModules: { demo: DEMO_MODULE } })` に渡す。E2E の API（`apps/api/test/e2e-server.ts`）も見本のアプリを足し、立ち上げのときに見本のアプリを切・受付アプリを公開に戻す。
 
 ## 5. 画面
@@ -73,5 +101,10 @@ API（`apps/api/src/modules/suite/index.ts`）：
 | `/settings` | 設定の一覧（`section: "settings"`） | まとまり（個人の設定・アプリの設定・運営）ごとの項目。スマホはここから入る |
 | `/settings/account` | アカウント | 表示名・ログインの方法・登録した日・使えるアプリ・ログアウト・退会（確かめの枠）。ログアウトと退会のあとは `/apps` に知らせの帯 |
 | `/settings/apps` | アプリの台帳（運営者だけ） | 行ごとのチップで、押すとすぐ保存し、結果を行のそばに出す。今見える人と凡例 |
+| `/settings/organizations` | 組織（個人の設定） | 入っている組織の一覧と「組織を作る」 |
+| `/settings/organizations/$organizationId` | 組織の画面 | 人の一覧（あなた・新しい人）。管理者は役割の切り替え・外す・招待のリンクと QR・作り直す・名前・消す・引き継ぐ。抜ける（管理者は引き継ぐ人を選ぶ）。アプリの組織の画面への入口（`feature.organization.links`。見えるアプリだけ） |
+| `/join/$joinToken` | 組織の招待の確かめ（外枠のナビなし。ログインが要る） | 組織の名前・管理者・人数・「メンバーとして入ります」・見え方の説明（アプリの `feature.organization.joinNotes`。見えるアプリだけ）・入る。すでに入っていれば組織の画面への入口。使えないリンクは理由と「管理者に新しいリンクを頼んでください」 |
 
-画面の入口（`apps/web/src/features/suite/index.ts`）：`useVisibleApps()`（見えるアプリ・運営者か。鍵に今わかっている利用者を入れる）・`loadVisibleApps(queryClient)`（はじめの画面）・`SUITE_QUERY_KEYS`・`SUITE_ROUTE_PATTERNS`。組み立てが外枠の切り替えとナビに使う。設定の項目は、領域の `feature.settings`（suite は「アカウント」と「アプリの台帳」）。
+退会の枠（`/settings/account`）は、開いたときに `GET /api/v1/accounts/me/withdrawal` を読み、組織・引き継がれる記録・消える記録に分けて出す。
+
+画面の入口（`apps/web/src/features/suite/index.ts`）：`useVisibleApps()`（見えるアプリ・運営者か。鍵に今わかっている利用者を入れる）・`loadVisibleApps(queryClient)`（はじめの画面）・`SUITE_QUERY_KEYS`・`SUITE_ROUTE_PATTERNS`。組み立てが外枠の切り替えとナビに使う。設定の項目は、領域の `feature.settings`（suite は「アカウント」「組織」「アプリの台帳」）。アプリが組織の画面と招待の確かめの画面に足すものは、領域の `feature.organization`（`lib/organization.ts`。組み立てが属するアプリを付けて渡す）。

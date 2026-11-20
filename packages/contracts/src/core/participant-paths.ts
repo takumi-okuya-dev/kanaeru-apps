@@ -1,4 +1,5 @@
 // 参加者が外から開く画面の道と、それを LINEミニアプリの URL（パーマリンク）にする関数（構成の決めごと AD-14）。
+// 組織の招待（/join/{token}）も、外から開く道としてここに置く（AD-22）。
 // reception・survey・event の画面はこの道で作り、event はこの関数で QR と招待のリンクを作る。QR に置き場所の URL を入れない。
 // パーマリンク ＝ LIFF URL ＋（ページの URL − エンドポイントの URL）。エンドポイントは源の直下に置くので、LIFF URL ＋ 道になる
 // （https://developers.line.biz/en/docs/line-mini-app/develop/permanent-links/。specs/core/001-foundation/research.md R9）。
@@ -19,6 +20,8 @@ export const PARTICIPANT_ROUTE_PATTERNS = {
   survey: "/e/$eventId/survey",
   /** 受付係の招待 */
   invite: "/invite/$inviteToken",
+  /** 組織の招待（suite-001。AD-22） */
+  join: "/join/$joinToken",
 } as const;
 
 /**
@@ -52,6 +55,12 @@ export const participantPaths = {
    * @returns `/invite/{inviteToken}`
    */
   invite: (inviteToken: string): string => `/invite/${segment(inviteToken)}`,
+  /**
+   * 組織の招待の道（suite-001。AD-22）。
+   * @param joinToken 組織の招待の札
+   * @returns `/join/{joinToken}`
+   */
+  join: (joinToken: string): string => `/join/${segment(joinToken)}`,
 };
 
 /**

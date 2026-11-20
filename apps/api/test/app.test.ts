@@ -9,10 +9,13 @@ import { DB_UNAVAILABLE_MESSAGES } from "@workspace/contracts/core";
 import { describe, expect, it, vi } from "vitest";
 import { createDatabase } from "../src/kernel/db.ts";
 import { uuidParam } from "../src/kernel/http.ts";
-import { OPENAPI_DOC_PATH, toFieldErrors } from "../src/app.ts";
+import { OPENAPI_DOC_PATH, orderWithdrawalSteps, toFieldErrors } from "../src/app.ts";
 import type { AppEnv, DomainModule, DomainRouteDeps } from "../src/app.ts";
 import { TEST_ORIGIN, buildApp, jsonRequest, testConfig } from "./helpers/app.ts";
-import { useTestDatabase } from "./helpers/db.ts";
+import { loginAs, withCookie } from "./helpers/account.ts";
+import { truncateAllTables, useTestDatabase } from "./helpers/db.ts";
+import type { AppDefinition } from "@workspace/contracts/core";
+import type { WithdrawalStep } from "../src/kernel/withdrawal.ts";
 
 const database = useTestDatabase();
 
@@ -108,6 +111,7 @@ describe("組み立て", () => {
       "logger",
       "metaApp",
       "secretBox",
+      "withdrawalSteps",
     ]);
     expect(received?.secretBox).toBeUndefined();
     expect(received?.isJobRequest("Bearer ")).toBe(false);
@@ -506,5 +510,108 @@ describe("組み立て", () => {
 
   it("画面の源は、テストの設定のもの", () => {
     expect(testConfig().webUrl).toBe(TEST_ORIGIN);
+  });
+});
+
+describe("退会の手順の並び（AD-22）", () => {
+  /**
+   * 呼ばれた順を書きとめる手順を作る。
+   * @param name 名前
+   * @param calls 書きとめる先
+   * @param text 確かめの中身の文
+   * @returns 手順
+   */
+  function recordingStep(name: string, calls: string[], text = name): WithdrawalStep {
+    return {
+      prepare: () => {
+        calls.push(name);
+        return Promise.resolve();
+      },
+      preview: () => Promise.resolve([{ kind: "delete", text }]),
+    };
+  }
+
+  /**
+   * テストのアプリを作る。
+   * @param key アプリの key
+   * @param domains 属する領域
+   * @returns アプリの定義
+   */
+  function fakeApp(key: string, domains: string[]): AppDefinition {
+    return {
+      key,
+      name: `アプリ${key}`,
+      summary: "",
+      description: "",
+      icon: "list",
+      domains,
+      basePath: `/${key}`,
+      uses: [],
+      accountData: "",
+    };
+  }
+
+  it("共通の領域を先、アプリを一覧の順（アプリの中は domains の順）、テストの領域を最後に並べ、account は入れない", () => {
+    const calls: string[] = [];
+    const apps = [fakeApp("beta", ["b2", "b1"]), fakeApp("alpha", ["a1"])];
+    const steps = orderWithdrawalSteps(
+      [
+        ["a1", { withdrawal: recordingStep("a1", calls) }],
+        ["extra:0", { withdrawal: recordingStep("extra", calls) }],
+        ["b1", { withdrawal: recordingStep("b1", calls) }],
+        ["account", { withdrawal: recordingStep("account", calls) }],
+        ["nostep", {}],
+        ["b2", { withdrawal: recordingStep("b2", calls) }],
+        ["suite", { withdrawal: recordingStep("suite", calls) }],
+      ],
+      apps,
+    );
+    expect(steps.map((step) => [step.domain, step.source])).toEqual([
+      ["suite", "スイート"],
+      ["b2", "アプリbeta"],
+      ["b1", "アプリbeta"],
+      ["a1", "アプリalpha"],
+      ["extra:0", "スイート"],
+    ]);
+  });
+
+  it("退会の窓口は、手順を順に流してから消し、確かめの中身は同じ順で出典つき。主催者がアカウントを消すときも流す", async () => {
+    await truncateAllTables(database);
+    const calls: string[] = [];
+    const late = fakeApp("zlast", ["zlast"]);
+    const app = buildApp(database, testConfig({ organizerLineUserId: `U${"e".repeat(32)}` }), {
+      extraApps: [late],
+      extraModules: {
+        zlast: { withdrawal: recordingStep("zlast", calls, "見本の記録を消します。") },
+      },
+    });
+    const { cookie, account } = await loginAs(app, { displayName: "退会する人" });
+    const preview = await app.request("/api/v1/accounts/me/withdrawal", withCookie(cookie));
+    expect(preview.status).toBe(200);
+    const items = ((await preview.json()) as { items: { source: string; text: string }[] }).items;
+    // 登録されたアプリの手順のあとに、テストのアプリの手順が来る
+    expect(items.at(-1)).toEqual({
+      kind: "delete",
+      source: "アプリzlast",
+      text: "見本の記録を消します。",
+    });
+    expect(
+      (await app.request("/api/v1/accounts/me", withCookie(cookie, { method: "DELETE" }))).status,
+    ).toBe(204);
+    expect(calls).toEqual(["zlast"]);
+    const gone = await database.pool.query("SELECT 1 FROM account WHERE id = $1", [account.id]);
+    expect(gone.rowCount).toBe(0);
+
+    const organizer = await loginAs(app, { lineUserId: `U${"e".repeat(32)}` });
+    const target = await loginAs(app, { displayName: "消される人" });
+    expect(
+      (
+        await app.request(
+          `/api/v1/accounts/${target.account.id}`,
+          withCookie(organizer.cookie, { method: "DELETE" }),
+        )
+      ).status,
+    ).toBe(204);
+    expect(calls).toEqual(["zlast", "zlast"]);
   });
 });

@@ -9,9 +9,11 @@
 // アプリが見えるか（AD-16）：packages/contracts/src/core/apps.list.ts の「アプリ → 属する領域」から、アプリに属する領域の
 // すべての道に suite の requireApp を付ける（各アプリは付けない。見えなければ 404）。どのアプリにも共通にも属さない領域があれば、
 // 起動を止める（requireApp の付け忘れで、作りかけのアプリが見えないように）。
+// 退会の手順（AD-22）：各領域の withdrawal を「共通（suite）を先、アプリを一覧の順」に並べて、領域に渡す（account の退会の窓口が使う）。
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import type { Hook } from "@hono/zod-openapi";
 import {
+  COMMON_DOMAINS,
   appOfDomain,
   appRegistryProblems,
   listApps,
@@ -34,6 +36,7 @@ import type { ApiEnv, DomainRouteDeps } from "./kernel/http.ts";
 import { createJobRequestCheck } from "./kernel/job-auth.ts";
 import { createMetaApp } from "./kernel/meta-app.ts";
 import type { Logger } from "./kernel/logger.ts";
+import type { RegisteredWithdrawalStep, WithdrawalStep } from "./kernel/withdrawal.ts";
 import { REQUEST_ID_HEADER, requestIdMiddleware } from "./kernel/request-id.ts";
 import * as modules from "./modules.list.ts";
 import { requireApp, requireAppNotOff } from "./modules/suite/index.ts";
@@ -76,6 +79,8 @@ export type AppDeps = {
 export type DomainModule = {
   /** 領域の道を作る（なければ道を持たない）。戻り値の型は書かず、.openapi() のつながりのまま返す（書くと画面の型が消える） */
   routes?: (deps: DomainRouteDeps) => OpenAPIHono<AppEnv>;
+  /** 退会の手順（なければ持たない。組み立てが共通 → アプリの一覧の順に並べて account に渡す。AD-22） */
+  withdrawal?: WithdrawalStep;
 };
 
 /** 領域の名前空間の一覧から、領域ごとの道の型を作る（routes を持たない領域は never）。 */
@@ -130,6 +135,39 @@ function resolveApps(
     throw new Error(`アプリの登録が決まりに合いません：${problems.join("、")}`);
   }
   return apps;
+}
+
+/**
+ * 退会の手順を並べる（共通の領域を COMMON_DOMAINS の順に先、次にアプリを一覧の順〈アプリの中は domains の順〉、最後にテストの領域）。
+ * account は退会の窓口そのものなので手順に入れない。suite はほかの領域を呼ばず、順番は組み立てだけが決める。
+ * @param domains 組み立てる領域
+ * @param apps 登録されたアプリ
+ * @returns 並べた退会の手順
+ */
+export function orderWithdrawalSteps(
+  domains: readonly [name: string, module: DomainModule][],
+  apps: readonly AppDefinition[],
+): RegisteredWithdrawalStep[] {
+  const rank = (name: string): number => {
+    const common = COMMON_DOMAINS.indexOf(name);
+    if (common >= 0) return common;
+    const appIndex = apps.findIndex((app) => app.domains.includes(name));
+    if (appIndex < 0) return Number.MAX_SAFE_INTEGER;
+    const app = apps[appIndex];
+    return COMMON_DOMAINS.length + appIndex * 100 + (app?.domains.indexOf(name) ?? 0);
+  };
+  return domains
+    .flatMap(([name, module]) =>
+      "withdrawal" in module && module.withdrawal ? [{ name, step: module.withdrawal }] : [],
+    )
+    .filter(({ name }) => name !== "account")
+    .map((entry, index) => ({ ...entry, index }))
+    .sort((a, b) => rank(a.name) - rank(b.name) || a.index - b.index)
+    .map(({ name, step }) => ({
+      ...step,
+      domain: name,
+      source: appOfDomain(name, apps)?.name ?? "スイート",
+    }));
 }
 
 /**
@@ -437,6 +475,7 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
       : undefined,
     isJobRequest: createJobRequestCheck(config.jobTriggerSecret),
     metaApp: createMetaApp(config.threadsApp),
+    withdrawalSteps: orderWithdrawalSteps(domains, apps),
   };
   for (const [name, domain] of domains) {
     if (!domain.routes) continue;

@@ -50,6 +50,14 @@ export function logout() {
 }
 
 /**
+ * 退会の確かめの中身を読む（組織の引き継ぎ・引き継がれる記録・消える記録。書きこまない。AD-22）。
+ * @returns 確かめの中身（退会の手順と同じ順）
+ */
+export function fetchWithdrawalPreview() {
+  return request(() => api().api.v1.accounts.me.withdrawal.$get());
+}
+
+/**
  * 自分のアカウントを消す（退会。すべてのアプリの本人の記録も消える）。
  * @returns 終わり
  * @throws {ApiError} ほかの人が書きこむ記録を持っているとき（409 ACCOUNT_OWNS_SHARED_RECORDS）など
