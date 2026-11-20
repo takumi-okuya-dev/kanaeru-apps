@@ -15,6 +15,7 @@
 //   今の道のアプリが見えないときは「ページが見つかりません」を出す。アプリの中にいるときは、そのアプリをこの端末に覚える。
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { NotificationBar } from "@workspace/ui/components/notification-bar";
+import { Sheet } from "@workspace/ui/components/sheet";
 import { cn } from "@workspace/ui/lib/cn";
 import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
@@ -31,6 +32,12 @@ import { NotFoundPage } from "./NotFoundPage.tsx";
 import { currentNav } from "./current-nav.ts";
 import type { CurrentNav } from "./current-nav.ts";
 import { readSidebarOpen, writeSidebarOpen } from "./sidebar-state.ts";
+
+/** タブバーにそのまま並べる項目の数の上限（スマホの幅で、押せる幅 44px 以上を守る）。 */
+const TAB_BAR_MAX = 5;
+
+/** 項目が上限を超えたときに、「その他」の前に並べる数。 */
+const TAB_BAR_WITH_MORE = 4;
 
 /** 道が変わったあと、読みこみ中の画面の h1 が出るのを待つ長さ（ミリ秒）。 */
 const HEADING_WAIT_MS = 10_000;
@@ -186,29 +193,80 @@ function SidebarItems({ items, current, className }: NavListProps & { className?
  * @returns 要素
  */
 function TabBarList({ items, current }: NavListProps) {
+  const [moreOpen, setMoreOpen] = useState(false);
+  // 押せる幅（44px 以上）を守るため、項目が多いときは最初の4つと「その他」だけを並べ、残りは下から出す枠に入れる
+  const overflowing = items.length > TAB_BAR_MAX;
+  const visible = overflowing ? items.slice(0, TAB_BAR_WITH_MORE) : items;
+  const rest = overflowing ? items.slice(TAB_BAR_WITH_MORE) : [];
+  const hereInRest = rest.some((item) => item.id === current?.id);
+  const tabClassName = (here: boolean) =>
+    cn(
+      "flex min-h-xxl w-full flex-col items-center justify-center gap-x3s border-t-2 px-x3s py-x3s text-center text-xs leading-tight",
+      here ? "border-primary font-bold text-text" : "border-transparent text-text-sub",
+    );
   return (
-    <ul className="grid auto-cols-fr grid-flow-col">
-      {items.map((item) => {
-        const here = current?.id === item.id ? current.ariaCurrent : undefined;
-        return (
-          <li key={item.id} className="flex">
-            <Link
-              to={item.to}
-              activeOptions={{ exact: true }}
-              aria-current={here}
-              data-nav-item=""
-              className={cn(
-                "flex min-h-xxl w-full flex-col items-center justify-center gap-x3s border-t-2 px-x3s py-x3s text-center text-xs leading-tight",
-                here ? "border-primary font-bold text-text" : "border-transparent text-text-sub",
-              )}
+    <>
+      <ul className="grid auto-cols-fr grid-flow-col">
+        {visible.map((item) => {
+          const here = current?.id === item.id ? current.ariaCurrent : undefined;
+          return (
+            <li key={item.id} className="flex">
+              <Link
+                to={item.to}
+                activeOptions={{ exact: true }}
+                aria-current={here}
+                data-nav-item=""
+                className={tabClassName(here !== undefined)}
+              >
+                <NavIcon name={item.icon} />
+                <span>{item.label}</span>
+              </Link>
+            </li>
+          );
+        })}
+        {overflowing ? (
+          <li className="flex">
+            <button
+              type="button"
+              aria-haspopup="dialog"
+              onClick={() => setMoreOpen(true)}
+              className={cn(tabClassName(hereInRest), "cursor-pointer")}
             >
-              <NavIcon name={item.icon} />
-              <span>{item.label}</span>
-            </Link>
+              <NavIcon name="menu" />
+              <span>その他</span>
+              {hereInRest ? <span className="sr-only">（今の画面を含む）</span> : null}
+            </button>
           </li>
-        );
-      })}
-    </ul>
+        ) : null}
+      </ul>
+      {overflowing ? (
+        <Sheet open={moreOpen} onOpenChange={setMoreOpen} title="その他のメニュー">
+          <ul className="flex flex-col gap-x3s">
+            {rest.map((item) => {
+              const here = current?.id === item.id ? current.ariaCurrent : undefined;
+              return (
+                <li key={item.id}>
+                  <Link
+                    to={item.to}
+                    activeOptions={{ exact: true }}
+                    aria-current={here}
+                    data-nav-item=""
+                    onClick={() => setMoreOpen(false)}
+                    className={cn(
+                      "flex min-h-xl items-center gap-xs rounded-md px-xs text-m text-text hover:bg-surface-over",
+                      here && "bg-primary-subtle font-bold",
+                    )}
+                  >
+                    <NavIcon name={item.icon} />
+                    {item.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </Sheet>
+      ) : null}
+    </>
   );
 }
 
