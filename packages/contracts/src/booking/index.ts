@@ -11,6 +11,17 @@ export {
   ENTRY_STATUS_LABELS,
 } from "./options.ts";
 export type { Attendance, BookingMode, EntryKind, EntryStatus } from "./options.ts";
+export {
+  NOTICE_KINDS,
+  NOTICE_KIND_LABELS,
+  NOTICE_METHODS,
+  NOTICE_METHOD_LABELS,
+  NOTICE_RESULTS,
+  NOTICE_RESULT_LABELS,
+  NOTIFY_MODES,
+  NOTIFY_MODE_LABELS,
+} from "./notify-options.ts";
+export type { NoticeKind, NoticeMethod, NoticeResult, NotifyMode } from "./notify-options.ts";
 export { BOOKING_ERRORS } from "./errors.ts";
 export type { BookingErrorKey } from "./errors.ts";
 export { BOOKING_ROUTE_PATTERNS, bookingPaths } from "./paths.ts";
