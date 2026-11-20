@@ -158,7 +158,7 @@ threads-013 で、表の列を足した：`threads_post_draft` の `created_by_a
 
 ## 4. ほかの領域が使うもの
 
-運用アカウントの画面では、ページの題の上（`ThreadsPage.tsx`）に運用アカウントの切り替えを出す（外枠には置かない。threads-012）。プロフィールの画像は URL を持つが、画面の CSP の `img-src` が Threads の画像の源を許していないので出さない。
+運用アカウントの画面では、ページの題の上（`ThreadsPage.tsx`）に運用アカウントの切り替えを出す（外枠には置かない。threads-012）。プロフィールの画像は、画面の CSP の `img-src` が許す Meta の画像の置き場所（`*.cdninstagram.com`・`*.fbcdn.net`。core-008）のものだけ出し、ないとき・読めないとき・ほかの置き場所のときは名前の頭文字の箱にする（`isAllowedPictureUrl`。threads-014）。持ち主でない人（担当の人・見せてもらう人）には、持ち主だけが変えられる入力欄（分析の設定・外部メディアの既定値）を出さず今の値と説明を出し、ホームの「次にやること」と接続の帯で Threads につなぐ手順を出さない（threads-014）。
 
 API の入口（`apps/api/src/modules/threads/index.ts`）は `routes` と、退会の手順 `withdrawal`（組み立てが suite の段のあとに流す。AD-22）を出す。画面の入口は、組織の画面への入口と招待の確かめの説明を `feature.organization` で出す（suite-001 の仕組み）。画面の入口（`apps/web/src/features/threads/index.ts`）は `THREADS_QUERY_KEYS`（どれも `"threads"` で始まる）。外枠のナビの「投稿の案」には、画面が読んだ運用アカウントの承認待ちの数を添える（threads-011。ナビのために問い合わせを始めない）。
 

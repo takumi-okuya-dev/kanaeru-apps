@@ -18,6 +18,7 @@ import { accountSecondary } from "./AccountSwitcher.tsx";
 import { ThreadsPage } from "./ThreadsPage.tsx";
 import { useAccountHome } from "./queries.ts";
 import { TeamNotices } from "./TeamNotices.tsx";
+import { useThreadsCan } from "./team-access.ts";
 
 /** はじめに読んでほしいこと（めぐるの IntroGuide の文）。 */
 const INTRO_POINTS = [
@@ -117,6 +118,7 @@ function IntroGuideBody({ userId }: { userId: string }) {
  * @returns 帯（つないでいれば出さない）
  */
 function ConnectionBanner({ account }: { account: ThreadsAccount }) {
+  const can = useThreadsCan();
   if (account.connectionStatus === "connected") return null;
   const needsReconnect = account.connectionStatus === "needs_reconnect";
   return (
@@ -129,14 +131,18 @@ function ConnectionBanner({ account }: { account: ThreadsAccount }) {
           ? "Threads への接続し直しが要ります。つなぎ直すまで、自動の投稿と反応の取りこみは止まっています。"
           : "未接続：Threads につなぐと、承認した案を自動で投稿し、反応を分析できます。"}
       </span>
-      <Link
-        to="/threads/accounts/$accountId/settings"
-        params={{ accountId: account.id }}
-        hash="threads-connection"
-        className="font-bold text-text-link underline"
-      >
-        {needsReconnect ? "Threads につなぎ直す" : "Threads につなぐ"}
-      </Link>
+      {can.manage ? (
+        <Link
+          to="/threads/accounts/$accountId/settings"
+          params={{ accountId: account.id }}
+          hash="threads-connection"
+          className="font-bold text-text-link underline"
+        >
+          {needsReconnect ? "Threads につなぎ直す" : "Threads につなぐ"}
+        </Link>
+      ) : (
+        <span className="text-s text-text-sub">つなぐのは持ち主です。</span>
+      )}
     </section>
   );
 }
@@ -280,9 +286,11 @@ function HomeSteps({
   home: NonNullable<ReturnType<typeof useAccountHome>["data"]>;
   params: { accountId: string };
 }) {
+  const can = useThreadsCan();
   const step = homeNextStep(home, {
     connected: account.connectionStatus !== "not_connected",
     approvedCount: account.counts.approved,
+    canConnect: can.manage,
   });
   return (
     <>

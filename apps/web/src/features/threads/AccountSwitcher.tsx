@@ -2,7 +2,8 @@
 // 運用アカウントの画面（AccountGate の中）のページの題の上に、今の運用アカウントのボタンを出す（外枠には置かない）。
 // 押すとメニュー：自分の運用アカウント（名前・@ユーザー名か未接続・承認待ちの数・要再接続・今のものに「表示中」とチェック）、
 // 担当している運用アカウント（持ち主の表示名つき。threads-013）、区切り、「アカウントを作る」。一覧はメニューを開いたときに読む（開かなければ問い合わせない）。
-// Threads のプロフィールの画像は、画面の CSP（img-src）が Threads の画像の源を許していないので出さず、名前の頭文字の箱にする。
+// Threads のプロフィールの画像は、画面の CSP（img-src。core-008）が許す Meta の画像の置き場所のものだけ出し、
+// ないとき・読めないとき・ほかの置き場所のときは名前の頭文字の箱にする。
 import type { ThreadsAccount } from "@workspace/contracts/threads";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -41,8 +42,26 @@ export function accountSecondary(account: ThreadsAccount): string {
   return account.username ? `@${account.username}` : "未接続";
 }
 
+/** プロフィールの画像を出してよい置き場所（画面の CSP の img-src と同じ。apps/api/src/platform/web/web.ts）。 */
+const PICTURE_HOST = /(^|\.)(cdninstagram\.com|fbcdn\.net)$/;
+
 /**
- * 名前の頭文字の箱（プロフィールの画像の代わり）。
+ * プロフィールの画像の URL が、出してよい置き場所のものか。
+ * @param url 画像の URL
+ * @returns 出してよければ true
+ */
+export function isAllowedPictureUrl(url: string | null | undefined): url is string {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" && PICTURE_HOST.test(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * プロフィールの画像（出せないときは名前の頭文字の箱）。
  * @param props 運用アカウント（account）・今のものか（selected）
  * @returns 箱の要素
  */
@@ -53,7 +72,24 @@ export function AccountInitial({
   account: ThreadsAccount;
   selected?: boolean;
 }) {
+  const [broken, setBroken] = useState(false);
   const initial = Array.from(account.displayName || account.name)[0] ?? "?";
+  if (!broken && isAllowedPictureUrl(account.profilePictureUrl)) {
+    return (
+      <img
+        src={account.profilePictureUrl}
+        alt=""
+        aria-hidden="true"
+        referrerPolicy="no-referrer"
+        onError={() => setBroken(true)}
+        className={cn(
+          "size-l shrink-0 rounded-md object-cover",
+          "border",
+          selected ? "border-primary" : "border-border",
+        )}
+      />
+    );
+  }
   return (
     <span
       aria-hidden="true"

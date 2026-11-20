@@ -39,13 +39,15 @@ export type HomeStep = {
  * @param state 接続の状態と承認済みの案の数
  * @param state.connected Threads につないでいるか（接続し直しが要る状態も、つないだことがあるので含む）
  * @param state.approvedCount 承認済みの案の数（投稿中を含む）
+ * @param state.canConnect 見ている人が Threads につなげるか（持ち主だけ。threads-013。省くとつなげる）
  * @returns 次にやること
  */
 export function homeNextStep(
   home: AccountHome,
-  state: { connected: boolean; approvedCount: number },
+  state: { connected: boolean; approvedCount: number; canConnect?: boolean },
 ): HomeStep {
-  if (!state.connected && state.approvedCount > 0) {
+  // つなぐのは持ち主だけ（担当の人には、つなぐ手順を出さずに次の手順を出す）
+  if (state.canConnect !== false && !state.connected && state.approvedCount > 0) {
     return {
       target: "connect",
       title: "Threads につないで、自動の投稿を始めましょう",
