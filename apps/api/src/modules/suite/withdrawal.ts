@@ -5,6 +5,7 @@ import type { Executor } from "../../kernel/db.ts";
 import type { WithdrawalStep } from "../../kernel/withdrawal.ts";
 import { findDisplayNames } from "../account/index.ts";
 import {
+  finalizeAdminOrganizations,
   findLongestMember,
   findOrganizationAdmin,
   handOverAdminOrganizations,
@@ -35,6 +36,7 @@ export async function adminAfterWithdrawal(
 /** suite の退会の手順（組み立てが、アプリより先に流す）。 */
 export const suiteWithdrawal: WithdrawalStep = {
   prepare: handOverAdminOrganizations,
+  finalize: finalizeAdminOrganizations,
   /**
    * 退会の確かめの中身（入っている組織ごとに、抜ける・管理者を引き継ぐ・組織を消す）。
    * @param db DB

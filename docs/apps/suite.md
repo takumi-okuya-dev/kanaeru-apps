@@ -86,7 +86,7 @@ API（`apps/api/src/modules/suite/index.ts`）：
 | `listMemberships(db, accountId)`・`listMembers(db, organizationId)` | 入っている組織（組織の名前つき）・組織の人（表示名つき。管理者 → 編集者 → メンバー） |
 | `findOrganization(db, id)`・`findOrganizationAdmin(db, id)` | 組織・管理者（表示名つき） |
 | `adminAfterWithdrawal(db, organizationId, accountId)` | その人が退会したあとの管理者（組織が消えるなら `null`）。アプリが退会の確かめの中身で引き継ぐ先を決める |
-| `withdrawal` | suite の退会の手順（管理者の組織をいちばん長くいる人に引き継ぐ・誰もいなければ消す）。組み立てがアプリより先に流す |
+| `withdrawal` | suite の退会の手順（管理者の組織をいちばん長くいる人に引き継ぐ・誰もいなければ消す）。組み立てがアプリより先に流す。アカウントを消すトランザクションの中の最後の確かめ（`finalize`）でも、同じことをもう一度確かめる。人ごとの鍵（組織を作る・管理者を引き継ぐ・最後の確かめで同じ鍵。順は「人 → 組織」）で、消える直前に管理者にされることを防ぐ |
 | `hasEntitlement(db, { ownerAccountId, organizationId }, appKey)`・`ENTITLEMENTS_ENFORCED` | 契約があるか（持ち主の個人の契約か、記録を入れた組織の契約）。売り始めるまで `ENTITLEMENTS_ENFORCED = false` で、いつも true。どの窓口もまだ呼ばない |
 
 退会の手順の組み立て（AD-22）：各領域の `index.ts` の `withdrawal`（`kernel/withdrawal.ts` の形）を、`app.ts` の `orderWithdrawalSteps` が共通（`COMMON_DOMAINS` の順）→ アプリの一覧の順に並べ、`DomainRouteDeps.withdrawalSteps` で account に渡す（account の地図 2章）。

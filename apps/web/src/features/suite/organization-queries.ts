@@ -69,7 +69,8 @@ export function useOrganizationInvite(organizationId: string, enabled: boolean) 
 }
 
 /**
- * 招待の確かめの画面の中身（読み直さない。入ったあとに「すでに入っています」へ変わらないように）。
+ * 招待の確かめの画面の中身。開いている間は読み直さない（入ったあとに「すでに入っています」へ変わらないように）。
+ * 画面を開き直したときは、いつも読み直す（抜けたあと・人数に空きができたあとに、古い「入っています」「満員」を出さない）。
  * @param token 招待の札
  * @returns 問い合わせ
  */
@@ -78,5 +79,6 @@ export function useInvitePreview(token: string) {
     queryKey: ORGANIZATION_QUERY_KEYS.preview(token),
     queryFn: () => fetchInvitePreview(token),
     staleTime: Infinity,
+    refetchOnMount: "always",
   });
 }

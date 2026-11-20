@@ -197,6 +197,19 @@ async function lockOrganization(tx: Executor, organizationId: string): Promise<b
 }
 
 /**
+ * 人ごとの「管理者になる」鍵をかける（トランザクションの中で呼ぶ）。組織を作る・管理者を引き継ぐ・退会の最後の確かめが、
+ * 同じ人について順に動くようにする（退会で消える人が、消える直前に管理者にされて、管理者のいない組織が残るのを防ぐ）。
+ * 鍵の順は「人 → 組織」にそろえる。
+ * @param tx トランザクション
+ * @param accountId 管理者になる（または退会する）人
+ */
+async function lockAdminOf(tx: Executor, accountId: string): Promise<void> {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtextextended(${`organization_admin:${accountId}`}, 0))`,
+  );
+}
+
+/**
  * 組織を作る（作った人が管理者。管理者として持てる組織は20まで）。
  * @param db DB
  * @param accountId 作る人
@@ -207,9 +220,7 @@ async function lockOrganization(tx: Executor, organizationId: string): Promise<b
 export async function createOrganization(db: Db, accountId: string, name: string): Promise<string> {
   return db.transaction(async (tx) => {
     // 同じ人が同時に作っても上限を超えないよう、人ごとの鍵をかけてから数える
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${`organization_admin:${accountId}`}, 0))`,
-    );
+    await lockAdminOf(tx, accountId);
     const [owned] = await tx
       .select({ n: count() })
       .from(organizationMember)
@@ -362,13 +373,19 @@ async function deleteMembership(
  * @throws {AppError} 相手がいない・管理者のとき（ORGANIZATION_MEMBER_NOT_FOUND）
  */
 export async function removeMember(
-  db: Executor,
+  db: Db,
   organizationId: string,
   targetAccountId: string,
 ): Promise<void> {
-  if (!(await deleteMembership(db, organizationId, targetAccountId))) {
-    throw new AppError(ORGANIZATION_ERRORS.ORGANIZATION_MEMBER_NOT_FOUND);
-  }
+  // 管理者の引き継ぎと同じ組織の鍵をかける（外した人へ同時に引き継いで、管理者のいない組織が残らないように）
+  await db.transaction(async (tx) => {
+    if (!(await lockOrganization(tx, organizationId))) {
+      throw new AppError(ORGANIZATION_ERRORS.ORGANIZATION_NOT_FOUND);
+    }
+    if (!(await deleteMembership(tx, organizationId, targetAccountId))) {
+      throw new AppError(ORGANIZATION_ERRORS.ORGANIZATION_MEMBER_NOT_FOUND);
+    }
+  });
 }
 
 /**
@@ -378,19 +395,37 @@ export async function removeMember(
  * @param organizationId 組織の ID
  * @param fromAccountId 今の管理者
  * @param toAccountId 新しい管理者（組織の人）
- * @throws {AppError} 新しい管理者が組織の人でないとき（ORGANIZATION_MEMBER_NOT_FOUND）
+ * @param options 前の管理者が組織に残るか（残るなら、編集者の上限を確かめる）
+ * @param options.previousStays 前の管理者が組織に残るか
+ * @throws {AppError} 新しい管理者が組織の人でない・上げられなかったとき（ORGANIZATION_MEMBER_NOT_FOUND）・編集者の上限（ORGANIZATION_EDITOR_LIMIT）
  */
 async function transferAdminInTx(
   tx: Executor,
   organizationId: string,
   fromAccountId: string,
   toAccountId: string,
+  options: { previousStays: boolean } = { previousStays: false },
 ): Promise<void> {
   if (fromAccountId === toAccountId) {
     throw new AppError(ORGANIZATION_ERRORS.ORGANIZATION_SELF_NOT_ALLOWED);
   }
   const target = await findMembership(tx, organizationId, toAccountId);
   if (!target) throw new AppError(ORGANIZATION_ERRORS.ORGANIZATION_MEMBER_NOT_FOUND);
+  // 前の管理者が組織に残って編集者になるとき、メンバーへ引き継ぐと編集者が1人増える（上限を超えるなら断る。FR-O13）
+  if (options.previousStays && target.role === "member") {
+    const [editors] = await tx
+      .select({ n: count() })
+      .from(organizationMember)
+      .where(
+        and(
+          eq(organizationMember.organizationId, organizationId),
+          eq(organizationMember.role, "editor"),
+        ),
+      );
+    if (Number(editors?.n ?? 0) >= ORGANIZATION_EDITOR_LIMIT) {
+      throw new AppError(ORGANIZATION_ERRORS.ORGANIZATION_EDITOR_LIMIT);
+    }
+  }
   await tx
     .update(organizationMember)
     .set({ role: "editor" })
@@ -400,7 +435,7 @@ async function transferAdminInTx(
         eq(organizationMember.accountId, fromAccountId),
       ),
     );
-  await tx
+  const promoted = await tx
     .update(organizationMember)
     .set({ role: "admin" })
     .where(
@@ -408,7 +443,10 @@ async function transferAdminInTx(
         eq(organizationMember.organizationId, organizationId),
         eq(organizationMember.accountId, toAccountId),
       ),
-    );
+    )
+    .returning({ accountId: organizationMember.accountId });
+  // 上げられなかったら（同時に外された・退会したなど）、前の管理者を下げたまま終わらせない（トランザクションごと戻す）
+  if (promoted.length !== 1) throw new AppError(ORGANIZATION_ERRORS.ORGANIZATION_MEMBER_NOT_FOUND);
 }
 
 /**
@@ -426,12 +464,16 @@ export async function transferAdmin(
   toAccountId: string,
 ): Promise<void> {
   await db.transaction(async (tx) => {
+    // 鍵の順は「人 → 組織」（退会の最後の確かめと同じ順。相手が退会の途中なら、消え終わるのを待ってから確かめる）
+    await lockAdminOf(tx, toAccountId);
     if (!(await lockOrganization(tx, organizationId))) {
       throw new AppError(ORGANIZATION_ERRORS.ORGANIZATION_NOT_FOUND);
     }
     const me = await findMembership(tx, organizationId, fromAccountId);
     if (me?.role !== "admin") throw new AppError(ORGANIZATION_ERRORS.ORGANIZATION_ADMIN_ONLY);
-    await transferAdminInTx(tx, organizationId, fromAccountId, toAccountId);
+    await transferAdminInTx(tx, organizationId, fromAccountId, toAccountId, {
+      previousStays: true,
+    });
   });
 }
 
@@ -645,8 +687,29 @@ export async function findLongestMember(
 }
 
 /**
+ * 退会の最後の確かめ（アカウントを消すトランザクションの中で、消す直前に流す。AD-22）。
+ * 前の手順のあとに、退会する人が管理者に戻された・組織を作った組織を、消す前に片付ける（引き継ぐか、誰もいなければ消す）。
+ * @param tx アカウントを消すトランザクション
+ * @param accountId 退会する人
+ */
+export async function finalizeAdminOrganizations(tx: Executor, accountId: string): Promise<void> {
+  // 人の鍵を先にかける（この人を管理者にする操作は、消し終わるまで待つ。鍵の順は「人 → 組織」）
+  await lockAdminOf(tx, accountId);
+  const owned = (await listMemberships(tx, accountId)).filter((row) => row.role === "admin");
+  for (const row of owned) {
+    if (!(await lockOrganization(tx, row.organizationId))) continue;
+    const me = await findMembership(tx, row.organizationId, accountId);
+    if (me?.role !== "admin") continue;
+    const successor = await findLongestMember(tx, row.organizationId, accountId);
+    if (successor) await transferAdminInTx(tx, row.organizationId, accountId, successor);
+    else await deleteOrganization(tx, row.organizationId);
+  }
+}
+
+/**
  * 退会する人が管理者の組織を片付ける（退会の手順の (1)。AD-22）。組織ごとのトランザクションで、
  * いちばん長くいる人に管理者を引き継ぎ、誰もいなければ組織を消す。2回流しても同じ結果になる（済んだ組織は管理者でなくなる）。
+ * アカウントを消すトランザクションの中でも、finalizeAdminOrganizations で同じことをもう一度確かめる。
  * @param db DB
  * @param accountId 退会する人
  */

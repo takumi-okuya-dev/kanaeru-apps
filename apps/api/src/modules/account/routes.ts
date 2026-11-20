@@ -11,8 +11,8 @@ import type { ApiEnv, DomainRouteDeps } from "../../kernel/http.ts";
 import { createLineIdTokenVerifier } from "./line-verifier.ts";
 import type { LineIdTokenVerifier } from "./line-verifier.ts";
 import { isForeignKeyViolation } from "../../kernel/pg-errors.ts";
-import { deleteAccount, deleteSessionByTokenHash, upsertAccount } from "./repository.ts";
-import { collectWithdrawalPreview, runWithdrawalSteps } from "./withdrawal.ts";
+import { deleteSessionByTokenHash, upsertAccount } from "./repository.ts";
+import { collectWithdrawalPreview, withdrawAccount } from "./withdrawal.ts";
 import type { AccountRecord } from "./repository.ts";
 import {
   clearSessionCookie,
@@ -282,8 +282,7 @@ export function accountRoutes(
       // /me は /{accountId} より先に足す（道の値の形の確かめで 404 にならないように）
       .openapi(deleteMeRoute(deps), async (c) => {
         try {
-          await runWithdrawalSteps(deps, currentAccountRecord(c).id);
-          await deleteAccount(db, currentAccountRecord(c).id);
+          await withdrawAccount(deps, currentAccountRecord(c).id);
         } catch (error) {
           if (isForeignKeyViolation(error)) {
             throw new AppError(ACCOUNT_ERRORS.ACCOUNT_OWNS_SHARED_RECORDS);
@@ -296,8 +295,7 @@ export function accountRoutes(
       .openapi(deleteRoute(deps), async (c) => {
         const { accountId } = c.req.valid("param");
         // 主催者がアカウントを消すときも、退会と同じ順に手順を流す（AD-22）
-        await runWithdrawalSteps(deps, accountId);
-        const deleted = await deleteAccount(db, accountId);
+        const deleted = await withdrawAccount(deps, accountId);
         if (!deleted) throw new AppError("NOT_FOUND");
         return c.body(null, 204);
       })

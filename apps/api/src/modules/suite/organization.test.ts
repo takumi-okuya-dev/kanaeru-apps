@@ -14,6 +14,7 @@ import {
   ORGANIZATION_MEMBER_LIMIT,
 } from "@workspace/contracts/suite";
 import { createHash } from "node:crypto";
+import { sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { buildApp, testConfig } from "../../../test/helpers/app.ts";
 import type { TestApp } from "../../../test/helpers/app.ts";
@@ -439,6 +440,31 @@ describe("組織", () => {
       expect(((await response.json()) as ErrorBody).error.code).toBe("ORGANIZATION_EDITOR_LIMIT");
     });
 
+    it("編集者が上限のとき、メンバーへ管理者を引き継ぐと 409（前の管理者が編集者として残り、上限を超えるため）", async () => {
+      await database.pool.query(
+        `WITH created AS (
+           INSERT INTO account (line_user_id, display_name)
+           SELECT 'U' || md5('editor-t-' || g), '編集者' FROM generate_series(1, $2::int) AS g
+           RETURNING id
+         )
+         INSERT INTO organization_member (organization_id, account_id, role)
+         SELECT $1, id, 'editor' FROM created`,
+        [organizationId, ORGANIZATION_EDITOR_LIMIT - 1],
+      );
+      const toMember = await call(app, admin.cookie, `${BASE}/${organizationId}/transfer`, "POST", {
+        accountId: member.id,
+      });
+      expect(toMember.status).toBe(409);
+      expect(((await toMember.json()) as ErrorBody).error.code).toBe("ORGANIZATION_EDITOR_LIMIT");
+      expect(await roleOf(admin.id)).toBe("admin");
+      // 編集者へ引き継ぐなら、編集者の数は変わらないので引き継げる
+      const toEditor = await call(app, admin.cookie, `${BASE}/${organizationId}/transfer`, "POST", {
+        accountId: editor.id,
+      });
+      expect(toEditor.status).toBe(204);
+      expect(await roleOf(editor.id)).toBe("admin");
+    });
+
     it("自分の役割は変えられず・自分は外せず、管理者の役割は変えられない", async () => {
       const self = await setOrganizationRole(app, admin.cookie, organizationId, admin.id, "member");
       expect(self.status).toBe(409);
@@ -542,6 +568,35 @@ describe("組織", () => {
       await withdrawal.prepare(database.db, admin.id);
       expect(await roleOf(editor.id)).toBe("admin");
       expect(await roleOf(member.id)).toBe("member");
+    });
+
+    it("前の手順のあとに管理者へ戻されても・組織を作っても、消すトランザクションの最後の確かめで片付ける", async () => {
+      await withdrawal.prepare(database.db, admin.id);
+      expect(await roleOf(editor.id)).toBe("admin");
+      // 前の手順と消すのあいだに、管理者を戻された・ひとりの組織を作った（退会の途中の隙）
+      expect(
+        (
+          await call(app, editor.cookie, `${BASE}/${organizationId}/transfer`, "POST", {
+            accountId: admin.id,
+          })
+        ).status,
+      ).toBe(204);
+      const alone = await createOrganization(app, admin.cookie, "途中で作った組織");
+      expect(await roleOf(admin.id)).toBe("admin");
+      await database.db.transaction(async (tx) => {
+        await withdrawal.finalize?.(tx, admin.id);
+        await tx.execute(sql`DELETE FROM account WHERE id = ${admin.id}`);
+      });
+      expect(await roleOf(editor.id)).toBe("admin");
+      expect(await adminlessCount()).toBe(0);
+      const rows = await database.pool.query("SELECT 1 FROM organization WHERE id = $1", [alone]);
+      expect(rows.rowCount).toBe(0);
+    });
+
+    it("退会の窓口は、前の手順と最後の確かめを流してからアカウントを消す", async () => {
+      expect((await call(app, admin.cookie, "/api/v1/accounts/me", "DELETE")).status).toBe(204);
+      expect(await roleOf(editor.id)).toBe("admin");
+      expect(await adminlessCount()).toBe(0);
     });
 
     it("ほかに誰もいなければ組織を消す", async () => {

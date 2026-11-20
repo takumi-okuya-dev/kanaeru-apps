@@ -25,7 +25,7 @@ LINE の利用者のアカウントとセッションを持ち、LINE の ID ト
 | DELETE | `/api/v1/accounts/me` | 退会。先に各領域の退会の手順（`withdrawal.prepare`。組織の管理者の引き継ぎ → 組織に入れた記録の引き継ぎ）を流し、そのあとアカウントを消す（残った本人のデータはすべての領域の CASCADE で消える。クッキーも消す。204）。ほかの人自身の本人の記録（RESTRICT の外部キー）がぶら下がっていれば消さない（AD-19） | 401・409 `ACCOUNT_OWNS_SHARED_RECORDS` |
 | DELETE | `/api/v1/accounts/{accountId}` | アカウントを消す（主催者だけ。退会と同じ手順を流してから。204） | 401・403 `FORBIDDEN`・404 |
 
-退会の手順（AD-22）：組み立て（`app.ts` の `orderWithdrawalSteps`）が、各領域の `index.ts` の `withdrawal`（`kernel/withdrawal.ts` の形：`prepare(db, accountId)`・`preview(db, accountId)`）を、共通（suite）→ アプリの一覧の順に並べて `deps.withdrawalSteps` で渡す。account はほかの領域を知らずに順に呼ぶ（`withdrawal.ts`）。領域をまたぐトランザクションは作らず、どの段も2回流して同じ結果になるので、途中で止まっても退会をもう一度押せば続きから終わる。
+退会の手順（AD-22）：組み立て（`app.ts` の `orderWithdrawalSteps`）が、各領域の `index.ts` の `withdrawal`（`kernel/withdrawal.ts` の形：`prepare(db, accountId)`・`preview(db, accountId)`）を、共通（suite）→ アプリの一覧の順に並べて `deps.withdrawalSteps` で渡す。account はほかの領域を知らずに順に呼ぶ（`withdrawal.ts` の `withdrawAccount`）。各段は自分の領域の中で終わり、2回流して同じ結果になるので、途中で止まっても退会をもう一度押せば続きから終わる。アカウントを消すのは1つのトランザクションで、その中で各段の最後の確かめ（任意の `finalize(tx, accountId)`）を流してから消す（前の手順と消すのあいだに退会する人へ戻された役割を、消す前に片付ける。suite は管理者の組織を引き継ぐか消す）。
 
 - LINE の verify：ID トークンの `aud` が `LINE_CHANNEL_IDS` にあるときだけ、その値を `client_id` にして1度だけ呼ぶ（5秒で打ち切る。`line-verifier.ts`）。外への出口は土台の `deps.fetch`（テストでは差しかえ）。
 - クッキー：`HttpOnly`・`SameSite=Lax`・`Path=/`・30日。画面の源（`WEB_URL`）が https なら `Secure` と名前 `__Host-kanaeru_session`、http（手元・E2E）なら `kanaeru_session`。
