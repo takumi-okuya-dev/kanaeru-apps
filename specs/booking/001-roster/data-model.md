@@ -56,11 +56,12 @@
 | `id` | uuid | `primaryId()` |
 | `owner_account_id` | uuid | 交流会の持ち主（`account.id`）。`ON DELETE CASCADE` |
 | `header_key` | text | 見出しの並び（`JSON.stringify(headers)`） |
+| `header_digest` | text | 見出しの並びの SHA-256（16進の64文字。一意の索引に使う。0020） |
 | `name_column` | text | 名前の列の見出し |
 | `application_source` | text | 選んだ媒体。CHECK（`booking_entry` と同じ値） |
 | `created_at`・`updated_at` | timestamptz | `timestamps()` |
 
-- 一意：`booking_import_mapping_owner_account_id_header_key_unique`。
+- 一意：`booking_import_mapping_owner_account_id_header_digest_unique`（0020 で `…_header_key_unique` から移した。見出しの並びが索引の1行の上限を超えうるため）。
 
 ## 読むときに決めるもの（保存しない）
 

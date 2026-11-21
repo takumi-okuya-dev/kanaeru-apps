@@ -103,8 +103,8 @@ describe("予約の表", () => {
       }
     }
     await database.pool.query(
-      `INSERT INTO booking_import_mapping (owner_account_id, header_key, name_column, application_source)
-       SELECT $1, 'k' || s, '名前', s FROM unnest($2::text[]) AS s`,
+      `INSERT INTO booking_import_mapping (owner_account_id, header_key, header_digest, name_column, application_source)
+       SELECT $1, 'k' || s, md5(s), '名前', s FROM unnest($2::text[]) AS s`,
       [ownerId, [...APPLICATION_SOURCES]],
     );
     await expect(
