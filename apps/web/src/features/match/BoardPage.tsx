@@ -3,33 +3,34 @@
 // - 1行が1試合。名前だけを並べ（ダブルスは4人・シングルスは2人）、列の見出しは付けず、左に試合の番号、名前の列の間に縦線
 // - 担当の端末は、終わった試合の行にチェックを付けて進める。チェックのない最初の試合が今（墨の地）、その次が次（薄い地。FR-M12・FR-M15）
 // - 「別の組み合わせにする」はくじの種を変えて、まだの試合を組み直す（終わった試合は残す）
+// - 当日（match-003）：「人を選んで直す」（来なかった・来た・帰る → その人の組のこれからの試合だけを組み直す。FR-M14）・
+//   「レベルの分け方」（当日に分け方や試合の形を変えても、終わった試合はできるだけ残す。何が変わるかを先に出す）・
+//   「大きく映す」（M3）。組み直したら、画面の上に何を変えたかを出す。前の分け方で終わった試合は、下に畳んで出す
 // 1人ひとりの試合の数は出さない（FR-M13）。
 import { MATCH_FORMAT_LABELS, PLAYERS_PER_GAME } from "@workspace/contracts/match";
-import type { MatchGroup, MatchGroupPlan, MatchTable } from "@workspace/contracts/match";
+import type {
+  MatchGroup,
+  MatchGroupPlan,
+  MatchSettings,
+  MatchTable,
+} from "@workspace/contracts/match";
 import { Link, useParams } from "@tanstack/react-router";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { cn } from "@workspace/ui/lib/cn";
 import { useId, useState } from "react";
-import type * as React from "react";
 import { Page } from "../../lib/page.tsx";
+import { describeAttendance, markAttendance } from "./day-of.ts";
+import type { AttendanceAction } from "./day-of.ts";
+import { AttendanceDialog, RegroupDialog } from "./DayOfDialogs.tsx";
 import { formatPlayDate } from "./format.ts";
+import { GroupTabs, currentGameIndex, currentGameNumber } from "./GroupTabs.tsx";
 import { MATCH_ROUTE_PATTERNS } from "./paths.ts";
 import { buildPlan, groupsOf, newSeed, presentPlayersOf } from "./plan.ts";
+import { changeSettings, groupLabelOf } from "./regroup.ts";
 import { countRoster } from "./roster-edit.ts";
 import { EditorState, TableFrame } from "./TableFrame.tsx";
 import type { TableEditor } from "./table-editor.ts";
-
-/**
- * 今の試合の番号（チェックのない最初の試合。0から。みな終わっていれば試合の数）。
- * @param plan 組の試合
- * @returns 今の試合の番号
- */
-function currentGameIndex(plan: MatchGroupPlan | undefined): number {
-  if (!plan) return 0;
-  const index = plan.games.findIndex((game) => !game.done);
-  return index < 0 ? plan.games.length : index;
-}
 
 /** GameTable が受け取るもの。 */
 type GameTableProps = {
@@ -112,73 +113,31 @@ function GameTable({ table, group, plan, editable, onToggle }: GameTableProps) {
 }
 
 /**
- * 組のタブ（role="tablist"。左右の矢印で移る）。
- * @param props 組（groups）・選んだ組（selected）・選んだとき（onSelect）・今の試合（nowOf）・タブと中身の ID の頭（baseId）
- * @param props.groups 組
- * @param props.selected 選んだ組の key
- * @param props.onSelect 選んだとき
- * @param props.nowOf 組ごとの今の試合の番号（1から。終わっていれば null）
- * @param props.baseId タブと中身の ID の頭
- * @returns タブの要素
+ * 前の分け方・試合の形で終わった試合（畳んで出す。記録だけで、チェックは付け外さない）。
+ * @param props 試合表（table）
+ * @param props.table 試合表
+ * @returns 要素
  */
-function GroupTabs({
-  groups,
-  selected,
-  onSelect,
-  nowOf,
-  baseId,
-}: {
-  groups: readonly MatchGroup[];
-  selected: string;
-  onSelect: (key: string) => void;
-  nowOf: (key: string) => number | null;
-  baseId: string;
-}) {
-  /**
-   * 矢印で隣のタブへ移る。
-   * @param keyEvent 押したキー
-   * @param index 今のタブの番号
-   */
-  const move = (keyEvent: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
-    const delta = keyEvent.key === "ArrowRight" ? 1 : keyEvent.key === "ArrowLeft" ? -1 : 0;
-    if (delta === 0) return;
-    keyEvent.preventDefault();
-    const next = groups[(index + delta + groups.length) % groups.length];
-    if (!next) return;
-    onSelect(next.key);
-    document.getElementById(`${baseId}-tab-${next.key}`)?.focus();
-  };
+function ArchivedGames({ table }: { table: MatchTable }) {
+  const names = new Map(table.content.players.map((player) => [player.id, player.nickname]));
+  const archive = table.content.archive ?? [];
+  const total = archive.reduce((sum, entry) => sum + entry.games.length, 0);
   return (
-    <div
-      role="tablist"
-      aria-label="レベル"
-      className="flex flex-wrap gap-x3s border-b border-border"
-    >
-      {groups.map((group, index) => {
-        const active = group.key === selected;
-        const now = nowOf(group.key);
-        return (
-          <button
-            key={group.key}
-            id={`${baseId}-tab-${group.key}`}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            aria-controls={`${baseId}-panel`}
-            tabIndex={active ? 0 : -1}
-            onClick={() => onSelect(group.key)}
-            onKeyDown={(keyEvent) => move(keyEvent, index)}
-            className={cn(
-              "-mb-px flex min-h-xl items-center gap-x3s border-b-2 px-xs text-m",
-              active ? "border-primary font-bold" : "border-transparent text-text-sub",
-            )}
-          >
-            {group.label}
-            {now ? <span className="text-xs">第{now}試合</span> : null}
-          </button>
-        );
-      })}
-    </div>
+    <details className="rounded-md border border-border bg-surface p-xs">
+      <summary className="cursor-pointer text-m font-bold">{`前の分け方・試合の形で終わった試合（${total}試合）`}</summary>
+      <div className="mt-xxs flex flex-col gap-xs">
+        {archive.map((entry) => (
+          <section key={entry.key} className="flex flex-col gap-x3s">
+            <h3 className="text-s font-bold">{groupLabelOf(entry.key)}</h3>
+            <ol className="flex flex-col gap-x3s text-s text-text-sub">
+              {entry.games.map((game, index) => (
+                <li key={index}>{game.players.map((id) => names.get(id) ?? "").join("・")}</li>
+              ))}
+            </ol>
+          </section>
+        ))}
+      </div>
+    </details>
   );
 }
 
@@ -196,12 +155,62 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
   const firstWithGames = groups.find((group) => (planOf(group.key)?.games.length ?? 0) > 0);
   const [selected, setSelected] = useState(firstWithGames?.key ?? groups[0]?.key ?? "");
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [attendanceOpen, setAttendanceOpen] = useState(false);
+  const [regroupOpen, setRegroupOpen] = useState(false);
+  const [changeNote, setChangeNote] = useState<{ tone: "info" | "danger"; text: string }>();
   const group = groups.find((entry) => entry.key === selected) ?? groups[0];
   const plan = group ? planOf(group.key) : undefined;
   const counts = countRoster(table.content.players);
   const { settings } = table.content;
   const planned = table.content.plan.some((entry) => entry.games.length > 0);
-  const lead = `${formatPlayDate(table.playDate)}・${MATCH_FORMAT_LABELS[settings.format]}・1試合${settings.minutesPerGame}分・${counts.present}人${counts.absent > 0 ? `（来ない ${counts.absent}人）` : ""}`;
+  const lead = `${formatPlayDate(table.playDate)}・${MATCH_FORMAT_LABELS[settings.format]}・1試合${settings.minutesPerGame}分・${counts.present}人${counts.absent > 0 ? `（来ない ${counts.absent}人）` : ""}${counts.left > 0 ? `（帰った ${counts.left}人）` : ""}`;
+  const archive = table.content.archive ?? [];
+
+  /**
+   * 人に「来なかった・来た・帰る」を付け、その人の組のこれからの試合だけを組み直す。
+   * @param playerId 名簿の人の ID
+   * @param action 直し方
+   */
+  const mark = (playerId: string, action: AttendanceAction) => {
+    let text = "";
+    const applied = editor.apply((draft) => {
+      const result = markAttendance(draft.content, draft.seed, playerId, action);
+      if (!result) return draft;
+      text = describeAttendance(result.report);
+      return { ...draft, content: result.content };
+    });
+    setAttendanceOpen(false);
+    setChangeNote(
+      applied
+        ? { tone: "info", text: `組み直しました。${text}` }
+        : {
+            tone: "danger",
+            text: "試合表を読み直しています。読み直したあとで、もう一度直してください。",
+          },
+    );
+  };
+
+  /**
+   * 分け方と試合の形を変え、終わった試合をできるだけ残して組み直す。
+   * @param next 新しい設定
+   */
+  const regroup = (next: MatchSettings) => {
+    const applied = editor.apply((draft) => {
+      const changed = changeSettings(draft.content, next).content;
+      return { ...draft, content: { ...changed, plan: buildPlan(changed, draft.seed) } };
+    });
+    setRegroupOpen(false);
+    setChangeNote(
+      applied
+        ? { tone: "info", text: "分け方と試合の形を変えて、まだの試合を組み直しました。" }
+        : {
+            tone: "danger",
+            text: "試合表を読み直しています。読み直したあとで、もう一度変えてください。",
+          },
+    );
+    const firstGroup = groupsOf({ settings: next })[0];
+    if (firstGroup) setSelected(firstGroup.key);
+  };
 
   /**
    * 試合のチェックを付け外す。
@@ -235,6 +244,23 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
       actions={
         planned ? (
           <>
+            {editor.isEditor ? (
+              <>
+                <Button size="small" onClick={() => setAttendanceOpen(true)}>
+                  人を選んで直す
+                </Button>
+                <Button size="small" onClick={() => setRegroupOpen(true)}>
+                  レベルの分け方
+                </Button>
+              </>
+            ) : null}
+            <Link
+              to="/match/tables/$tableId/big"
+              params={{ tableId: table.id }}
+              className={buttonVariants({ size: "small" })}
+            >
+              大きく映す
+            </Link>
             <Link
               to="/match/tables/$tableId/print"
               params={{ tableId: table.id }}
@@ -250,6 +276,17 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
       }
     >
       <EditorState editor={editor} />
+      {changeNote ? (
+        <div
+          role="status"
+          className={cn(
+            "rounded-md border bg-surface px-xs py-xxs text-m",
+            changeNote.tone === "danger" ? "border-danger text-danger-text" : "border-warning",
+          )}
+        >
+          {changeNote.text}
+        </div>
+      ) : null}
       {!planned || !group ? (
         <p className="text-m text-text-sub">
           まだ試合表を作っていません。
@@ -270,12 +307,7 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
               selected={group.key}
               onSelect={setSelected}
               baseId={baseId}
-              nowOf={(key) => {
-                const entry = planOf(key);
-                if (!entry || entry.games.length === 0) return null;
-                const now = currentGameIndex(entry);
-                return now < entry.games.length ? now + 1 : null;
-              }}
+              nowOf={(key) => currentGameNumber(planOf(key))}
             />
           ) : null}
           <div
@@ -298,8 +330,21 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
               </p>
             )}
           </div>
+          {archive.length > 0 ? <ArchivedGames table={table} /> : null}
         </div>
       )}
+      <AttendanceDialog
+        open={attendanceOpen}
+        onOpenChange={setAttendanceOpen}
+        table={table}
+        onApply={mark}
+      />
+      <RegroupDialog
+        open={regroupOpen}
+        onOpenChange={setRegroupOpen}
+        table={table}
+        onApply={regroup}
+      />
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}

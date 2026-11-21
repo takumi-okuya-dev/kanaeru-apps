@@ -3,6 +3,7 @@
 import type { WebFeature } from "../../lib/feature.ts";
 import { useMatchNavItems } from "./nav-items.ts";
 import {
+  matchBigRoute,
   matchBoardRoute,
   matchCreateRoute,
   matchListRoute,
@@ -16,6 +17,13 @@ import {
  */
 export const feature = {
   id: "match",
-  routes: [matchListRoute, matchCreateRoute, matchRosterRoute, matchBoardRoute, matchPrintRoute],
+  routes: [
+    matchListRoute,
+    matchCreateRoute,
+    matchRosterRoute,
+    matchBoardRoute,
+    matchPrintRoute,
+    matchBigRoute,
+  ],
   useNavItems: useMatchNavItems,
 } satisfies WebFeature;

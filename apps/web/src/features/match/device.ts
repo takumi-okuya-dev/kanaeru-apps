@@ -23,3 +23,15 @@ export function deviceId(): string {
     return fallback;
   }
 }
+
+/**
+ * 端末の短い名前（ID の終わりの4文字。担当の端末がどれかを見分けるため。例：「端末 3F9A」）。
+ * @param id 端末の ID
+ * @returns 短い名前
+ */
+export function deviceLabel(id: string): string {
+  return `端末 ${id
+    .replace(/[^a-z0-9]/giu, "")
+    .slice(-4)
+    .toUpperCase()}`;
+}

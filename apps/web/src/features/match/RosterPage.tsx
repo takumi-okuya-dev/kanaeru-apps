@@ -48,13 +48,8 @@ import { showNotice } from "../../lib/notice.ts";
 import { Page } from "../../lib/page.tsx";
 import { formatPlayDate } from "./format.ts";
 import { MATCH_ROUTE_PATTERNS, matchPaths } from "./paths.ts";
-import {
-  buildPlan,
-  droppedGameCount,
-  fitPlanToSettings,
-  hasDoneGames,
-  summarizeGroups,
-} from "./plan.ts";
+import { buildPlan, hasDoneGames, summarizeGroups } from "./plan.ts";
+import { changeSettings, describeSettingsChange } from "./regroup.ts";
 import { addPlayer, countRoster, importPeople, removePlayer, updatePlayer } from "./roster-edit.ts";
 import type { ImportMode } from "./roster-edit.ts";
 import { assignNicknames, readRoster } from "./roster-read.ts";
@@ -535,7 +530,7 @@ function SettingsCard({ table, editor }: BodyProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingSettings, setPendingSettings] = useState<{
     next: MatchSettingsValue;
-    dropped: number;
+    lines: string[];
   }>();
   const [failure, setFailure] = useState<string>();
   const { settings } = table.content;
@@ -562,30 +557,24 @@ function SettingsCard({ table, editor }: BodyProps) {
   };
 
   /**
-   * 設定を保存する（合わなくなった組み合わせは外す）。
+   * 設定を保存する（分け方か試合の形が変わったら、終わった試合をできるだけ残して組み合わせを移す。regroup.ts）。
    * @param next 確かめた設定
    */
   const saveSettings = (next: MatchSettingsValue) => {
-    editor.apply((draft) => ({
-      ...draft,
-      content: {
-        ...draft.content,
-        settings: next,
-        plan: fitPlanToSettings(draft.content.plan, next),
-      },
-    }));
+    editor.apply((draft) => ({ ...draft, content: changeSettings(draft.content, next).content }));
   };
 
   /**
-   * 設定を変える（組み合わせが外れるときは、先に確かめる）。
+   * 設定を変える（組み合わせが変わるときは、何が変わるかを先に確かめる）。
    * @param patch 直す欄
    */
   const requestSettings = (patch: Record<string, unknown>) => {
     const next = checkSettings(patch);
     if (!next) return;
-    const dropped = droppedGameCount(table.content.plan, next);
-    if (dropped > 0) setPendingSettings({ next, dropped });
-    else saveSettings(next);
+    const { report } = changeSettings(table.content, next);
+    if (report.regrouped && (report.dropped > 0 || report.doneTotal > 0)) {
+      setPendingSettings({ next, lines: describeSettingsChange(report, false) });
+    } else saveSettings(next);
   };
 
   /** 組んで、試合表の画面へ移る。 */
@@ -718,16 +707,18 @@ function SettingsCard({ table, editor }: BodyProps) {
         onOpenChange={(open) => {
           if (!open) setPendingSettings(undefined);
         }}
-        title="組み合わせを外しますか？"
+        title="組み合わせが変わります。変えますか？"
         confirmLabel="変える"
         onConfirm={() => {
           if (pendingSettings) saveSettings(pendingSettings.next);
           setPendingSettings(undefined);
         }}
       >
-        <p className="text-m">
-          {`試合の形やレベルの分け方を変えると、合わなくなる試合 ${pendingSettings?.dropped ?? 0}試合（終わった試合も）を外します。変えたあとで「試合表を作る」を押してください。`}
-        </p>
+        <ul className="flex list-disc flex-col gap-x3s pl-s text-m">
+          {(pendingSettings?.lines ?? []).map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
       </ConfirmDialog>
       <ConfirmDialog
         open={confirmOpen}
@@ -780,11 +771,12 @@ function RosterBody({ table, editor }: BodyProps) {
           </span>
           {counts.late > 0 ? <span>遅れて来る {counts.late}人</span> : null}
           {counts.absent > 0 ? <span>来ない {counts.absent}人</span> : null}
+          {counts.left > 0 ? <span>帰った {counts.left}人</span> : null}
           {counts.checks > 0 ? <span>確かめる所 {counts.checks}件</span> : null}
         </p>
         <RosterTable table={table} editor={editor} fullNames={fullNames} />
         <p className="text-s text-text-sub">
-          氏名はこの端末の画面にだけ出し、保存しません。保存するのは呼び名・レベル・当日の印だけです。「遅れて来る」「来ない」の人は試合に入りません。
+          氏名はこの端末の画面にだけ出し、保存しません。保存するのは呼び名・レベル・当日の印だけです。「遅れて来る」「来ない」「帰った」の人は試合に入りません。当日は、試合表の画面の「人を選んで直す」を使うと、その人の組のこれからの試合だけを組み直します。
         </p>
       </section>
       <SettingsCard table={table} editor={editor} />

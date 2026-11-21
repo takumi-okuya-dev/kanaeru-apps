@@ -1,0 +1,15 @@
+/*
+ * 大きく映す画面（BigPage。PRD FR-M17・モックアップ M3）の字の大きさ。コートの横のタブレットやノート PC に出し、離れて読む。
+ * tokens.css の文字の段（いちばん大きい xxl＝32px）では足りないので、画面の幅に合わせて大きくする（PRD 4.5「大きく映す画面で
+ * 足りない文字の大きさは UX で決める」。UX で決めるまでの【仮決め】match-003 research R5）。色・余白は tokens.css の名前を使う。
+ */
+.match-big-name {
+  font-size: clamp(1.5rem, 6vw, 4.5rem);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.match-big-label {
+  font-size: clamp(1rem, 2.4vw, 1.75rem);
+  line-height: 1.25;
+}

@@ -98,8 +98,11 @@ export const MATCH_GROUPS = {
 /** 分けないときの、1試合の中のレベルの差の上限（段。PRD FR-M6【仮決め】）。 */
 export const UNGROUPED_MAX_LEVEL_SPREAD = 2;
 
-/** 当日の印の code（来る・遅れて来る・来ない。FR-M3。帰るは当日の組み直しの段で足す）。 */
-export const PLAYER_STATUSES = ["present", "late", "absent"] as const;
+/**
+ * 当日の印の code（来る・遅れて来る・来ない・帰った。FR-M3・FR-M14）。試合に入るのは present だけ。
+ * left（帰った）は当日に「帰る」を付けた人（match-003。終わった試合には名前が残り、これからの試合には入らない）。
+ */
+export const PLAYER_STATUSES = ["present", "late", "absent", "left"] as const;
 
 /** 当日の印。 */
 export type PlayerStatus = (typeof PLAYER_STATUSES)[number];
@@ -109,4 +112,5 @@ export const PLAYER_STATUS_LABELS = {
   present: "来る",
   late: "遅れて来る",
   absent: "来ない",
+  left: "帰った",
 } as const satisfies Record<PlayerStatus, string>;

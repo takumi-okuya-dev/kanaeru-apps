@@ -15,6 +15,8 @@ export const MATCH_ROUTE_PATTERNS = {
   board: "/match/tables/$tableId/board",
   /** M5・R1 印刷 */
   print: "/match/tables/$tableId/print",
+  /** M3 大きく映す（match-003） */
+  big: "/match/tables/$tableId/big",
 } as const;
 
 /** 試合表の中の道の頭（ナビの項目を出すかを決める）。 */
@@ -61,4 +63,10 @@ export const matchPaths = {
    * @returns 道
    */
   print: (tableId: string) => `/match/tables/${segment(tableId)}/print`,
+  /**
+   * 大きく映す。
+   * @param tableId 試合表の ID
+   * @returns 道
+   */
+  big: (tableId: string) => `/match/tables/${segment(tableId)}/big`,
 };
