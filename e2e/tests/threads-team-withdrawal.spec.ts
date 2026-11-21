@@ -1,5 +1,5 @@
-// 組織に入れた Threads の運用アカウントと退会（threads-013・suite-001。PRD 組織 5.7）：管理者が退会するとき、確かめの枠に
-// 組織・引き継がれる記録（組織に入れた運用アカウント）・消える記録（個人の運用アカウント）を分けて出す。
+// チームに入れた Threads の運用アカウントと退会（threads-013・threads-016・suite-001。PRD 組織 5.7）：管理者が退会するとき、確かめの枠に
+// 組織・引き継がれる記録（チームに入れた運用アカウント）・消える記録（個人の運用アカウント）を分けて出す。
 // 組織の E2E（suite-organization.spec.ts）から、Threads に関わる分をここへ移した。
 import { expect, test } from "@playwright/test";
 import type { APIRequestContext, Browser, Page } from "@playwright/test";
@@ -94,7 +94,7 @@ test("管理者の退会の確かめに、組織・引き継がれる記録・�
   await setThreadsVisibility(browser, "public");
   try {
     await login(page.request, uniqueLineUserId(`${tag}a`), adminName);
-    // 窓口で用意する：組織を作って招き、運用アカウントを1つ組織に入れ、1つは個人のままにする
+    // 窓口で用意する：組織を作って招き、チームを作って自分を足し、運用アカウントを1つチームに入れ、1つは個人のままにする
     const created = await page.request.post("/api/v1/suite/organizations", {
       data: { name: `パン屋の会${tag}` },
       headers: ORIGIN,
@@ -110,6 +110,18 @@ test("管理者の退会の確かめに、組織・引き継がれる記録・�
       headers: ORIGIN,
     });
     expect(joined.status()).toBe(200);
+    const team = await page.request.post(`/api/v1/suite/organizations/${organizationId}/teams`, {
+      data: { name: "本店" },
+      headers: ORIGIN,
+    });
+    expect(team.status()).toBe(201);
+    const { id: teamId } = (await team.json()) as { id: string };
+    const me = (await (await page.request.get("/api/v1/accounts/me")).json()) as { id: string };
+    const added = await page.request.put(
+      `/api/v1/suite/organizations/${organizationId}/teams/${teamId}/members/${me.id}`,
+      { data: { leader: false }, headers: ORIGIN },
+    );
+    expect(added.status()).toBe(204);
     const placedAccount = await page.request.post("/api/v1/threads/accounts", {
       data: { name: `ベーカリー${tag}` },
       headers: ORIGIN,
@@ -119,7 +131,7 @@ test("管理者の退会の確かめに、組織・引き継がれる記録・�
     const placement = await page.request.put(
       `/api/v1/threads/accounts/${placedId}/team/placement`,
       {
-        data: { organizationId },
+        data: { teamId },
         headers: ORIGIN,
       },
     );

@@ -14,7 +14,7 @@
 
 **Primary Dependencies**: Hono・@hono/zod-openapi・zod 4・Drizzle 0.45・React 19・TanStack Router/Query（新しい依存なし）
 
-**Storage**: PostgreSQL（列と表を足す DB の変更を1つ：`0018_booking_waitlist.sql`）
+**Storage**: PostgreSQL（列と表を足す DB の変更を1つ：`0019_booking_waitlist.sql`）
 
 **Testing**: Vitest（期限の計算・席の数え方・約束の単体、booking の API の結合〈本物の PostgreSQL・同時の片付け〉、画面の単体）・Playwright（`e2e/tests/booking-waitlist.spec.ts`。axe・CSP・1440px と 375px）
 
@@ -80,7 +80,7 @@ apps/api/src/modules/booking/
 ├── routes.ts・views.ts # 設定の欄・手で足す・状態・名簿の欄
 ├── notify.ts・notify-repository.ts・notice-templates.ts  # 状態の言葉・same_day
 └── index.ts
-apps/api/drizzle/0018_booking_waitlist.sql
+apps/api/drizzle/0019_booking_waitlist.sql
 apps/web/src/features/booking/
 ├── waitlist-api.ts・CapacitySection.tsx・SeatSummary.tsx・NoticeLog.tsx
 ├── ModeSection.tsx・RosterPage.tsx・ApplyPage.tsx・MyBookingsPage.tsx・EntryTokenPage.tsx・apply-parts.tsx
@@ -90,7 +90,7 @@ docs/apps/booking.md・_bmad-output/architecture-kanaeru/architecture-kanaeru.md
 
 ## PR の分け方
 
-1. `feature/booking-004-waitlist`（DB の変更の PR）：仕様のフォルダ（1つ目のコミット）・選択肢の値（`options.ts`・`notify-options.ts`）・`schema.ts`・`0018_booking_waitlist.sql`・制約の結合のテスト（2つ目のコミット）。
+1. `feature/booking-004-waitlist`（DB の変更の PR）：仕様のフォルダ（1つ目のコミット）・選択肢の値（`options.ts`・`notify-options.ts`）・`schema.ts`・`0019_booking_waitlist.sql`・制約の結合のテスト（2つ目のコミット）。
 2. `feature/booking-004-pr2-waitlist`（1の上）：booking の窓口・画面・知らせ・定期の窓口・E2E・文書。共通と event・reception の変更はない。
 
 ## Complexity Tracking
