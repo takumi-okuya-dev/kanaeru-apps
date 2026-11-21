@@ -1,0 +1,274 @@
+/*
+ * 試合表の印刷（PrintPage。PRD FR-M19・モックアップ R1）。1つの組を紙1枚に刷る。紙の大きさと向きは、版の data-paper
+ * （例：a3-portrait）で選んだ名前つきのページ（@page match-…）に当てる。大きさは紙の上の mm（画面の値ではないので tokens.css に
+ * 置かない。research R10）。B は日本の JIS の B 列（CSS の B5 などは ISO なので、mm で書く）。余白は print-layout.ts の
+ * PAGE_MARGIN_MM と同じ 8mm、版の大きさは紙から余白と遊び（1mm）を引いたもの。
+ * 印刷では、版のほか（外枠の帯・ナビ・画面の操作）を隠す。
+ */
+@media print {
+  body:has([data-match-sheets]) * {
+    visibility: hidden;
+  }
+
+  [data-match-sheets],
+  [data-match-sheets] * {
+    visibility: visible;
+  }
+
+  [data-match-sheets] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+  }
+
+  [data-match-sheets] [data-paper] {
+    max-width: none;
+    margin: 0;
+    border: 0;
+    box-shadow: none;
+    break-after: page;
+  }
+
+  [data-match-sheets] [data-paper]:last-child {
+    break-after: auto;
+  }
+}
+
+@page match-a5-portrait {
+  size: 148mm 210mm;
+  margin: 8mm;
+}
+
+[data-paper="a5-portrait"] {
+  page: match-a5-portrait;
+  aspect-ratio: 131 / 193;
+}
+
+@media print {
+  [data-paper="a5-portrait"] {
+    width: 131mm;
+    height: 193mm;
+  }
+}
+
+@page match-a5-landscape {
+  size: 210mm 148mm;
+  margin: 8mm;
+}
+
+[data-paper="a5-landscape"] {
+  page: match-a5-landscape;
+  aspect-ratio: 193 / 131;
+}
+
+@media print {
+  [data-paper="a5-landscape"] {
+    width: 193mm;
+    height: 131mm;
+  }
+}
+
+@page match-b5-portrait {
+  size: 182mm 257mm;
+  margin: 8mm;
+}
+
+[data-paper="b5-portrait"] {
+  page: match-b5-portrait;
+  aspect-ratio: 165 / 240;
+}
+
+@media print {
+  [data-paper="b5-portrait"] {
+    width: 165mm;
+    height: 240mm;
+  }
+}
+
+@page match-b5-landscape {
+  size: 257mm 182mm;
+  margin: 8mm;
+}
+
+[data-paper="b5-landscape"] {
+  page: match-b5-landscape;
+  aspect-ratio: 240 / 165;
+}
+
+@media print {
+  [data-paper="b5-landscape"] {
+    width: 240mm;
+    height: 165mm;
+  }
+}
+
+@page match-a4-portrait {
+  size: 210mm 297mm;
+  margin: 8mm;
+}
+
+[data-paper="a4-portrait"] {
+  page: match-a4-portrait;
+  aspect-ratio: 193 / 280;
+}
+
+@media print {
+  [data-paper="a4-portrait"] {
+    width: 193mm;
+    height: 280mm;
+  }
+}
+
+@page match-a4-landscape {
+  size: 297mm 210mm;
+  margin: 8mm;
+}
+
+[data-paper="a4-landscape"] {
+  page: match-a4-landscape;
+  aspect-ratio: 280 / 193;
+}
+
+@media print {
+  [data-paper="a4-landscape"] {
+    width: 280mm;
+    height: 193mm;
+  }
+}
+
+@page match-b4-portrait {
+  size: 257mm 364mm;
+  margin: 8mm;
+}
+
+[data-paper="b4-portrait"] {
+  page: match-b4-portrait;
+  aspect-ratio: 240 / 347;
+}
+
+@media print {
+  [data-paper="b4-portrait"] {
+    width: 240mm;
+    height: 347mm;
+  }
+}
+
+@page match-b4-landscape {
+  size: 364mm 257mm;
+  margin: 8mm;
+}
+
+[data-paper="b4-landscape"] {
+  page: match-b4-landscape;
+  aspect-ratio: 347 / 240;
+}
+
+@media print {
+  [data-paper="b4-landscape"] {
+    width: 347mm;
+    height: 240mm;
+  }
+}
+
+@page match-a3-portrait {
+  size: 297mm 420mm;
+  margin: 8mm;
+}
+
+[data-paper="a3-portrait"] {
+  page: match-a3-portrait;
+  aspect-ratio: 280 / 403;
+}
+
+@media print {
+  [data-paper="a3-portrait"] {
+    width: 280mm;
+    height: 403mm;
+  }
+}
+
+@page match-a3-landscape {
+  size: 420mm 297mm;
+  margin: 8mm;
+}
+
+[data-paper="a3-landscape"] {
+  page: match-a3-landscape;
+  aspect-ratio: 403 / 280;
+}
+
+@media print {
+  [data-paper="a3-landscape"] {
+    width: 403mm;
+    height: 280mm;
+  }
+}
+
+@page match-b3-portrait {
+  size: 364mm 515mm;
+  margin: 8mm;
+}
+
+[data-paper="b3-portrait"] {
+  page: match-b3-portrait;
+  aspect-ratio: 347 / 498;
+}
+
+@media print {
+  [data-paper="b3-portrait"] {
+    width: 347mm;
+    height: 498mm;
+  }
+}
+
+@page match-b3-landscape {
+  size: 515mm 364mm;
+  margin: 8mm;
+}
+
+[data-paper="b3-landscape"] {
+  page: match-b3-landscape;
+  aspect-ratio: 498 / 347;
+}
+
+@media print {
+  [data-paper="b3-landscape"] {
+    width: 498mm;
+    height: 347mm;
+  }
+}
+
+@page match-a2-portrait {
+  size: 420mm 594mm;
+  margin: 8mm;
+}
+
+[data-paper="a2-portrait"] {
+  page: match-a2-portrait;
+  aspect-ratio: 403 / 577;
+}
+
+@media print {
+  [data-paper="a2-portrait"] {
+    width: 403mm;
+    height: 577mm;
+  }
+}
+
+@page match-a2-landscape {
+  size: 594mm 420mm;
+  margin: 8mm;
+}
+
+[data-paper="a2-landscape"] {
+  page: match-a2-landscape;
+  aspect-ratio: 577 / 403;
+}
+
+@media print {
+  [data-paper="a2-landscape"] {
+    width: 577mm;
+    height: 403mm;
+  }
+}
