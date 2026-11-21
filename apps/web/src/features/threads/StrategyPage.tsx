@@ -298,7 +298,8 @@ function StrategyForm({ accountId, strategy }: StrategyFormProps) {
       <StrategyProgress check={check} updatedAt={saved.updatedAt} onGoToField={goToField}>
         <StrategyOverallReview values={values} />
       </StrategyProgress>
-      <div id={TABS_ANCHOR_ID} />
+      {/* 区分を選んだとき戻る先の印。フォームの間の余白を2つ重ねないよう、上の余白を打ち消す */}
+      <div id={TABS_ANCHOR_ID} className="-mt-s" />
       <StrategySectionTabs
         check={check}
         current={section.id}
