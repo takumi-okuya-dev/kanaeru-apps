@@ -11,6 +11,7 @@
 // すべての道に suite の requireApp を付ける（各アプリは付けない。見えなければ 404）。どのアプリにも共通にも属さない領域があれば、
 // 起動を止める（requireApp の付け忘れで、作りかけのアプリが見えないように）。
 // 退会の手順（AD-22）：各領域の withdrawal を「共通（suite）を先、アプリを一覧の順」に並べて、領域に渡す（account の退会の窓口が使う）。
+// 交流会の招待のリンクを絞る決まり（AD-5・AD-23）：各領域の eventLinkRestriction を集めて、領域に渡す（event の要約の窓口が使う）。
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import type { Hook } from "@hono/zod-openapi";
 import {
@@ -37,6 +38,7 @@ import type { ApiEnv, DomainRouteDeps } from "./kernel/http.ts";
 import { createJobRequestCheck } from "./kernel/job-auth.ts";
 import { createMetaApp } from "./kernel/meta-app.ts";
 import type { Logger } from "./kernel/logger.ts";
+import type { EventLinkRestriction } from "./kernel/event-links.ts";
 import type { RegisteredWithdrawalStep, WithdrawalStep } from "./kernel/withdrawal.ts";
 import { REQUEST_ID_HEADER, requestIdMiddleware } from "./kernel/request-id.ts";
 import * as modules from "./modules.list.ts";
@@ -83,6 +85,8 @@ export type DomainModule = {
   routes?: (deps: DomainRouteDeps) => OpenAPIHono<AppEnv>;
   /** 退会の手順（なければ持たない。組み立てが共通 → アプリの一覧の順に並べて account に渡す。AD-22） */
   withdrawal?: WithdrawalStep;
+  /** 交流会の招待のリンクを絞る決まり（なければ持たない。組み立てが集めて event に渡す。AD-5・AD-23） */
+  eventLinkRestriction?: EventLinkRestriction;
 };
 
 /** 領域の名前空間の一覧から、領域ごとの道の型を作る（routes を持たない領域は never）。 */
@@ -137,6 +141,21 @@ function resolveApps(
     throw new Error(`アプリの登録が決まりに合いません：${problems.join("、")}`);
   }
   return apps;
+}
+
+/**
+ * 交流会の招待のリンクを絞る決まりを集める（領域の並びの順。どれか1つが絞れば絞るので、順に意味はない）。
+ * @param domains 組み立てる領域
+ * @returns 集めた決まり
+ */
+export function collectEventLinkRestrictions(
+  domains: readonly [name: string, module: DomainModule][],
+): EventLinkRestriction[] {
+  return domains.flatMap(([, module]) =>
+    "eventLinkRestriction" in module && module.eventLinkRestriction
+      ? [module.eventLinkRestriction]
+      : [],
+  );
 }
 
 /**
@@ -515,6 +534,7 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
       logger,
     }),
     withdrawalSteps: orderWithdrawalSteps(domains, apps),
+    eventLinkRestrictions: collectEventLinkRestrictions(domains),
   };
   for (const [name, domain] of domains) {
     if (!domain.routes) continue;

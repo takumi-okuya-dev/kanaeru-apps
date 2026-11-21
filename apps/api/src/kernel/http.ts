@@ -8,6 +8,7 @@ import type { RequestIdVariables } from "hono/request-id";
 import type { Config } from "./config.ts";
 import type { Db } from "./db.ts";
 import { errorResponse } from "./errors.ts";
+import type { EventLinkRestriction } from "./event-links.ts";
 import type { DomainFeatures } from "./features.ts";
 import type { MetaApp } from "./meta-app.ts";
 import type { Logger } from "./logger.ts";
@@ -72,6 +73,11 @@ export type DomainRouteDeps = {
    * 手で組み立てるテストは書かなくてよい（なければ手順なし）
    */
   withdrawalSteps?: readonly RegisteredWithdrawalStep[];
+  /**
+   * 交流会の招待のリンクを絞る決まり（組み立てが各領域の eventLinkRestriction を集めたもの。event の要約の窓口だけが使う。AD-5・AD-23）。
+   * どれか1つが true なら、交流会の役目のない人にはリンクを返さない。手で組み立てるテストは書かなくてよい（なければ絞らない）
+   */
+  eventLinkRestrictions?: readonly EventLinkRestriction[];
 };
 
 /**

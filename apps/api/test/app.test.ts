@@ -12,6 +12,7 @@ import { uuidParam } from "../src/kernel/http.ts";
 import {
   BOOKING_WEBHOOK_RATE_LIMIT,
   OPENAPI_DOC_PATH,
+  collectEventLinkRestrictions,
   orderWithdrawalSteps,
   toFieldErrors,
 } from "../src/app.ts";
@@ -110,6 +111,7 @@ describe("組み立て", () => {
       "apps",
       "config",
       "db",
+      "eventLinkRestrictions",
       "features",
       "fetch",
       "isJobRequest",
@@ -631,6 +633,17 @@ describe("退会の手順の並び（AD-22）", () => {
       accountData: "",
     };
   }
+
+  it("交流会の招待のリンクを絞る決まりは、出している領域のものだけを集める（AD-5・AD-23）", () => {
+    const restricts = { restrictsLinks: () => Promise.resolve(true) };
+    const never = { restrictsLinks: () => Promise.resolve(false) };
+    const collected = collectEventLinkRestrictions([
+      ["a1", { eventLinkRestriction: restricts }],
+      ["nostep", {}],
+      ["b1", { eventLinkRestriction: never }],
+    ]);
+    expect(collected).toEqual([restricts, never]);
+  });
 
   it("共通の領域を先、アプリを一覧の順（アプリの中は domains の順）、テストの領域を最後に並べ、account は入れない", () => {
     const calls: string[] = [];
