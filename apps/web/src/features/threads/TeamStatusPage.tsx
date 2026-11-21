@@ -77,8 +77,10 @@ function TeamStatus({ organizationId }: { organizationId: string }) {
       title="運用状況"
       lead={
         status.scope === "all"
-          ? "組織のすべての人と運用アカウントの、動きと伸びの数と日付です。本文や戦略は出しません。"
-          : "あなたが担当している運用アカウントと、その持ち主の動きと伸びの数と日付です。本文や戦略は出しません。"
+          ? "組織のすべてのチームの人と運用アカウントの、動きと伸びの数と日付です。本文や戦略は出しません。"
+          : status.scope === "team"
+            ? "あなたがリーダーのチーム（と担当している運用アカウント）の人と運用アカウントの、動きと伸びの数と日付です。本文や戦略は出しません。"
+            : "あなたが担当している運用アカウントと、その持ち主の動きと伸びの数と日付です。本文や戦略は出しません。"
       }
     >
       <div>
@@ -98,7 +100,7 @@ function TeamStatus({ organizationId }: { organizationId: string }) {
           運用アカウント
         </h2>
         {status.accounts.length === 0 ? (
-          <p className="text-m">組織に入っている運用アカウントはまだありません。</p>
+          <p className="text-m">チームに入っている運用アカウントはまだありません。</p>
         ) : (
           <ul aria-label="運用アカウントの運用状況" className="flex flex-col gap-xs">
             {status.accounts.map((account) => (
@@ -114,7 +116,7 @@ function TeamStatus({ organizationId }: { organizationId: string }) {
                   ) : null}
                 </h3>
                 <p className="text-s text-text-sub">
-                  持ち主：{account.ownerName || "（名前なし）"}
+                  チーム：{account.teamName}・持ち主：{account.ownerName || "（名前なし）"}
                   {account.ownerIsMe ? "（あなた）" : ""}・
                   {CONNECTION_LABELS[account.connectionStatus]}
                 </p>

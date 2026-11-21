@@ -1,4 +1,5 @@
-// Threads のチーム運用（threads-013。PRD 組織 5章）の形と決まった値。組織そのもの（人・役割・招待）は suite が持つ。
+// Threads のチーム運用（threads-013・threads-016。PRD 組織 5章）の形と決まった値。組織とチーム（人・役割・招待・リーダー）は suite が持つ。
+// 運用アカウントは組織の中のチームに入れる（threads-016）。
 // 運用アカウントごとの関わり（持ち主・担当の人・組織の管理者・組織の人）は API の1か所（access.ts）で決め、画面はここの形で受け取る。
 // 止まっている日数・伸びの比などの決まった値は limits.ts（めぐるの 020 から写したもの。PRD O15）。
 import { z } from "zod";
@@ -36,7 +37,9 @@ export const ThreadsAccountAccess = z.object({
   organization: z
     .object({ id: z.guid(), name: z.string(), myRole: z.enum(TEAM_ORGANIZATION_ROLES) })
     .nullable(),
-  /** 組織に見せているか */
+  /** 入っているチーム（入っていなければ null。threads-016） */
+  team: z.object({ id: z.guid(), name: z.string() }).nullable(),
+  /** チームに見せているか */
   shared: z.boolean(),
   /** 今の利用者が承認を任されているか（担当の人のときだけ true になりうる） */
   delegated: z.boolean(),
@@ -75,29 +78,44 @@ export const ThreadsTeamPerson = z.object({
 /** 「このアカウントのチーム」の1人の型。 */
 export type ThreadsTeamPerson = z.infer<typeof ThreadsTeamPerson>;
 
-/** 運用アカウントのチーム（設定の画面の「組織」とカード。持ち主と担当の人だけが読む）。 */
+/** 入れられるチーム（持ち主が入っているチーム。組織の名前つき）。 */
+export const ThreadsTeamCandidate = z.object({
+  /** チームの ID */
+  id: z.guid(),
+  /** チームの名前 */
+  name: z.string(),
+  organizationId: z.guid(),
+  organizationName: z.string(),
+});
+
+/** 入れられるチームの型。 */
+export type ThreadsTeamCandidate = z.infer<typeof ThreadsTeamCandidate>;
+
+/** 運用アカウントのチーム（設定の画面の「チーム」とカード。持ち主と担当の人だけが読む）。 */
 export const ThreadsAccountTeam = z.object({
   /** 入っている組織（入っていなければ null） */
   organization: z.object({ id: z.guid(), name: z.string() }).nullable(),
+  /** 入っているチーム（入っていなければ null。threads-016） */
+  team: z.object({ id: z.guid(), name: z.string() }).nullable(),
   shared: z.boolean(),
-  /** カードの人（組織に入っていなければ空） */
+  /** カードの人（チームに入っていなければ空） */
   people: z.array(ThreadsTeamPerson),
-  /** 入れられる組織（持ち主が入っている組織。持ち主のときだけ。どこにも入っていなければ空） */
-  candidates: z.array(z.object({ id: z.guid(), name: z.string() })),
+  /** 入れられるチーム（持ち主が入っているチーム。持ち主のときだけ。どこにも入っていなければ空） */
+  candidates: z.array(ThreadsTeamCandidate),
 });
 
 /** 運用アカウントのチームの型。 */
 export type ThreadsAccountTeam = z.infer<typeof ThreadsAccountTeam>;
 
-/** 組織に入れる・外す入力（null で外す）。 */
+/** チームに入れる・外す入力（null で外す。組織はチームから決まる。threads-016）。 */
 export const ThreadsPlacementInput = z.strictObject({
-  organizationId: z.guid({ error: "組織を選んでください。" }).nullable(),
+  teamId: z.guid({ error: "チームを選んでください。" }).nullable(),
 });
 
-/** 組織に入れる・外す入力の型。 */
+/** チームに入れる・外す入力の型。 */
 export type ThreadsPlacementInput = z.infer<typeof ThreadsPlacementInput>;
 
-/** 組織に見せるの入力。 */
+/** チームに見せるの入力。 */
 export const ThreadsSharedInput = z.strictObject({ shared: z.boolean() });
 
 /** 組織に見せるの入力の型。 */
@@ -109,11 +127,11 @@ export const ThreadsDelegationInput = z.strictObject({ delegated: z.boolean() })
 /** 承認を任せるの入力の型。 */
 export type ThreadsDelegationInput = z.infer<typeof ThreadsDelegationInput>;
 
-/** 担当を付け外しする入力（管理者だけ）。 */
+/** 担当を付け外しする入力（組織の管理者と、運用アカウントのチームのリーダー）。 */
 export const ThreadsAssignmentInput = z.strictObject({
-  /** 運用アカウント（組織に入っているもの） */
+  /** 運用アカウント（組織のチームに入っているもの） */
   threadsAccountId: z.guid(),
-  /** 担当の人（編集者か管理者） */
+  /** 担当の人（そのチームの人で、編集者か管理者） */
   accountId: z.guid(),
   assigned: z.boolean(),
 });
@@ -126,7 +144,7 @@ export const ThreadsOrganizationSummary = z.object({
   id: z.guid(),
   name: z.string(),
   myRole: z.enum(TEAM_ORGANIZATION_ROLES),
-  /** 組織に入っている運用アカウントの数 */
+  /** 見られるチームに入っている運用アカウントの数（管理者はすべて） */
   accountCount: z.number().int(),
 });
 
@@ -138,10 +156,12 @@ export const ThreadsOrganizationList = z.object({
 /** 入っている組織の一覧の型。 */
 export type ThreadsOrganizationList = z.infer<typeof ThreadsOrganizationList>;
 
-/** 組織に入っている運用アカウント（Threads の組織の画面の1行。名前・持ち主・見せる状態はどの組織の人にも見える）。 */
+/** チームに入っている運用アカウント（Threads の組織の画面の1行。名前・持ち主・見せる状態は、そのチームの人と管理者に見える）。 */
 export const ThreadsOrganizationAccount = z.object({
   id: z.guid(),
   name: z.string(),
+  /** 入っているチーム */
+  teamId: z.guid(),
   ownerAccountId: z.guid(),
   ownerName: z.string(),
   ownerIsMe: z.boolean(),
@@ -155,7 +175,7 @@ export const ThreadsOrganizationAccount = z.object({
 /** 組織に入っている運用アカウントの型。 */
 export type ThreadsOrganizationAccount = z.infer<typeof ThreadsOrganizationAccount>;
 
-/** 担当を決める表の1人（管理者にだけ返す。編集者と管理者）。 */
+/** 担当を決める表の1人（チームの人のうち、編集者と管理者）。 */
 export const ThreadsAssignmentRow = z.object({
   accountId: z.guid(),
   displayName: z.string(),
@@ -168,17 +188,33 @@ export const ThreadsAssignmentRow = z.object({
 /** 担当を決める表の1人の型。 */
 export type ThreadsAssignmentRow = z.infer<typeof ThreadsAssignmentRow>;
 
+/** Threads の組織の画面のチーム（管理者にはすべて、ほかの人には入っているチームだけ。threads-016）。 */
+export const ThreadsOrganizationTeam = z.object({
+  id: z.guid(),
+  name: z.string(),
+  /** 今の利用者がこのチームのリーダーか */
+  leader: z.boolean(),
+  /** このチームの担当を決められるか（組織の管理者とリーダー） */
+  canAssign: z.boolean(),
+  /** 担当を決める表（決められるときだけ。ほかは空） */
+  assignments: z.array(ThreadsAssignmentRow),
+});
+
+/** Threads の組織の画面のチームの型。 */
+export type ThreadsOrganizationTeam = z.infer<typeof ThreadsOrganizationTeam>;
+
 /** Threads の組織の画面。 */
 export const ThreadsOrganizationView = z.object({
   id: z.guid(),
   name: z.string(),
   myRole: z.enum(TEAM_ORGANIZATION_ROLES),
+  /** 見られるチーム（作った順） */
+  teams: z.array(ThreadsOrganizationTeam),
+  /** 見られるチームに入っている運用アカウント */
   accounts: z.array(ThreadsOrganizationAccount),
-  /** 担当を決める表（管理者だけ。ほかは空） */
-  assignments: z.array(ThreadsAssignmentRow),
-  /** 担当を決められるか（管理者） */
+  /** どれかのチームの担当を決められるか（組織の管理者とリーダー） */
   canAssign: z.boolean(),
-  /** 運用状況を見られるか（管理者と、担当が1つ以上ある編集者） */
+  /** 運用状況を見られるか（管理者・リーダー・担当が1つ以上ある編集者） */
   canSeeStatus: z.boolean(),
 });
 
@@ -197,8 +233,8 @@ export type TeamStatusGrowth = z.infer<typeof TeamStatusGrowth>;
 
 /** 運用状況（数と日付だけ。本文・戦略・設定・記録の中身は含めない。FR-T46）。 */
 export const ThreadsTeamStatus = z.object({
-  /** 見る範囲（管理者はすべて・編集者は担当の分だけ） */
-  scope: z.enum(["all", "assigned"]),
+  /** 見る範囲（管理者はすべて・リーダーはリーダーのチームの分〈と担当の分〉・編集者は担当の分だけ） */
+  scope: z.enum(["all", "team", "assigned"]),
   generatedAt: DateTime,
   /** 止まっている人と運用アカウントの数 */
   stoppedCount: z.number().int(),
@@ -217,6 +253,8 @@ export const ThreadsTeamStatus = z.object({
     z.object({
       threadsAccountId: z.guid(),
       name: z.string(),
+      /** 入っているチームの名前 */
+      teamName: z.string(),
       ownerName: z.string(),
       ownerIsMe: z.boolean(),
       connectionStatus: z.enum(CONNECTION_STATUSES),

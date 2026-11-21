@@ -14,6 +14,8 @@ export { appVisibility, isAppVisible, requireApp, requireAppNotOff } from "./vis
 export {
   organization as organizationTable,
   organizationMember as organizationMemberTable,
+  team as teamTable,
+  teamMember as teamMemberTable,
 } from "./schema.ts";
 export {
   findMembership,
@@ -27,6 +29,14 @@ export type {
   OrganizationMembership,
   OrganizationRecord,
 } from "./organizations.ts";
+export {
+  addTeamMember,
+  findTeam,
+  findTeamMembership,
+  listTeamMemberships,
+  listTeams,
+} from "./teams.ts";
+export type { NamedTeamMember, TeamMembership, TeamRecord, TeamWithMembers } from "./teams.ts";
 export { adminAfterWithdrawal, suiteWithdrawal as withdrawal } from "./withdrawal.ts";
 export { ENTITLEMENTS_ENFORCED, hasEntitlement } from "./entitlement.ts";
 export type { EntitlementSubject } from "./entitlement.ts";

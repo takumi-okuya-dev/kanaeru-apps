@@ -1,6 +1,7 @@
-// Threads のチーム運用（threads-013。PRD 組織 5章）：組織の上で、持ち主・管理者・編集者の3人で1つの運用アカウントを運用する。
-// 組織を作る・招く・入る・編集者にするのは suite の窓口で用意し（画面は suite-organization.spec.ts が確かめる）、Threads の画面で次を通す：
-// 持ち主が設定の「組織」で運用アカウントを組織に入れる → 管理者が Threads の組織の画面で編集者を担当にする →
+// Threads のチーム運用（threads-013・threads-016・suite-003。PRD 組織 5章）：組織の中のチームで、持ち主・管理者・編集者の3人で1つの運用アカウントを運用する。
+// 組織を作る・招く・入る・編集者にするのは suite の窓口で用意し（画面は suite-organization.spec.ts が確かめる）、画面で次を通す：
+// 管理者が設定 › 組織でチームを作り、持ち主と編集者を足す → 持ち主が設定の「チーム」で運用アカウントをチームに入れる →
+// 管理者が Threads の組織の画面で編集者を担当にする →
 // 編集者が「担当している運用アカウント」から開いて案をためる（承認はできない）→ 持ち主が承認を任せる → 編集者が承認する →
 // 管理者が運用状況を見る（数と日付だけ。本文は出ない）→ 持ち主が退会する（確かめの枠に引き継がれる記録が出る）→
 // 管理者が引き継いだ知らせを見て、運用アカウントは「接続し直しが要る」になっている。
@@ -100,7 +101,7 @@ test.afterAll(async ({ playwright }) => {
   await setThreadsVisibility(playwright.request, "off");
 });
 
-test("組織の上で担当が案を作り、任された承認をし、管理者が運用状況を見て、退会で引き継ぐ（threads-013）", async ({
+test("組織の中のチームで担当が案を作り、任された承認をし、管理者が運用状況を見て、退会で引き継ぐ（threads-013・threads-016）", async ({
   browser,
 }, testInfo) => {
   test.setTimeout(120_000);
@@ -160,21 +161,46 @@ test("組織の上で担当が案を作り、任された承認をし、管理�
   });
   expect(connected.status()).toBe(200);
 
-  // 持ち主：設定の「組織」で、運用アカウントを組織に入れる（入れるときの説明が出る）
+  // 管理者：設定 › 組織でチームを作り、持ち主と編集者を足す（suite-003）
+  const teamName = "店舗A";
+  await admin.page.goto(`/settings/organizations/${organizationId}`);
+  await expect(admin.page.getByRole("heading", { level: 2, name: "チーム" })).toBeVisible();
+  await admin.page.getByLabel(/新しいチームの名前/).fill(teamName);
+  await admin.page.getByRole("button", { name: "チームを作る" }).click();
+  await expect(
+    admin.page.getByText(`チーム「${teamName}」を作りました。人を足してください。`),
+  ).toBeVisible();
+  for (const person of [owner, editor]) {
+    await admin.page
+      .getByLabel(`「${teamName}」に足す人`)
+      .selectOption({ label: `${person.name}（${person === editor ? "編集者" : "メンバー"}）` });
+    await admin.page.getByRole("button", { name: "チームに足す" }).click();
+    await expect(
+      admin.page.getByText(`${person.name}さんを「${teamName}」に足しました。`),
+    ).toBeVisible();
+  }
+  const teamList = admin.page.getByRole("list", { name: `${teamName}の人` });
+  await expect(teamList.getByRole("listitem")).toHaveCount(2);
+  await checkPage(admin.page, "組織の画面のチーム（管理者）");
+
+  // 持ち主：設定の「チーム」で、運用アカウントをチームに入れる（入れるときの説明が出る）
   await owner.page.goto(`/threads/accounts/${accountId}/settings`);
-  await expect(owner.page.getByRole("heading", { level: 2, name: "組織" })).toBeVisible();
+  await expect(owner.page.getByRole("heading", { level: 2, name: "チーム" })).toBeVisible();
   await expect(
     owner.page.getByText(/あなたが退会すると、この運用アカウントは組織の管理者に引き継がれます/),
   ).toBeVisible();
-  await owner.page.getByLabel("入れる組織").selectOption({ label: organizationName });
-  await owner.page.getByRole("button", { name: "組織を変える" }).click();
-  await expect(owner.page.getByText(`組織「${organizationName}」に入れました。`)).toBeVisible();
+  await owner.page.getByLabel("入れるチーム").selectOption({ label: teamName });
+  await owner.page.getByRole("button", { name: "チームを変える" }).click();
+  await expect(
+    owner.page.getByText(`組織「${organizationName}」のチーム「${teamName}」に入れました。`),
+  ).toBeVisible();
   await expect(owner.page.getByRole("heading", { name: "このアカウントのチーム" })).toBeVisible();
-  await checkPage(owner.page, "設定の組織（持ち主）");
+  await checkPage(owner.page, "設定のチーム（持ち主）");
 
   // 管理者：Threads の組織の画面で、編集者を担当にする（持ち主の行は「自分」で選べない）
   await admin.page.goto(`/threads/organizations/${organizationId}`);
   await expect(admin.page.getByRole("heading", { level: 1, name: organizationName })).toBeVisible();
+  await expect(admin.page.getByRole("heading", { level: 2, name: teamName })).toBeVisible();
   await expect(admin.page.getByRole("heading", { level: 3, name: accountName })).toBeVisible();
   const editorGroup = admin.page.getByRole("group", {
     name: new RegExp(`^${escapeRegExp(editor.name)}`),
@@ -229,7 +255,7 @@ test("組織の上で担当が案を作り、任された承認をし、管理�
   await expect(admin.page.getByText("新しい焼き菓子")).toHaveCount(0);
   await checkPage(admin.page, "運用状況（管理者）");
 
-  // 持ち主が「組織に見せる」にすると、担当でない管理者は投稿の案と戦略を読むだけで見られる（直す・承認は出ない）
+  // 持ち主が「チームに見せる」にすると、担当でない管理者は投稿の案と戦略を読むだけで見られる（直す・承認は出ない）
   const shared = await owner.request.put(`/api/v1/threads/accounts/${accountId}/team/shared`, {
     data: { shared: true },
     headers: ORIGIN,

@@ -1,5 +1,5 @@
 // チーム運用の窓口（threads-013。PRD 組織 5章）。道の頭は /api/v1/threads（AD-15）。どれもログインが要る。
-// - 運用アカウントの関わり・チーム・組織に入れる・見せる・承認を任せる：/api/v1/threads/accounts/{accountId}/…（判定は access.ts）
+// - 運用アカウントの関わり・チーム・チームに入れる・見せる・承認を任せる：/api/v1/threads/accounts/{accountId}/…（判定は access.ts）
 // - Threads の組織の画面・担当・運用状況：/api/v1/threads/organizations/{organizationId}/…（組織の人でなければ 404）
 // - はじめの画面の知らせ：/api/v1/threads/team-notices
 // 組織の役割は要求のたびに suite の index.ts から引く。suite の表には書かない。
@@ -102,7 +102,7 @@ export function teamRoutes(deps: DomainRouteDeps) {
       tags: TAGS,
       operationId: "threadsPutAccountPlacement",
       summary:
-        "運用アカウントを組織に入れる・外す（持ち主だけ。外すと担当・任せる・見せる設定は消える）",
+        "運用アカウントを組織の中のチームに入れる・外す（持ち主だけ。持ち主が入っているチームだけ。外す・移すと担当・任せる・見せる設定は消える）",
       middleware,
       request: {
         params: AccountParams,
@@ -120,7 +120,7 @@ export function teamRoutes(deps: DomainRouteDeps) {
       tags: TAGS,
       operationId: "threadsPutAccountShared",
       summary:
-        "組織に見せるを切り替える（持ち主だけ。オンのとき、組織の人が投稿の案と戦略を読むだけで見られる）",
+        "チームに見せるを切り替える（持ち主だけ。オンのとき、チームの人と組織の管理者が投稿の案と戦略を読むだけで見られる）",
       middleware,
       request: {
         params: AccountParams,
@@ -252,7 +252,7 @@ export function teamRoutes(deps: DomainRouteDeps) {
     })
     .openapi(routes.putPlacement, async (c) => {
       const access = await accountAccess(deps, c, c.req.valid("param").accountId, "manage");
-      await placeAccount(deps, access, c.req.valid("json").organizationId);
+      await placeAccount(deps, access, c.req.valid("json").teamId);
       return c.json(await getAccountTeam(db, access), 200);
     })
     .openapi(routes.putShared, async (c) => {

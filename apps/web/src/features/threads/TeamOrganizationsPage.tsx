@@ -27,7 +27,7 @@ function TeamOrganizations() {
   return (
     <ThreadsPage
       title="組織"
-      lead="組織に入れた運用アカウントを、何人かで運用します。組織を作る・人を招くのは、設定の「組織」からです。"
+      lead="組織の中のチームに入れた運用アカウントを、何人かで運用します。組織を作る・人を招く・チームを作るのは、設定の「組織」からです。"
     >
       {organizations.length === 0 ? (
         <p className="text-m">

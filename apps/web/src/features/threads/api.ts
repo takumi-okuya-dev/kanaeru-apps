@@ -993,18 +993,18 @@ export function fetchAccountTeam(accountId: string) {
 }
 
 /**
- * 運用アカウントを組織に入れる・外す（null で外す。持ち主だけ）。
+ * 運用アカウントを組織の中のチームに入れる・外す（null で外す。持ち主だけ。threads-016）。
  * @param accountId 運用アカウントの ID
- * @param organizationId 入れる組織（null で外す）
+ * @param teamId 入れるチーム（null で外す）
  * @returns 変えたあとのチーム
  */
-export function placeAccount(accountId: string, organizationId: string | null) {
+export function placeAccount(accountId: string, teamId: string | null) {
   const { endpoint, param } = account(accountId);
-  return request(() => endpoint.team.placement.$put({ param, json: { organizationId } }));
+  return request(() => endpoint.team.placement.$put({ param, json: { teamId } }));
 }
 
 /**
- * 組織に見せるを切り替える（持ち主だけ）。
+ * チームに見せるを切り替える（持ち主だけ）。
  * @param accountId 運用アカウントの ID
  * @param shared 見せるか
  * @returns 変えたあとのチーム
