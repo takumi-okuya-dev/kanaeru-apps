@@ -3,22 +3,29 @@
  * （例：a3-portrait）で選んだ名前つきのページ（@page match-…）に当てる。大きさは紙の上の mm（画面の値ではないので tokens.css に
  * 置かない。research R10）。B は日本の JIS の B 列（CSS の B5 などは ISO なので、mm で書く）。余白は print-layout.ts の
  * PAGE_MARGIN_MM と同じ 8mm、版の大きさは紙から余白と遊び（1mm）を引いたもの。
- * 印刷では、版のほか（外枠の帯・ナビ・画面の操作）を隠す。
+ * 印刷では、版のほか（外枠の帯・ナビ・画面の操作）を出さない。
  */
 @media print {
-  body:has([data-match-sheets]) * {
-    visibility: hidden;
+  /*
+   * 版のほか（外枠の帯・ナビ・本文へ移る・知らせの帯・題・選ぶ所）を出さない：版を包む枠の子のうち、版を含まないものを消す。
+   * 版はふつうの流れのまま（名前つきのページと改ページが効くように）
+   */
+  :has([data-match-sheets]) > :not([data-match-sheets]):not(:has([data-match-sheets])) {
+    display: none;
   }
 
-  [data-match-sheets],
-  [data-match-sheets] * {
-    visibility: visible;
+  /* 版を包む枠（html・body・外枠・本文）の余白と幅の上限を外し、版が紙の刷る範囲にそのまま載るようにする */
+  :has([data-match-sheets]) {
+    display: block;
+    width: auto;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
   }
 
   [data-match-sheets] {
-    position: absolute;
-    top: 0;
-    left: 0;
     display: block;
   }
 

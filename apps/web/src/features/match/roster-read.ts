@@ -138,6 +138,9 @@ export function readRoster(parsed: ParsedCsv): RosterReadResult {
   };
 }
 
+/** 姓と名の間に空白がない氏名から作る、仮の呼び名の字数（多くの姓は2字。氏名をまるごとサーバーに送らないため）。 */
+export const NO_SPACE_NICKNAME_LENGTH = 2;
+
 /** 呼び名を作った1人。 */
 export type NamedPerson = ReadPerson & {
   /** 呼び名 */
@@ -158,7 +161,8 @@ function splitName(fullName: string): { family: string; given: string } {
 
 /**
  * 呼び名を作る（FR-M2）。姓を呼び名にし、同じ姓が2人以上なら名の1字を足す（それでも同じなら、同じでなくなるまで名の字を足す）。
- * 姓と名の間に空白がない人は、氏名をそのまま呼び名にして印を付ける（運営に確かめてもらう）。
+ * 姓と名の間に空白がない人は、氏名の頭の2字を仮の呼び名にして印を付ける（運営に確かめてもらう。氏名をまるごと送らない。
+ * Constitution II）。
  * 名まで同じ人は、後の人に「2」「3」を足す。呼び名は20文字まで。
  * すでに名簿にいる人の呼び名とも重ならないようにする（後から貼った人に足す）。
  * @param people 読んだ人
@@ -180,7 +184,8 @@ export function assignNicknames(
     const { family, given } = parts[index] as { family: string; given: string };
     let base: string;
     if (!given) {
-      base = family;
+      // 姓と名の間に空白がない氏名は、氏名をそのまま送らないよう、頭の2字を仮の呼び名にする（運営に確かめてもらう。research R8）
+      base = [...family].slice(0, NO_SPACE_NICKNAME_LENGTH).join("");
     } else if ((familyCount.get(family) ?? 0) < 2) {
       base = family;
     } else {

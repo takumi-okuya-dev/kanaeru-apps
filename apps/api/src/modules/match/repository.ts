@@ -1,11 +1,12 @@
 // 試合表の読み書き（match の表だけを触る。AD-3）。組織の名前と役割は suite の index.ts から読む（AD-22）。
 // 90日を過ぎた試合表は、運営が一覧を開いたときと試合表を作ったときに、その持ち主の古いものをまとめて消す（AD-25。定期の仕事は
 // 足さない。原則 V）。
-import { INITIAL_CONTENT, MatchTableContent } from "@workspace/contracts/match";
+import { INITIAL_CONTENT, MATCH_ERRORS, MatchTableContent } from "@workspace/contracts/match";
 import type { MatchTable, MatchTableSummary } from "@workspace/contracts/match";
 import { jstDate } from "@workspace/contracts/core";
 import { and, desc, eq, inArray, lt, or } from "drizzle-orm";
 import type { Executor } from "../../kernel/db.ts";
+import { AppError } from "../../kernel/errors.ts";
 import { listMemberships } from "../suite/index.ts";
 import { EDITING_ROLES } from "./access.ts";
 import type { TableAccess } from "./access.ts";
@@ -228,12 +229,13 @@ export async function deleteTable(db: Executor, tableId: string): Promise<void> 
 
 /**
  * 試合表を中身つきで読む（権限は呼ぶ側が確かめる）。
- * 中身は書くときに約束で確かめているが、読むときも約束で読み直す（形の違う古い行があれば、既定の中身にする）。
+ * 中身は書くときに約束で確かめているが、読むときも約束で読み直す（形が合わなければ止める）。
  * @param db DB
  * @param access 権限を確かめた試合表
  * @param accountId 今の利用者
  * @returns 試合表
- * @throws {Error} 行がないとき（確かめたあとに消えたとき）
+ * @throws {AppError} 行がないとき（確かめたあとに消えたとき。MATCH_NOT_FOUND）
+ * @throws {Error} 中身の形が合わないとき
  */
 export async function readTable(
   db: Executor,
@@ -241,8 +243,10 @@ export async function readTable(
   accountId: string,
 ): Promise<MatchTable> {
   const [row] = await db.select().from(matchTable).where(eq(matchTable.id, access.tableId));
-  if (!row) throw new Error("試合表が見つかりません。");
+  if (!row) throw new AppError(MATCH_ERRORS.NOT_FOUND);
   const parsed = MatchTableContent.safeParse(row.content);
+  // 形の合わない中身を既定に置きかえて返すと、次の送りで保存した中身を上書きしてしまうので、返さずに止める（500）
+  if (!parsed.success) throw new Error("試合表の中身の形が合いません。");
   const organizations = access.organizationId ? await membershipIndex(db, accountId) : null;
   return {
     id: row.id,
@@ -256,7 +260,7 @@ export async function readTable(
       : null,
     isOwner: access.isOwner,
     updatedAt: row.updatedAt.toISOString(),
-    content: parsed.success ? parsed.data : INITIAL_CONTENT,
+    content: parsed.data,
     version: row.version,
     seed: row.seed,
     editorDeviceId: row.editorDeviceId,

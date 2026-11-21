@@ -61,7 +61,7 @@ describe("名簿を読む", () => {
 });
 
 describe("呼び名", () => {
-  it("姓を呼び名にし、同じ姓は名の1字を足し、空白がなければ印を付ける", () => {
+  it("姓を呼び名にし、同じ姓は名の1字を足し、空白がなければ頭の2字にして印を付ける", () => {
     const named = assignNicknames([
       { fullName: "高橋 拓真", level: "advanced" },
       { fullName: "佐藤 美咲", level: "advanced" },
@@ -72,7 +72,7 @@ describe("呼び名", () => {
       ["高橋", false],
       ["佐藤美", false],
       ["佐藤健", false],
-      ["林優斗", true],
+      ["林優", true],
     ]);
   });
 

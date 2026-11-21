@@ -132,11 +132,22 @@ function ImportActions({
       });
       return false;
     }
-    // 画面の中身は直すたびにすぐ書きかわるので、今の中身から作った名簿をそのまま送る（ID も氏名と同じものを使う）
-    const imported = importPeople(table.content, named, importMode);
-    editor.apply((draft) => ({ ...draft, content: imported.content }));
+    // 今の中身（apply が渡す、送りの途中の変更を含む中身）から作る。氏名は作った ID と結ぶ
+    let fullNames = new Map<string, string>();
+    const applied = editor.apply((draft) => {
+      const imported = importPeople(draft.content, named, importMode);
+      fullNames = imported.fullNames;
+      return { ...draft, content: imported.content };
+    });
+    if (!applied) {
+      setMessage({
+        tone: "danger",
+        text: "試合表を読み直しています。読み直したあとで、もう一度入れてください。",
+      });
+      return false;
+    }
     setMessage({ tone: "success", text: importSummary(result, named.length) });
-    onNames(imported.fullNames, importMode);
+    onNames(fullNames, importMode);
     return true;
   };
 
@@ -633,23 +644,41 @@ function SettingsCard({ table, editor }: BodyProps) {
           onCommit={(value) => requestSettings({ endTime: value })}
         />
       </div>
-      <ChoiceChips
-        label="試合の形"
-        options={MATCH_FORMATS.map((value) => ({ value, label: MATCH_FORMAT_LABELS[value] }))}
-        value={settings.format}
-        onValueChange={(format: MatchFormat) => {
-          if (!disabled) requestSettings({ format });
-        }}
-      />
-      <ChoiceChips
-        label="レベルの分け方"
-        description="あとから変えられます。変えたら「組み直す」を押してください。"
-        options={MATCH_GROUPINGS.map((value) => ({ value, label: MATCH_GROUPING_LABELS[value] }))}
-        value={settings.grouping}
-        onValueChange={(grouping: MatchGrouping) => {
-          if (!disabled) requestSettings({ grouping });
-        }}
-      />
+      {disabled ? (
+        <dl className="flex flex-col gap-x3s text-m">
+          <div className="flex flex-wrap gap-xxs">
+            <dt className="font-bold">試合の形</dt>
+            <dd>{MATCH_FORMAT_LABELS[settings.format]}</dd>
+          </div>
+          <div className="flex flex-wrap gap-xxs">
+            <dt className="font-bold">レベルの分け方</dt>
+            <dd>{MATCH_GROUPING_LABELS[settings.grouping]}</dd>
+          </div>
+        </dl>
+      ) : (
+        <>
+          <ChoiceChips
+            label="試合の形"
+            options={MATCH_FORMATS.map((value) => ({ value, label: MATCH_FORMAT_LABELS[value] }))}
+            value={settings.format}
+            onValueChange={(format: MatchFormat) => {
+              requestSettings({ format });
+            }}
+          />
+          <ChoiceChips
+            label="レベルの分け方"
+            description="あとから変えられます。変えたら「組み直す」を押してください。"
+            options={MATCH_GROUPINGS.map((value) => ({
+              value,
+              label: MATCH_GROUPING_LABELS[value],
+            }))}
+            value={settings.grouping}
+            onValueChange={(grouping: MatchGrouping) => {
+              requestSettings({ grouping });
+            }}
+          />
+        </>
+      )}
       <div className="flex flex-col gap-x3s">
         <h3 className="text-m font-bold">レベル別の試合</h3>
         <ul className="flex flex-col gap-x3s text-m">
