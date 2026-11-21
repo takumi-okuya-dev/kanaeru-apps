@@ -320,6 +320,10 @@ export const MatchTable = MatchTableSummary.extend({
     joinExpiresAt: isoDateTime.nullable(),
     /** 受付を締めた時刻 */
     joinClosedAt: isoDateTime.nullable(),
+    /** 見るだけの札の SHA-256 の頭8文字（端末に置いた札が今の札かを見分ける。期限を過ぎていれば null） */
+    viewHint: z.string().nullable(),
+    /** 受付の札の SHA-256 の頭8文字 */
+    joinHint: z.string().nullable(),
   }),
 });
 

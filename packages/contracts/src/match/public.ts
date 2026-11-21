@@ -82,12 +82,15 @@ export type MatchJoinInfo = z.infer<typeof MatchJoinInfo>;
 
 /** 受付の入力（呼び名とレベルだけ）。 */
 export const MatchJoinInput = z.strictObject({
-  /** 呼び名（試合表に出る名前） */
+  /** 呼び名（試合表に出る名前。制御文字・向きを変える文字・幅のない文字は受けない） */
   nickname: z
     .string()
     .trim()
     .min(1, { error: "名前を入れてください。" })
-    .max(NICKNAME_MAX, { error: `名前は${NICKNAME_MAX}文字までにしてください。` }),
+    .max(NICKNAME_MAX, { error: `名前は${NICKNAME_MAX}文字までにしてください。` })
+    .refine((value) => !/[\p{Cc}\p{Cf}]/u.test(value), {
+      error: "名前に使えない文字が入っています。ふつうの文字で入れてください。",
+    }),
   /** レベル */
   level: z.enum(MATCH_LEVELS, { error: "レベルを選んでください。" }),
 });
@@ -109,6 +112,8 @@ export const MatchLinkIssued = z.object({
   token: z.string(),
   /** 期限 */
   expiresAt: isoDateTime,
+  /** 札の SHA-256 の頭8文字（端末に置いた札が今の札かを見分ける。札は分からない） */
+  hint: z.string(),
 });
 
 /** 作った札の型。 */
@@ -139,6 +144,8 @@ export const MatchJoinList = z.object({
   expiresAt: isoDateTime.nullable(),
   /** 締めた時刻（締めていなければ null） */
   closedAt: isoDateTime.nullable(),
+  /** 今の受付の札の SHA-256 の頭8文字（札がない・期限を過ぎていれば null） */
+  hint: z.string().nullable(),
 });
 
 /** 受付の一覧の型。 */

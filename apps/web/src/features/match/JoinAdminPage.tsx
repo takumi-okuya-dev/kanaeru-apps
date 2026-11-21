@@ -4,7 +4,7 @@
 // - 担当の端末は、受け付けた人を名簿に入れる（use-joins.ts）。消すと名簿からも消す
 // - 「受付を締める」（受付のページは見られなくなる）・「この名簿で試合表を作る」（名簿と設定へ）
 import { MATCH_LEVELS, MATCH_LEVEL_LABELS, joinPlayerId } from "@workspace/contracts/match";
-import type { MatchJoinEntry, MatchTable } from "@workspace/contracts/match";
+import type { MatchJoinEntry, MatchJoinList, MatchTable } from "@workspace/contracts/match";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import { Badge } from "@workspace/ui/components/badge";
@@ -14,7 +14,7 @@ import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useState } from "react";
 import { errorMessage } from "../../lib/api.ts";
 import { Page } from "../../lib/page.tsx";
-import { closeJoin, deleteJoin, issueJoinLink } from "./api.ts";
+import { closeJoin, issueJoinLink } from "./api.ts";
 import { formatPlayDate } from "./format.ts";
 import { useStoredLink } from "./link-store.ts";
 import { MATCH_ROUTE_PATTERNS, matchPaths } from "./paths.ts";
@@ -22,7 +22,7 @@ import { QrCode } from "./qr.tsx";
 import { removePlayer } from "./roster-edit.ts";
 import { EditorState, TableFrame } from "./TableFrame.tsx";
 import type { TableEditor } from "./table-editor.ts";
-import { joinsQueryKey, useJoins } from "./use-joins.ts";
+import { forgetJoinedPlayer, joinsQueryKey, useJoins } from "./use-joins.ts";
 
 /**
  * 時刻を「12:21」の形にする。
@@ -56,14 +56,22 @@ async function copyText(text: string): Promise<boolean> {
  */
 function JoinBody({ table, editor }: { table: MatchTable; editor: TableEditor }) {
   const queryClient = useQueryClient();
-  const [link, saveLink] = useStoredLink(table.id, "join");
-  const { joins } = useJoins(table, editor, true);
+  const { joins, overflow } = useJoins(table, editor, true);
+  // 一覧を読むまでは、試合表を読んだときの札の状態を使う
+  const state = joins.data ?? {
+    expiresAt: table.links.joinExpiresAt,
+    closedAt: table.links.joinClosedAt,
+    hint: table.links.joinHint,
+  };
+  const [link, saveLink, stale] = useStoredLink(table.id, "join", state.hint);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<{ tone: "success" | "danger"; text: string }>();
   const [confirm, setConfirm] = useState<"close" | "reissue" | null>(null);
   const list = joins.data?.joins ?? [];
-  const closed = joins.data ? joins.data.closedAt !== null : false;
-  const live = joins.data ? joins.data.expiresAt !== null && !closed : false;
+  const closed = state.closedAt !== null;
+  const live = state.expiresAt !== null && !closed;
+  // 一覧を読み終わるまで、札を作り直すボタンは押せない（出している QR を確かめなしで使えなくしないため）
+  const ready = joins.data !== undefined;
   const url = link ? new URL(matchPaths.join(link.token), window.location.origin).href : "";
   const byLevel = MATCH_LEVELS.map(
     (level) => `${MATCH_LEVEL_LABELS[level]} ${list.filter((join) => join.level === level).length}`,
@@ -75,7 +83,12 @@ function JoinBody({ table, editor }: { table: MatchTable; editor: TableEditor })
     setMessage(undefined);
     issueJoinLink(table.id)
       .then((issued) => {
-        saveLink(issued);
+        saveLink({ token: issued.token, expiresAt: issued.expiresAt });
+        queryClient.setQueryData<MatchJoinList>(joinsQueryKey(table.id), (current) =>
+          current
+            ? { ...current, expiresAt: issued.expiresAt, closedAt: null, hint: issued.hint }
+            : current,
+        );
         void queryClient.invalidateQueries({ queryKey: joinsQueryKey(table.id) });
       })
       .catch((caught: unknown) =>
@@ -102,19 +115,15 @@ function JoinBody({ table, editor }: { table: MatchTable; editor: TableEditor })
    */
   const remove = (join: MatchJoinEntry) => {
     setMessage(undefined);
-    deleteJoin(table.id, join.id)
-      .then(() => {
-        if (editor.isEditor) {
-          editor.apply((draft) => ({
-            ...draft,
-            content: removePlayer(draft.content, joinPlayerId(join.id)),
-          }));
-        }
-        void queryClient.invalidateQueries({ queryKey: joinsQueryKey(table.id) });
-      })
-      .catch((caught: unknown) =>
-        setMessage({ tone: "danger", text: `消せませんでした。${errorMessage(caught)}` }),
-      );
+    const playerId = joinPlayerId(join.id);
+    // 先に入れ直さない印を付けてから名簿から消す（消したそばから入れ直さない）
+    const forgetting = forgetJoinedPlayer(queryClient, table.id, playerId);
+    if (editor.isEditor) {
+      editor.apply((draft) => ({ ...draft, content: removePlayer(draft.content, playerId) }));
+    }
+    forgetting.catch((caught: unknown) =>
+      setMessage({ tone: "danger", text: `消せませんでした。${errorMessage(caught)}` }),
+    );
   };
 
   const status = closed ? "受付を締めました" : live ? "受付中" : "まだ受付を始めていません";
@@ -148,10 +157,11 @@ function JoinBody({ table, editor }: { table: MatchTable; editor: TableEditor })
           ) : live ? (
             <div className="flex max-w-menu flex-col gap-xxs">
               <p className="text-m">
-                受付のリンクは、ほかの端末で作りました。この端末で QR
-                を出すには、リンクを作り直します（前の QR とリンクは使えなくなります）。
+                {stale
+                  ? "この端末の受付の QR は古くなりました（ほかの端末でリンクを作り直しました）。この端末で QR を出すには、もう一度作り直します（今のリンクは使えなくなります）。"
+                  : "受付のリンクは、ほかの端末で作りました。この端末で QR を出すには、リンクを作り直します（前の QR とリンクは使えなくなります）。"}
               </p>
-              <Button disabled={pending} onClick={() => setConfirm("reissue")}>
+              <Button disabled={pending || !ready} onClick={() => setConfirm("reissue")}>
                 この端末で QR を出す
               </Button>
             </div>
@@ -161,7 +171,7 @@ function JoinBody({ table, editor }: { table: MatchTable; editor: TableEditor })
                 参加者は QR
                 かリンクから、ログインなしで名前とレベルを答えます。答えはこの試合表の名簿に入ります。
               </p>
-              <Button variant="primary" disabled={pending} onClick={issue}>
+              <Button variant="primary" disabled={pending || !ready} onClick={issue}>
                 {closed ? "受付をもう一度開く（新しい QR）" : "受付を始める"}
               </Button>
             </div>
@@ -177,6 +187,12 @@ function JoinBody({ table, editor }: { table: MatchTable; editor: TableEditor })
           <p className="text-m text-text-sub">
             受け付けた人：<b className="text-text">{list.length}人</b>（{byLevel}）
           </p>
+          {joins.error ? (
+            <ResponseMessage tone="danger">{`受け付けた人を読めませんでした。${errorMessage(joins.error)}`}</ResponseMessage>
+          ) : null}
+          {overflow > 0 ? (
+            <ResponseMessage tone="danger">{`名簿の上限（150人）に達したため、受け付けた ${overflow}人を名簿に入れられません。名簿を減らしてください。`}</ResponseMessage>
+          ) : null}
           {list.length > 0 ? (
             <ul className="flex flex-col divide-y divide-border rounded-md border border-border bg-surface">
               {list.map((join) => (

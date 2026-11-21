@@ -36,7 +36,7 @@ export function expiryText(expiresAt: string): string {
  */
 function ViewLinkBody({ table }: { table: MatchTable }) {
   const queryClient = useQueryClient();
-  const [link, saveLink] = useStoredLink(table.id, "view");
+  const [link, saveLink, stale] = useStoredLink(table.id, "view", table.links.viewHint);
   const [pending, setPending] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [message, setMessage] = useState<{ tone: "success" | "danger"; text: string }>();
@@ -49,10 +49,13 @@ function ViewLinkBody({ table }: { table: MatchTable }) {
     setMessage(undefined);
     issueViewLink(table.id)
       .then((issued) => {
-        saveLink(issued);
+        saveLink({ token: issued.token, expiresAt: issued.expiresAt });
         queryClient.setQueryData<MatchTable>(MATCH_QUERY_KEYS.table(table.id), (current) =>
           current
-            ? { ...current, links: { ...current.links, viewExpiresAt: issued.expiresAt } }
+            ? {
+                ...current,
+                links: { ...current.links, viewExpiresAt: issued.expiresAt, viewHint: issued.hint },
+              }
             : current,
         );
         setMessage({ tone: "success", text: "見るだけのリンクを作りました。" });
@@ -125,8 +128,9 @@ function ViewLinkBody({ table }: { table: MatchTable }) {
         <div className="flex flex-col items-start gap-xxs">
           {serverLive ? (
             <p className="text-m">
-              見るだけのリンクは、ほかの端末で作りました。この端末で QR
-              を出すには、リンクを作り直します（前のリンクと刷った QR は使えなくなります）。
+              {stale
+                ? "この端末の QR は古くなりました（ほかの端末でリンクを作り直しました）。この端末で QR を出すには、もう一度作り直します（今のリンクと刷った QR は使えなくなります）。"
+                : "見るだけのリンクは、ほかの端末で作りました。この端末で QR を出すには、リンクを作り直します（前のリンクと刷った QR は使えなくなります）。"}
             </p>
           ) : null}
           <Button

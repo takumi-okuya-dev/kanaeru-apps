@@ -13,6 +13,8 @@ describe("受付の入力", () => {
       { nickname: "", level: "novice" },
       { nickname: "あ".repeat(21), level: "novice" },
       { nickname: "石川", level: "pro" },
+      { nickname: "石\u202e川", level: "novice" },
+      { nickname: "石\u0007川", level: "novice" },
     ]) {
       expect(MatchJoinInput.safeParse(bad).success).toBe(false);
     }

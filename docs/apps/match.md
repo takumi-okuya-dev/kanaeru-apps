@@ -64,7 +64,7 @@
 | `GET /api/v1/match/views/{viewToken}`・`…/version` | **ログインなし**。見るだけのページ（名前・日付・版・組ごとの呼び名の並びと終わったか。レベル・名簿の人の ID は出さない）と版の番号 |
 | `GET`・`POST /api/v1/match/joins/{joinToken}` | **ログインなし**。受付のページ（名前・日付・選べるレベル）と受け付ける（呼び名とレベルだけ・strict・100人まで・409 `MATCH_JOIN_FULL`） |
 
-ログインなしの道の答えは `Cache-Control: no-store`・`X-Robots-Tag: noindex, nofollow`。期限切れ・締めた・作り直した・ない札は同じ 404（`MATCH_VIEW_NOT_FOUND`・`MATCH_JOIN_NOT_FOUND`）。受け付ける POST は組み立ての IP ごとの回数の制限が効く。試合表を読む答えの `links` は札の状態（期限・締めた時刻）だけ。
+ログインなしの道の答えは `Cache-Control: no-store`・`X-Robots-Tag: noindex, nofollow`。期限切れ・締めた・作り直した・ない札は同じ 404（`MATCH_VIEW_NOT_FOUND`・`MATCH_JOIN_NOT_FOUND`）。受け付ける POST は組み立ての IP ごとの回数の制限が効く。試合表を読む答えの `links` は札の状態（期限・締めた時刻・札の SHA-256 の頭8文字〈端末に置いた札が今の札かを見分ける〉）だけ。
 
 退会の手順（`withdrawal.ts`）：account を消すトランザクションの中で、組織に入れた試合表を組織の今の管理者に引き継ぐ（持ち主を替える）。組織に入れていない試合表は外部キーで消える。確かめの中身に、引き継がれる試合表と消える試合表を分けて出す。
 

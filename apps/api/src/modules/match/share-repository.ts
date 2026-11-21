@@ -248,27 +248,38 @@ export async function deleteJoin(db: Executor, tableId: string, joinId: string):
   return deleted.length > 0;
 }
 
+/** 端末に置いた札が今の札かを見分ける、SHA-256 の頭の文字数。 */
+export const TOKEN_HINT_LENGTH = 8;
+
 /**
  * 試合表の札の状態（運営の画面に出す。札そのものは持たない）。
  * @param row 試合表の行
+ * @param row.viewTokenHash 見るだけの札の SHA-256
  * @param row.viewTokenExpiresAt 見るだけの札の期限
+ * @param row.joinTokenHash 受付の札の SHA-256
  * @param row.joinTokenExpiresAt 受付の札の期限
  * @param row.joinClosedAt 締めた時刻
  * @param now 今の時刻
- * @returns 期限（過ぎていれば null）と締めた時刻
+ * @returns 期限・SHA-256 の頭（過ぎていれば null）と締めた時刻
  */
 export function linkStateOf(
   row: {
+    viewTokenHash: string | null;
     viewTokenExpiresAt: Date | null;
+    joinTokenHash: string | null;
     joinTokenExpiresAt: Date | null;
     joinClosedAt: Date | null;
   },
   now: Date,
 ) {
   const live = (value: Date | null) => (value && value > now ? value.toISOString() : null);
+  const hint = (hash: string | null, expires: Date | null) =>
+    hash && expires && expires > now ? hash.slice(0, TOKEN_HINT_LENGTH) : null;
   return {
     viewExpiresAt: live(row.viewTokenExpiresAt),
     joinExpiresAt: live(row.joinTokenExpiresAt),
     joinClosedAt: row.joinClosedAt?.toISOString() ?? null,
+    viewHint: hint(row.viewTokenHash, row.viewTokenExpiresAt),
+    joinHint: hint(row.joinTokenHash, row.joinTokenExpiresAt),
   };
 }

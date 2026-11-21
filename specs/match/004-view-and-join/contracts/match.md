@@ -12,7 +12,7 @@
 | `GET /api/v1/match/tables/{tableId}/joins` | 受付の一覧（受け付けた順・同じ名前の印・札の期限と締めた時刻） | 200 `MatchJoinList` |
 | `DELETE /api/v1/match/tables/{tableId}/joins/{joinId}` | 受付の行を消す | 204／404 |
 
-`GET /api/v1/match/tables/{tableId}` の答え（`MatchTable`）に `links`（`viewExpiresAt`・`joinExpiresAt`・`joinClosedAt`。期限を過ぎていれば null）を足した。
+`GET /api/v1/match/tables/{tableId}` の答え（`MatchTable`）に `links`（`viewExpiresAt`・`joinExpiresAt`・`joinClosedAt`・`viewHint`・`joinHint`。期限を過ぎていれば null。hint は札の SHA-256 の頭8文字で、端末に置いた札が今の札かを見分ける）を足した。`MatchLinkIssued` と `MatchJoinList` にも `hint` がある。
 
 ## 参加者（ログインなし。答えは `Cache-Control: no-store`・`X-Robots-Tag: noindex, nofollow`）
 
@@ -23,6 +23,6 @@
 | `GET /api/v1/match/joins/{joinToken}` | 受付のページ（名前・日付・選べるレベル） | 200 `MatchJoinInfo`／404 `MATCH_JOIN_NOT_FOUND` |
 | `POST /api/v1/match/joins/{joinToken}` | 受け付ける（strict：`nickname` 1〜20文字・`level`） | 201 `MatchJoinAccepted`／400／404／409 `MATCH_JOIN_FULL`（100人） |
 
-札は base64url の32文字（192ビット）。形が違えば DB を引かずに 404。期限切れ・締めた・作り直した・ない札は、どれも同じ 404。
+札は base64url の32文字（192ビット）。形が違えば DB を引かずに、ない札と同じ code の 404。誤りの答えにも `no-store` と `noindex` を付ける。呼び名の制御文字・向きを変える文字・幅のない文字は 400。期限切れ・締めた・作り直した・ない札は、どれも同じ 404。
 
 画面の道（`apps/web/src/features/match/paths.ts`）：`/match/view/$viewToken`（見るだけ）・`/match/join/$joinToken`（受付）・`/match/tables/$tableId/view-link`（見るだけのリンクと QR）・`/match/tables/$tableId/join`（M7）。

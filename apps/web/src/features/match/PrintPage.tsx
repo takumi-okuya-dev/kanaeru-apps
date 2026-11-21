@@ -267,7 +267,7 @@ function PrintBody({ table }: { table: MatchTable }) {
   );
   const [size, setSize] = useState<PaperSize>(DEFAULT_PAPER.size);
   const [orientation, setOrientation] = useState<Orientation>(DEFAULT_PAPER.orientation);
-  const [viewLink] = useStoredLink(table.id, "view");
+  const [viewLink] = useStoredLink(table.id, "view", table.links.viewHint);
   const viewUrl = viewLink
     ? new URL(matchPaths.view(viewLink.token), window.location.origin).href
     : undefined;

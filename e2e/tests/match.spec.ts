@@ -487,6 +487,12 @@ test("見るだけのページと QR の受付：リンクと QR を作り、ロ
     await guest.getByRole("button", { name: "受付する" }).click();
     await expect(guest.getByRole("heading", { level: 1, name: "受付できました" })).toBeVisible();
     await checkPage(guest, "受付できました");
+    // もう1人（あとで運営が消す）
+    await guest.goto(joinUrl);
+    await guest.getByRole("textbox", { name: /名前/u }).fill("森");
+    await guest.getByRole("radio", { name: "中級" }).click();
+    await guest.getByRole("button", { name: "受付する" }).click();
+    await expect(guest.getByRole("heading", { level: 1, name: "受付できました" })).toBeVisible();
 
     // P1 見るだけのページ：名前だけの表・自分の名前に印（この端末に残る）・FR-M25 の入口・noindex
     await guest.goto(viewUrl);
@@ -517,6 +523,11 @@ test("見るだけのページと QR の受付：リンクと QR を作り、ロ
 
     // 運営：受け付けた人が一覧に出て、担当の端末なので名簿に入る
     await expect(page.getByText("石川", { exact: true })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("森", { exact: true })).toBeVisible({ timeout: 10_000 });
+    await waitSaved(page);
+    // 受付を消すと、名簿からも消え、入れ直されない
+    await page.getByRole("button", { name: "森の受付を消す" }).click();
+    await expect(page.getByText("森", { exact: true })).toHaveCount(0);
     await waitSaved(page);
     // 受付を締める → 受付のページは締め切り
     await page.getByRole("button", { name: "受付を締める" }).click();
@@ -531,5 +542,6 @@ test("見るだけのページと QR の受付：リンクと QR を作り、ロ
   }
   await page.getByRole("link", { name: "この名簿で試合表を作る" }).click();
   await expect(page.getByRole("textbox", { name: "石川の呼び名" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "森の呼び名" })).toHaveCount(0);
   expect(await readCspViolations()).toEqual([]);
 });

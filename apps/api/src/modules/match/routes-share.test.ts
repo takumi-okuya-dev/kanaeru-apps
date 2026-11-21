@@ -147,7 +147,17 @@ describe("見せる・受け付ける窓口", () => {
     expect(expired.status).toBe(404);
     expect(await codeOf(expired)).toBe("MATCH_VIEW_NOT_FOUND");
     expect((await call(app, "", `/api/v1/match/views/${second.token}/version`)).status).toBe(404);
-    expect((await call(app, "", "/api/v1/match/views/short")).status).toBe(404);
+    // 形の違う札も、ない札と同じ code（形が合うかを見分けられない）で、noindex が付く
+    const malformed = await call(app, "", "/api/v1/match/views/short");
+    expect(malformed.status).toBe(404);
+    expect(malformed.headers.get("x-robots-tag")).toContain("noindex");
+    expect(await codeOf(malformed)).toBe("MATCH_VIEW_NOT_FOUND");
+    const malformedJoin = await call(app, "", "/api/v1/match/joins/short", "POST", {
+      nickname: "石川",
+      level: "novice",
+    });
+    expect(malformedJoin.status).toBe(404);
+    expect(await codeOf(malformedJoin)).toBe("MATCH_JOIN_NOT_FOUND");
   });
 
   it("札の期限は、試合の日と今日の遅いほうの日本時間の終わり。試合表を読むと札の状態（札そのものは出さない）", async () => {
@@ -162,7 +172,10 @@ describe("見せる・受け付ける窓口", () => {
       viewExpiresAt: link.expiresAt,
       joinExpiresAt: null,
       joinClosedAt: null,
+      viewHint: link.hint,
+      joinHint: null,
     });
+    expect(link.hint).toMatch(/^[0-9a-f]{8}$/u);
     expect(JSON.stringify(read)).not.toContain(link.token);
   });
 
@@ -211,7 +224,7 @@ describe("見せる・受け付ける窓口", () => {
   it("受付の本文は strict（ほかの欄・長すぎる呼び名・空・知らないレベルは 400 で、書かない）", async () => {
     const link = await issueJoin();
     const path = `/api/v1/match/joins/${link.token}`;
-    const bad = [
+    const bad: unknown[] = [
       { nickname: "石川", level: "novice", fullName: "石川 海" },
       { nickname: "石川", level: "novice", email: "a@example.com" },
       { nickname: "あ".repeat(21), level: "novice" },
@@ -219,7 +232,15 @@ describe("見せる・受け付ける窓口", () => {
       { nickname: "石川", level: "expert" },
       { nickname: "石川" },
     ];
-    for (const body of bad) expect((await call(app, "", path, "POST", body)).status).toBe(400);
+    bad.push(
+      { nickname: "石\u202e川", level: "novice" },
+      { nickname: "石\u200b川", level: "novice" },
+    );
+    for (const body of bad) {
+      const response = await call(app, "", path, "POST", body);
+      expect(response.status).toBe(400);
+      expect(response.headers.get("x-robots-tag")).toContain("noindex");
+    }
     const rows = await database.db.select().from(matchJoin);
     expect(rows).toHaveLength(0);
   });
@@ -307,6 +328,66 @@ describe("見せる・受け付ける窓口", () => {
       ["高橋", true],
       ["森", false],
     ]);
+  });
+
+  it("上限の近くで同時に送っても、受け付けるのは上限まで（試合表の行を押さえてから数える）", async () => {
+    const link = await issueJoin();
+    await database.db.insert(matchJoin).values(
+      Array.from({ length: JOIN_MAX - 2 }, (_, index) => ({
+        matchTableId: table.id,
+        nickname: `人${index}`,
+        level: "beginner" as const,
+      })),
+    );
+    const responses = await Promise.all(
+      Array.from({ length: 5 }, (_, index) =>
+        call(app, "", `/api/v1/match/joins/${link.token}`, "POST", {
+          nickname: `同時${index}`,
+          level: "novice",
+        }),
+      ),
+    );
+    const statuses = responses.map((response) => response.status).sort();
+    expect(statuses).toEqual([201, 201, 409, 409, 409]);
+    const rows = await database.db
+      .select()
+      .from(matchJoin)
+      .where(eq(matchJoin.matchTableId, table.id));
+    expect(rows).toHaveLength(JOIN_MAX);
+  });
+
+  it("ほかの試合表の受付の行は、自分の試合表の道からは消せない（404）", async () => {
+    const other = await createTable(app, owner.cookie, { name: "ほかの試合表" });
+    const otherLink = (await (
+      await call(app, owner.cookie, `${MATCH_TABLES}/${other.id}/join-link`, "PUT")
+    ).json()) as MatchLinkIssued;
+    expect(
+      (
+        await call(app, "", `/api/v1/match/joins/${otherLink.token}`, "POST", {
+          nickname: "石川",
+          level: "novice",
+        })
+      ).status,
+    ).toBe(201);
+    const [row] = await database.db
+      .select()
+      .from(matchJoin)
+      .where(eq(matchJoin.matchTableId, other.id));
+    if (!row) throw new Error("受付の行がありません");
+    const crossed = await call(
+      app,
+      owner.cookie,
+      `${MATCH_TABLES}/${table.id}/joins/${row.id}`,
+      "DELETE",
+    );
+    expect(crossed.status).toBe(404);
+    expect(await database.db.select().from(matchJoin).where(eq(matchJoin.id, row.id))).toHaveLength(
+      1,
+    );
+    const list = (await (
+      await call(app, owner.cookie, `${MATCH_TABLES}/${other.id}/joins`)
+    ).json()) as MatchJoinList;
+    expect(list.hint).toBe(otherLink.hint);
   });
 
   it("アプリが見えない（台帳で「切」）ときは、ログインなしの道も 404", async () => {

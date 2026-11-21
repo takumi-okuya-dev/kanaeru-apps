@@ -52,10 +52,8 @@ import { formatPlayDate } from "./format.ts";
 import { MATCH_ROUTE_PATTERNS, matchPaths } from "./paths.ts";
 import { buildPlan, hasDoneGames, summarizeGroups } from "./plan.ts";
 import { changeSettings, describeSettingsChange } from "./regroup.ts";
-import { deleteJoin } from "./api.ts";
-import { joinIdOfPlayer } from "./joins.ts";
 import { MATCH_QUERY_KEYS } from "./queries.ts";
-import { joinsQueryKey, useJoins } from "./use-joins.ts";
+import { forgetJoinedPlayer, useJoins } from "./use-joins.ts";
 import { addPlayer, countRoster, importPeople, removePlayer, updatePlayer } from "./roster-edit.ts";
 import type { ImportMode } from "./roster-edit.ts";
 import { assignNicknames, readRoster } from "./roster-read.ts";
@@ -768,7 +766,7 @@ function RosterBody({ table, editor }: BodyProps) {
   const [fullNames, setFullNames] = useState<Map<string, string>>(new Map());
   const queryClient = useQueryClient();
   // QR の受付で入った人を名簿に入れる（担当の端末。開いたときに1度読む。match-004）
-  const { joins } = useJoins(table, editor, false);
+  useJoins(table, editor, false);
 
   /**
    * 名簿から消した人が受付で入った人なら、受付の行も消す（消さないと、次に読んだときにまた名簿に入る）。
@@ -776,16 +774,13 @@ function RosterBody({ table, editor }: BodyProps) {
    * @param playerId 名簿の人の ID
    */
   const removeJoin = (playerId: string) => {
-    const joinId = joinIdOfPlayer(playerId, joins.data?.joins ?? []);
-    if (!joinId) return;
     const stillListed = queryClient
       .getQueryData<MatchTable>(MATCH_QUERY_KEYS.table(table.id))
       ?.content.players.some((player) => player.id === playerId);
     if (stillListed) return;
-    void deleteJoin(table.id, joinId)
-      .then(() => queryClient.invalidateQueries({ queryKey: joinsQueryKey(table.id) }))
-      .catch(() => undefined);
+    void forgetJoinedPlayer(queryClient, table.id, playerId).catch(() => undefined);
   };
+
   const counts = countRoster(table.content.players);
   const levels = MATCH_LEVELS.map(
     (level) => `${MATCH_LEVEL_LABELS[level]} ${counts.byLevel[level]}`,
