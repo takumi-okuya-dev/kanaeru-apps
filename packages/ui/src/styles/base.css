@@ -32,8 +32,8 @@
     }
   }
 
-  /* 「詳しく」の開け閉め（Disclosure）の三角の印は、部品の印に替える（Safari の印も消す） */
-  summary::-webkit-details-marker {
+  /* 「詳しく」の開け閉め（Disclosure）の三角の印は、部品の印に替える（Safari の印も消す。部品でない details の印は残す） */
+  [data-slot="disclosure"] > summary::-webkit-details-marker {
     display: none;
   }
 
