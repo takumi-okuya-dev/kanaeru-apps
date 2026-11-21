@@ -1,5 +1,5 @@
 // 準備の画面（A4）の「使い方」の節（主催者だけ。event の差しこみの場所 registerSetupSection から出す。booking-001 research R1・R13）。
-// 選ぶカード（受付だけ・名簿を使う）と「使い方を変える」。名簿に行がある交流会を「受付だけ」に戻すときは確かめの枠を出す
+// 選ぶカード（受付だけ・名簿を使う。自前で申込みを受けるは booking-003 の窓口と画面ができるまで出さない）と「使い方を変える」。名簿に行がある交流会を「受付だけ」に戻すときは確かめの枠を出す
 // （名簿は消さずに隠す。FR-B13）。保存した使い方は、ナビの「名簿」も読む（同じ問い合わせの鍵）。
 import type { EventView } from "@workspace/contracts/event";
 import {
@@ -7,7 +7,10 @@ import {
   BOOKING_MODE_DESCRIPTIONS,
   BOOKING_MODE_LABELS,
 } from "@workspace/contracts/booking";
-import type { BookingMode } from "@workspace/contracts/booking";
+import type { BookingSettingInput } from "@workspace/contracts/booking";
+
+/** 選べる使い方（自前で申込みを受けるは booking-003 の窓口と画面ができるまで出さない）。 */
+type SelectableMode = BookingSettingInput["mode"];
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@workspace/ui/components/button";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
@@ -27,11 +30,11 @@ import { BOOKING_QUERY_KEYS, useBookingSetting } from "./queries.ts";
 export function ModeSection({ event }: { event: EventView }) {
   const queryClient = useQueryClient();
   const setting = useBookingSetting(event.id);
-  const [chosen, setChosen] = useState<BookingMode>();
+  const [chosen, setChosen] = useState<SelectableMode>();
   const [confirming, setConfirming] = useState(false);
   const [saved, setSaved] = useState(false);
   const mutation = useMutation({
-    mutationFn: (mode: BookingMode) => saveSetting(event.id, mode),
+    mutationFn: (mode: SelectableMode) => saveSetting(event.id, mode),
     onSuccess: async (next) => {
       queryClient.setQueryData(BOOKING_QUERY_KEYS.setting(event.id), next);
       setConfirming(false);
@@ -40,7 +43,7 @@ export function ModeSection({ event }: { event: EventView }) {
     },
   });
   const current = setting.data?.mode;
-  const selected = chosen ?? current ?? "reception";
+  const selected: SelectableMode = chosen ?? (current === "roster" ? "roster" : "reception");
 
   /** 保存する（受付だけに戻すときで名簿に行があれば、先に確かめる）。 */
   const save = () => {
@@ -65,36 +68,38 @@ export function ModeSection({ event }: { event: EventView }) {
       <fieldset className="flex flex-col gap-xxs">
         <legend className="sr-only">使い方</legend>
         <div className="grid gap-xxs wide:grid-cols-2">
-          {BOOKING_MODES.map((mode) => {
-            const checked = selected === mode;
-            return (
-              <label
-                key={mode}
-                className={cn(
-                  "flex min-h-xl cursor-pointer items-start gap-xxs rounded-sm border bg-surface p-xs",
-                  checked ? "border-primary bg-primary-subtle" : "border-border-input",
-                )}
-              >
-                <input
-                  type="radio"
-                  name="booking-mode"
-                  value={mode}
-                  checked={checked}
-                  onChange={() => {
-                    setChosen(mode);
-                    setSaved(false);
-                  }}
-                  className="mt-x3s size-xs accent-primary"
-                />
-                <span className="flex flex-col gap-x3s">
-                  <span className="text-m font-bold">{BOOKING_MODE_LABELS[mode]}</span>
-                  <span className={checked ? "text-s text-text" : "text-s text-text-sub"}>
-                    {BOOKING_MODE_DESCRIPTIONS[mode]}
+          {BOOKING_MODES.filter((mode): mode is SelectableMode => mode !== "self_page").map(
+            (mode) => {
+              const checked = selected === mode;
+              return (
+                <label
+                  key={mode}
+                  className={cn(
+                    "flex min-h-xl cursor-pointer items-start gap-xxs rounded-sm border bg-surface p-xs",
+                    checked ? "border-primary bg-primary-subtle" : "border-border-input",
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="booking-mode"
+                    value={mode}
+                    checked={checked}
+                    onChange={() => {
+                      setChosen(mode);
+                      setSaved(false);
+                    }}
+                    className="mt-x3s size-xs accent-primary"
+                  />
+                  <span className="flex flex-col gap-x3s">
+                    <span className="text-m font-bold">{BOOKING_MODE_LABELS[mode]}</span>
+                    <span className={checked ? "text-s text-text" : "text-s text-text-sub"}>
+                      {BOOKING_MODE_DESCRIPTIONS[mode]}
+                    </span>
                   </span>
-                </span>
-              </label>
-            );
-          })}
+                </label>
+              );
+            },
+          )}
         </div>
       </fieldset>
       <p className="text-s text-text-sub">

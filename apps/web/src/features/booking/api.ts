@@ -1,7 +1,7 @@
 // 予約の窓口の呼び出し（型は apps/api/src/client.ts の ModuleRoutes["booking"] から import type で読む）。
 // 読み書きは lib/api.ts の request を通す（エラーの読み方と 401 の知らせをそろえる）。書き出しは lib/download.ts。
 import type {
-  BookingMode,
+  BookingSettingInput,
   MatchInput,
   RosterEntryInput,
   RosterImportInput,
@@ -41,7 +41,7 @@ export function fetchSetting(eventId: string) {
  * @param mode 使い方
  * @returns 変えた使い方
  */
-export function saveSetting(eventId: string, mode: BookingMode) {
+export function saveSetting(eventId: string, mode: BookingSettingInput["mode"]) {
   const { endpoint, param } = eventApi(eventId);
   return request(() => endpoint.setting.$put({ param, json: { mode } }));
 }

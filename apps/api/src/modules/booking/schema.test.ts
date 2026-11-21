@@ -108,11 +108,11 @@ describe("予約の表", () => {
       [ownerId, [...APPLICATION_SOURCES]],
     );
     await expect(
-      database.pool.query("UPDATE booking_setting SET mode = 'self_page' WHERE event_id = $1", [
+      database.pool.query("UPDATE booking_setting SET mode = 'waitlist' WHERE event_id = $1", [
         eventId,
       ]),
     ).rejects.toThrow(/booking_setting_mode_check/);
-    await expect(insertEntry({ entry_kind: "self_page" })).rejects.toThrow(
+    await expect(insertEntry({ entry_kind: "external" })).rejects.toThrow(
       /booking_entry_entry_kind_check/,
     );
     await expect(insertEntry({ application_source: "kokuchpro" })).rejects.toThrow(

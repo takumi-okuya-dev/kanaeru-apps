@@ -9,8 +9,20 @@ export {
   ENTRY_KIND_LABELS,
   ENTRY_STATUSES,
   ENTRY_STATUS_LABELS,
+  PAGE_STATES,
+  PAGE_STATE_LABELS,
+  VISIBILITIES,
+  VISIBILITY_LABELS,
+  usesRoster,
 } from "./options.ts";
-export type { Attendance, BookingMode, EntryKind, EntryStatus } from "./options.ts";
+export type {
+  Attendance,
+  BookingMode,
+  EntryKind,
+  EntryStatus,
+  PageState,
+  Visibility,
+} from "./options.ts";
 export {
   NOTICE_KINDS,
   NOTICE_KIND_LABELS,

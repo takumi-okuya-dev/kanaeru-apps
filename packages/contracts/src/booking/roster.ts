@@ -45,8 +45,10 @@ const isoDateTime = z.iso.datetime({ offset: true });
 /** 使い方の形（選べるものだけ）。 */
 export const BookingModeSchema = z.enum(BOOKING_MODES, { error: "使い方を選んでください。" });
 
-/** 使い方を変える入力。 */
-export const BookingSettingInput = z.strictObject({ mode: BookingModeSchema });
+/** 使い方を変える入力（自前で申込みを受けるは、booking-003 の窓口と画面ができるまで選べない）。 */
+export const BookingSettingInput = z.strictObject({
+  mode: z.enum(["reception", "roster"], { error: "使い方を選んでください。" }),
+});
 
 /** 使い方を変える入力の型。 */
 export type BookingSettingInput = z.infer<typeof BookingSettingInput>;
