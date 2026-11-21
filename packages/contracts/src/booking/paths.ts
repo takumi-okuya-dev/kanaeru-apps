@@ -44,3 +44,27 @@ export const bookingPaths = {
    */
   rosterMatch: (eventId: string): string => `/admin/events/${segment(eventId)}/roster/match`,
 } satisfies Record<keyof typeof BOOKING_ROUTE_PATTERNS, (eventId: string) => string>;
+
+/** 予約の知らせの設定の画面の道の形（設定の画面〈/settings〉の下。受付アプリの key は reception。booking-002 research R20）。 */
+export const BOOKING_SETTINGS_ROUTE_PATTERNS = {
+  /** 予約の知らせ（個人の設定と、管理者の組織の一覧） */
+  notify: "/settings/reception/notify",
+  /** 予約の知らせ（組織の設定） */
+  notifyOrganization: "/settings/reception/notify/organizations/$organizationId",
+} as const;
+
+/** 予約の知らせの設定の画面の道を作る関数。 */
+export const bookingSettingsPaths = {
+  /**
+   * 予約の知らせ（個人）。
+   * @returns `/settings/reception/notify`
+   */
+  notify: (): string => BOOKING_SETTINGS_ROUTE_PATTERNS.notify,
+  /**
+   * 予約の知らせ（組織）。
+   * @param organizationId 組織の ID
+   * @returns `/settings/reception/notify/organizations/{organizationId}`
+   */
+  notifyOrganization: (organizationId: string): string =>
+    `/settings/reception/notify/organizations/${segment(organizationId)}`,
+};

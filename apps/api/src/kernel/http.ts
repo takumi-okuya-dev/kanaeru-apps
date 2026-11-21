@@ -11,6 +11,7 @@ import { errorResponse } from "./errors.ts";
 import type { DomainFeatures } from "./features.ts";
 import type { MetaApp } from "./meta-app.ts";
 import type { Logger } from "./logger.ts";
+import type { Notifier } from "./notifier.ts";
 import type { RegisteredWithdrawalStep } from "./withdrawal.ts";
 
 /** 道の文脈の型（要求ごとの値）。 */
@@ -59,6 +60,11 @@ export type DomainRouteDeps = {
    * 設定 THREADS_APP_ID・THREADS_APP_SECRET がなければ undefined（その機能は使えない）。手で組み立てるテストは書かなくてよい
    */
   metaApp?: MetaApp | undefined;
+  /**
+   * 知らせを送る道具（LINE・メール。守り〈NOTIFY_MODE・NOTIFY_ALLOWLIST〉を通す。手元とテストは偽の送り手。AD-24）。
+   * 許可リストの値は渡さない。手で組み立てるテストは書かなくてよい（なければ使う領域が「止めている」の偽の道具を使う）
+   */
+  notifier?: Notifier | undefined;
   /** 登録されたアプリ（apps.list.ts の順。テストでは組み立ての extraApps も足す。suite の台帳が読む。AD-15） */
   apps: readonly AppDefinition[];
   /**

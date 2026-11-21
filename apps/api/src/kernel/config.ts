@@ -10,6 +10,9 @@
 // ログインは LINE の ID トークンを API が確かめる（構成の決めごと AD-4）。確かめる client_id は LINE_CHANNEL_IDS。
 // 秘密の値（外のサービスのトークンを包む鍵の束・定期の仕事の合言葉・Meta のアプリの秘密の値）は、ここで形を確かめ、領域には値を渡さない
 // （組み立てが秘密の箱と合言葉の確かめの道具にして渡す。kernel/http.ts の DomainRouteDeps）。
+// 知らせ（AD-24。booking-002）：送り方 NOTIFY_MODE（既定 off）と許可リスト NOTIFY_ALLOWLIST（秘密の値と同じく扱う）を読む。
+// APP_ENV が local・test のときは、どの設定でも偽の送り手だけを使う（notify.fakeOnly。AD-24 が環境の名前で決めると決めた唯一の所）。
+// 許可リストは領域に渡さず、組み立てが送る道具（platform/notify）にして渡す。
 import { resolve } from "node:path";
 import { LINE_USER_ID_FORMAT } from "@workspace/contracts/account";
 import { KeyRingError, createSecretBox } from "@workspace/secret-box";
@@ -50,6 +53,15 @@ const META_APP_ID_FORMAT = /^\d+$/;
 
 /** Meta のアプリの秘密の値の最短の長さ（Meta が出す値は32文字）。 */
 const META_APP_SECRET_MIN = 16;
+
+/** 知らせの送り方（AD-24。本番の既定は off）。 */
+const NOTIFY_MODES = ["off", "allowlist", "on"] as const;
+
+/** 偽の送り手だけを使う環境（本物の LINE・メールを呼ばない。AD-24）。 */
+const FAKE_NOTIFY_ENVS: ReadonlySet<string> = new Set(["local", "test"]);
+
+/** 許可リストのメールアドレスの形（ゆるく確かめる。改行・空白を含めない）。 */
+const ALLOWLIST_EMAIL_FORMAT = /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/;
 
 /** 源の形が合わないときの文。 */
 const ORIGIN_FORMAT = "http:// か https:// で始まる源（道を含まない URL）にしてください。";
@@ -272,6 +284,26 @@ const schema = z
       (value) => value === undefined || value.length >= META_APP_SECRET_MIN,
       { error: `${META_APP_SECRET_MIN}文字以上の値にしてください。` },
     ),
+    NOTIFY_MODE: z
+      .enum(NOTIFY_MODES, { error: `${NOTIFY_MODES.join("／")} のどれかにしてください。` })
+      .default("off"),
+    NOTIFY_ALLOWLIST: z
+      .string()
+      .optional()
+      .transform(splitList)
+      .refine(
+        (items) =>
+          items.every(
+            (item) => LINE_USER_ID_FORMAT.test(item) || ALLOWLIST_EMAIL_FORMAT.test(item),
+          ),
+        {
+          error:
+            "LINE のユーザー ID（U と16進の32文字）かメールアドレスを、カンマで並べてください。",
+        },
+      )
+      .transform((items) =>
+        items.map((item) => (LINE_USER_ID_FORMAT.test(item) ? item : item.toLowerCase())),
+      ),
     COMPOSE_PROJECT_NAME: optionalText(),
   })
   .superRefine((env, ctx) => {
@@ -455,6 +487,15 @@ export type Config = {
    * なければ undefined（その機能は使えない）。領域には値を渡さず、組み立てが道具（kernel/meta-app.ts）にして渡す
    */
   threadsApp: { appId: string; appSecret: string } | undefined;
+  /**
+   * 知らせ（AD-24）：送り方（NOTIFY_MODE。既定 off）・許可リスト（NOTIFY_ALLOWLIST。秘密。メールアドレスは小文字）・
+   * 偽の送り手だけを使うか（APP_ENV が local・test なら true）。領域には値を渡さず、組み立てが送る道具（platform/notify）にして渡す
+   */
+  notify: {
+    mode: (typeof NOTIFY_MODES)[number];
+    allowlist: string[];
+    fakeOnly: boolean;
+  };
 };
 
 /** 設定が合わないときのエラー。文は日本語で、値そのものは入れない。 */
@@ -538,5 +579,10 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       value.THREADS_APP_ID !== undefined && value.THREADS_APP_SECRET !== undefined
         ? { appId: value.THREADS_APP_ID, appSecret: value.THREADS_APP_SECRET }
         : undefined,
+    notify: {
+      mode: value.NOTIFY_MODE,
+      allowlist: value.NOTIFY_ALLOWLIST,
+      fakeOnly: FAKE_NOTIFY_ENVS.has(value.APP_ENV),
+    },
   };
 }

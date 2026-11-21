@@ -36,12 +36,13 @@ NOTIFY_MODE=on
 
 - `APP_ENV` が `production` のとき本物の LINE を呼ぶ。`NOTIFY_MODE` が `off` の間は、ボット情報の読み取り（設定の保存のとき）のほかは呼ばない。
 - メールの送信のサービスとドメインは決まっていない（Open Questions 8）。決まったら、送り手（`EmailSender`）を `platform/notify` に足し、送り主のアドレスとサービスの鍵の設定を足す。それまで本番のメールは「メールの準備がない」と記録する。
-- 組織には、LINE の画面で次をしてもらう（設定の画面に書く）：Webhook の URL を貼る・「Webhook の利用」を入にする・「検証」で成功を確かめる・「Webhook の再送」を入にする（夜間に DB が止まっている間の知らせを、LINE が送り直す）・応答メッセージ（自動の返事）を切にする（あいさつが2つ届かないように）。
+- 組織には、LINE の画面で次をしてもらう（設定の画面に書いた）：Webhook の URL を貼る・「Webhook の利用」を入にする・「検証」で成功を確かめる・「Webhook の再送」を入にする（夜間に DB が止まっている間の知らせを、LINE が送り直す）・LINE Official Account Manager のあいさつメッセージと応答メッセージを切にする（あいさつが2つ届かないように）。
+- 回数の制限：booking の Webhook の道は、`/api/v1` の書く道の IP ごとのふつうの制限（既定 60秒に100回）に入らず、IP ごとの別の上限（60秒に1200回【仮決め】。`app.ts` の `BOOKING_WEBHOOK_RATE_LIMIT`）と、署名が合ったあとの設定ごとの上限（60秒に600回）で数える（research R23）。入・切は `RATE_LIMIT_ENABLED`。
 
 ## 3. 確かめのテスト
 
 ```bash
 pnpm check                                  # 全部（型・lint・単体と結合・E2E）
 pnpm --filter api exec vitest run src/platform/notify src/modules/booking
-pnpm e2e -- booking-notify                  # 設定の画面と紐づけ（偽の Webhook）
+pnpm --filter web build && pnpm --filter e2e exec playwright test tests/booking-notify.spec.ts  # 設定の画面と紐づけ（偽の Webhook）
 ```

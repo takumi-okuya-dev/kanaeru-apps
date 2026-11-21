@@ -90,4 +90,7 @@ export const E2E_ENV: Record<string, string> = {
   // アプリの Meta のアプリ（threads-010）：テストだけの値。偽の Threads の認可の画面と Webhook の署名に使う
   THREADS_APP_ID: E2E_THREADS_APP_ID,
   THREADS_APP_SECRET: E2E_THREADS_APP_SECRET,
+  // 予約の知らせ（booking-002）：APP_ENV=test なので偽の送り手だけ。友だち追加のあいさつと確かめのメッセージを試すため on にする
+  NOTIFY_MODE: "on",
+  NOTIFY_ALLOWLIST: "",
 };

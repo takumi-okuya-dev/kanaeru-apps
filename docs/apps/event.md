@@ -1,6 +1,6 @@
 # 交流会（event）の地図
 
-2026-11-19 作成（event-001。決めた理由は [specs/event/001-events/research.md](../../specs/event/001-events/research.md)）。2026-11-19 直した（reception-002：交流会ごとの割引。理由は [specs/reception/002-discounts/research.md](../../specs/reception/002-discounts/research.md)）。2026-11-20 直した（event-002：交流会の持ち主・組織に入れる・主催者の決め方〈持ち主と組織の管理者・編集者〉・部員・退会の段。理由は [specs/event/002-owner-organization/research.md](../../specs/event/002-owner-organization/research.md)）。2026-11-20 直した（booking-001：持ち主と個人の交流会を booking に出す関数・準備の画面の差しこみの場所）。
+2026-11-19 作成（event-001。決めた理由は [specs/event/001-events/research.md](../../specs/event/001-events/research.md)）。2026-11-19 直した（reception-002：交流会ごとの割引。理由は [specs/reception/002-discounts/research.md](../../specs/reception/002-discounts/research.md)）。2026-11-20 直した（event-002：交流会の持ち主・組織に入れる・主催者の決め方〈持ち主と組織の管理者・編集者〉・部員・退会の段。理由は [specs/event/002-owner-organization/research.md](../../specs/event/002-owner-organization/research.md)）。2026-11-20 直した（booking-001：持ち主と個人の交流会を booking に出す関数・準備の画面の差しこみの場所）。2026-11-20 直した（booking-002：入れた組織を booking に出す関数）。
 
 交流会・持ち主・組織に入れる・割引・受付係・招待のリンク・アンケートの開閉を持ち、交流会ごとの権限（主催者・受付係・部員）と、参加者に見せてよい交流会の要約を、ほかの領域に1つの仕組みで出す（構成の決めごと AD-3・AD-5・AD-7・AD-13・AD-14・AD-19・AD-23）。
 
@@ -89,7 +89,8 @@ const summary = await getEventSummary(deps.db, deps.config, eventId); // 参加�
 | `eventDiscountTable` | 外部キーのためだけ（reception の `checkin` の `(event_id, discount_id)`） |
 | `eventForbiddenResponse`・`eventNotFoundResponse` | `createRoute` の 403・404 の応答 |
 | `withdrawal` | 退会の段（組み立てが suite の段のあとに流す。上の2章） |
-| `findEventOwnerAccountId(db, eventId)` | 交流会の持ち主の account の ID（ない・持ち主のない今の交流会は `null`）。booking が CSV の列の対応を持ち主ごとに覚えるのに使う |
+| `findEventOwnerAccountId(db, eventId)` | 交流会の持ち主の account の ID（ない・持ち主のない今の交流会は `null`）。booking が CSV の列の対応を持ち主ごとに覚えるのと、知らせに使う公式アカウントの設定を決めるのに使う |
+| `findEventOrganizationId(db, eventId)` | 交流会を入れた組織の ID（入れていなければ `null`）。booking が知らせに使う公式アカウントの設定（組織のもの）を決めるのに使う（booking-002） |
 | `listPersonalEventIds(db, accountId)` | その人が持ち主の、組織に入れていない交流会の ID（退会で消える交流会）。booking の退会の確かめが使う |
 
 約束（`@workspace/contracts/event`）：`EventSummary`・`EventView`・`EventRole`（答えの `myRole`：主催者・受付係）・`EventAccessRole`（判定：主催者・受付係・部員。`EVENT_ACCESS_ROLE_LABELS`）・`EventOrganizationState`・`EventOrganizationInput`・`EventDiscountInput`・`EventDiscountView`・`EVENT_ERRORS`、管理の画面の道 `ADMIN_ROUTE_PATTERNS`（path の形）と `adminPaths`（値を入れた道）：

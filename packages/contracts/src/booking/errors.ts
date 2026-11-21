@@ -50,6 +50,68 @@ export const BOOKING_ERRORS = {
     status: 400,
     message: "まとめられるのは、同じ名前の2つの行だけです。画面を読み直して、選び直してください。",
   },
+  /** 組織の知らせの設定を、組織の管理者でない人が開いた（booking-002 research R11） */
+  NOTIFY_FORBIDDEN: {
+    code: "BOOKING_NOTIFY_FORBIDDEN",
+    status: 403,
+    message:
+      "組織の LINE 公式アカウントとメールの設定は、組織の管理者だけが変えられます。変えたいときは管理者に頼んでください。",
+  },
+  /** 鍵の束（TOKEN_ENCRYPTION_KEYS）の設定がなく、公式アカウントの鍵を包めない */
+  NOTIFY_UNAVAILABLE: {
+    code: "BOOKING_NOTIFY_UNAVAILABLE",
+    status: 503,
+    message:
+      "公式アカウントの設定を保存する準備ができていません（鍵の設定がありません）。運営に知らせてください。",
+  },
+  /** ボット情報が 401（アクセストークンが合わない。research R10） */
+  LINE_TOKEN_INVALID: {
+    code: "BOOKING_LINE_TOKEN_INVALID",
+    status: 400,
+    message:
+      "アクセストークンが合いません。LINE Developers の Messaging API の画面で発行した「チャネルアクセストークン（長期）」を貼り直してください。",
+  },
+  /** 同じチャネル ID が、ほかの持ち主の設定に入っている（booking-002 research R10） */
+  LINE_CHANNEL_TAKEN: {
+    code: "BOOKING_LINE_CHANNEL_TAKEN",
+    status: 409,
+    message:
+      "この公式アカウント（チャネル ID）は、ほかの組織か人の設定で使われています。1つの公式アカウントは1つの設定にだけ入れられます。",
+  },
+  /** ボット情報を読めなかった（LINE に届かない） */
+  LINE_UNREACHABLE: {
+    code: "BOOKING_LINE_UNREACHABLE",
+    status: 502,
+    message: "LINE に確かめられませんでした。少し待ってから、もう一度保存してください。",
+  },
+  /** 公式アカウントの LINE の値がまだない（確かめのメッセージ） */
+  LINE_NOT_SET: {
+    code: "BOOKING_LINE_NOT_SET",
+    status: 409,
+    message:
+      "公式アカウントの設定がまだありません。先にチャネル ID とシークレットとアクセストークンを入れてください。",
+  },
+  /** 紐づけの札が知らない・消えた（research R3） */
+  LINK_INVALID: {
+    code: "BOOKING_LINK_INVALID",
+    status: 404,
+    message:
+      "このリンクは使えません。公式アカウントをいったんブロックしてから友だち追加し直すと、新しいリンクが届きます。",
+  },
+  /** 紐づけの札の期限が切れた */
+  LINK_EXPIRED: {
+    code: "BOOKING_LINK_EXPIRED",
+    status: 410,
+    message:
+      "このリンクは期限（7日）が切れました。公式アカウントをいったんブロックしてから友だち追加し直すと、新しいリンクが届きます。",
+  },
+  /** 紐づけの札はもう使われた */
+  LINK_USED: {
+    code: "BOOKING_LINK_USED",
+    status: 409,
+    message:
+      "このリンクは使い終わっています。紐づけ直すときは、公式アカウントをいったんブロックしてから友だち追加し直してください。",
+  },
   /** 2つの行がどちらもチェックインに当たっているのに、まとめようとした（research R7） */
   MERGE_BOTH_MATCHED: {
     code: "BOOKING_MERGE_BOTH_MATCHED",

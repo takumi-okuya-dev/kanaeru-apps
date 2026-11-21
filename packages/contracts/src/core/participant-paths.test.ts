@@ -16,6 +16,7 @@ describe("参加者が開く道", () => {
     expect(participantPaths.survey(EVENT_ID)).toBe(`/e/${EVENT_ID}/survey`);
     expect(participantPaths.invite("a b/c")).toBe("/invite/a%20b%2Fc");
     expect(participantPaths.join("t_1")).toBe("/join/t_1");
+    expect(participantPaths.lineLink("t-1_x")).toBe("/line-link/t-1_x");
     expect(() => participantPaths.checkin("")).toThrow(RangeError);
   });
 
@@ -31,6 +32,9 @@ describe("参加者が開く道", () => {
     );
     expect(PARTICIPANT_ROUTE_PATTERNS.join.replace("$joinToken", "abc")).toBe(
       participantPaths.join("abc"),
+    );
+    expect(PARTICIPANT_ROUTE_PATTERNS.lineLink.replace("$linkToken", "abc")).toBe(
+      participantPaths.lineLink("abc"),
     );
   });
 });

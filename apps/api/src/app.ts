@@ -5,7 +5,8 @@
 // 窓口の文書（GET /api/openapi.json）は、設定 OPENAPI_DOC_ENABLED が true のときだけ出す（production では止める）。
 // 設定 WEB_DIST_DIR があれば、/api 以外の道に組み立てた画面を返す（platform/web。AD-8）。守りの見出しは /api と画面で分ける。
 // ログインは account の領域が持つ（AD-12。道ごとに account の requireSession を付ける）。領域には、秘密でない設定（DomainConfig）と
-// 外への出口（fetch）と、登録されたアプリ（apps）と、秘密の値を使う道具（秘密の箱・定期の仕事の合言葉の確かめ。値そのものは渡さない）を渡す。
+// 外への出口（fetch）と、登録されたアプリ（apps）と、秘密の値を使う道具（秘密の箱・定期の仕事の合言葉の確かめ・知らせを送る道具。
+// 値そのものは渡さない）を渡す。
 // アプリが見えるか（AD-16）：packages/contracts/src/core/apps.list.ts の「アプリ → 属する領域」から、アプリに属する領域の
 // すべての道に suite の requireApp を付ける（各アプリは付けない。見えなければ 404）。どのアプリにも共通にも属さない領域があれば、
 // 起動を止める（requireApp の付け忘れで、作りかけのアプリが見えないように）。
@@ -41,6 +42,7 @@ import { REQUEST_ID_HEADER, requestIdMiddleware } from "./kernel/request-id.ts";
 import * as modules from "./modules.list.ts";
 import { requireApp, requireAppNotOff } from "./modules/suite/index.ts";
 import { healthRoutes } from "./platform/health/index.ts";
+import { createNotifier } from "./platform/notify/index.ts";
 import { createRateLimiter } from "./platform/rate-limit/index.ts";
 import {
   HSTS_MAX_AGE_SECONDS,
@@ -181,6 +183,19 @@ const SAFE_METHODS = /^(GET|HEAD|OPTIONS)$/;
 
 /** 領域の Webhook の道（外のサービスが送る。クッキーを使わず、領域が署名で確かめる）。 */
 const WEBHOOK_PATH = /^\/api\/v1\/[a-z][a-z0-9]*\/webhooks\//;
+
+/**
+ * booking の Webhook の道（LINE が送る。booking-002 research R23）。LINE の送り元の IP は多くの公式アカウントで共通なので、
+ * ふつうの IP ごとの上限では数えず、別の高めの上限（BOOKING_WEBHOOK_RATE_LIMIT）で数える。
+ * ほかの Webhook の道（threads の Meta など）は、今までどおりふつうの上限で数える。
+ */
+const BOOKING_WEBHOOK_PATH = /^\/api\/v1\/booking\/webhooks\//;
+
+/**
+ * booking の Webhook の道の IP ごとの上限【仮決め】：60秒に1200回。署名を確かめる前に無制限に DB を引かれないための上限で、
+ * 正しい知らせは、領域が署名を確かめたあとに設定ごとに数える（60秒に600回）。入・切は RATE_LIMIT_ENABLED に従う。
+ */
+export const BOOKING_WEBHOOK_RATE_LIMIT = { windowSeconds: 60, max: 1200 } as const;
 
 /** /api/v1 の本文の大きさの上限（バイト）。ファイルを受け取る窓口を足すときは、その窓口だけ別に決める。 */
 const MAX_BODY_BYTES = 100 * 1024;
@@ -417,7 +432,11 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
       await next();
     }),
   );
-  // 本文の大きさの上限と、回数の制限（IP ごと。/api/v1 の状態を変える道）
+  // 本文の大きさの上限と、回数の制限（IP ごと。/api/v1 の状態を変える道）。
+  // booking の Webhook の道（/api/v1/booking/webhooks/…）だけは、ふつうの上限で数えず、IP ごとの別の高めの上限で数える
+  // （LINE の送り元は多くの公式アカウントで共通の IP なので、ふつうの上限では正しい知らせを落とす。署名の前に無制限に DB を
+  // 引かれないように、上限はかける）。正しい知らせの回数は、booking が署名を確かめたあとに設定ごとに数える。
+  // ほかの Webhook の道（threads の Meta など）は、今までどおりふつうの上限で数える
   app.use(
     "/api/v1/*",
     bodyLimit({
@@ -431,7 +450,22 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
     "/api/v1/*",
     createRateLimiter(
       { ...config.rateLimit, trustedProxyHops: config.trustedProxyHops },
-      { applies: (c) => !SAFE_METHODS.test(c.req.method) },
+      {
+        applies: (c) => !SAFE_METHODS.test(c.req.method) && !BOOKING_WEBHOOK_PATH.test(c.req.path),
+      },
+    ),
+  );
+  app.use(
+    "/api/v1/*",
+    createRateLimiter(
+      {
+        enabled: config.rateLimit.enabled,
+        ...BOOKING_WEBHOOK_RATE_LIMIT,
+        trustedProxyHops: config.trustedProxyHops,
+      },
+      {
+        applies: (c) => !SAFE_METHODS.test(c.req.method) && BOOKING_WEBHOOK_PATH.test(c.req.path),
+      },
     ),
   );
 
@@ -475,6 +509,11 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
       : undefined,
     isJobRequest: createJobRequestCheck(config.jobTriggerSecret),
     metaApp: createMetaApp(config.threadsApp),
+    notifier: createNotifier({
+      policy: config.notify,
+      fetch: deps.fetch ?? globalThis.fetch.bind(globalThis),
+      logger,
+    }),
     withdrawalSteps: orderWithdrawalSteps(domains, apps),
   };
   for (const [name, domain] of domains) {
