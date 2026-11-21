@@ -1,4 +1,4 @@
-// テストの手伝い：Threads のチーム運用の場面を作る（threads-013。組織・運用アカウント・組織に入れる・担当・承認を任せる）。
+// テストの手伝い：Threads のチーム運用の場面を作る（threads-013・threads-016。組織・チーム・運用アカウント・チームに入れる・担当・承認を任せる）。
 // 偽の Threads と鍵の束を入れた API を組み立て、関わりごとの人をログインさせる。
 import { randomUUID } from "node:crypto";
 import type { DraftBatchResult, ThreadsAccount } from "@workspace/contracts/threads";
@@ -10,7 +10,7 @@ import type { TestApp } from "./app.ts";
 import { loginAs } from "./account.ts";
 import type { TestDatabase } from "./db.ts";
 import { call } from "./event.ts";
-import { createOrganization, setUpOrganization } from "./organization.ts";
+import { createOrganization, setUpOrganization, setUpTeam } from "./organization.ts";
 
 /** 運用アカウントの道の頭。 */
 export const THREADS_BASE = "/api/v1/threads/accounts";
@@ -48,8 +48,10 @@ export type TeamScene = {
   /** 別の組織の管理者 */
   stranger: TeamPerson;
   organizationId: string;
+  /** 組織の中のチーム（管理者以外の組織の人の全員が入る。リーダーはいない） */
+  teamId: string;
   otherOrganizationId: string;
-  /** 組織に入れた運用アカウント */
+  /** チームに入れた運用アカウント */
   account: ThreadsAccount;
 };
 
@@ -125,28 +127,26 @@ export async function pasteDrafts(
 }
 
 /**
- * 運用アカウントを組織に入れる・外す（持ち主）。
+ * 運用アカウントをチームに入れる・外す（持ち主。threads-016）。
  * @param app 組み立てた API
  * @param cookie 持ち主のクッキー
  * @param accountId 運用アカウントの ID
- * @param organizationId 組織の ID（null で外す）
+ * @param teamId チームの ID（null で外す）
  * @returns 応答
  */
 export function placeThreadsAccount(
   app: TestApp,
   cookie: string,
   accountId: string,
-  organizationId: string | null,
+  teamId: string | null,
 ): Promise<Response> {
-  return call(app, cookie, `${THREADS_BASE}/${accountId}/team/placement`, "PUT", {
-    organizationId,
-  });
+  return call(app, cookie, `${THREADS_BASE}/${accountId}/team/placement`, "PUT", { teamId });
 }
 
 /**
- * 担当を付け外しする（管理者）。
+ * 担当を付け外しする（管理者・リーダー）。
  * @param app 組み立てた API
- * @param cookie 管理者のクッキー
+ * @param cookie 管理者・リーダーのクッキー
  * @param organizationId 組織の ID
  * @param threadsAccountId 運用アカウントの ID
  * @param accountId 担当の人
@@ -170,7 +170,7 @@ export function assignThreadsAccount(
 
 /**
  * チーム運用の場面を作る：管理者の組織に、持ち主（メンバー）・担当の編集者2人（1人は承認を任されている）・担当のない編集者・
- * メンバーが入り、持ち主の運用アカウントを組織に入れる。別の組織と、関わりのない人も作る。
+ * メンバーが入る。管理者以外の全員を組織の中のチームに入れ、持ち主の運用アカウントをそのチームに入れる。別の組織と、関わりのない人も作る。
  * @param database テストの DB
  * @returns 場面
  * @throws {Error} 作れなかったとき
@@ -192,10 +192,17 @@ export async function setUpTeamScene(database: TestDatabase): Promise<TeamScene>
     { cookie: editor.cookie, accountId: editor.id, role: "editor" },
     { cookie: member.cookie, accountId: member.id, role: "member" },
   ]);
+  const teamId = await setUpTeam(app, admin.cookie, organizationId, [
+    owner.id,
+    assignee.id,
+    delegatee.id,
+    editor.id,
+    member.id,
+  ]);
   const otherOrganizationId = await createOrganization(app, stranger.cookie, "別の組織");
   const account = await createThreadsAccount(app, owner.cookie, "カフェB店");
-  const placed = await placeThreadsAccount(app, owner.cookie, account.id, organizationId);
-  if (placed.status !== 200) throw new Error(`組織に入れられませんでした（${placed.status}）。`);
+  const placed = await placeThreadsAccount(app, owner.cookie, account.id, teamId);
+  if (placed.status !== 200) throw new Error(`チームに入れられませんでした（${placed.status}）。`);
   for (const person of [assignee, delegatee]) {
     const assigned = await assignThreadsAccount(
       app,
@@ -227,6 +234,7 @@ export async function setUpTeamScene(database: TestDatabase): Promise<TeamScene>
     outsider,
     stranger,
     organizationId,
+    teamId,
     otherOrganizationId,
     account,
   };

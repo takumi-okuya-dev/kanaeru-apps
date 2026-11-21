@@ -184,6 +184,19 @@ const SAFE_METHODS = /^(GET|HEAD|OPTIONS)$/;
 /** 領域の Webhook の道（外のサービスが送る。クッキーを使わず、領域が署名で確かめる）。 */
 const WEBHOOK_PATH = /^\/api\/v1\/[a-z][a-z0-9]*\/webhooks\//;
 
+/**
+ * booking の Webhook の道（LINE が送る。booking-002 research R23）。LINE の送り元の IP は多くの公式アカウントで共通なので、
+ * ふつうの IP ごとの上限では数えず、別の高めの上限（BOOKING_WEBHOOK_RATE_LIMIT）で数える。
+ * ほかの Webhook の道（threads の Meta など）は、今までどおりふつうの上限で数える。
+ */
+const BOOKING_WEBHOOK_PATH = /^\/api\/v1\/booking\/webhooks\//;
+
+/**
+ * booking の Webhook の道の IP ごとの上限【仮決め】：60秒に1200回。署名を確かめる前に無制限に DB を引かれないための上限で、
+ * 正しい知らせは、領域が署名を確かめたあとに設定ごとに数える（60秒に600回）。入・切は RATE_LIMIT_ENABLED に従う。
+ */
+export const BOOKING_WEBHOOK_RATE_LIMIT = { windowSeconds: 60, max: 1200 } as const;
+
 /** /api/v1 の本文の大きさの上限（バイト）。ファイルを受け取る窓口を足すときは、その窓口だけ別に決める。 */
 const MAX_BODY_BYTES = 100 * 1024;
 
@@ -420,9 +433,10 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
     }),
   );
   // 本文の大きさの上限と、回数の制限（IP ごと。/api/v1 の状態を変える道）。
-  // 領域の Webhook の道（/api/v1/<領域>/webhooks/…）は IP ごとに数えない（LINE・Meta などの送り元は多くの利用者で共通の IP なので、
-  // 数えると正しい知らせを落とす）。Webhook の道の回数は、領域が署名を確かめたあとに設定ごとに数える
-  // （例：booking の LINE の Webhook）
+  // booking の Webhook の道（/api/v1/booking/webhooks/…）だけは、ふつうの上限で数えず、IP ごとの別の高めの上限で数える
+  // （LINE の送り元は多くの公式アカウントで共通の IP なので、ふつうの上限では正しい知らせを落とす。署名の前に無制限に DB を
+  // 引かれないように、上限はかける）。正しい知らせの回数は、booking が署名を確かめたあとに設定ごとに数える。
+  // ほかの Webhook の道（threads の Meta など）は、今までどおりふつうの上限で数える
   app.use(
     "/api/v1/*",
     bodyLimit({
@@ -436,7 +450,22 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
     "/api/v1/*",
     createRateLimiter(
       { ...config.rateLimit, trustedProxyHops: config.trustedProxyHops },
-      { applies: (c) => !SAFE_METHODS.test(c.req.method) && !WEBHOOK_PATH.test(c.req.path) },
+      {
+        applies: (c) => !SAFE_METHODS.test(c.req.method) && !BOOKING_WEBHOOK_PATH.test(c.req.path),
+      },
+    ),
+  );
+  app.use(
+    "/api/v1/*",
+    createRateLimiter(
+      {
+        enabled: config.rateLimit.enabled,
+        ...BOOKING_WEBHOOK_RATE_LIMIT,
+        trustedProxyHops: config.trustedProxyHops,
+      },
+      {
+        applies: (c) => !SAFE_METHODS.test(c.req.method) && BOOKING_WEBHOOK_PATH.test(c.req.path),
+      },
     ),
   );
 

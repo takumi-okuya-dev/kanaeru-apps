@@ -18,7 +18,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { truncateAllTables, useTestDatabase } from "../../../test/helpers/db.ts";
 import { call } from "../../../test/helpers/event.ts";
 import type { ErrorBody } from "../../../test/helpers/event.ts";
-import { setOrganizationRole } from "../../../test/helpers/organization.ts";
+import {
+  createTeam,
+  setOrganizationRole,
+  setTeamMember,
+} from "../../../test/helpers/organization.ts";
 import { showThreadsApp } from "../../../test/helpers/threads.ts";
 import {
   THREADS_BASE,
@@ -63,7 +67,7 @@ type Fixture = {
 
 /**
  * 表の場面を作る（案を3つためて、1つを承認・1つを却下する）。
- * @param shared 組織に見せるか
+ * @param shared チームに見せるか
  * @returns 材料
  */
 async function setUpFixture(shared: boolean): Promise<Fixture> {
@@ -186,14 +190,14 @@ const OPERATIONS: {
   },
   { name: "接続を切る", group: "manage", run: (f, w) => api(f, w, "/connection", "DELETE") },
   {
-    name: "組織に見せる",
+    name: "チームに見せる",
     group: "manage",
     run: (f, w) => api(f, w, "/team/shared", "PUT", { shared: true }),
   },
   {
-    name: "組織に入れる",
+    name: "チームに入れる",
     group: "manage",
-    run: (f, w) => api(f, w, "/team/placement", "PUT", { organizationId: f.scene.organizationId }),
+    run: (f, w) => api(f, w, "/team/placement", "PUT", { teamId: f.scene.teamId }),
   },
   {
     name: "承認を任せる",
@@ -585,6 +589,25 @@ describe("チーム運用の決まり", () => {
       ).status,
     ).toBe(404);
     expect((await send(scene.admin, "/activity")).status).toBe(403);
+    // 管理者もチームの人でなければ担当にできない（threads-016）
+    expect(
+      (
+        await assignThreadsAccount(
+          scene.app,
+          scene.admin.cookie,
+          scene.organizationId,
+          scene.account.id,
+          scene.admin.id,
+        )
+      ).status,
+    ).toBe(409);
+    await setTeamMember(
+      scene.app,
+      scene.admin.cookie,
+      scene.organizationId,
+      scene.teamId,
+      scene.admin.id,
+    );
     const self = await assignThreadsAccount(
       scene.app,
       scene.admin.cookie,
@@ -595,7 +618,8 @@ describe("チーム運用の決まり", () => {
     expect(self.status).toBe(200);
     const view = (await self.json()) as ThreadsOrganizationView;
     expect(
-      view.assignments.find((row) => row.accountId === scene.admin.id)?.assignedAccountIds,
+      view.teams[0]?.assignments.find((row) => row.accountId === scene.admin.id)
+        ?.assignedAccountIds,
     ).toEqual([scene.account.id]);
     expect((await send(scene.admin, "/activity")).status).toBe(200);
     expect(
@@ -664,14 +688,8 @@ describe("チーム運用の決まり", () => {
     expect(assigned.rowCount).toBe(0);
     // 入れ直すと、前の担当は戻らない
     expect(
-      (
-        await placeThreadsAccount(
-          scene.app,
-          scene.owner.cookie,
-          scene.account.id,
-          scene.organizationId,
-        )
-      ).status,
+      (await placeThreadsAccount(scene.app, scene.owner.cookie, scene.account.id, scene.teamId))
+        .status,
     ).toBe(200);
     expect((await send(scene.assignee, "")).status).toBe(403);
     // 組織を消す
@@ -690,11 +708,16 @@ describe("チーム運用の決まり", () => {
   });
 
   it("入っていない組織には入れられず、組織に入っていなければ見せる設定は変えられない", async () => {
+    const otherTeamId = await createTeam(
+      scene.app,
+      scene.stranger.cookie,
+      scene.otherOrganizationId,
+    );
     const other = await placeThreadsAccount(
       scene.app,
       scene.owner.cookie,
       scene.account.id,
-      scene.otherOrganizationId,
+      otherTeamId,
     );
     expect(other.status).toBe(404);
     expect(((await other.json()) as ErrorBody).error.code).toBe("THREADS_TEAM_NOT_FOUND");
@@ -709,9 +732,10 @@ describe("チーム運用の決まり", () => {
     expect(notAssignee.status).toBe(409);
   });
 
-  it("このアカウントのチーム：組織 → 管理者 → 持ち主 → 担当の人（任されている印・あなた）。入れられる組織は持ち主だけ", async () => {
+  it("このアカウントのチーム：組織 → 管理者 → 持ち主 → 担当の人（任されている印・あなた）。入れられるチームは持ち主だけ", async () => {
     const team = (await (await send(scene.assignee, "/team")).json()) as ThreadsAccountTeam;
     expect(team.organization?.name).toBe("飲食チーム");
+    expect(team.team).toEqual({ id: scene.teamId, name: "店舗A" });
     expect(
       team.people.map((row) => [row.position, row.displayName, row.delegated, row.isMe]),
     ).toEqual([
@@ -722,7 +746,14 @@ describe("チーム運用の決まり", () => {
     ]);
     expect(team.candidates).toEqual([]);
     const forOwner = (await (await send(scene.owner, "/team")).json()) as ThreadsAccountTeam;
-    expect(forOwner.candidates.map((row) => row.id)).toEqual([scene.organizationId]);
+    expect(forOwner.candidates).toEqual([
+      {
+        id: scene.teamId,
+        name: "店舗A",
+        organizationId: scene.organizationId,
+        organizationName: "飲食チーム",
+      },
+    ]);
   });
 
   it("一覧には担当している運用アカウントを分けて出し、上限は持っている分だけ数える", async () => {
@@ -764,7 +795,7 @@ describe("チーム運用の決まり", () => {
         access: "none",
       }),
     ]);
-    expect(forMember.assignments).toEqual([]);
+    expect(forMember.teams.map((row) => row.assignments)).toEqual([[]]);
     expect(forMember).toMatchObject({ canAssign: false, canSeeStatus: false });
     const forAssignee = (await (
       await call(scene.app, scene.assignee.cookie, `${THREADS_ORG_BASE}/${scene.organizationId}`)
@@ -774,8 +805,8 @@ describe("チーム運用の決まり", () => {
     const forAdmin = (await (
       await call(scene.app, scene.admin.cookie, `${THREADS_ORG_BASE}/${scene.organizationId}`)
     ).json()) as ThreadsOrganizationView;
-    expect(forAdmin.assignments.map((row) => row.displayName)).toEqual([
-      "田中",
+    // 担当の表はチームの人だけ（管理者の田中はチームに入っていない。threads-016）
+    expect(forAdmin.teams[0]?.assignments.map((row) => row.displayName)).toEqual([
       "佐藤",
       "山田",
       "高橋",
@@ -803,7 +834,7 @@ describe("チーム運用の決まり", () => {
   it("運用状況：管理者はすべて、担当の編集者は担当の分とその持ち主だけ、メンバーと担当のない編集者は 403、関わりのない人は 404。数と日付だけ", async () => {
     // 担当していない、別の持ち主の運用アカウントも組織に入れる
     const other = await createThreadsAccount(scene.app, scene.member.cookie, "ベーカリー");
-    await placeThreadsAccount(scene.app, scene.member.cookie, other.id, scene.organizationId);
+    await placeThreadsAccount(scene.app, scene.member.cookie, other.id, scene.teamId);
     await pasteDrafts(scene.app, scene.assignee.cookie, scene.account.id, "秘密の本文です");
     const strategy = (await (await send(scene.owner, "/strategy")).json()) as Record<
       string,
@@ -852,7 +883,7 @@ describe("チーム運用の決まり", () => {
     // 個人で運用していたときに案をためてから、組織に入れる
     const other = await createThreadsAccount(scene.app, scene.member.cookie, "ベーカリー");
     await pasteDrafts(scene.app, scene.member.cookie, other.id, "組織に入れる前の案です");
-    await placeThreadsAccount(scene.app, scene.member.cookie, other.id, scene.organizationId);
+    await placeThreadsAccount(scene.app, scene.member.cookie, other.id, scene.teamId);
     const status = (await (
       await call(
         scene.app,
