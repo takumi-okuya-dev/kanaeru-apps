@@ -140,7 +140,8 @@ sequenceDiagram
   A-->>B: JSON（エラーは {error: {code, message, requestId, fields?}}）
 ```
 
-- すべての応答に、要求の ID（`X-Request-Id`）と守りの見出し（HSTS は `WEB_URL` が https のときだけ）がつく。`/api`・`/api/…` は API の CSP（すべてを止める形）と `Cache-Control: no-store`。ほかの道は画面の CSP（自分の源と、LIFF の SDK が使う LINE の源だけ。`platform/web/web.ts` の `WEB_CSP_DIRECTIVES`）で、`/assets/` は長く持たせ、`index.html` は毎回確かめさせる。
+- すべての応答に、要求の ID（`X-Request-Id`）と守りの見出し（HSTS は `WEB_URL` が https のときだけ）がつく。`/api`・`/api/…` は API の CSP（すべてを止める形）と `Cache-Control: no-store`。ほかの道は画面の CSP（自分の源と、LIFF の SDK が使う LINE の源だけ。`platform/web/web.ts` の `WEB_CSP_DIRECTIVES`）で、`/assets/` は長く持たせ、`index.html` は毎回確かめさせる。Permissions-Policy はカメラ・マイク・位置を止め、試合表の道（`/match`・`/match/…`）だけカメラを自分の源に許す（QR を読む。`CAMERA_PATH_PREFIXES`。core-015）。
+- 組み立て（`vite build`）は、試合表の道だけに効く Service Worker を `match/sw.js` に書き出す（`apps/web/scoped-service-worker.ts`。本文は試合表の領域の `features/match/offline/sw.js`、持つファイルは入口と試合表の画面の束だけ。範囲は置いたフォルダの `/match/` まで。AD-27。core-015）。
 - エラーは、どの窓口でも同じ形（`packages/contracts/src/core/errors.ts` の `ErrorBody`）。投げられたものの読みかえは `kernel/errors.ts` の `toAppError` の1か所：DB に届かない（拒否・時間切れ・止まっている。`kernel/pg-errors.ts` の `isDbUnavailable`）ときは、どの窓口でも `503`・`DB_UNAVAILABLE`（「夜間（0時〜8時）は止まっています。…」）。予期しないエラーは中身を出さず `INTERNAL`（ログにはエラーの名前と積み重ねと要求の ID だけ）。
 - `/api` の下の道は、すべて `createRoute` で書かれ、窓口の文書（`GET /api/openapi.json`。設定 `OPENAPI_DOC_ENABLED` のときだけ）に載る。文書に載らない道があると、API は起動しない。
 - 画面は、エラーの本文を `ApiError`（code・文・欄ごとの理由）に、応答がないときを `NetworkError` に読みかえる（`apps/web/src/lib/api.ts`）。401 は `onUnauthenticated` の受け手（account）に知らせ、account がセッションを読み直してログインし直す。

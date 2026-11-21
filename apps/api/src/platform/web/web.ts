@@ -4,7 +4,7 @@
 // - /assets/ の下でファイルがなければ、返さずに次（API の 404）へ渡す（壊れた JS を HTML で返さない）
 // - ほかの道でファイルがなければ index.html（SPA。画面の道は画面の道具が決める。参加者の道に . があってもよい）
 // - キャッシュの見出しは、ファイルを返せた応答（200・206）だけに付ける（416 などに長いキャッシュを付けない）
-// 守りの見出しは、/api は API の CSP（app.ts）、ほかは画面の CSP（ここ）。
+// 守りの見出しは、/api は API の CSP（app.ts）、ほかは画面の CSP（ここ）。カメラは試合表の道だけで許す（core-015）。
 // 画面の CSP は、自分の源と、LINE の SDK（@line/liff 2.32）が使う源だけを許す
 // （どの源を何に使うかは specs/core/001-foundation/research.md R7。'unsafe-inline'・'unsafe-eval' は入れない）。
 import { readFileSync } from "node:fs";
@@ -67,19 +67,43 @@ export function isApiPath(path: string): boolean {
 }
 
 /**
+ * カメラを自分の源に許す画面の道の頭（試合表の道。電波なしで渡す QR と、受付の QR をカメラで読む。AD-27・AD-30・core-015）。
+ * ほかの道は今までどおりカメラを止める。道の比べ方は lib/liff.ts の LIFF を始めない道と同じ（大文字と小文字を分ける）。
+ */
+export const CAMERA_PATH_PREFIXES: readonly string[] = ["/match"];
+
+/**
+ * カメラを許す画面の道か（/match そのものと /match/ の下だけ。/matchfoo は違う）。
+ * @param path 要求の道
+ * @returns カメラを許すなら true
+ */
+export function allowsCamera(path: string): boolean {
+  return CAMERA_PATH_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+}
+
+/**
  * 画面の守りの見出し。HSTS は、設定の WEB_URL が https のときだけ出す（環境の名前で分けない）。
+ * Permissions-Policy は、カメラを許す道（allowsCamera）だけ `camera=(self)`、ほかは `camera=()`。
  * @param webUrl 画面の源（設定の WEB_URL）
  * @returns middleware
  */
 export function webSecureHeaders(webUrl: string): MiddlewareHandler {
   const https = new URL(webUrl).protocol === "https:";
-  return secureHeaders({
+  const options = {
     contentSecurityPolicy: WEB_CSP_DIRECTIVES,
     xFrameOptions: "DENY",
     referrerPolicy: "strict-origin-when-cross-origin",
     strictTransportSecurity: https ? `max-age=${HSTS_MAX_AGE_SECONDS}; includeSubDomains` : false,
+  } as const;
+  const plain = secureHeaders({
+    ...options,
     permissionsPolicy: { camera: [], microphone: [], geolocation: [] },
   });
+  const withCamera = secureHeaders({
+    ...options,
+    permissionsPolicy: { camera: ["self"], microphone: [], geolocation: [] },
+  });
+  return (c, next) => (allowsCamera(c.req.path) ? withCamera(c, next) : plain(c, next));
 }
 
 /**

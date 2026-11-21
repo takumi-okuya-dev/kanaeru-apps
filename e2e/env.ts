@@ -70,8 +70,8 @@ export const E2E_ENV: Record<string, string> = {
   // E2E のログインは account の試験用のログインで行う（本物の LINE は手元の http で動かない）
   TEST_LOGIN_ENABLED: "true",
   OPENAPI_DOC_ENABLED: "true",
-  // 機能の印で止めている領域のうち、通しのテストで確かめるもの（threads-010 の OAuth）
-  DOMAIN_FEATURES: "threads.oauth",
+  // 機能の印で止めている領域のうち、通しのテストで確かめるもの（threads-010 の OAuth・試合表のネットなしで開く仕組み〈AD-27。core-015〉）
+  DOMAIN_FEATURES: "threads.oauth,match.offline",
   LOG_PRETTY: "false",
   LOG_LEVEL: "warn",
   DATABASE_CONNECT_TIMEOUT_MS: "5000",
