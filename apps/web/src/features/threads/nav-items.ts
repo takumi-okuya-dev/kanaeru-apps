@@ -2,13 +2,14 @@
 // - Threads の画面の外：何も出さない（外枠は今のアプリの領域の項目だけを出す。アプリの入口は切り替えとすべてのアプリ）
 // - Threads の画面（/threads…）：「アカウント」。運用アカウントの中では「ホーム」（threads-012）「投稿の案」「案を作る」「戦略」「リサーチ」「反応」「分析」「外部メディア」「設定」も出す
 // - 「投稿の案」には承認待ちの数を添える（threads-011。画面が読んだ運用アカウントの数を使い、ナビのために問い合わせを始めない）
-// - 「組織」は、どれかの組織に入っている人にだけ出す（threads-013。画面が読んだ入っている組織を使い、ナビのために問い合わせを始めない）
-import type { ThreadsAccount, ThreadsOrganizationList } from "@workspace/contracts/threads";
+// - 「チーム」はいつも出す（threads-016。チームで運用できることに気づけるように。どこにも入っていなければ、チームの画面が始め方を出す）。
+//   運用アカウントの中では最後に置く（スマホのタブバーには、ホーム・投稿の案など運用の項目を先に出す）
+import type { ThreadsAccount } from "@workspace/contracts/threads";
 import { useQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
 import type { NavItem } from "../../lib/feature.ts";
 import { THREADS_ACCOUNT_SCOPE, THREADS_ROUTE_PATTERNS, threadsPaths } from "./paths.ts";
-import { fetchAccount, fetchTeamOrganizations } from "./api.ts";
+import { fetchAccount } from "./api.ts";
 import { THREADS_QUERY_KEYS } from "./queries.ts";
 
 /**
@@ -25,19 +26,6 @@ function useNeedsReviewCount(accountId: string): number | undefined {
     enabled: false,
   });
   return accountId ? data?.counts.needsReview : undefined;
-}
-
-/**
- * 画面が読んだ入っている組織があるか（まだ読んでいなければ false。ここからは読みに行かない）。
- * @returns 1つ以上入っていれば true
- */
-function useInOrganization(): boolean {
-  const { data } = useQuery<ThreadsOrganizationList>({
-    queryKey: THREADS_QUERY_KEYS.organizations,
-    queryFn: fetchTeamOrganizations,
-    enabled: false,
-  });
-  return (data?.organizations.length ?? 0) > 0;
 }
 
 /**
@@ -71,7 +59,6 @@ function useCurrentPlace(): string | null {
 export function useThreadsNavItems(): readonly NavItem[] {
   const accountId = useCurrentPlace();
   const needsReview = useNeedsReviewCount(accountId ?? "");
-  const inOrganization = useInOrganization();
   if (accountId === null) return [];
   const list: NavItem = {
     id: "threads-accounts",
@@ -79,20 +66,15 @@ export function useThreadsNavItems(): readonly NavItem[] {
     to: threadsPaths.accounts(),
     icon: "people",
   };
-  const organizations: NavItem[] = inOrganization
-    ? [
-        {
-          id: "threads-organizations",
-          label: "組織",
-          to: threadsPaths.organizations(),
-          icon: "people",
-        },
-      ]
-    : [];
-  if (!accountId) return [list, ...organizations];
+  const teams: NavItem = {
+    id: "threads-teams",
+    label: "チーム",
+    to: threadsPaths.teams(),
+    icon: "people",
+  };
+  if (!accountId) return [list, teams];
   return [
     list,
-    ...organizations,
     { id: "threads-home", label: "ホーム", to: threadsPaths.home(accountId), icon: "account" },
     {
       id: "threads-stock",
@@ -132,5 +114,6 @@ export function useThreadsNavItems(): readonly NavItem[] {
       icon: "list",
     },
     { id: "threads-settings", label: "設定", to: threadsPaths.settings(accountId), icon: "setup" },
+    teams,
   ];
 }

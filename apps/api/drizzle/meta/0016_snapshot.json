@@ -1,6 +1,6 @@
 {
-  "id": "5f83d469-7117-41e5-ad84-fe84ea9776bb",
-  "prevId": "f68666b5-8a79-49d6-bab4-24284169796f",
+  "id": "ddedb598-0f95-47e1-a216-6c5f6d24b56b",
+  "prevId": "a7f0b98f-1bff-46c2-9626-a8ee95462856",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -155,64 +155,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.booking_contact": {
-      "name": "booking_contact",
-      "schema": "",
-      "columns": {
-        "account_id": {
-          "name": "account_id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "booking_contact_account_id_account_id_fk": {
-          "name": "booking_contact_account_id_account_id_fk",
-          "tableFrom": "booking_contact",
-          "tableTo": "account",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "booking_contact_email_check": {
-          "name": "booking_contact_email_check",
-          "value": "char_length(\"booking_contact\".\"email\") <= 254"
-        }
-      },
       "isRLSEnabled": false
     },
     "public.booking_dismissal": {
@@ -767,636 +709,6 @@
         "booking_import_mapping_application_source_check": {
           "name": "booking_import_mapping_application_source_check",
           "value": "\"booking_import_mapping\".\"application_source\" in ('connpass', 'peatix', 'direct', 'other')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.booking_line_channel": {
-      "name": "booking_line_channel",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "uuidv7()"
-        },
-        "holder_account_id": {
-          "name": "holder_account_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "holder_organization_id": {
-          "name": "holder_organization_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "line_channel_id": {
-          "name": "line_channel_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "channel_secret_ciphertext": {
-          "name": "channel_secret_ciphertext",
-          "type": "bytea",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "channel_secret_iv": {
-          "name": "channel_secret_iv",
-          "type": "bytea",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "channel_secret_key_version": {
-          "name": "channel_secret_key_version",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "channel_secret_tail": {
-          "name": "channel_secret_tail",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "access_token_ciphertext": {
-          "name": "access_token_ciphertext",
-          "type": "bytea",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "access_token_iv": {
-          "name": "access_token_iv",
-          "type": "bytea",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "access_token_key_version": {
-          "name": "access_token_key_version",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "access_token_tail": {
-          "name": "access_token_tail",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "basic_id": {
-          "name": "basic_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "bot_user_id": {
-          "name": "bot_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reply_to_email": {
-          "name": "reply_to_email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "booking_line_channel_holder_account_id_unique": {
-          "name": "booking_line_channel_holder_account_id_unique",
-          "columns": [
-            {
-              "expression": "holder_account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"booking_line_channel\".\"holder_account_id\" is not null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "booking_line_channel_holder_organization_id_unique": {
-          "name": "booking_line_channel_holder_organization_id_unique",
-          "columns": [
-            {
-              "expression": "holder_organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"booking_line_channel\".\"holder_organization_id\" is not null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "booking_line_channel_line_channel_id_unique": {
-          "name": "booking_line_channel_line_channel_id_unique",
-          "columns": [
-            {
-              "expression": "line_channel_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"booking_line_channel\".\"line_channel_id\" is not null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "booking_line_channel_holder_account_id_account_id_fk": {
-          "name": "booking_line_channel_holder_account_id_account_id_fk",
-          "tableFrom": "booking_line_channel",
-          "tableTo": "account",
-          "columnsFrom": [
-            "holder_account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "booking_line_channel_holder_organization_id_organization_id_fk": {
-          "name": "booking_line_channel_holder_organization_id_organization_id_fk",
-          "tableFrom": "booking_line_channel",
-          "tableTo": "organization",
-          "columnsFrom": [
-            "holder_organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "booking_line_channel_holder_check": {
-          "name": "booking_line_channel_holder_check",
-          "value": "num_nonnulls(\"booking_line_channel\".\"holder_account_id\", \"booking_line_channel\".\"holder_organization_id\") = 1"
-        },
-        "booking_line_channel_line_check": {
-          "name": "booking_line_channel_line_check",
-          "value": "num_nulls(\"booking_line_channel\".\"line_channel_id\", \"booking_line_channel\".\"channel_secret_ciphertext\", \"booking_line_channel\".\"channel_secret_iv\", \"booking_line_channel\".\"channel_secret_key_version\", \"booking_line_channel\".\"channel_secret_tail\", \"booking_line_channel\".\"access_token_ciphertext\", \"booking_line_channel\".\"access_token_iv\", \"booking_line_channel\".\"access_token_key_version\", \"booking_line_channel\".\"access_token_tail\") in (0, 9)"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.booking_line_link": {
-      "name": "booking_line_link",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "uuidv7()"
-        },
-        "channel_id": {
-          "name": "channel_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "line_user_id": {
-          "name": "line_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "account_id": {
-          "name": "account_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "booking_line_link_channel_id_account_id_unique": {
-          "name": "booking_line_link_channel_id_account_id_unique",
-          "columns": [
-            {
-              "expression": "channel_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "booking_line_link_channel_id_line_user_id_unique": {
-          "name": "booking_line_link_channel_id_line_user_id_unique",
-          "columns": [
-            {
-              "expression": "channel_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "line_user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "booking_line_link_account_id_idx": {
-          "name": "booking_line_link_account_id_idx",
-          "columns": [
-            {
-              "expression": "account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "booking_line_link_channel_id_booking_line_channel_id_fk": {
-          "name": "booking_line_link_channel_id_booking_line_channel_id_fk",
-          "tableFrom": "booking_line_link",
-          "tableTo": "booking_line_channel",
-          "columnsFrom": [
-            "channel_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "booking_line_link_account_id_account_id_fk": {
-          "name": "booking_line_link_account_id_account_id_fk",
-          "tableFrom": "booking_line_link",
-          "tableTo": "account",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "booking_line_link_line_user_id_check": {
-          "name": "booking_line_link_line_user_id_check",
-          "value": "\"booking_line_link\".\"line_user_id\" ~ '^U[0-9a-f]{32}$'"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.booking_line_link_token": {
-      "name": "booking_line_link_token",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "uuidv7()"
-        },
-        "channel_id": {
-          "name": "channel_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "line_user_id": {
-          "name": "line_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "token_hash": {
-          "name": "token_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "used_at": {
-          "name": "used_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "used_by_account_id": {
-          "name": "used_by_account_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "booking_line_link_token_token_hash_unique": {
-          "name": "booking_line_link_token_token_hash_unique",
-          "columns": [
-            {
-              "expression": "token_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "booking_line_link_token_channel_id_line_user_id_idx": {
-          "name": "booking_line_link_token_channel_id_line_user_id_idx",
-          "columns": [
-            {
-              "expression": "channel_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "line_user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "booking_line_link_token_used_by_account_id_idx": {
-          "name": "booking_line_link_token_used_by_account_id_idx",
-          "columns": [
-            {
-              "expression": "used_by_account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "booking_line_link_token_channel_id_booking_line_channel_id_fk": {
-          "name": "booking_line_link_token_channel_id_booking_line_channel_id_fk",
-          "tableFrom": "booking_line_link_token",
-          "tableTo": "booking_line_channel",
-          "columnsFrom": [
-            "channel_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "booking_line_link_token_used_by_account_id_account_id_fk": {
-          "name": "booking_line_link_token_used_by_account_id_account_id_fk",
-          "tableFrom": "booking_line_link_token",
-          "tableTo": "account",
-          "columnsFrom": [
-            "used_by_account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "booking_line_link_token_line_user_id_check": {
-          "name": "booking_line_link_token_line_user_id_check",
-          "value": "\"booking_line_link_token\".\"line_user_id\" ~ '^U[0-9a-f]{32}$'"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.booking_notice": {
-      "name": "booking_notice",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "uuidv7()"
-        },
-        "entry_id": {
-          "name": "entry_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "channel_id": {
-          "name": "channel_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "method": {
-          "name": "method",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "result": {
-          "name": "result",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "booking_notice_entry_id_idx": {
-          "name": "booking_notice_entry_id_idx",
-          "columns": [
-            {
-              "expression": "entry_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "booking_notice_channel_id_created_at_idx": {
-          "name": "booking_notice_channel_id_created_at_idx",
-          "columns": [
-            {
-              "expression": "channel_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "booking_notice_entry_id_booking_entry_id_fk": {
-          "name": "booking_notice_entry_id_booking_entry_id_fk",
-          "tableFrom": "booking_notice",
-          "tableTo": "booking_entry",
-          "columnsFrom": [
-            "entry_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "booking_notice_channel_id_booking_line_channel_id_fk": {
-          "name": "booking_notice_channel_id_booking_line_channel_id_fk",
-          "tableFrom": "booking_notice",
-          "tableTo": "booking_line_channel",
-          "columnsFrom": [
-            "channel_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "booking_notice_kind_check": {
-          "name": "booking_notice_kind_check",
-          "value": "\"booking_notice\".\"kind\" in ('confirmed', 'waitlisted', 'offered', 'offer_expired', 'changed', 'cancelled_event', 'test')"
-        },
-        "booking_notice_method_check": {
-          "name": "booking_notice_method_check",
-          "value": "\"booking_notice\".\"method\" in ('line', 'email', 'none')"
-        },
-        "booking_notice_result_check": {
-          "name": "booking_notice_result_check",
-          "value": "\"booking_notice\".\"result\" in ('sent', 'off', 'not_allowed', 'no_destination', 'failed', 'unavailable')"
-        },
-        "booking_notice_entry_check": {
-          "name": "booking_notice_entry_check",
-          "value": "(\"booking_notice\".\"kind\" = 'test') = (\"booking_notice\".\"entry_id\" is null)"
         }
       },
       "isRLSEnabled": false
@@ -2650,6 +1962,220 @@
       },
       "isRLSEnabled": false
     },
+    "public.team": {
+      "name": "team",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "uuidv7()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "team_id_organization_id_unique": {
+          "name": "team_id_organization_id_unique",
+          "columns": [
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "team_organization_id_name_unique": {
+          "name": "team_organization_id_name_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "team_organization_id_organization_id_fk": {
+          "name": "team_organization_id_organization_id_fk",
+          "tableFrom": "team",
+          "tableTo": "organization",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "team_name_length": {
+          "name": "team_name_length",
+          "value": "char_length(\"team\".\"name\") BETWEEN 1 AND 30"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.team_member": {
+      "name": "team_member",
+      "schema": "",
+      "columns": {
+        "team_id": {
+          "name": "team_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "leader": {
+          "name": "leader",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "joined_at": {
+          "name": "joined_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "team_member_organization_id_account_id_idx": {
+          "name": "team_member_organization_id_account_id_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "team_member_team_fk": {
+          "name": "team_member_team_fk",
+          "tableFrom": "team_member",
+          "tableTo": "team",
+          "columnsFrom": [
+            "team_id",
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id",
+            "organization_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "team_member_organization_member_fk": {
+          "name": "team_member_organization_member_fk",
+          "tableFrom": "team_member",
+          "tableTo": "organization_member",
+          "columnsFrom": [
+            "organization_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "organization_id",
+            "account_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "team_member_team_id_account_id_pk": {
+          "name": "team_member_team_id_account_id_pk",
+          "columns": [
+            "team_id",
+            "account_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.survey_answer": {
       "name": "survey_answer",
       "schema": "",
@@ -3308,6 +2834,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "team_id": {
+          "name": "team_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "account_id": {
           "name": "account_id",
           "type": "uuid",
@@ -3385,10 +2917,27 @@
           "tableFrom": "threads_assignment",
           "tableTo": "threads_organization_account",
           "columnsFrom": [
-            "threads_account_id"
+            "threads_account_id",
+            "team_id"
           ],
           "columnsTo": [
-            "threads_account_id"
+            "threads_account_id",
+            "team_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "threads_assignment_team_member_fk": {
+          "name": "threads_assignment_team_member_fk",
+          "tableFrom": "threads_assignment",
+          "tableTo": "team_member",
+          "columnsFrom": [
+            "team_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "team_id",
+            "account_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -4300,6 +3849,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "team_id": {
+          "name": "team_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "owner_account_id": {
           "name": "owner_account_id",
           "type": "uuid",
@@ -4336,6 +3891,42 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "threads_organization_account_team_id_idx": {
+          "name": "threads_organization_account_team_id_idx",
+          "columns": [
+            {
+              "expression": "team_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "threads_organization_account_id_team_id_unique": {
+          "name": "threads_organization_account_id_team_id_unique",
+          "columns": [
+            {
+              "expression": "threads_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "team_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -4362,6 +3953,36 @@
           ],
           "columnsTo": [
             "organization_id",
+            "account_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "threads_organization_account_team_fk": {
+          "name": "threads_organization_account_team_fk",
+          "tableFrom": "threads_organization_account",
+          "tableTo": "team",
+          "columnsFrom": [
+            "team_id",
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id",
+            "organization_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "threads_organization_account_team_member_fk": {
+          "name": "threads_organization_account_team_member_fk",
+          "tableFrom": "threads_organization_account",
+          "tableTo": "team_member",
+          "columnsFrom": [
+            "team_id",
+            "owner_account_id"
+          ],
+          "columnsTo": [
+            "team_id",
             "account_id"
           ],
           "onDelete": "cascade",

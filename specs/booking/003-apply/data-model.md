@@ -1,6 +1,6 @@
 # Data Model: 自前の申込みページ（booking-003）
 
-2026-11-20 作成。表の持ち主は booking の領域（AD-3・AD-23）。表の名前は `booking_` で始める（AD-15）。DB の変更は、表を足す・空を許すか既定値つきの列を足す・今の行がどれも通る CHECK に広げる・索引を足すだけ（前の版のアプリは新しい列と表を知らないだけで壊れない。[コードの書き方](../../../docs/rules/coding.md) 3）。`0016_booking_notify.sql` の次（`0017_booking_apply.sql`）。
+2026-11-20 作成。表の持ち主は booking の領域（AD-3・AD-23）。表の名前は `booking_` で始める（AD-15）。DB の変更は、表を足す・空を許すか既定値つきの列を足す・今の行がどれも通る CHECK に広げる・索引を足すだけ（前の版のアプリは新しい列と表を知らないだけで壊れない。[コードの書き方](../../../docs/rules/coding.md) 3）。`0017_booking_notify.sql` の次（`0018_booking_apply.sql`）。
 
 ## 直す表
 

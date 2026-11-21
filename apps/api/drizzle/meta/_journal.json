@@ -103,36 +103,43 @@
     {
       "idx": 14,
       "version": "7",
-      "when": 1795160615438,
-      "tag": "0014_event_owner",
+      "when": 1795222238101,
+      "tag": "0014_suite_team",
       "breakpoints": true
     },
     {
       "idx": 15,
       "version": "7",
-      "when": 1795172570003,
-      "tag": "0015_booking",
+      "when": 1795226223789,
+      "tag": "0015_event_owner",
       "breakpoints": true
     },
     {
       "idx": 16,
       "version": "7",
-      "when": 1795175898841,
-      "tag": "0016_booking_notify",
+      "when": 1795226484725,
+      "tag": "0016_booking",
       "breakpoints": true
     },
     {
       "idx": 17,
       "version": "7",
-      "when": 1795179487656,
-      "tag": "0017_booking_apply",
+      "when": 1795226715825,
+      "tag": "0017_booking_notify",
       "breakpoints": true
     },
     {
       "idx": 18,
       "version": "7",
-      "when": 1795184020179,
-      "tag": "0018_booking_waitlist",
+      "when": 1795227039800,
+      "tag": "0018_booking_apply",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795227489614,
+      "tag": "0019_booking_waitlist",
       "breakpoints": true
     }
   ]

@@ -9,7 +9,7 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { DRAFT_LIST_STATUSES } from "@workspace/contracts/threads";
 import { useThreadsNavItems } from "./nav-items.ts";
@@ -64,9 +64,12 @@ describe("Threads の運用のナビの項目", () => {
     expect(await renderItems("/admin/events")).toEqual([]);
   });
 
-  it("入口と運用アカウントの一覧では「アカウント」だけ（threads-012）", async () => {
-    expect(await renderItems("/threads")).toEqual(["アカウント /threads/accounts"]);
-    expect(await renderItems("/threads/accounts")).toEqual(["アカウント /threads/accounts"]);
+  it("入口と運用アカウントの一覧では「アカウント」と「チーム」（threads-012・threads-016）", async () => {
+    const outside = ["アカウント /threads/accounts", "チーム /threads/teams"];
+    for (const start of ["/threads", "/threads/accounts", "/threads/teams"]) {
+      expect(await renderItems(start)).toEqual(outside);
+      cleanup();
+    }
   });
 
   it("運用アカウントのホームでも、その運用アカウントの画面を出す（threads-012）", async () => {
@@ -89,6 +92,7 @@ describe("Threads の運用のナビの項目", () => {
       `分析 /threads/accounts/${ACCOUNT_ID}/analysis`,
       `外部メディア /threads/accounts/${ACCOUNT_ID}/media`,
       `設定 /threads/accounts/${ACCOUNT_ID}/settings`,
+      "チーム /threads/teams",
     ]);
   });
 
@@ -103,46 +107,6 @@ describe("Threads の運用のナビの項目", () => {
     });
     const items = await renderItems(`/threads/accounts/${ACCOUNT_ID}/stock`, client);
     expect(items[2]).toBe(`投稿の案（3） /threads/accounts/${ACCOUNT_ID}/stock`);
-  });
-
-  /**
-   * 入っている組織を読んだ問い合わせの入れ物。
-   * @param count 組織の数
-   * @returns 入れ物
-   */
-  function withOrganizations(count: number): QueryClient {
-    const client = new QueryClient();
-    client.setQueryData(THREADS_QUERY_KEYS.organizations, {
-      organizations: Array.from({ length: count }, () => ({
-        id: ACCOUNT_ID,
-        name: "飲食チーム",
-        myRole: "member",
-        accountCount: 0,
-      })),
-    });
-    return client;
-  }
-
-  it("画面が読んだ入っている組織が1つ以上あれば、一覧で「組織」を出す（threads-013）", async () => {
-    expect(await renderItems("/threads/accounts", withOrganizations(1))).toEqual([
-      "アカウント /threads/accounts",
-      "組織 /threads/organizations",
-    ]);
-  });
-
-  it("運用アカウントの中でも「組織」を出す（threads-013）", async () => {
-    const items = await renderItems(`/threads/accounts/${ACCOUNT_ID}/stock`, withOrganizations(1));
-    expect(items.slice(0, 3)).toEqual([
-      "アカウント /threads/accounts",
-      "組織 /threads/organizations",
-      `ホーム /threads/accounts/${ACCOUNT_ID}`,
-    ]);
-  });
-
-  it("どの組織にも入っていなければ「組織」を出さない（threads-013）", async () => {
-    expect(await renderItems("/threads/organizations", withOrganizations(0))).toEqual([
-      "アカウント /threads/accounts",
-    ]);
   });
 
   it("投稿の案の ?tab= の状態は、約束の一覧の状態と同じ並び（threads-011）", () => {

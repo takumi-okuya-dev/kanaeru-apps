@@ -9,7 +9,7 @@
 - [x] T001 約束の選択肢を先に置く：`packages/contracts/src/booking/options.ts`（`ENTRY_STATUSES` に `waitlisted`・`offered`・`OFFER_STATUSES`・`QUOTA_SOURCES`・`PAGE_STATES` に `cancelled` と言葉・`SEAT_STATUSES`）・`notify-options.ts`（`same_day`）・`index.ts`。単体のテスト（言葉がそろう・`QUOTA_SOURCES` は受付の媒体から直接を除いたもの）
 - [x] T002 結合のテストを先に書く（`apps/api/src/modules/booking/waitlist-schema.test.ts`）：定員の CHECK（0・1001 は落ちる・空は通る）・状態 `waitlisted`・`offered`・枠の媒体の CHECK（直接は落ちる）・席の CHECK・URL の CHECK・枠の一意・打診の状態の CHECK・待っている打診は申込みごとに1つ（終わった打診は何個でも）・返事の札の一意・知らせの種類 `same_day`・交流会を消すと枠と打診が消える・申込みを消すと打診が消える・主催者を消すと `offered_by` が空になる。`schema.test.ts` の CHECK の値の見張りに新しい値を足す
 - [x] T003 `apps/api/src/modules/booking/schema.ts`：列・CHECK・索引と、`booking_quota`・`booking_offer`
-- [x] T004 `pnpm db:generate --name booking_waitlist` → `apps/api/drizzle/0018_booking_waitlist.sql` を読む（足す・CHECK を広げるだけで、消す・名前を変える・NOT NULL で既定値なしがないこと）→ `pnpm db:migrate`
+- [x] T004 `pnpm db:generate --name booking_waitlist` → `apps/api/drizzle/0019_booking_waitlist.sql` を読む（足す・CHECK を広げるだけで、消す・名前を変える・NOT NULL で既定値なしがないこと）→ `pnpm db:migrate`
 - [x] T005 `pnpm check` を流し、コミットする
 
 ## Phase 2: 基礎（2つ目の PR `feature/booking-004-pr2-waitlist`）

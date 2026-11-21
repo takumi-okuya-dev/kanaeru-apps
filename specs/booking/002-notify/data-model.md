@@ -1,6 +1,6 @@
 # Data Model: 予約の知らせの仕組み（booking-002）
 
-2026-11-20 作成。表の持ち主は booking の領域（AD-3・AD-23・AD-24）。表の名前は `booking_` で始める（AD-15）。DB の変更は表を足すだけ（前の版のアプリは表を知らないだけで壊れない。[コードの書き方](../../../docs/rules/coding.md) 3）。`0015_booking.sql` の次（`0016_booking_notify.sql`）。
+2026-11-20 作成。表の持ち主は booking の領域（AD-3・AD-23・AD-24）。表の名前は `booking_` で始める（AD-15）。DB の変更は表を足すだけ（前の版のアプリは表を知らないだけで壊れない。[コードの書き方](../../../docs/rules/coding.md) 3）。`0016_booking.sql` の次（`0017_booking_notify.sql`）。
 
 ## 足す表
 

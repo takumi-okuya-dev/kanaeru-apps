@@ -9,7 +9,7 @@
 - [x] T001 約束の選択肢を先に置く：`packages/contracts/src/booking/notify-options.ts`（`NOTIFY_MODES`・`NOTICE_KINDS`・`NOTICE_METHODS`・`NOTICE_RESULTS` と言葉）・`index.ts`。単体のテスト `notify-options.test.ts`（言葉がそろう）
 - [x] T002 結合のテストを先に書く（`apps/api/src/modules/booking/notify-schema.test.ts`）：持ち主はどちらか1つ（CHECK）・持ち主ごとに1行・LINE の値はそろって空かそろって入る・LINE のユーザー ID の形・紐づけの一意（設定×アカウント・設定×LINE の友だち）・札の一意・知らせの種類・手段・結果の code はどれも入りほかは止まる・確かめのメッセージだけ申込みが空・組織を消すと設定と紐づけと札が消える・アカウントを消すと個人の設定と紐づけと連絡が消える・申込みを消すと記録が消え、設定を消すと記録の設定が空になる
 - [x] T003 `apps/api/src/modules/booking/schema.ts` に5つの表を書く
-- [x] T004 `pnpm db:generate --name booking_notify` → `apps/api/drizzle/0016_booking_notify.sql` を読む（表を足すだけで、消す・名前を変えるがないこと）→ `pnpm db:migrate`
+- [x] T004 `pnpm db:generate --name booking_notify` → `apps/api/drizzle/0017_booking_notify.sql` を読む（表を足すだけで、消す・名前を変えるがないこと）→ `pnpm db:migrate`
 - [x] T005 `pnpm check` を流し、コミットする
 
 ## Phase 2: 共通（2つ目の PR `feature/booking-002-pr2-notify` の1つ目のコミット）
@@ -69,3 +69,4 @@
 - [x] T042 紐づけを他人に渡されたときの守り（research S7）：札のページにその LINE の表示名と注意、紐づけたらその LINE に知らせる
 - [x] T043 アクセストークンだけを別の公式アカウントのものに入れ直したら紐づけを消す（`bot_user_id`。前の版の行はベーシック ID）。同じチャネル ID はほかの設定に入れない（409 `BOOKING_LINE_CHANNEL_TAKEN`）
 - [x] T044 テスト：届いたままの本文で署名を比べる・ほかの設定のシークレットの署名は 400・同じ札を同時に2回で1つ・組織に LINE の値がなければ持ち主の個人の LINE を使わない（R5）
+- [x] T045 共通（`fix(core)`）：T040 で回数の制限から外す道を Webhook の道すべてにしていたので、threads の Meta の Webhook も外れていた。外すのを booking の Webhook の道だけに狭め、その道に IP ごとの別の高めの上限（60秒に1200回【仮決め】）をかける（research R23）。テスト：threads の Webhook は今までどおり数える・booking の Webhook は別の上限
