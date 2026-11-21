@@ -2,7 +2,7 @@
 // 管理者でないときの文・個人の画面の組織の一覧）と、紐づけの画面（使える・使った・期限切れ・知らない・紐づける）。
 // API は fetch の差しかえで答える。名前・アドレスはどれも架空のもの。
 import type { LineLinkPreview, NotifySettings } from "@workspace/contracts/booking";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderWithRouter } from "../../lib/testing.tsx";
@@ -157,6 +157,9 @@ describe("予約の知らせの設定の画面", () => {
     expect(
       await screen.findByText("チャネル ID を入れてください。", {}, { timeout: 5000 }),
     ).toBeInTheDocument();
+    // 画面は次の描画（requestAnimationFrame）で最初の間違いの欄へ移る。移り終えてから返信先に入れる
+    // （待たないと、重いときに入れている途中で移り、文字がチャネル ID の欄に入る）
+    await waitFor(() => expect(screen.getByLabelText(/^チャネル ID/)).toHaveFocus());
     await userEvent.type(screen.getByLabelText(/返信先のメールアドレス/), "reply");
     await userEvent.click(screen.getByRole("button", { name: "返信先を保存する" }));
     expect(
