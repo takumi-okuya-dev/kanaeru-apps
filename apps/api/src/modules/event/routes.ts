@@ -23,6 +23,7 @@ import { listActiveDiscounts, listActiveDiscountsByEvents, saveDiscounts } from 
 import { generateInviteToken, isInviteToken } from "./ids.ts";
 import {
   addStaff,
+  claimLegacyEvents,
   findEventById,
   findEventByInviteToken,
   findEventMembership,
@@ -399,6 +400,8 @@ export function eventRoutes(deps: DomainRouteDeps) {
     .openapi(routes.list, async (c) => {
       const me = currentAccount(c);
       const organizer = isOrganizer(config, me);
+      // 持ち主のない今の交流会を、運営者が開いたときに運営者のものにする（event-002 research R1）
+      if (organizer) await claimLegacyEvents(db, me.accountId);
       const records = organizer ? await listAllEvents(db) : await listStaffEvents(db, me.accountId);
       const role = organizer ? "organizer" : "staff";
       const discounts = await listActiveDiscountsByEvents(
@@ -416,9 +419,10 @@ export function eventRoutes(deps: DomainRouteDeps) {
     })
     .openapi(routes.create, async (c) => {
       const input = c.req.valid("json");
-      // 交流会と割引は同じ取引で作る（割引だけ残る・交流会だけ残るにしない）
+      const me = currentAccount(c);
+      // 交流会と割引は同じ取引で作る（割引だけ残る・交流会だけ残るにしない）。作った人が持ち主（event-002）
       const record = await db.transaction(async (tx) => {
-        const created = await insertEvent(tx, toValues(input));
+        const created = await insertEvent(tx, toValues(input), me.accountId);
         if (input.discounts) await saveDiscounts(tx, created.id, input.discounts);
         return created;
       });

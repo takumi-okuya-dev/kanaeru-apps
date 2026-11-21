@@ -1,6 +1,6 @@
 # 交流会（event）の地図
 
-2026-11-19 作成（event-001。決めた理由は [specs/event/001-events/research.md](../../specs/event/001-events/research.md)）。2026-11-19 直した（reception-002：交流会ごとの割引。理由は [specs/reception/002-discounts/research.md](../../specs/reception/002-discounts/research.md)）。
+2026-11-19 作成（event-001。決めた理由は [specs/event/001-events/research.md](../../specs/event/001-events/research.md)）。2026-11-19 直した（reception-002：交流会ごとの割引。理由は [specs/reception/002-discounts/research.md](../../specs/reception/002-discounts/research.md)）。2026-11-20 直した（event-002：交流会の持ち主と組織に入れる表。理由は [specs/event/002-owner-organization/research.md](../../specs/event/002-owner-organization/research.md)）。
 
 交流会・割引・受付係・招待のリンク・アンケートの開閉を持ち、交流会ごとの権限（主催者・受付係）と、参加者に見せてよい交流会の要約を、ほかの領域に1つの仕組みで出す（構成の決めごと AD-3・AD-5・AD-7・AD-13・AD-14）。
 
@@ -8,9 +8,10 @@
 
 | 表 | 列 | 決まり |
 |---|---|---|
-| `event` | `id`・`name`・`starts_at`（始まりの日時）・`venue`・`fee`（円の整数）・`google_form_url`（任意）・`line_group_url`（任意）・`survey_open`（既定 false）・`created_at`・`updated_at` | `fee >= 0`（`event_fee_check`）。索引 `event_starts_at_idx`。消さない（この版は消す機能がない） |
+| `event` | `id`・`name`・`starts_at`（始まりの日時）・`venue`・`fee`（円の整数）・`google_form_url`（任意）・`line_group_url`（任意）・`survey_open`（既定 false）・`owner_account_id`（持ち主。作った人）・`created_at`・`updated_at` | `fee >= 0`（`event_fee_check`）。索引 `event_starts_at_idx`・`event_owner_account_id_idx`。`owner_account_id` は account を `RESTRICT`。空を許す（空は前の版で運営者が作った交流会で、運営者が一覧を開くと運営者のものになる。埋め終えたら `NOT NULL` にする） |
 | `event_staff` | `id`・`event_id`・`account_id`・`created_at`（受付係になった時刻） | 組は一意（`event_staff_event_id_account_id_unique`）。`event_id` は `RESTRICT`、`account_id` は `ON DELETE CASCADE`（`event_staff_account_id_idx`） |
 | `event_discount` | `id`・`event_id`・`name`・`amount`（円の整数）・`asks_referrer`（紹介者の名前を聞くか。既定 false）・`archived_at`（使うのをやめた時刻）・`created_at`・`updated_at` | `amount > 0`（`event_discount_amount_check`）。`event_id` は `RESTRICT`。`UNIQUE (event_id, id)`（`event_discount_event_id_id_unique`。reception の `checkin` の複合の外部キーのため）。行は消さない（外すと `archived_at`） |
+| `event_organization` | `event_id`（主キー）・`organization_id`・`owner_account_id`（入れた持ち主）・`placed_at` | 交流会を組織に入れる（1つの組織まで）。`(organization_id, owner_account_id)` は suite の `organization_member` を指す複合の外部キーで `ON DELETE CASCADE`（`event_organization_member_fk`。持ち主が組織を抜ける・外される・組織が消えると行が消える）。`event_id` は `RESTRICT`。索引 `event_organization_organization_id_idx` |
 | `staff_invite` | `id`・`event_id`・`token`・`created_at` | 交流会ごとに1行（`staff_invite_event_id_unique`）。`token` は 32 バイトの base64url で一意。作り直す・受付係を外すと、同じ行の印と時刻が替わる。期限は列に持たず、受けるときに `endOfJstDate(starts_at)` で決める |
 
 ほかの領域は `event.id` を外部キーで参照するだけ（`eventTable` を `.references(() => eventTable.id, { onDelete: "restrict" })` にだけ使う。AD-7）。
@@ -115,7 +116,7 @@ const summary = await getEventSummary(deps.db, deps.config, eventId); // 参加�
 |---|---|
 | 約束 | `packages/contracts/src/event/`（`event.ts`・`roles.ts`・`admin-paths.ts`・`errors.ts`・`index.ts`） |
 | API | `apps/api/src/modules/event/`（`schema.ts`・`repository.ts`・`discounts.ts`・`access.ts`・`summary.ts`・`ids.ts`・`routes.ts`・`index.ts`・テスト） |
-| DB の変更 | `apps/api/drizzle/0003_event.sql`・`0006_event_discount.sql` |
+| DB の変更 | `apps/api/drizzle/0003_event.sql`・`0006_event_discount.sql`・`0015_event_owner.sql` |
 | 画面 | `apps/web/src/features/event/`（`api.ts`・`queries.ts`・`format.ts`・`links.ts`・`admin-tabs.ts`・`nav-items.ts`・`navigation.tsx`・`EventAccessGate.tsx`・`QrCode.tsx`・`EventListPage.tsx`・`EventFormPage.tsx`・`DiscountFields.tsx`・`EventSetupPage.tsx`・`QrPrintPage.tsx`・`print.css`・`InviteAcceptPage.tsx`・`routes.ts`・`index.ts`） |
 | テストの手伝い | `apps/api/test/helpers/event.ts` |
 | 通しのテスト | `e2e/tests/event.spec.ts` |
