@@ -299,8 +299,7 @@ async function writeChannel(
     };
     if (
       channel.lineChannelId !== null &&
-      (channel.lineChannelId !== lineChannelId ||
-        (bot !== null && botChanged(channel, bot)))
+      (channel.lineChannelId !== lineChannelId || (bot !== null && botChanged(channel, bot)))
     ) {
       // 公式アカウントが替わると LINE のユーザー ID も替わるので、前の紐づけと札は使えない
       // （チャネル ID が同じでも、アクセストークンだけを別の公式アカウントのものに入れ直したときも）

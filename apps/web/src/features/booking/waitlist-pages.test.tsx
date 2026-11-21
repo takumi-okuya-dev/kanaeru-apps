@@ -428,7 +428,9 @@ describe("札のページの打診", () => {
     });
     renderWithRouter(<EntryTokenPage eventId={EVENT_ID} entryToken={TOKEN} />);
     await userEvent.click(await screen.findByRole("button", { name: "参加する" }));
-    expect(await screen.findByText(/申し込んだときに届いたメールのリンクを開いてください/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/申し込んだときに届いたメールのリンクを開いてください/),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "この申込みを取り消す" })).not.toBeInTheDocument();
     act(() => {
       focusManager.setFocused(false);
@@ -436,7 +438,9 @@ describe("札のページの打診", () => {
     });
     await waitFor(() => expect(reads).toBeGreaterThan(1));
     expect(screen.getByText("確定")).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "このリンクは使えません" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "このリンクは使えません" }),
+    ).not.toBeInTheDocument();
     focusManager.setFocused(undefined);
   });
 });

@@ -185,10 +185,9 @@ describe("公式アカウントとメールの設定", () => {
     await saveLine(app, admin.cookie, organizationId);
     // シークレットだけの保存が読んだあと・書く前に、ほかの管理者がトークンを別の公式アカウントのものに入れ替えたとする
     let interleave: (() => Promise<unknown>) | undefined = () =>
-      database.pool.query(
-        "UPDATE booking_line_channel SET basic_id = '@fake2', bot_user_id = $1",
-        [`U${"e".repeat(32)}`],
-      );
+      database.pool.query("UPDATE booking_line_channel SET basic_id = '@fake2', bot_user_id = $1", [
+        `U${"e".repeat(32)}`,
+      ]);
     const racing = {
       ...database,
       db: new Proxy(database.db, {
@@ -207,9 +206,15 @@ describe("公式アカウントとメールの設定", () => {
       }),
     };
     const racingApp = buildApp(racing, notifyConfig(), { logger: log.logger });
-    const response = await call(racingApp, admin.cookie, `${notifyBase(organizationId)}/line`, "PUT", {
-      channelSecret: "d".repeat(32),
-    });
+    const response = await call(
+      racingApp,
+      admin.cookie,
+      `${notifyBase(organizationId)}/line`,
+      "PUT",
+      {
+        channelSecret: "d".repeat(32),
+      },
+    );
     expect(response.status).toBe(200);
     const bot = await database.pool.query<{ basic_id: string; bot_user_id: string }>(
       "SELECT basic_id, bot_user_id FROM booking_line_channel",

@@ -234,7 +234,10 @@ describe("申込みページ", () => {
               viewer:
                 reads === 1
                   ? SIGNED_IN
-                  : { ...SIGNED_IN, myEntry: { ...entry, status: "cancelled", cancellable: false } },
+                  : {
+                      ...SIGNED_IN,
+                      myEntry: { ...entry, status: "cancelled", cancellable: false },
+                    },
             }),
           );
         },
@@ -365,7 +368,9 @@ describe("札のページ", () => {
         ),
     });
     renderWithRouter(<EntryTokenPage eventId={EVENT_ID} entryToken={TOKEN} />);
-    expect(await screen.findByRole("heading", { name: "この会は見られません" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "この会は見られません" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("部員だけの会です。")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "申込みを確定する" })).not.toBeInTheDocument();
   });

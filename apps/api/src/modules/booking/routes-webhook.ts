@@ -150,7 +150,10 @@ export function bookingWebhookRoutes(deps: DomainRouteDeps) {
       if (redelivery && (await hasLinkOrUsableToken(db, channel.id, userId, now))) continue;
       const token = await issueLinkToken(db, channel.id, userId, now);
       const holderName = await holderNameOf(db, holderOfChannel(channel));
-      const text = greetingText(holderName, `${deps.config.webUrl}${participantPaths.lineLink(token)}`);
+      const text = greetingText(
+        holderName,
+        `${deps.config.webUrl}${participantPaths.lineLink(token)}`,
+      );
       const { status } = redelivery
         ? await notifier.pushLine({ accessToken: opened.accessToken, to: userId, text })
         : await notifier.replyLine({
