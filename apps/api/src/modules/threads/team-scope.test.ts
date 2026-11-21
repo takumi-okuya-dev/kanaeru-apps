@@ -328,11 +328,14 @@ describe("チームの単位（threads-016）", () => {
       ["店舗B", false, 0],
     ]);
     expect(forAdmin.adminOrganizations).toEqual([{ id: scene.organizationId, name: "飲食チーム" }]);
+    // 運用状況の要約（threads-020）：管理者は数、運用状況を見られない人は null
+    expect(forAdmin.teams.every((row) => typeof row.stoppedCount === "number")).toBe(true);
     const forOther = await list(other);
     expect(forOther.teams.map((row) => [row.name, row.member, row.leader])).toEqual([
       ["店舗B", true, false],
     ]);
     expect(forOther).toMatchObject({ organizationCount: 1, adminOrganizations: [] });
+    expect(forOther.teams[0]?.stoppedCount).toBeNull();
     const forOutsider = await list(scene.outsider);
     expect(forOutsider).toEqual({ teams: [], organizationCount: 0, adminOrganizations: [] });
   });
