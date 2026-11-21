@@ -10,7 +10,7 @@
    - 試合表はレベル別に、名前を4列に並べるだけ（ペアは決めない。コートに入るときに2と2に分ける）
    - PC もスマホも、レベルを選んで1つずつ表示する。印刷もレベルごとに1枚ずつ
    - 試合の形（ダブルス・シングルス）とレベルの分け方（分けないも選べる）は運営が決め、あとから変えられる
-   - 名簿は、受付の交流会を選んで入れるか、Google フォームの回答の CSV（氏名とレベルだけ）か、手で入れる
+   - 名簿は、受付の交流会を選んで入れるか、Google フォームの回答の CSV（氏名とレベルだけ）か、QR から参加者が名前とレベルを答えるか、手で入れる
    - 名前は架空。画面ごとの見出し（.lbl）は見本の説明で、画面の中の文字ではない。 */
 :root{
   --primary:#3B3833;--primary-hover:#34312D;--on-primary:#FFFFFF;--primary-subtle:#EFEFEF;
@@ -175,7 +175,7 @@ tr.now .cb{border-color:var(--on-primary)}
 
 <!-- ========== M0 受付の交流会から作る ========== -->
 <div class="row"><div class="col">
-  <div class="lbl"><b>M0</b>試合表を作る：受付の交流会を選ぶ（運営）<span>名簿の入れ方は「受付の交流会から」「フォームの CSV」「手で入れる」の3つ。交流会を選ぶと、その参加者（当日はチェックインした人、前もっては予約の申込みの名簿）を名簿に入れる。レベルは、前にこの運営の試合表で入れた値を使い、ない人は名簿で入れる【仮決め】</span></div>
+  <div class="lbl"><b>M0</b>試合表を作る：受付の交流会を選ぶ（運営）<span>名簿の入れ方は「受付の交流会から」「フォームの CSV」「QR で受け付ける」「手で入れる」の4つ。交流会を選ぶと、その参加者（当日はチェックインした人、前もっては予約の申込みの名簿）を名簿に入れる。レベルは、前にこの運営の試合表で入れた値を使い、ない人は名簿で入れる【仮決め】</span></div>
   <div class="browser">
     <div class="chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">kanaeru-xxxxxxxx.asia-northeast1.run.app/match/new</div></div>
     <div class="bar"><span class="tg" aria-label="メニュー">☰</span><strong>kanaeru</strong><span class="sp"></span></div>
@@ -184,7 +184,7 @@ tr.now .cb{border-color:var(--on-primary)}
       <div class="main">
         <div class="crumb"><a href="#">試合表の一覧</a></div>
         <div class="pchead"><div><h2>試合表を作る</h2><p>名簿の入れ方を選んでください</p></div></div>
-        <div style="display:flex;gap:8px"><span class="chip on">受付の交流会から</span><span class="chip">フォームの CSV</span><span class="chip">手で入れる</span></div>
+        <div style="display:flex;gap:8px"><span class="chip on">受付の交流会から</span><span class="chip">フォームから貼り付け・CSV</span><span class="chip">QR で受け付ける</span><span class="chip">手で入れる</span></div>
         <div class="split">
           <div class="col">
             <table class="t">
@@ -212,9 +212,69 @@ tr.now .cb{border-color:var(--on-primary)}
   </div>
 </div></div>
 
+<!-- ========== M7・P2・P3 QR で受け付ける ========== -->
+<div class="row">
+<div class="col">
+  <div class="lbl"><b>M7</b>QR で受け付ける（運営・タブレットかPC）<span>交流会も CSV もないとき。この QR を入口に出すか、リンクをオープンチャットに載せる。参加者が名前とレベルを答えると、名簿に入る（名簿の画面で直せる・消せる）。リンクは試合表ごと・その日の終わりまで【仮決め】</span></div>
+  <div class="browser" style="width:760px">
+    <div class="bar"><span class="tg" aria-label="メニュー">☰</span><strong>kanaeru</strong><span class="sp"></span><span class="offline">電波あり</span></div>
+    <div style="padding:24px 32px;display:flex;gap:32px;align-items:flex-start">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+        <div class="qr" id="qr4" style="width:220px;height:220px;grid-template-columns:repeat(25,1fr);box-shadow:0 0 0 12px #fff,0 0 0 13px var(--border)"></div>
+        <span class="btn secondary sm">リンクをコピー</span>
+        <span class="btn secondary sm">この QR を印刷</span>
+      </div>
+      <div class="col" style="flex:1;gap:12px">
+        <h2 style="margin:0;font-size:var(--fs-xl)">受付中　12/13(日) 練習会</h2>
+        <p class="note">受け付けた人：<b style="color:var(--text)">14人</b>（上級 3・中級 5・初級 4・入門 2）</p>
+        <table class="t"><tbody>
+          <tr><td class="nm">高橋</td><td><span class="tag line">上級</span></td><td class="note">12:21</td></tr>
+          <tr><td class="nm">山本</td><td><span class="tag line">中級</span></td><td class="note">12:20</td></tr>
+          <tr><td class="nm">石川</td><td><span class="tag line">入門</span></td><td class="note">12:20</td></tr>
+        </tbody></table>
+        <div class="toolbar"><span class="btn secondary sm">受付を締める</span><span class="btn primary sm">この名簿で試合表を作る</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="col">
+  <div class="lbl"><b>P2</b>受付（参加者のスマホ）<span>QR から開く。ログインは要らない。名前（試合表に出る名前）とレベルを答えるだけ</span></div>
+  <div class="phone">
+    <div class="status">12:20<i></i></div>
+    <div class="appbar"><div class="t"><strong>12/13(日) 練習会</strong><small>試合表の受付</small></div></div>
+    <div class="scr" style="min-height:520px">
+      <div class="field"><div class="fl">名前<small style="font-weight:400;color:var(--text-sub);margin-left:8px">試合表に出ます</small></div><div class="input">高橋</div></div>
+      <div class="field"><div class="fl">レベル</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px"><span class="chip">入門</span><span class="chip">初級</span><span class="chip">中級</span><span class="chip on">上級</span></div>
+      </div>
+      <span class="btn primary full">受付する</span>
+      <p class="note">名前とレベルは、その日の試合表のためだけに使います。</p>
+    </div>
+    <div class="homebar"></div>
+  </div>
+</div>
+
+<div class="col">
+  <div class="lbl"><b>P3</b>受付できた／電波がないとき<span>受付できたら、そのまま試合表を見られる。電波がなくて送れないときは、名前とレベルを入れた QR を出し、運営のタブレットのカメラで読んでもらう【仮決め】</span></div>
+  <div class="phone">
+    <div class="status">12:21<i></i></div>
+    <div class="appbar"><div class="t"><strong>12/13(日) 練習会</strong><small>試合表の受付</small></div></div>
+    <div class="scr" style="min-height:520px;align-items:center;text-align:center">
+      <div class="ban" style="width:100%"><span>電波がないため、まだ送れていません</span></div>
+      <strong style="font-size:var(--fs-l)">この QR を運営に見せてください</strong>
+      <div class="qr" id="qr5" style="width:200px;height:200px;grid-template-columns:repeat(21,1fr);box-shadow:0 0 0 10px #fff,0 0 0 11px var(--border)"></div>
+      <p style="margin:0;font-size:var(--fs-m)"><b>高橋</b>・上級</p>
+      <p class="note">つながったら、自動で送ります。</p>
+    </div>
+    <div class="homebar"></div>
+  </div>
+</div>
+</div>
+
 <!-- ========== M1 名簿 ========== -->
 <div class="row"><div class="col">
-  <div class="lbl"><b>M1</b>名簿（運営・タブレットかPC）<span>Google フォームの回答の CSV を読んだところ。氏名とレベルだけを読み、メールアドレス・ラケット・きっかけ・要望は入れない。呼び名は姓（同じ姓は名の1字を足す）【仮決め】。試合の形（ダブルス・シングルス）とレベルの分け方（分けないも選べる）は運営が決め、あとから変えられる。レベルは CSV から入り、1人ずつ直せる</span></div>
+  <div class="lbl"><b>M1</b>名簿（運営・タブレットかPC）<span>Google フォームの回答を、スプレッドシートからコピーして貼り付けたところ（CSV のファイルも読める）。氏名とレベルだけを読み、メールアドレス・ラケット・きっかけ・要望は入れない。呼び名は姓（同じ姓は名の1字を足す）【仮決め】。試合の形（ダブルス・シングルス）とレベルの分け方（分けないも選べる）は運営が決め、あとから変えられる。レベルは CSV から入り、1人ずつ直せる</span></div>
   <div class="browser">
     <div class="chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">kanaeru-xxxxxxxx.asia-northeast1.run.app/match</div></div>
     <div class="bar"><span class="tg" aria-label="メニュー">☰</span><strong>kanaeru</strong><span class="sp"></span><span class="offline">電波なし・この端末に保存しました</span></div>
@@ -224,7 +284,7 @@ tr.now .cb{border-color:var(--on-primary)}
         <div class="crumb"><a href="#">試合表の一覧</a></div>
         <div class="pchead">
           <div><h2>12/13(日) 練習会</h2><p>さくら小 体育館・12:00〜15:00</p></div>
-          <div class="actions"><span class="btn secondary sm">フォームの CSV を読む</span><span class="btn secondary sm">チェックインから読む</span><span class="btn secondary sm">1人足す</span></div>
+          <div class="actions"><span class="btn secondary sm">フォームから貼り付ける</span><span class="btn secondary sm">CSV を読む</span><span class="btn secondary sm">チェックインから読む</span><span class="btn secondary sm">1人足す</span></div>
         </div>
         <div class="split">
           <div class="col">
@@ -428,6 +488,6 @@ document.getElementById('roster').innerHTML=R.map(function(p){return '<tr class=
 // QR（見本の模様）
 function qr(id,N,seed){var el=document.getElementById(id),h='';function rnd(){seed=(seed*1103515245+12345)%2147483648;return seed/2147483648}
   for(var y=0;y<N;y++)for(var x=0;x<N;x++){var on=rnd()<.5;[[0,0],[N-7,0],[0,N-7]].forEach(function(p){var cx=x-p[0],cy=y-p[1];if(cx>=0&&cx<7&&cy>=0&&cy<7)on=(cx===0||cy===0||cx===6||cy===6||(cx>=2&&cx<=4&&cy>=2&&cy<=4))});h+='<i style="background:'+(on?'#23221E':'#fff')+'"></i>'}el.innerHTML=h}
-qr('qr1',29,7);qr('qr2',25,11);qr('qr3',21,13);
+qr('qr1',29,7);qr('qr2',25,11);qr('qr3',21,13);qr('qr4',25,17);qr('qr5',21,19);
 </script>
 </body></html>
