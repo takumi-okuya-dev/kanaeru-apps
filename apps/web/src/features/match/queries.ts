@@ -99,5 +99,7 @@ export function useReceptionRoster(tableId: string, eventId: string | undefined)
     enabled: eventId !== undefined,
     retry: false,
     staleTime: 0,
+    // 名前を枠の外に残さず、選び直したときに古い名簿を出さない
+    gcTime: 0,
   });
 }

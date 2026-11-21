@@ -334,7 +334,7 @@ flowchart TB
   - **組織に入れる**：`match_table_organization`（`match_table_id` が主キー・`organization_id`・`owner_account_id`）。`(organization_id, owner_account_id)` は `organization_member` を指す複合の外部キーで `ON DELETE CASCADE`（`event_organization` と同じ。AD-22・AD-23）。チームには入れない（受付アプリの交流会と同じく組織の単位）【仮決め】。
   - **権限**は match の1つの関数で決める（AD-19）。作る・直す・担当の端末を決めるのは、持ち主と、入れた組織の管理者・編集者。
   - **名簿を入れる道**：受付の交流会から入れるときは、reception の `index.ts`（チェックインした人）と booking の `index.ts`（申込みの名簿。AD-23）を読む。選べる交流会は、event の判定で主催者のものだけ。持つのは呼び名とレベルだけで、氏名・メールアドレス・申込みの媒体は写さない（Constitution II）。
-  - **前に入れたレベル**：`match_level_memory`（持ち主か組織・account・レベル）。account のある人（LINE でチェックイン・申込みした人）だけ覚える。CSV と手で入れた人は覚えない（氏名を持たないため）【仮決め】。
+  - **前に入れたレベル**：`match_level_memory`（持ち主か組織・account・レベル）。account のある人（LINE でチェックイン・申込みした人）だけ覚える。CSV と手で入れた人は覚えない（氏名を持たないため）【仮決め】。〈2026-11-22 match-006：覚えるために、受付の交流会から入れた人の account を試合表の中身〈名簿の人〉に持つ〈見るだけのページ・QR には出さない〉。覚える相手は試合表を入れた組織か、入れていなければ試合表の持ち主。名簿を入れられるのは、交流会と試合表が同じ組織か、どちらも組織に入れず持ち主が同じときだけ〈AD-23 の組織ごとに閉じる〉【仮決め】。理由は [specs/match/006-reception-import/research.md](../../specs/match/006-reception-import/research.md) R3・R8〉
   - **消し方**：持ち主の退会では、組織に入れた試合表はその組織の管理者に引き継ぎ、入れていない試合表は消す（AD-19・AD-22 の手順の (2)）。試合表は、試合の日から90日を過ぎたら消す。消すのは、運営が試合表の一覧を開いたときと、試合表を作ったときに、その持ち主の古いものをまとめて消す形にし、定期の仕事は足さない（Cloud Scheduler の無料の枠を使い切らないため。原則 V）【仮決め】。
 
 ### AD-26 — 試合表の見るだけのページは、ログインなし・ふつうのブラウザ・その日だけの URL で出す [ADOPTED]

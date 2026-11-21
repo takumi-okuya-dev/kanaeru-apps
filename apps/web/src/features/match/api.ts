@@ -192,6 +192,7 @@ export function fetchOfflineSetting() {
 
 /**
  * 自分が主催者の受付の交流会（event の交流会の一覧のうち、役目が主催者のもの。日時の新しい順。match-006）。
+ * 試合表に入れられるかは reception-import.ts の canImportEvent で絞る。
  * 受付係の交流会は出さない（主催者だけが名簿を入れられる。AD-25）。
  * @returns 交流会の並び
  */

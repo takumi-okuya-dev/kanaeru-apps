@@ -55,6 +55,23 @@ async function waitSaved(page: Page): Promise<void> {
 }
 
 /**
+ * 操作をして、試合表の中身の送り（PUT）がサーバーに届くまで待つ（「保存しています…」が出る前に通り過ぎないように）。
+ * @param page Playwright の画面
+ * @param action 中身を変える操作
+ */
+async function savedAfter(page: Page, action: () => Promise<void>): Promise<void> {
+  const saved = page.waitForResponse(
+    (response) =>
+      response.request().method() === "PUT" &&
+      /\/api\/v1\/match\/tables\/[0-9a-f-]+$/u.test(new URL(response.url()).pathname) &&
+      response.ok(),
+  );
+  await action();
+  await saved;
+  await waitSaved(page);
+}
+
+/**
  * 試合表を作り、名簿と設定の画面を開く。
  * @param page Playwright の画面
  * @param name 試合表の名前
@@ -155,9 +172,8 @@ test("受付の交流会からチェックインした人と申込みの名簿�
     ),
   ).toBeVisible();
   await expectNoA11yViolations(page, "受付の交流会から入れる");
-  await dialog.getByRole("button", { name: "2人を名簿に入れる" }).click();
+  await savedAfter(page, () => dialog.getByRole("button", { name: "2人を名簿に入れる" }).click());
   await expect(page.getByText(/2人を名簿に入れました。/u)).toBeVisible();
-  await waitSaved(page);
   // 呼び名は貼り付けと同じ決まり：姓。空白のない名前は頭の2字で印
   await expect(page.getByRole("textbox", { name: "飛び入りの呼び名" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "なかの呼び名" })).toBeVisible();
@@ -166,11 +182,11 @@ test("受付の交流会からチェックインした人と申込みの名簿�
   await expect(page.getByRole("cell", { name: "なかむらさき" })).toBeVisible();
 
   // LINE でチェックインした人のレベルを選ぶ（覚える）。呼び名も直す
-  await page.getByRole("combobox", { name: "なかのレベル" }).selectOption("intermediate");
-  await waitSaved(page);
+  await savedAfter(page, async () => {
+    await page.getByRole("combobox", { name: "なかのレベル" }).selectOption("intermediate");
+  });
   await page.getByRole("textbox", { name: "なかの呼び名" }).fill("中村");
-  await page.getByRole("textbox", { name: "なかの呼び名" }).press("Enter");
-  await waitSaved(page);
+  await savedAfter(page, () => page.getByRole("textbox", { name: "なかの呼び名" }).press("Enter"));
   await expectNoA11yViolations(page, "名簿（受付の交流会から）");
 
   // 次の試合表：同じ交流会から入れると、覚えたレベルが入る → 申込みの名簿を後ろに足す
@@ -184,8 +200,7 @@ test("受付の交流会からチェックインした人と申込みの名簿�
       "レベル：1人は前の試合表から入ります。1人はまだないので、名簿で選んでください。",
     ),
   ).toBeVisible();
-  await dialog.getByRole("button", { name: "2人を名簿に入れる" }).click();
-  await waitSaved(page);
+  await savedAfter(page, () => dialog.getByRole("button", { name: "2人を名簿に入れる" }).click());
   await expect(page.getByRole("combobox", { name: "なかのレベル" })).toHaveValue("intermediate");
 
   await page.getByRole("button", { name: "受付の交流会から" }).click();
@@ -194,9 +209,8 @@ test("受付の交流会からチェックインした人と申込みの名簿�
     .click();
   await dialog.getByRole("radio", { name: "申込みの名簿（2人）" }).click();
   await dialog.getByRole("radio", { name: "後ろに足す" }).click();
-  await dialog.getByRole("button", { name: "2人を名簿に入れる" }).click();
+  await savedAfter(page, () => dialog.getByRole("button", { name: "2人を名簿に入れる" }).click());
   await expect(page.getByText(/2人を名簿に入れました。/u)).toBeVisible();
-  await waitSaved(page);
   await expect(page.getByRole("textbox", { name: "山田の呼び名" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "佐藤の呼び名" })).toBeVisible();
   await expect(page.getByText("4人", { exact: true })).toBeVisible();

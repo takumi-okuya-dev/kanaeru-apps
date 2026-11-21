@@ -1,5 +1,5 @@
 // 受付の交流会から名簿を入れる枠（PRD FR-M4・見本の M0。match-006）。
-// 1. 自分が主催者の交流会（event の一覧の主催者の行）から1つ選ぶ
+// 1. 自分が主催者の交流会（event の一覧の主催者の行。試合表と同じ組織のもの。どちらも組織に入れていなければ自分の交流会）から選ぶ
 // 2. 入れる人を選ぶ：チェックインした人（当日）か、確定した申込みの名簿（前もって）
 // 3. 前に入れたレベル（AD-25）がある人は入り、ない人は名簿で選ぶ。名前から呼び名を作る決まりは貼り付けと同じ（FR-M2。
 //    LINE の表示名で姓と名の間に空白がないときは、頭の2字にして「確かめてほしい」の印）
@@ -18,7 +18,7 @@ import { formatPlayDate } from "./format.ts";
 import { useOrganizerEvents, useReceptionRoster } from "./queries.ts";
 import { importPeople } from "./roster-edit.ts";
 import type { ImportMode } from "./roster-edit.ts";
-import { pickReceptionPeople, toReadPerson } from "./reception-import.ts";
+import { canImportEvent, pickReceptionPeople, toReadPerson } from "./reception-import.ts";
 import { assignNicknames } from "./roster-read.ts";
 import type { TableEditor } from "./table-editor.ts";
 
@@ -58,7 +58,12 @@ export function ReceptionImportDialog({
   onOpenChange: (open: boolean) => void;
   onImported: (result: ReceptionImported) => void;
 }) {
-  const events = useOrganizerEvents(open);
+  const organizerEvents = useOrganizerEvents(open);
+  // 試合表と同じ組織（どちらも組織に入れていなければ自分の交流会）だけ（組織ごとに閉じる。research R8）
+  const events = {
+    ...organizerEvents,
+    data: organizerEvents.data?.filter((event) => canImportEvent(event, table)),
+  };
   const [eventId, setEventId] = useState<string>();
   const roster = useReceptionRoster(table.id, open ? eventId : undefined);
   const [chosenSource, setChosenSource] = useState<ReceptionSource>();
@@ -66,7 +71,8 @@ export function ReceptionImportDialog({
   const [failure, setFailure] = useState<string>();
   const hasRoster = table.content.players.length > 0;
   const importMode = hasRoster ? mode : "replace";
-  const data = roster.data?.event.id === eventId ? roster.data : undefined;
+  // 読み直している間は出さない（古い名簿のまま入れない）
+  const data = roster.data?.event.id === eventId && !roster.isFetching ? roster.data : undefined;
   // 選んでいなければ、チェックインした人がいればそちら（当日）、いなければ申込みの名簿（前もって）
   const source: ReceptionSource =
     chosenSource ?? (data && data.checkins.length === 0 ? "applicants" : "checkins");
@@ -79,6 +85,7 @@ export function ReceptionImportDialog({
     onOpenChange(false);
     setEventId(undefined);
     setChosenSource(undefined);
+    setMode("replace");
     setFailure(undefined);
   };
 
@@ -133,7 +140,7 @@ export function ReceptionImportDialog({
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
       title="受付の交流会から入れる"
-      description="受付アプリの交流会を選んで、チェックインした人か、予約の申込みの名簿を入れます。自分が主催者（持ち主か、組織の管理者・編集者）の交流会だけが出ます。名前はこの画面にだけ出し、試合表には呼び名とレベルだけを保存します。"
+      description="受付アプリの交流会を選んで、チェックインした人か、予約の申込みの名簿を入れます。自分が主催者（持ち主か、組織の管理者・編集者）で、この試合表と同じ組織の交流会だけが出ます（組織に入れていない試合表には、自分の交流会）。名前はこの画面にだけ出し、試合表には呼び名とレベルだけを保存します。"
       footer={
         <>
           <Button onClick={close}>やめる</Button>
@@ -156,7 +163,7 @@ export function ReceptionImportDialog({
         ) : null}
         {events.data && events.data.length === 0 ? (
           <p className="text-m text-text-sub">
-            自分が主催者の交流会がありません。受付アプリで交流会を作るか、フォームの貼り付けか「1人足す」で名簿を作ってください。
+            入れられる交流会がありません（自分が主催者で、この試合表と同じ組織の交流会だけが出ます）。受付アプリで交流会を作るか、フォームの貼り付けか「1人足す」で名簿を作ってください。
           </p>
         ) : null}
         {events.data && events.data.length > 0 ? (
@@ -171,7 +178,7 @@ export function ReceptionImportDialog({
             }}
           />
         ) : null}
-        {eventId && roster.isPending ? (
+        {eventId && roster.isFetching ? (
           <p className="text-m text-text-sub">入れられる人を読んでいます…</p>
         ) : null}
         {eventId && roster.isError ? (

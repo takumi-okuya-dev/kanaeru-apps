@@ -5,6 +5,8 @@
 //   主催者でない・受付アプリが見えないときは、みな同じ 404（MATCH_EVENT_NOT_FOUND。ほかの人の交流会があるかを漏らさない）。
 // - 試合表の権限（持ち主と、入れた組織の管理者・編集者）も確かめる。名前は呼び名を作るために運営の画面に返すだけで、
 //   試合表には持たない（Constitution II）。レベルは、試合表を入れた組織（なければ持ち主）が覚えているものを付ける（AD-25）。
+// - 組織ごとに閉じる（AD-23）：入れられるのは、交流会と試合表が同じ組織に入っているか、どちらも組織に入れず持ち主が
+//   同じ人のときだけ（ほかの組織の参加者の名前と account を、別の組織の試合表に写さない。research R8）。
 // - 選ぶ交流会の一覧は、画面が event の窓口（GET /api/v1/events の主催者の行）から読む（event に関数を足さないため。research R1）。
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import * as contract from "@workspace/contracts/match";
@@ -19,7 +21,12 @@ import {
   unauthenticatedResponse,
 } from "../account/index.ts";
 import { listApplicantRoster } from "../booking/index.ts";
-import { getEventRole, getEventSummary } from "../event/index.ts";
+import {
+  findEventOrganizationId,
+  findEventOwnerAccountId,
+  getEventRole,
+  getEventSummary,
+} from "../event/index.ts";
 import { listEventAttendees } from "../reception/index.ts";
 import { isAppVisible } from "../suite/index.ts";
 import { requireTableAccess } from "./access.ts";
@@ -67,10 +74,27 @@ export function matchReceptionRoutes(deps: DomainRouteDeps) {
       ),
       404: domainErrorResponse(
         MATCH_ERRORS.EVENT_NOT_FOUND,
-        "試合表がない（MATCH_NOT_FOUND）か、交流会がない・主催者でない・受付アプリが見えない（MATCH_EVENT_NOT_FOUND）",
+        "試合表がない（MATCH_NOT_FOUND）か、交流会がない・主催者でない・試合表と持ち主（組織）が違う・受付アプリが見えない（MATCH_EVENT_NOT_FOUND）",
       ),
     },
   });
+
+  /**
+   * 交流会と試合表の持ち主が同じか（同じ組織に入れたか、どちらも組織に入れず持ち主が同じ人）。
+   * @param eventId 交流会の ID
+   * @param access 権限を確かめた試合表
+   * @param access.organizationId 試合表を入れた組織
+   * @param access.ownerAccountId 試合表の持ち主
+   * @returns 同じなら true
+   */
+  const sameHolder = async (
+    eventId: string,
+    access: { organizationId: string | null; ownerAccountId: string },
+  ): Promise<boolean> => {
+    const organizationId = await findEventOrganizationId(db, eventId);
+    if (organizationId || access.organizationId) return organizationId === access.organizationId;
+    return (await findEventOwnerAccountId(db, eventId)) === access.ownerAccountId;
+  };
 
   return new OpenAPIHono<ApiEnv>().openapi(route, async (c) => {
     const account = currentAccount(c);
@@ -83,6 +107,9 @@ export function matchReceptionRoutes(deps: DomainRouteDeps) {
     if ((await getEventRole(db, deps.config, eventId, account)) !== "organizer") {
       throw new AppError(MATCH_ERRORS.EVENT_NOT_FOUND);
     }
+    // 組織ごとに閉じる（AD-23）：交流会と試合表の持ち主が同じときだけ（同じ組織か、どちらも組織に入れず同じ持ち主）。
+    // ほかの組織・個人の交流会の名簿と account を、別の持ち主の試合表に写さない（research R8）
+    if (!(await sameHolder(eventId, access))) throw new AppError(MATCH_ERRORS.EVENT_NOT_FOUND);
     const summary = await getEventSummary(db, deps.config, eventId);
     if (!summary) throw new AppError(MATCH_ERRORS.EVENT_NOT_FOUND);
     const [attendees, applicants] = await Promise.all([

@@ -4,7 +4,7 @@ import { INITIAL_CONTENT } from "@workspace/contracts/match";
 import type { MatchReceptionPerson, MatchTableContent } from "@workspace/contracts/match";
 import { MatchTableContent as MatchTableContentSchema } from "@workspace/contracts/match";
 import { describe, expect, it } from "vitest";
-import { pickReceptionPeople, toReadPerson } from "./reception-import.ts";
+import { canImportEvent, pickReceptionPeople, toReadPerson } from "./reception-import.ts";
 import { importPeople } from "./roster-edit.ts";
 import { assignNicknames } from "./roster-read.ts";
 
@@ -69,5 +69,28 @@ describe("受付の交流会から名簿を入れる", () => {
       people: PEOPLE,
       alreadyListed: 0,
     });
+  });
+
+  it("入れられる交流会は、試合表と同じ組織のものか、どちらも組織に入れていなければ自分の交流会だけ", () => {
+    const orgA = { id: A };
+    const orgB = { id: B };
+    expect(canImportEvent({ organization: orgA, isOwner: false }, { organization: orgA })).toBe(
+      true,
+    );
+    expect(canImportEvent({ organization: orgB, isOwner: true }, { organization: orgA })).toBe(
+      false,
+    );
+    expect(canImportEvent({ organization: orgA, isOwner: true }, { organization: null })).toBe(
+      false,
+    );
+    expect(canImportEvent({ organization: null, isOwner: true }, { organization: orgA })).toBe(
+      false,
+    );
+    expect(canImportEvent({ organization: null, isOwner: true }, { organization: null })).toBe(
+      true,
+    );
+    expect(canImportEvent({ organization: null, isOwner: false }, { organization: null })).toBe(
+      false,
+    );
   });
 });

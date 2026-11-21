@@ -151,7 +151,7 @@ describe("受付の交流会から名簿を入れる", () => {
       { cookie: editor.cookie, accountId: editor.account.id, role: "editor" },
     ]);
     expect((await placeEvent(app, owner.cookie, eventId, organizationId)).status).toBe(200);
-    const editorTable = await createTable(app, editor.cookie);
+    const editorTable = await createTable(app, editor.cookie, { organizationId });
     expect((await read(editor.cookie, editorTable.id)).status).toBe(200);
 
     // 交流会の主催者でも、ほかの人の（組織に入れていない）試合表は開けない
@@ -159,6 +159,37 @@ describe("受付の交流会から名簿を入れる", () => {
     expect(forbidden.status).toBe(403);
     expect(((await forbidden.json()) as ErrorBody).error.code).toBe("MATCH_FORBIDDEN");
     expect((await app.request(receptionPath(table.id, eventId))).status).toBe(401);
+  });
+
+  it("組織ごとに閉じる：交流会と試合表が同じ組織か、どちらも組織に入れず持ち主が同じときだけ（違えば 404）", async () => {
+    const editor = await loginAs(app, { displayName: "2つの組織の編集者" });
+    const organizationA = await setUpOrganization(app, owner.cookie, [
+      { cookie: editor.cookie, accountId: editor.account.id, role: "editor" },
+    ]);
+    const organizationB = await setUpOrganization(
+      app,
+      owner.cookie,
+      [{ cookie: editor.cookie, accountId: editor.account.id, role: "editor" }],
+      "別の組織",
+    );
+    expect((await placeEvent(app, owner.cookie, eventId, organizationB)).status).toBe(200);
+    const tableA = await createTable(app, editor.cookie, { organizationId: organizationA });
+    const tableB = await createTable(app, editor.cookie, { organizationId: organizationB });
+    const editorPersonal = await createTable(app, editor.cookie);
+    // B の交流会は、B の試合表にだけ入れられる
+    expect((await read(editor.cookie, tableB.id)).status).toBe(200);
+    for (const target of [tableA.id, editorPersonal.id]) {
+      const response = await read(editor.cookie, target);
+      expect(response.status).toBe(404);
+      expect(((await response.json()) as ErrorBody).error.code).toBe("MATCH_EVENT_NOT_FOUND");
+    }
+    // 持ち主の個人の試合表にも、組織に入れた交流会は入れられない
+    expect((await read(owner.cookie, table.id)).status).toBe(404);
+    // 個人の交流会は、持ち主の個人の試合表にだけ入れられる（組織の試合表には入れない）
+    const personalEvent = (await createEvent(app, owner.cookie, { name: "個人の練習会" })).id;
+    expect((await read(owner.cookie, table.id, personalEvent)).status).toBe(200);
+    const ownerTableA = await createTable(app, owner.cookie, { organizationId: organizationA });
+    expect((await read(owner.cookie, ownerTableA.id, personalEvent)).status).toBe(404);
   });
 
   it("受付アプリが見えない人には、交流会を選ばせない（404）", async () => {
@@ -202,7 +233,10 @@ describe("受付の交流会から名簿を入れる", () => {
     expect(again.checkins[0]?.level).toBe("advanced");
   });
 
-  it("レベルは、試合表を入れた組織か持ち主ごとに覚える（ほかの運営には付かない）", async () => {
+  it("レベルは、試合表を入れた組織か持ち主ごとに覚え、上書きする（ほかの持ち主には付かない）", async () => {
+    // 同じ人が、組織の交流会と、持ち主の個人の交流会の両方にチェックインする
+    const personalEvent = (await createEvent(app, owner.cookie, { name: "個人の練習会" })).id;
+    await checkIn(app, participant.cookie, personalEvent, { name: "中村 さき" });
     await checkIn(app, participant.cookie, eventId, { name: "中村 さき" });
     const editor = await loginAs(app, { displayName: "編集者" });
     const organizationId = await setUpOrganization(app, owner.cookie, [
@@ -211,30 +245,39 @@ describe("受付の交流会から名簿を入れる", () => {
     expect((await placeEvent(app, owner.cookie, eventId, organizationId)).status).toBe(200);
     // 組織に入れた試合表で覚える → 組織の編集者の次の試合表（組織に入れたもの）で付く
     const shared = await createTable(app, owner.cookie, { organizationId });
-    expect(
-      (
-        await updateTable(
-          app,
-          owner.cookie,
-          shared,
-          rosterOf([{ accountId: participant.account.id, level: "beginner" }]),
-        )
-      ).status,
-    ).toBe(200);
+    const first = await updateTable(
+      app,
+      owner.cookie,
+      shared,
+      rosterOf([{ accountId: participant.account.id, level: "beginner" }]),
+    );
+    expect(first.status).toBe(200);
     const editorShared = await createTable(app, editor.cookie, { organizationId });
     const fromOrganization = (await (
       await read(editor.cookie, editorShared.id)
     ).json()) as MatchReceptionRoster;
     expect(fromOrganization.checkins[0]?.level).toBe("beginner");
-
-    // 持ち主の個人の試合表と、編集者の個人の試合表には付かない（組織が覚えたもの）
-    const personal = (await (await read(owner.cookie)).json()) as MatchReceptionRoster;
-    expect(personal.checkins[0]?.level).toBeNull();
-    const editorPersonal = await createTable(app, editor.cookie);
-    const fromEditor = (await (
-      await read(editor.cookie, editorPersonal.id)
+    // 組織の記録も、変えたら上書きする
+    expect(
+      (
+        await updateTable(
+          app,
+          owner.cookie,
+          (await first.json()) as MatchTable,
+          rosterOf([{ accountId: participant.account.id, level: "advanced" }]),
+        )
+      ).status,
+    ).toBe(200);
+    const overwritten = (await (
+      await read(editor.cookie, editorShared.id)
     ).json()) as MatchReceptionRoster;
-    expect(fromEditor.checkins[0]?.level).toBeNull();
+    expect(overwritten.checkins[0]?.level).toBe("advanced");
+
+    // 持ち主の個人の試合表（個人の交流会から入れる）には付かない（組織が覚えたもの）
+    const personal = (await (
+      await read(owner.cookie, table.id, personalEvent)
+    ).json()) as MatchReceptionRoster;
+    expect(personal.checkins[0]?.level).toBeNull();
   });
 
   it("名簿に残った account が消えていても、中身は保存し、ほかの人のレベルは覚える", async () => {

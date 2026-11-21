@@ -58,7 +58,7 @@
 | `GET /api/v1/match/organization-options` | 入れられる組織（自分が入っている組織） |
 | `GET /api/v1/match/tables/{tableId}` | 読む（中身・版・くじの種・担当の端末） |
 | `PUT /api/v1/match/tables/{tableId}` | 直す。担当の端末で、もとの版が今の版と同じときだけ受けて版を1つ上げる（違えば 409 `MATCH_NOT_EDITOR`・`MATCH_VERSION_CONFLICT`）。最後に受けた変更の ID と同じ送りは、書かずに今の試合表を返す。中身は約束で確かめるだけで、計算し直さない |
-| `GET /api/v1/match/tables/{tableId}/reception-events/{eventId}` | 受付の交流会から入れられる人（match-006。`routes-reception.ts`）。チェックインした人（reception の `listEventAttendees`）と確定した申込みの名簿（booking の `listApplicantRoster`）の名前・account・覚えているレベル。名前は呼び名を作るためだけに返す。選べるのは event の判定で自分が主催者の交流会だけで、ない・主催者でない・受付アプリが見えないときは同じ 404 `MATCH_EVENT_NOT_FOUND`。試合表の権限も確かめる |
+| `GET /api/v1/match/tables/{tableId}/reception-events/{eventId}` | 受付の交流会から入れられる人（match-006。`routes-reception.ts`）。チェックインした人（reception の `listEventAttendees`）と確定した申込みの名簿（booking の `listApplicantRoster`）の名前・account・覚えているレベル。名前は呼び名を作るためだけに返す。選べるのは event の判定で自分が主催者の交流会のうち、試合表と同じ組織のもの（どちらも組織に入れていなければ持ち主が同じもの。組織ごとに閉じる。AD-23）だけで、ない・主催者でない・持ち主が違う・受付アプリが見えないときは同じ 404 `MATCH_EVENT_NOT_FOUND`。試合表の権限も確かめる |
 | `PUT /api/v1/match/tables/{tableId}/editor` | この端末を担当の端末にする（版は上げない） |
 | `DELETE /api/v1/match/tables/{tableId}` | 消す |
 | `PUT /api/v1/match/tables/{tableId}/view-link`・`…/join-link` | 見るだけ・受付の札を作り直す（192ビットの乱数。DB は SHA-256 だけ。札はこのときだけ返す。期限は試合の日と今日の遅いほうの日本時間の終わり。受付は締めた印を外す。`tokens.ts`・`routes-share.ts`） |
@@ -82,7 +82,7 @@
 |---|---|
 | `/match` | 試合表の一覧（M0） |
 | `/match/new` | 試合表を作る（M0。名前・試合の日・組織） |
-| `/match/tables/$tableId` | 名簿と設定（M1）。受付の交流会から（M0。`ReceptionImportDialog.tsx`：自分が主催者の交流会〈event の一覧 `GET /api/v1/events` の主催者の行〉を選び、チェックインした人か申込みの名簿を入れる。呼び名は貼り付けと同じ決まり・覚えたレベルを入れ、ない人は名簿で選ぶ・後ろに足すときは名簿にいる account の人を入れない。`reception-import.ts`）・フォームから貼り付ける（タブ区切りの表）・CSV を読む・1人足す。読むのは氏名・レベル・タイムスタンプだけ（`roster-read.ts`。同じ氏名は新しいほう・呼び名は姓、同じ姓は名の字を足す・空白のない氏名に印）。氏名は保存せず、画面を開いている間だけ出す。呼び名・レベル・当日の印・設定を直す。「試合表を作る」（「組み直す」） |
+| `/match/tables/$tableId` | 名簿と設定（M1）。受付の交流会から（M0。`ReceptionImportDialog.tsx`：自分が主催者で試合表と同じ組織の交流会〈event の一覧 `GET /api/v1/events` の主催者の行〉を選び、チェックインした人か申込みの名簿を入れる。呼び名は貼り付けと同じ決まり・覚えたレベルを入れ、ない人は名簿で選ぶ・後ろに足すときは名簿にいる account の人を入れない。`reception-import.ts`）・フォームから貼り付ける（タブ区切りの表）・CSV を読む・1人足す。読むのは氏名・レベル・タイムスタンプだけ（`roster-read.ts`。同じ氏名は新しいほう・呼び名は姓、同じ姓は名の字を足す・空白のない氏名に印）。氏名は保存せず、画面を開いている間だけ出す。呼び名・レベル・当日の印・設定を直す。「試合表を作る」（「組み直す」） |
 | `/match/tables/$tableId/board` | 試合表（M2・M6）。組のタブ（`GroupTabs.tsx`）・名前だけの行（見出しなし・左に番号・名前の列の間に縦線）・行のチェックで進める（チェックのない最初が今、その次が次）・別の組み合わせにする。担当の端末は「人を選んで直す」（来なかった・来た・帰る → その人の組だけを組み直す。`day-of.ts`）と「レベルの分け方」（当日に分け方・試合の形を変える。何が変わるかを先に出す。`regroup.ts`）。組み直したら上に帯。前の分け方で終わった試合は下に畳んで出す |
 | `/match/tables/$tableId/view-link` | 見るだけのページのリンクと QR（作る・作り直す・コピー・期限）。札は作った端末の localStorage にだけ置く（`link-store.ts`）。ほかの端末で出すときは作り直す |
 | `/match/tables/$tableId/join` | QR で受け付ける（M7）。受付の QR とリンク・受け付けた人（5秒おきに読み直す。同じ名前の印・消す）・受付を締める・この名簿で試合表を作る。担当の端末は受け付けた人を名簿に入れる（`use-joins.ts`・`joins.ts`。名簿と設定の画面も開いたときに入れる）。「参加者の QR を読む」（P3 の QR をカメラか写真で読んで名簿に入れる。`JoinQrReader.tsx`） |

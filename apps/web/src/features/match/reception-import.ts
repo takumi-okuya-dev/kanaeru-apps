@@ -33,3 +33,23 @@ export function toReadPerson(person: MatchReceptionPerson): ReadPerson {
     ...(person.accountId ? { accountId: person.accountId } : {}),
   };
 }
+
+/**
+ * 試合表に入れられる交流会か（試合表と同じ組織に入れた交流会か、どちらも組織に入れていなければ自分が持ち主の交流会。
+ * 窓口も同じ決まりで確かめる。組織ごとに閉じる。AD-23・match-006 research R8）。
+ * @param event 交流会（組織と、自分が持ち主か）
+ * @param event.organization 入れた組織
+ * @param event.isOwner 自分が持ち主か
+ * @param table 試合表（入れた組織）
+ * @param table.organization 入れた組織
+ * @returns 入れられるなら true
+ */
+export function canImportEvent(
+  event: { organization: { id: string } | null; isOwner: boolean },
+  table: { organization: { id: string } | null },
+): boolean {
+  if (event.organization || table.organization) {
+    return event.organization?.id === table.organization?.id;
+  }
+  return event.isOwner;
+}
