@@ -371,7 +371,7 @@ export function AppShell({ useNavItems, useApps = useNoApps }: AppShellProps) {
                     )}
                   >
                     <Icon name="settings" className="size-xs" />
-                    設定
+                    全体の設定
                   </Link>
                 ) : null}
                 {withSwitcher ? (

@@ -6,8 +6,24 @@ import type { AnyRoute } from "@tanstack/react-router";
 import type { OrganizationExtension } from "./organization.ts";
 import type { SettingsSection } from "./settings.ts";
 
-/** ナビのアイコンの種類（線は lib/icon.tsx）。 */
-export type NavIcon = "list" | "people" | "concerns" | "setup" | "account" | "ledger";
+/** ナビのアイコンの種類（線は lib/icon.tsx）。同じナビの中では、項目ごとに違うアイコンを選ぶ（目で探しやすくする。core-011）。 */
+export type NavIcon =
+  | "list"
+  | "people"
+  | "concerns"
+  | "setup"
+  | "account"
+  | "ledger"
+  | "home"
+  | "at"
+  | "drafts"
+  | "pen"
+  | "target"
+  | "search"
+  | "heart"
+  | "chart"
+  | "globe"
+  | "sliders";
 
 /** ナビの項目（PC のサイドバーとスマホのタブバー）。 */
 export type NavItem = {
