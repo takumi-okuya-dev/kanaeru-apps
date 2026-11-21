@@ -1,3 +1,48 @@
 // 試合表（match）の約束の入口。ほかからは @workspace/contracts/match として読む。
-export { MATCH_LEVELS, MATCH_LEVEL_LABELS } from "./options.ts";
-export type { MatchLevel } from "./options.ts";
+export {
+  MATCH_FORMATS,
+  MATCH_FORMAT_LABELS,
+  MATCH_GROUPINGS,
+  MATCH_GROUPING_LABELS,
+  MATCH_GROUPS,
+  MATCH_GROUP_KEYS,
+  MATCH_LEVELS,
+  MATCH_LEVEL_LABELS,
+  PLAYERS_PER_GAME,
+  PLAYER_STATUSES,
+  PLAYER_STATUS_LABELS,
+  UNGROUPED_MAX_LEVEL_SPREAD,
+} from "./options.ts";
+export type {
+  MatchFormat,
+  MatchGroup,
+  MatchGroupKey,
+  MatchGrouping,
+  MatchLevel,
+  PlayerStatus,
+} from "./options.ts";
+export { MATCH_ERRORS } from "./errors.ts";
+export {
+  DEVICE_ID_MAX,
+  GAMES_MAX,
+  INITIAL_CONTENT,
+  MINUTES_PER_GAME_MAX,
+  MINUTES_PER_GAME_MIN,
+  MatchEditorInput,
+  MatchGame,
+  MatchGroupPlan,
+  MatchOrganization,
+  MatchOrganizationOptions,
+  MatchPlayer,
+  MatchSettings,
+  MatchTable,
+  MatchTableContent,
+  MatchTableCreateInput,
+  MatchTableList,
+  MatchTableSummary,
+  MatchTableUpdateInput,
+  NICKNAME_MAX,
+  PlayDate,
+  ROSTER_MAX,
+  TABLE_NAME_MAX,
+} from "./table.ts";
