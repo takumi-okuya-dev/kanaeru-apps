@@ -486,7 +486,7 @@ function StockContent({ account, status, onStatusChange }: StockContentProps) {
   return (
     <ThreadsPage
       title="投稿の案"
-      lead={`${account.name}：ためた案を承認するか却下します。承認した案は、自動投稿で決めた時刻に投稿されます。`}
+      lead={`${account.name}：ためた案を承認・却下します`}
       actions={
         <Link
           to="/threads/accounts/$accountId/create"

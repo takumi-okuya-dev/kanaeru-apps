@@ -161,7 +161,8 @@ test("戦略の進み・活動の軸・変更の守り・上書き（threads-012
   await expect(page.getByText(/最後に保存：/)).toBeVisible();
   await expect(page.getByText("変更はすべて保存しています。")).toBeVisible();
 
-  // 変更を捨てる：最後に保存した内容に戻る
+  // 変更を捨てる：最後に保存した内容に戻る（「その他」の区分を開く。threads-017）
+  await page.locator("summary", { hasText: /^その他/ }).click();
   const differentiation = page.getByRole("textbox", { name: /競合・他アカウントとの違い/ });
   await differentiation.fill("実際に会える場がある");
   await page.getByRole("button", { name: "変更を捨てる" }).click();

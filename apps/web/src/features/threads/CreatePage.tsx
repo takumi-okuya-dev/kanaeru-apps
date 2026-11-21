@@ -423,8 +423,7 @@ function PromptSection({ accountId }: PromptSectionProps) {
             項目・投稿のルール {prompt.summary.coreRuleCount}行・NGワード{" "}
             {prompt.summary.ngWordCount}個・却下の案 {prompt.summary.rejectedCount}
             件・宣伝 {prompt.summary.promotionCount}件・参考の投稿{" "}
-            {prompt.summary.referencePostCount}件・低調の投稿 {prompt.summary.poorPostCount}
-            件
+            {prompt.summary.referencePostCount}件・低調の投稿 {prompt.summary.poorPostCount}件
           </p>
           <PromptMaterials accountId={accountId} prompt={prompt} />
           {parts.map((part, index) => {

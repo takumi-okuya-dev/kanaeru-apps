@@ -11,6 +11,7 @@ import {
 import type { ExternalMediaList, Media, ThreadsAccount } from "@workspace/contracts/threads";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, getRouteApi } from "@tanstack/react-router";
+import { Disclosure } from "@workspace/ui/components/disclosure";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
 import { Field } from "@workspace/ui/components/field";
@@ -227,17 +228,19 @@ function MediaContent({ account }: { account: ThreadsAccount }) {
   return (
     <ThreadsPage
       title="外部メディア"
-      lead={`${account.name}：宣伝のイベントを、外のイベントの掲載サイトに載せる文を作ります。`}
+      lead={`${account.name}：宣伝のイベントを掲載サイトに載せる文を作ります`}
     >
       <section aria-labelledby="threads-media-list" className="flex flex-col gap-xs">
         <h2 id="threads-media-list" className="text-l font-bold">
           宣伝と媒体
         </h2>
-        <p className="text-s text-text-sub">
-          掲載文は、宣伝の内容とイベントの情報から、媒体の登録画面と同じ順で作ります。媒体のルールに合わない行（外部の
-          URL・連絡先など）は外します。言い回しを整えたいときは、外の AI
-          に貼るプロンプトをコピーできます。
-        </p>
+        <Disclosure summary="掲載文の作り方">
+          <p className="text-s text-text-sub">
+            掲載文は、宣伝の内容とイベントの情報から、媒体の登録画面と同じ順で作ります。媒体のルールに合わない行（外部の
+            URL・連絡先など）は外します。言い回しを整えたいときは、外の AI
+            に貼るプロンプトをコピーできます。
+          </p>
+        </Disclosure>
         {promotions.length === 0 ? (
           <div className="flex flex-col items-start gap-xxs">
             <p className="text-m">まだ宣伝がありません。宣伝とリサーチの画面で足してください。</p>

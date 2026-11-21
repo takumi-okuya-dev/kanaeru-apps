@@ -26,12 +26,25 @@ export function strategyFieldElementId(key: string): string {
 }
 
 /**
+ * 閉じている区分（「詳しく」の開け閉め）の中にあれば、外側から開く（threads-017）。
+ * @param element 移る先の要素
+ */
+export function openAncestors(element: HTMLElement): void {
+  let details = element.closest("details");
+  while (details) {
+    details.open = true;
+    details = details.parentElement?.closest("details") ?? null;
+  }
+}
+
+/**
  * 項目へ移り、入力の欄にフォーカスを置く。
  * @param key 項目のキー
  */
 export function goToStrategyField(key: string): void {
   const element = document.getElementById(strategyFieldElementId(key));
   if (!element) return;
+  openAncestors(element);
   element.scrollIntoView?.({ behavior: "smooth", block: "center" });
   element.querySelector<HTMLElement>("textarea, input")?.focus({ preventScroll: true });
 }
@@ -121,11 +134,13 @@ export function StrategyProgress({ check, updatedAt }: StrategyProgressProps) {
               key={section.id}
               size="small"
               variant="secondary"
-              onClick={() =>
-                document
-                  .getElementById(strategySectionElementId(section.id))
-                  ?.scrollIntoView?.({ behavior: "smooth", block: "start" })
-              }
+              onClick={() => {
+                const target = document.getElementById(strategySectionElementId(section.id));
+                if (!target) return;
+                openAncestors(target);
+                if (target instanceof HTMLDetailsElement) target.open = true;
+                target.scrollIntoView?.({ behavior: "smooth", block: "start" });
+              }}
             >
               {`${section.chip}${mark}`}
             </Button>

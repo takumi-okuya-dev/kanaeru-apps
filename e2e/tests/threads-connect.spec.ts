@@ -118,6 +118,8 @@ test("トークンの手順と案内を見て、つなぐ（threads-012）", asy
   // 設定：5つの手順・詳しい手順・Meta のアプリで許可する前の案内
   await page.goto(`/threads/accounts/${second}/settings`);
   await expect(page.getByRole("heading", { level: 2, name: "Threads への接続" })).toBeVisible();
+  // 手順は「詳しく」の開け閉めの中（threads-017）
+  await page.getByText("トークンの作り方（5つの手順）").click();
   await expect(page.getByText("下の欄に貼って「つなぐ」を押す")).toBeVisible();
   await expect(
     page.getByText("threads.com でログインしているアカウントで許可されます。"),

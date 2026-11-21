@@ -111,7 +111,8 @@ test("運用アカウントを作り、案をためて承認・却下する", as
   await expect(page.getByRole("heading", { level: 1, name: "戦略" })).toBeVisible();
   await checkPage(page, "戦略");
 
-  // 戦略：口調を選んで保存
+  // 戦略：口調を選んで保存（区分は開け閉め。threads-017）
+  await page.locator("summary", { hasText: "人柄（トンマナ）" }).click();
   await page.getByRole("radio", { name: "丁寧・温かい" }).click();
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect(page.getByText("戦略を保存しました。")).toBeVisible();
@@ -595,10 +596,13 @@ test("戦略をヒントと AI の答えで埋める（threads-009）", async ({
   await clickNavLink(page, "戦略");
   await expect(page.getByRole("heading", { level: 1, name: "戦略" })).toBeVisible();
   await expect(page.getByRole("button", { name: /^次におすすめ：/ })).toBeVisible();
+  await page.locator("summary", { hasText: "営業導線設計" }).click();
   await page.getByText("「どんな人に投稿を届けたいか」の考えるヒント").click();
   await expect(
     page
       .locator("details", { hasText: "「どんな人に投稿を届けたいか」の考えるヒント" })
+      // 区分の開け閉めの中にあるので、いちばん内側（最後）の開け閉め（threads-017）
+      .last()
       .getByText("悪い例"),
   ).toBeVisible();
   await checkPage(page, "戦略（ヒント）");

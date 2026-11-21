@@ -22,6 +22,7 @@ import { Button } from "@workspace/ui/components/button";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { Dialog } from "@workspace/ui/components/dialog";
+import { Disclosure } from "@workspace/ui/components/disclosure";
 import { Field } from "@workspace/ui/components/field";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { Textarea } from "@workspace/ui/components/textarea";
@@ -39,6 +40,7 @@ import { AxisGuide, FieldGuide, StrategyAiSection } from "./StrategyGuide.tsx";
 import {
   StrategyProgress,
   goToStrategyField,
+  openAncestors,
   strategyFieldElementId,
   strategySectionElementId,
 } from "./StrategyProgress.tsx";
@@ -114,7 +116,12 @@ function StrategyForm({ accountId, strategy }: StrategyFormProps) {
   const hash = useLocationHash();
 
   useEffect(() => {
-    if (focusRequest > 0) focusFirstInvalid(formRef.current);
+    if (focusRequest === 0) return;
+    // 誤りのある欄が閉じた区分の中にあれば、先に開く（threads-017）
+    formRef.current
+      ?.querySelectorAll<HTMLElement>('[aria-invalid="true"]')
+      .forEach((element) => openAncestors(element));
+    focusFirstInvalid(formRef.current);
   }, [focusRequest]);
 
   // ほかの画面の「直す」（#field-<キー>）から来たら、その項目へ移る（めぐる 014 FR-122）
@@ -126,6 +133,16 @@ function StrategyForm({ accountId, strategy }: StrategyFormProps) {
   const baseline = toValues(saved);
   const dirty = !sameStrategyValues(values, baseline);
   const check = checkStrategy(values);
+  // 初めに開く区分：保存した内容で、まだ終わっていない最初の区分（入力のたびに開け閉めを変えない。threads-017）
+  const [firstOpenSection] = useState(() => {
+    const initial = checkStrategy(toValues(strategy));
+    return (
+      STRATEGY_SECTIONS.find((section) => {
+        const counts = initial.sections[section.id];
+        return counts !== null && counts.done < counts.total;
+      })?.id ?? null
+    );
+  });
 
   // 保存していない変更・入れていない壁打ちの答えがあるまま離れるときは確かめる（タブを閉じる・読みこみ直すも）
   const leaveGuard = dirty || sparringDirty;
@@ -210,8 +227,8 @@ function StrategyForm({ accountId, strategy }: StrategyFormProps) {
 
   return (
     <form ref={formRef} noValidate onSubmit={submit} className="flex max-w-form flex-col gap-m">
-      <p className="text-m">
-        どの欄も空のままで保存できます。入れた欄だけが、案を作るプロンプトに入ります。
+      <p className="text-s text-text-sub">
+        空の欄があっても保存できます。入れた欄だけがプロンプトに入ります。
       </p>
       <StrategyProgress check={check} updatedAt={saved.updatedAt} />
       <StrategyAiSection
@@ -220,94 +237,111 @@ function StrategyForm({ accountId, strategy }: StrategyFormProps) {
         onApply={(updates) => setValues((current) => ({ ...current, ...updates }))}
         onDirtyChange={setSparringDirty}
       />
-      {STRATEGY_SECTIONS.map((section) => (
-        <fieldset
-          key={section.id}
-          id={strategySectionElementId(section.id)}
-          className="flex scroll-mt-m flex-col gap-s"
-        >
-          <legend className="mb-xs text-l font-bold">{section.title}</legend>
-          {SECTION_NOTES[section.id] ? (
-            <p className="text-s text-text-sub">{SECTION_NOTES[section.id]}</p>
-          ) : null}
-          {STRATEGY_FIELDS.filter((field) => field.section === section.id).map((field) => {
-            if (field.key === "tonePreset") {
-              return (
-                <div
-                  key={field.key}
-                  id={strategyFieldElementId(field.key)}
-                  className="flex scroll-mt-m flex-col gap-xxs"
-                >
-                  <ChoiceChips
-                    label={field.label}
-                    description={field.description}
-                    options={TONE_OPTIONS}
-                    value={values.tonePreset ?? NO_TONE}
-                    onValueChange={(value) =>
-                      setValues((current) => ({
-                        ...current,
-                        tonePreset: value === NO_TONE ? null : value,
-                      }))
-                    }
-                    error={errors.tonePreset}
-                  />
-                  <FieldGuide
-                    fieldKey="tonePreset"
-                    label={field.label}
-                    check={check}
-                    values={values}
-                    onApply={() => undefined}
-                  />
-                </div>
-              );
-            }
-            const key = field.key;
-            const chars = countChars(values[key]);
-            const over = chars > STRATEGY_TEXT_MAX;
-            return (
-              <div
-                key={key}
-                id={strategyFieldElementId(key)}
-                className="flex scroll-mt-m flex-col gap-xxs"
-              >
-                <Field
-                  label={key === "activityAxis" ? `${field.label}（任意）` : field.label}
-                  description={field.description}
-                  error={errors[key]}
-                >
-                  <Textarea
-                    rows={field.rows}
-                    placeholder={field.placeholder}
-                    value={values[key]}
-                    onChange={(change) => setText(key, change.target.value)}
-                  />
-                </Field>
-                <p
-                  className={cn(
-                    "self-end text-s tabular-nums",
-                    over ? "font-bold text-danger-text" : "text-text-sub",
-                  )}
-                >
-                  {`${chars.toLocaleString("ja-JP")}／${STRATEGY_TEXT_MAX.toLocaleString("ja-JP")}文字`}
-                  {over ? "（多すぎます）" : ""}
-                </p>
-                {key === "activityAxis" ? (
-                  <AxisGuide values={values} onApply={(text) => setText("activityAxis", text)} />
-                ) : null}
-                {HINTED.has(key) ? (
-                  <FieldGuide
-                    fieldKey={key as HintedKey}
-                    label={field.label}
-                    check={check}
-                    values={values}
-                    onApply={(text) => setText(key, text)}
-                  />
-                ) : null}
-              </div>
-            );
-          })}
-        </fieldset>
-      ))}
+      {STRATEGY_SECTIONS.map((section) => {
+        const counts = check.sections[section.id];
+        const mark =
+          counts === null
+            ? ""
+            : counts.done === counts.total
+              ? "（済み）"
+              : `（${counts.done}/${counts.total}）`;
+        return (
+          <Disclosure
+            key={section.id}
+            id={strategySectionElementId(section.id)}
+            variant="heading"
+            summary={`${section.title}${mark}`}
+            defaultOpen={section.id === firstOpenSection}
+            className="scroll-mt-m"
+          >
+            <fieldset className="flex flex-col gap-s">
+              <legend className="sr-only">{section.title}</legend>
+              {SECTION_NOTES[section.id] ? (
+                <p className="text-s text-text-sub">{SECTION_NOTES[section.id]}</p>
+              ) : null}
+              {STRATEGY_FIELDS.filter((field) => field.section === section.id).map((field) => {
+                if (field.key === "tonePreset") {
+                  return (
+                    <div
+                      key={field.key}
+                      id={strategyFieldElementId(field.key)}
+                      className="flex scroll-mt-m flex-col gap-xxs"
+                    >
+                      <ChoiceChips
+                        label={field.label}
+                        description={field.description}
+                        options={TONE_OPTIONS}
+                        value={values.tonePreset ?? NO_TONE}
+                        onValueChange={(value) =>
+                          setValues((current) => ({
+                            ...current,
+                            tonePreset: value === NO_TONE ? null : value,
+                          }))
+                        }
+                        error={errors.tonePreset}
+                      />
+                      <FieldGuide
+                        fieldKey="tonePreset"
+                        label={field.label}
+                        check={check}
+                        values={values}
+                        onApply={() => undefined}
+                      />
+                    </div>
+                  );
+                }
+                const key = field.key;
+                const chars = countChars(values[key]);
+                const over = chars > STRATEGY_TEXT_MAX;
+                return (
+                  <div
+                    key={key}
+                    id={strategyFieldElementId(key)}
+                    className="flex scroll-mt-m flex-col gap-xxs"
+                  >
+                    <Field
+                      label={key === "activityAxis" ? `${field.label}（任意）` : field.label}
+                      description={field.description}
+                      error={errors[key]}
+                    >
+                      <Textarea
+                        rows={field.rows}
+                        placeholder={field.placeholder}
+                        value={values[key]}
+                        onChange={(change) => setText(key, change.target.value)}
+                      />
+                    </Field>
+                    <p
+                      className={cn(
+                        "self-end text-s tabular-nums",
+                        over ? "font-bold text-danger-text" : "text-text-sub",
+                      )}
+                    >
+                      {`${chars.toLocaleString("ja-JP")}／${STRATEGY_TEXT_MAX.toLocaleString("ja-JP")}文字`}
+                      {over ? "（多すぎます）" : ""}
+                    </p>
+                    {key === "activityAxis" ? (
+                      <AxisGuide
+                        values={values}
+                        onApply={(text) => setText("activityAxis", text)}
+                      />
+                    ) : null}
+                    {HINTED.has(key) ? (
+                      <FieldGuide
+                        fieldKey={key as HintedKey}
+                        label={field.label}
+                        check={check}
+                        values={values}
+                        onApply={(text) => setText(key, text)}
+                      />
+                    ) : null}
+                  </div>
+                );
+              })}
+            </fieldset>
+          </Disclosure>
+        );
+      })}
       <div className="flex flex-col items-start gap-xxs">
         <div className="flex flex-wrap gap-xxs">
           <Button type="submit" variant="primary" aria-disabled={pending || undefined}>
@@ -420,10 +454,7 @@ type StrategyLoaderProps = {
 function StrategyLoader({ accountId, accountName }: StrategyLoaderProps) {
   const query = useStrategy(accountId);
   return (
-    <ThreadsPage
-      title="戦略"
-      lead={`${accountName}：誰に向けて、何を、どんな人柄で発信するか。ここに書いたことが、案を作るプロンプトに入ります。`}
-    >
+    <ThreadsPage title="戦略" lead={`${accountName}：誰に、何を、どんな人柄で発信するか`}>
       {query.isPending ? (
         <Loading />
       ) : query.isError ? (

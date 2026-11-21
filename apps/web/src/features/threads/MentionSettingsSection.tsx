@@ -11,6 +11,7 @@ import {
 } from "@workspace/contracts/threads";
 import type { MentionSettings } from "@workspace/contracts/threads";
 import { useQueryClient } from "@tanstack/react-query";
+import { Disclosure } from "@workspace/ui/components/disclosure";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
@@ -264,10 +265,14 @@ export function MentionSettingsSection({ accountId }: { accountId: string }) {
       <h2 id="threads-mention" className="text-l font-bold">
         時間差のメンション
       </h2>
-      <p className="text-s text-text-sub">
-        投稿のあと決めた時間がたってから、その投稿への返信で、選んだ人に @ユーザー名
-        でメンションします。付けるのは投稿の案のカードからです。同じ人へは24時間に1回までです。夜間（0時〜8時）に来た返信は8時から出し、24時間を過ぎたら出しません。相手がメンションを受けない設定だと、通知されないことがあります。
+      <p className="text-m">
+        投稿のあと、その投稿への返信で、選んだ人に @ユーザー名 でメンションします。
       </p>
+      <Disclosure summary="メンションの決まり">
+        <p className="text-s text-text-sub">
+          付けるのは投稿の案のカードからです。同じ人へは24時間に1回までです。夜間（0時〜8時）に来た返信は8時から出し、24時間を過ぎたら出しません。相手がメンションを受けない設定だと、通知されないことがあります。
+        </p>
+      </Disclosure>
       {query.isPending ? (
         <Loading />
       ) : query.isError ? (
