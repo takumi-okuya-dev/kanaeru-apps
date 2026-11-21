@@ -2,7 +2,7 @@
 // 試合表は担当の端末が直して送るので、画面が直している間に読み直して上書きしないよう、自分からは読み直さない（AD-28）。
 // 試合表と一覧は端末にも置き、電波がないときは端末の中身を出す（match-005。offline/table-sync.ts・offline/table-list.ts）。
 import { useQuery } from "@tanstack/react-query";
-import { fetchOrganizationOptions } from "./api.ts";
+import { fetchOrganizationOptions, fetchOrganizerEvents, fetchReceptionRoster } from "./api.ts";
 import { loadTableList } from "./offline/table-list.ts";
 import { loadTable } from "./offline/table-sync.ts";
 
@@ -20,6 +20,16 @@ export const MATCH_QUERY_KEYS = {
    * @returns 鍵
    */
   table: (tableId: string) => ["match", "table", tableId] as const,
+  /** 自分が主催者の受付の交流会（match-006） */
+  receptionEvents: ["match", "reception-events"] as const,
+  /**
+   * 受付の交流会から入れられる人（match-006）。
+   * @param tableId 試合表の ID
+   * @param eventId 交流会の ID
+   * @returns 鍵
+   */
+  receptionRoster: (tableId: string, eventId: string) =>
+    ["match", "reception-roster", tableId, eventId] as const,
 };
 
 /**
@@ -59,5 +69,35 @@ export function useMatchTable(tableId: string) {
     refetchOnWindowFocus: false,
     refetchInterval: false,
     retry: false,
+  });
+}
+
+/**
+ * 自分が主催者の受付の交流会を読む（受付の交流会から入れる枠を開いている間だけ。match-006）。
+ * @param enabled 読むか（枠が開いているときだけ）
+ * @returns 問い合わせ
+ */
+export function useOrganizerEvents(enabled: boolean) {
+  return useQuery({
+    queryKey: MATCH_QUERY_KEYS.receptionEvents,
+    queryFn: fetchOrganizerEvents,
+    enabled,
+    retry: false,
+  });
+}
+
+/**
+ * 受付の交流会から入れられる人を読む（交流会を選んだら。チェックインは増えるので、開くたびに読み直す。match-006）。
+ * @param tableId 試合表の ID
+ * @param eventId 選んだ交流会の ID（まだなら undefined）
+ * @returns 問い合わせ
+ */
+export function useReceptionRoster(tableId: string, eventId: string | undefined) {
+  return useQuery({
+    queryKey: MATCH_QUERY_KEYS.receptionRoster(tableId, eventId ?? ""),
+    queryFn: () => fetchReceptionRoster(tableId, eventId ?? ""),
+    enabled: eventId !== undefined,
+    retry: false,
+    staleTime: 0,
   });
 }

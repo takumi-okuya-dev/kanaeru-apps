@@ -63,3 +63,4 @@ export {
   MatchViewVersion,
   joinPlayerId,
 } from "./public.ts";
+export { MatchReceptionPerson, MatchReceptionRoster } from "./reception.ts";

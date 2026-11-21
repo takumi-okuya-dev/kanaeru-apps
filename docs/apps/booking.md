@@ -164,7 +164,7 @@
 
 ## 3. ほかの領域が使うもの
 
-API の入口（`apps/api/src/modules/booking/index.ts`）は `routes` と `withdrawal`（退会の確かめの中身だけ：組織に入れていない交流会の名簿の人数と、個人の公式アカウントの設定があること・自分の申込みと案内の同意の件数〈booking-003〉。消すのは外部キー）と `eventLinkRestriction`（`event-links.ts`。見せる範囲が「部員だけ」の交流会では、event の要約の招待のリンクを主催者・受付係・部員に絞る。組み立てが event に渡す。AD-5・research R8）を出す。ほかの領域・ほかのアプリに出す関数はない（チェックインした人は reception の `listEventAttendees`・`hasCheckedIn`）。
+API の入口（`apps/api/src/modules/booking/index.ts`）は `routes` と `withdrawal`（退会の確かめの中身だけ：組織に入れていない交流会の名簿の人数と、個人の公式アカウントの設定があること・自分の申込みと案内の同意の件数〈booking-003〉。消すのは外部キー）と `eventLinkRestriction`（`event-links.ts`。見せる範囲が「部員だけ」の交流会では、event の要約の招待のリンクを主催者・受付係・部員に絞る。組み立てが event に渡す。AD-5・research R8）を出す。ほかのアプリに出す関数は、確定した申込みの名簿の `listApplicantRoster`（`repository.ts`。名前と account だけ・まとめた行とキャンセル待ち・打診中・取り消しは出さない・使い方が受付だけなら空。試合表が前もって名簿を入れる。権限は呼ぶ側が event の判定で確かめる。AD-23・match-006）だけ（チェックインした人は reception の `listEventAttendees`・`hasCheckedIn`）。
 
 booking が読むもの：event の `requireEventRole`・`getEventRole`・`getEventSummary`・`findEventOwnerAccountId`・`findEventOrganizationId`・`listOrganizationEvents`（booking-003）・`listPersonalEventIds`・`eventTable`、reception の `listEventAttendees`・`getCheckin`・`createManualCheckin`・`checkinTable`、account の `requireSession`・`currentAccount`・`findSessionViewer`（booking-003）・`findDisplayNames`・`accountTable`、suite の `findMembership`・`listMemberships`・`findOrganization`・`organizationTable`、共通の `platform/notify`（`verifyLineSignature`・`createNotifier`）と土台の `DomainRouteDeps.notifier`・`secretBox`。
 

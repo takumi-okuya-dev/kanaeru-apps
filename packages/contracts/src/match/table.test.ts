@@ -107,6 +107,21 @@ describe("試合表の中身", () => {
     expect(MatchTableContent.safeParse({ ...content, players }).success).toBe(false);
   });
 
+  it("受付の交流会から入れた人の account は、ID の形だけ通る（match-006）", () => {
+    const content = sample();
+    const withAccount = (accountId: unknown) => ({
+      ...content,
+      players: content.players.map((player, index) =>
+        index === 0 ? { ...player, accountId } : player,
+      ),
+    });
+    expect(
+      MatchTableContent.safeParse(withAccount("0193a1b2-0000-7000-8000-00000000000a")).success,
+    ).toBe(true);
+    expect(MatchTableContent.safeParse(withAccount("中村 さき")).success).toBe(false);
+    expect(MatchTableContent.safeParse(withAccount(null)).success).toBe(false);
+  });
+
   it("ID の重なり・試合の人数・名簿にいない人・組の食い違いは通らない", () => {
     const content = sample();
     const duplicated = {

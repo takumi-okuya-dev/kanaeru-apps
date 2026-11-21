@@ -72,6 +72,11 @@ export const MatchPlayer = z.strictObject({
   status: z.enum(PLAYER_STATUSES),
   /** 姓と名の間に空白がなく、呼び名を運営に確かめてほしい印（FR-M2） */
   nameCheck: z.boolean().optional(),
+  /**
+   * 受付の交流会から入れた人の account（LINE でチェックイン・申込みした人だけ。前に入れたレベルを覚えるため。AD-25・match-006）。
+   * 見るだけのページ・電波なしで渡す QR には出さない（呼び名だけを出す）
+   */
+  accountId: z.guid().optional(),
 });
 
 /** 名簿の1人の型。 */
