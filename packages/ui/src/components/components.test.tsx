@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { expectNoAxeViolations } from "../testing/axe.ts";
 import { Button } from "./button.tsx";
 import { ConfirmDialog } from "./confirm-dialog.tsx";
+import { Disclosure } from "./disclosure.tsx";
 import { Field } from "./field.tsx";
 import { Input } from "./input.tsx";
 import { ResponseMessage } from "./response-message.tsx";
@@ -113,5 +114,56 @@ describe("確かめの枠", () => {
       "aria-busy",
       "true",
     );
+  });
+});
+
+describe("「詳しく」の開け閉め", () => {
+  it("初めは閉じていて、見出しを押すと中身が見え、もう一度押すと隠れる", async () => {
+    const { container } = render(
+      <Disclosure summary="詳しい手順">
+        <p>手順の中身</p>
+      </Disclosure>,
+    );
+    const summary = screen.getByText("詳しい手順");
+    expect(screen.getByText("手順の中身")).not.toBeVisible();
+    await userEvent.click(summary);
+    expect(screen.getByText("手順の中身")).toBeVisible();
+    await userEvent.click(summary);
+    expect(screen.getByText("手順の中身")).not.toBeVisible();
+    await expectNoAxeViolations(container);
+  });
+
+  it("区分の見出しの形（heading）も、開け閉めできる", async () => {
+    render(
+      <Disclosure summary="活動の目的（0/5）" variant="heading" id="purpose">
+        <p>欄</p>
+      </Disclosure>,
+    );
+    expect(screen.getByText("欄")).not.toBeVisible();
+    await userEvent.click(screen.getByText("活動の目的（0/5）"));
+    expect(screen.getByText("欄")).toBeVisible();
+    expect(document.getElementById("purpose")).toHaveAttribute("open");
+  });
+
+  it("入れ子にしても、外側を開いたときに内側の印は回さない（閉じたまま）", () => {
+    render(
+      <Disclosure summary="外" defaultOpen>
+        <Disclosure summary="内">
+          <p>内の中身</p>
+        </Disclosure>
+      </Disclosure>,
+    );
+    expect(screen.getByText("内の中身")).not.toBeVisible();
+    const inner = screen.getByText("内").closest("details");
+    expect(inner).not.toHaveAttribute("open");
+  });
+
+  it("初めから開いておける", () => {
+    render(
+      <Disclosure summary="プロンプト" defaultOpen>
+        <p>プロンプトの中身</p>
+      </Disclosure>,
+    );
+    expect(screen.getByText("プロンプトの中身")).toBeVisible();
   });
 });

@@ -19,6 +19,7 @@ type Design = {
   typography: {
     fontFamily: string;
     size: Record<string, string>;
+    sizeFinePointer: Record<string, string>;
     lineHeight: Record<string, number>;
     weight: Record<string, number>;
   };
@@ -158,6 +159,17 @@ describe("tokens.css と DESIGN.md の値", () => {
   it.each(Object.entries(design.typography.size))("文字の大きさ %s", (name, value) => {
     expect(tokens.get(`text-${name}`)).toBe(value);
   });
+
+  it.each(Object.entries(design.typography.sizeFinePointer))(
+    "細かく指せる端末の文字の大きさ %s（base.css の :root）",
+    (name, value) => {
+      const base = readFileSync(new URL("./base.css", import.meta.url), "utf8");
+      const block =
+        /@media \(min-width: 752px\) and \(pointer: fine\) \{([\s\S]*?)\n {2}\}/.exec(base)?.[1] ??
+        "";
+      expect(block).toContain(`--text-${name}: ${value};`);
+    },
+  );
 
   it.each(Object.entries(design.typography.lineHeight))("行の高さ %s", (name, value) => {
     expect(tokens.get(`leading-${name}`)).toBe(String(value));
