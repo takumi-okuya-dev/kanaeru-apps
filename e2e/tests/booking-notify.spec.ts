@@ -144,8 +144,9 @@ test("組織の管理者が公式アカウントを設定し、参加者が友�
   await page.getByRole("button", { name: "保存する", exact: true }).click();
   await expect(page.getByText("チャネル ID を入れてください。")).toBeVisible();
   await checkPage(page, "予約の知らせ（組織・まだ設定なし）");
-  // 同じチャネル ID は1つの設定にしか入らないので、パソコンとスマホの幅で別の ID にする
-  await page.getByLabel(/^チャネル ID/).fill(tag === "b2" ? "1234567892" : "1234567891");
+  // 同じチャネル ID は1つの設定にしか入らない。E2E の DB は回をまたいで残るので、パソコンとスマホの幅と回ごとに別の ID にする
+  const channelId = `${tag === "b2" ? "2" : "1"}${String(Date.now()).slice(-9)}`;
+  await page.getByLabel(/^チャネル ID/).fill(channelId);
   await page.getByLabel(/^チャネルシークレット/).fill(CHANNEL_HEX);
   await page.getByLabel(/^チャネルアクセストークン/).fill(CHANNEL_ACCESS);
   await page.getByRole("button", { name: "保存する", exact: true }).click();
