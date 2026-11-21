@@ -440,6 +440,15 @@ function Team({ teamId }: { teamId: string }) {
         >
           チームの一覧へ
         </Link>
+        {view.myRole === "admin" ? (
+          <Link
+            to="/settings/organizations/$organizationId"
+            params={{ organizationId: view.organization.id }}
+            className={buttonVariants({ variant: "secondary", size: "small" })}
+          >
+            人を招く・チームに分ける
+          </Link>
+        ) : null}
       </div>
       {tabs.length > 1 ? (
         <SectionTabs label="見るもの" tabs={tabs} current={current} onSelect={setTab} />

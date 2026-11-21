@@ -15,7 +15,7 @@ import { Icon } from "../../lib/icon.tsx";
 import { AccountGate, LoadFailure, Loading } from "./AccountGate.tsx";
 import { accountSecondary } from "./AccountSwitcher.tsx";
 import { ThreadsPage } from "./ThreadsPage.tsx";
-import { useAccountHome } from "./queries.ts";
+import { useAccountHome, useAccountPlacement } from "./queries.ts";
 import { TeamNotices } from "./TeamNotices.tsx";
 import { useThreadsCan } from "./team-access.ts";
 
@@ -181,6 +181,31 @@ function MaterialCard({ label, text, highlighted, children }: MaterialCardProps)
 }
 
 /**
+ * 入っているチームの印（チームに入れた運用アカウントだけ。押すとチームの画面。threads-021）。
+ * 名前は運用アカウントの一覧（切り替えと同じ問い合わせ）から読む。一覧にないもの（読むだけで見ているもの）は出さない。
+ * @param props 運用アカウントの ID（accountId）
+ * @returns 印の要素
+ */
+function TeamBadge({ accountId }: { accountId: string }) {
+  const placement = useAccountPlacement(accountId);
+  if (!placement) return null;
+  return (
+    <p className="flex flex-wrap items-center gap-x-xxs text-s">
+      <Icon name="people" className="size-xs text-text-sub" />
+      <span className="text-text-sub">チーム</span>
+      <Link
+        to="/threads/teams/$teamId"
+        params={{ teamId: placement.teamId }}
+        className="font-bold text-text-link underline"
+      >
+        {placement.teamName}
+      </Link>
+      <span className="text-text-sub">（{placement.organizationName}）</span>
+    </p>
+  );
+}
+
+/**
  * ホームの中身（運用アカウントを読んだあと）。
  * @param props 運用アカウント（account）
  * @returns 要素
@@ -191,6 +216,7 @@ function HomeContent({ account }: { account: ThreadsAccount }) {
   return (
     <ThreadsPage title="ホーム" lead={`${account.name}（${accountSecondary(account)}）`}>
       <TeamNotices />
+      <TeamBadge accountId={account.id} />
       <IntroGuide />
       <ConnectionBanner account={account} />
       {query.isPending ? (

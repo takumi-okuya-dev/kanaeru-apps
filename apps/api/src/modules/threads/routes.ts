@@ -70,6 +70,7 @@ import {
   deletableDraftIds,
   deletableStatuses,
   draftActorNames,
+  listAccountPlacements,
   listAssignedAccounts,
   withDraftActors,
 } from "./team.ts";
@@ -488,8 +489,14 @@ export function threadsRoutes(deps: DomainRouteDeps) {
       const rows = await listAccounts(db, me);
       // 担当している運用アカウント（ほかの人のもの。持ち主の上限に数えない。threads-013 FR-T24）
       const assigned = await listAssignedAccounts(db, me);
+      // 入っているチームの名前（切り替えとホームの印。threads-021）
+      const placements = await listAccountPlacements(db, [
+        ...rows.map((row) => row.account.id),
+        ...assigned.map((row) => row.account.id),
+      ]);
       return c.json(
         {
+          placements,
           accounts: rows.map(({ account, counts }) => toThreadsAccount(account, counts)),
           limit: THREADS_ACCOUNT_LIMIT,
           assigned: assigned.map((row) => ({

@@ -3,6 +3,7 @@
 // チームを消す・リーダーの運用状況・退会の引き継ぎで管理者をチームに入れる。
 import "@hono/zod-openapi";
 import type {
+  ThreadsAccountList,
   ThreadsOrganizationList,
   ThreadsOrganizationView,
   ThreadsTeamList,
@@ -373,6 +374,25 @@ describe("チームの単位（threads-016）", () => {
       total += status.stoppedCount;
     }
     expect(total).toBeGreaterThan(0);
+  });
+
+  it("運用アカウントの一覧に、入っているチームの名前を添える（切り替えとホームの印。threads-021）", async () => {
+    const list = async (who: TeamPerson) =>
+      (await (await call(scene.app, who.cookie, THREADS_BASE)).json()) as ThreadsAccountList;
+    const forOwner = await list(scene.owner);
+    expect(forOwner.placements).toEqual([
+      {
+        threadsAccountId: scene.account.id,
+        teamId: scene.teamId,
+        teamName: "店舗A",
+        organizationName: "飲食チーム",
+      },
+    ]);
+    // 担当の人の一覧（担当している運用アカウント）にも添える
+    const forAssignee = await list(scene.assignee);
+    expect(forAssignee.placements?.map((row) => row.teamName)).toEqual(["店舗A"]);
+    // どこにも入れていなければ空
+    expect((await list(scene.outsider)).placements).toEqual([]);
   });
 
   it("チームの画面は管理者とチームの人だけ。運用状況はリーダー・管理者・担当の人だけ", async () => {

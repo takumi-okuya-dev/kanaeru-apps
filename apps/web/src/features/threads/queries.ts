@@ -228,6 +228,16 @@ export function useThreadsAccounts() {
 }
 
 /**
+ * 運用アカウントが入っているチーム（運用アカウントの一覧から読む。入っていなければ null。threads-021）。
+ * @param accountId 運用アカウントの ID
+ * @returns チーム
+ */
+export function useAccountPlacement(accountId: string) {
+  const query = useThreadsAccounts();
+  return query.data?.placements?.find((row) => row.threadsAccountId === accountId) ?? null;
+}
+
+/**
  * 運用アカウントを読む。
  * @param accountId 運用アカウントの ID
  * @returns 問い合わせ
