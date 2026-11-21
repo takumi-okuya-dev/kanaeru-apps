@@ -355,13 +355,14 @@ export async function applyWithAccount(
     // 見せる範囲も、押さえたあとの設定で決め直す（読んでから押さえるまでに部員だけに変わったとき）
     await assertVisible(deps, { event: context.event, setting }, viewer, tx);
     assertOpen(setting, startsAt, now);
+    // 片付け（期限切れ・打診）をしてから、自分の行を読み、確定かキャンセル待ちかを決める（期限の切れた打診中を
+    // 「打診中」のまま早く返さない・待ちを飛びこさない。booking-004 R4・R9）
+    await settleEvent(deps, tx, eventId, startsAt, now, queue);
     const existing = await findAccountEntry(tx, eventId, me, true);
     if (input.consent && context.holder) await insertConsent(tx, me, context.holder);
     if (existing?.status === "confirmed" || existing?.status === "offered") {
       return { entry: existing, created: false };
     }
-    // 片付け（期限切れ・打診）をしてから、確定かキャンセル待ちかを決める（待ちを飛びこさない。booking-004 R4・R9）
-    await settleEvent(deps, tx, eventId, startsAt, now, queue);
     const state = await loadSeatState(tx, eventId, now);
     const placement = placementOf(state, startsAt, now);
     let next: SelfEntry;
@@ -802,17 +803,33 @@ function tokenHashOf(token: string): string {
 }
 
 /**
- * 札の SHA-256 から申込みを引く（申込みの札か、打診の返事の札。booking-004 R8）。
+ * 札の SHA-256 から申込みを引く（申込みの札か、待っている打診の返事の札。閉じた打診の札は引かない。booking-004 R8）。
  * @param db DB
  * @param hash 札の SHA-256
  * @param lock 押さえて読むか
  * @returns 申込み（なければ null）
  */
 async function entryOfToken(db: Executor, hash: string, lock = false): Promise<SelfEntry | null> {
+  return (await tokenOwner(db, hash, lock))?.entry ?? null;
+}
+
+/**
+ * 札の SHA-256 から申込みと、返事の札で引いたかを読む。
+ * @param db DB
+ * @param hash 札の SHA-256
+ * @param lock 押さえて読むか
+ * @returns 申込みと、返事の札か（なければ null）
+ */
+async function tokenOwner(
+  db: Executor,
+  hash: string,
+  lock = false,
+): Promise<{ entry: SelfEntry; viaOffer: boolean } | null> {
   const entry = await findEntryByTokenHash(db, hash, lock);
-  if (entry) return entry;
+  if (entry) return { entry, viaOffer: false };
   const entryId = await findEntryIdByOfferToken(db, hash);
-  return entryId ? findSelfEntry(db, entryId, lock) : null;
+  const offered = entryId ? await findSelfEntry(db, entryId, lock) : null;
+  return offered ? { entry: offered, viaOffer: true } : null;
 }
 
 /**
@@ -917,8 +934,9 @@ export async function confirmEntryToken(
     if (!context) throw new AppError(BOOKING_ERRORS.ENTRY_TOKEN_INVALID);
     const startsAt = startsOf(context.event);
     assertEmailOpen(await findPageSetting(tx, request.eventId, true), context.event, now);
-    const existing = await findEntryByContactEmail(tx, request.eventId, request.email, true);
+    // 片付け（期限切れ・打診）のあとに、そのアドレスの申込みを読む（期限の切れた打診中を見ないように。booking-004 R9）
     await settleEvent(deps, tx, request.eventId, startsAt, now, queue);
+    const existing = await findEntryByContactEmail(tx, request.eventId, request.email, true);
     const placement = placementOf(await loadSeatState(tx, request.eventId, now), startsAt, now);
     let entry: SelfEntry;
     let changed = true;
@@ -1007,15 +1025,17 @@ export async function respondEntryToken(
   now: Date,
 ): Promise<EntryTokenView> {
   const hash = tokenHashOf(token);
-  const own = await entryOfToken(deps.db, hash);
-  if (!own) throw new AppError(BOOKING_ERRORS.ENTRY_TOKEN_INVALID);
+  const found = await tokenOwner(deps.db, hash);
+  if (!found) throw new AppError(BOOKING_ERRORS.ENTRY_TOKEN_INVALID);
+  const own = found.entry;
+  // 返事の札は打診を閉じると使えなくなるので、確定の知らせには入れない（申込みのときのメールのリンクがそのまま使える）
   await respondToOffer(
     deps,
     own.eventId,
     own.id,
     answer,
     now,
-    entryTokenUrl(deps, own.eventId, token),
+    found.viaOffer ? null : entryTokenUrl(deps, own.eventId, token),
   );
   const after = await findSelfEntry(deps.db, own.id);
   if (!after) throw new AppError(BOOKING_ERRORS.ENTRY_TOKEN_INVALID);

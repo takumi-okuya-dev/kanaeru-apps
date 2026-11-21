@@ -32,6 +32,7 @@ import { findPageSetting, savePageSetting } from "./apply-repository.ts";
 import {
   eventContext,
   flushNotices,
+  hasWaitingEntries,
   markNotified,
   queueApplied,
   setStatusByOrganizer,
@@ -207,6 +208,10 @@ function defineRoutes(deps: DomainRouteDeps) {
         200: json(BookingSetting, "変えた使い方"),
         400: invalidInputResponse,
         ...errors,
+        409: domainErrorResponse(
+          BOOKING_ERRORS.WAITLIST_ACTIVE,
+          "キャンセル待ち・打診中の人がいるのに、自前でない使い方にしようとした",
+        ),
       },
     }),
     putSelfPage: createRoute({
@@ -578,6 +583,17 @@ export function bookingRoutes(deps: DomainRouteDeps) {
   };
 
   /**
+   * 席が埋まる操作（飛び入り）のあとに片付けを通す（一度満員になったら枠を押さえるのをやめる印を付けるため。booking-004 R3）。
+   * @param tx トランザクション（設定の行を押さえたもの）
+   * @param eventId 交流会の ID
+   * @param queue 知らせ（確定のあとに送る）
+   */
+  const settleAfterSeatTaken = async (tx: Executor, eventId: string, queue: NoticeQueue) => {
+    const context = await contextOf(tx, eventId);
+    await settleEvent(deps, tx, eventId, new Date(context.event.startsAt), new Date(), queue);
+  };
+
+  /**
    * 名簿の答えを読む（setting-view.ts）。
    * @param eventId 交流会の ID
    * @returns 名簿
@@ -610,13 +626,19 @@ export function bookingRoutes(deps: DomainRouteDeps) {
     .openapi(routes.putSetting, async (c) => {
       const { eventId } = c.req.valid("param");
       const { mode } = c.req.valid("json");
-      await saveMode(db, eventId, mode);
-      if (mode === "self_page") {
-        // 最後に知らせた日時と場所を、使い始めの今にそろえる（変更を比べる元。booking-004 R10）
-        const setting = await findWaitlistSetting(db, eventId);
-        if (!setting?.notifiedStartsAt)
-          await markNotified(db, eventId, (await contextOf(db, eventId)).event);
-      }
+      await db.transaction(async (tx) => {
+        const current = await findWaitlistSetting(tx, eventId, true);
+        const wasSelfPage = current?.mode === "self_page";
+        if (wasSelfPage && mode !== "self_page" && (await hasWaitingEntries(tx, eventId))) {
+          // 自前を外すと打診・キャンセル待ちが止まったまま残るので、先に名簿で片付けてもらう（booking-004 R21）
+          throw new AppError(BOOKING_ERRORS.WAITLIST_ACTIVE);
+        }
+        await saveMode(tx, eventId, mode);
+        if (mode === "self_page" && !wasSelfPage) {
+          // 最後に知らせた日時と場所を、使い始め・使い直しの今にそろえる（外していた間の変更を知らせない。booking-004 R10・R21）
+          await markNotified(tx, eventId, (await contextOf(tx, eventId)).event);
+        }
+      });
       return c.json(await readSetting(eventId), 200);
     })
     .openapi(routes.putSelfPage, async (c) => {
@@ -843,6 +865,7 @@ export function bookingRoutes(deps: DomainRouteDeps) {
     .openapi(routes.walkInFromCheckin, async (c) => {
       const { eventId, checkinId } = c.req.valid("param");
       const me = currentAccount(c).accountId;
+      const queue: NoticeQueue = [];
       await db
         .transaction(async (tx) => {
           await requireRoster(tx, eventId, true);
@@ -856,10 +879,12 @@ export function bookingRoutes(deps: DomainRouteDeps) {
             enteredBy: me,
             checkinId,
           });
+          await settleAfterSeatTaken(tx, eventId, queue);
         })
         .catch((error: unknown) => {
           throw asMatchConflict(error);
         });
+      await flushNotices(deps, queue);
       return c.json(await readBoard(eventId), 201);
     })
     .openapi(routes.unmatch, async (c) => {
@@ -895,6 +920,7 @@ export function bookingRoutes(deps: DomainRouteDeps) {
       const { eventId } = c.req.valid("param");
       const input = c.req.valid("json");
       const me = currentAccount(c).accountId;
+      const queue: NoticeQueue = [];
       await db.transaction(async (tx) => {
         await requireRoster(tx, eventId, true);
         const checkin = await createManualCheckin(tx, deps.config, {
@@ -910,7 +936,9 @@ export function bookingRoutes(deps: DomainRouteDeps) {
           enteredBy: me,
           checkinId: checkin.id,
         });
+        await settleAfterSeatTaken(tx, eventId, queue);
       });
+      await flushNotices(deps, queue);
       return c.json(await readBoard(eventId), 201);
     });
 }

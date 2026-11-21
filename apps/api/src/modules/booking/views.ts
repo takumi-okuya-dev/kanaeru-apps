@@ -77,6 +77,7 @@ export function toRosterEntry(
           manual: offer.manual,
         }
       : null,
+    hasContact: entry.accountId !== null || entry.contactEmail !== null,
   };
 }
 

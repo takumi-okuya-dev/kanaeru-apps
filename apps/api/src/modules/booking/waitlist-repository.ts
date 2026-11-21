@@ -194,7 +194,7 @@ export async function setEntryStatus(
 export async function expireDueOffers(db: Executor, eventId: string, now: Date): Promise<string[]> {
   const offers = await db
     .update(bookingOffer)
-    .set({ status: "expired", respondedAt: now, updatedAt: sql`now()` })
+    .set({ status: "expired", respondedAt: now, tokenHash: null, updatedAt: sql`now()` })
     .where(
       and(
         eq(bookingOffer.eventId, eventId),
@@ -238,7 +238,8 @@ export async function createOffer(
 }
 
 /**
- * 申込みの待っている打診を閉じる（参加・辞退・取り下げ）。
+ * 申込みの待っている打診を閉じる（参加・辞退・取り下げ。返事の札も空にする〈閉じた打診の札で、見る・取り消すをさせない。
+ * booking-003 R10 と同じく、使い終わった札は使えなくする〉）。
  * @param db DB
  * @param entryId 申込みの ID
  * @param status 閉じた状態
@@ -252,7 +253,7 @@ export async function closePendingOffer(
 ): Promise<void> {
   await db
     .update(bookingOffer)
-    .set({ status, respondedAt: now, updatedAt: sql`now()` })
+    .set({ status, respondedAt: now, tokenHash: null, updatedAt: sql`now()` })
     .where(and(eq(bookingOffer.entryId, entryId), eq(bookingOffer.status, "pending")));
 }
 
@@ -269,7 +270,7 @@ export async function withdrawOffersOfEvent(
 ): Promise<void> {
   await db
     .update(bookingOffer)
-    .set({ status: "withdrawn", respondedAt: now, updatedAt: sql`now()` })
+    .set({ status: "withdrawn", respondedAt: now, tokenHash: null, updatedAt: sql`now()` })
     .where(and(eq(bookingOffer.eventId, eventId), eq(bookingOffer.status, "pending")));
 }
 
@@ -293,7 +294,7 @@ export async function findLatestOfferStatus(
 }
 
 /**
- * 返事の札の SHA-256 で、打診の申込みを引く。
+ * 返事の札の SHA-256 で、待っている打診の申込みを引く（閉じた打診の札は引かない）。
  * @param db DB
  * @param tokenHash 返事の札の SHA-256
  * @returns 申込みの ID（なければ null）
@@ -305,7 +306,7 @@ export async function findEntryIdByOfferToken(
   const [row] = await db
     .select({ entryId: bookingOffer.entryId })
     .from(bookingOffer)
-    .where(eq(bookingOffer.tokenHash, tokenHash))
+    .where(and(eq(bookingOffer.tokenHash, tokenHash), eq(bookingOffer.status, "pending")))
     .limit(1);
   return row?.entryId ?? null;
 }

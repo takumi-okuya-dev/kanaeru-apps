@@ -59,7 +59,7 @@
 | 動き | 道 | だれ | すること |
 |---|---|---|---|
 | GET | `…/setting` | 主催者・受付係 | 使い方と名簿の行の数・申込みページの設定（行がなければ `reception`・閉じる・誰でも） |
-| PUT | `…/setting` | 主催者 | 使い方を変える（`reception`・`roster`・`self_page`。ほかは 400） |
+| PUT | `…/setting` | 主催者 | 使い方を変える（`reception`・`roster`・`self_page`。ほかは 400。自前でないものにすると受付を閉じる。キャンセル待ち・打診中の人がいると自前から外せない 409 `BOOKING_WAITLIST_ACTIVE`。自前に戻すと知らせた日時と場所を今にそろえる） |
 | GET | `…/entries` | 主催者・受付係 | 名簿（行は申し込んだ日時の古い順。行ごとに `sameName`・`attendance`〈`came`・`no_show`・`pending`〉・`match`〈`manual`・`auto`〉・`enteredByName`〈手で足した・飛び入りの入れた人〉）・人数（確定・取り消し・来た・来なかった・飛び入り・媒体ごとの確定）・`eventEnded` |
 | POST | `…/entries` | 主催者・受付係 | 1人足す（名前・媒体・メモ。入口は手で足す。201） |
 | PUT | `…/entries/{entryId}/status` | 主催者 | 取り消す・戻す |
@@ -128,12 +128,12 @@
 | POST | `/events/{eventId}/change-notice` | 主催者 | 日時や場所の変更を知らせる・知らせずに済ませる（`{ notify }`。変更がない 409 `BOOKING_NO_CHANGE`・自前でない 409 `BOOKING_SELF_PAGE_OFF`） |
 | POST | `/events/{eventId}/cancel-booking` | 主催者 | 予約を中止する（取り消しでない申込みを取り消しにして `cancelled_event` を送る。戻せない。もう中止なら同じ答え） |
 | POST | `/me/entries/{entryId}/respond` | ログインした人（本人の行だけ） | 打診に答える（`{ answer: "accept" \| "decline" }`。当日の空きのキャンセル待ちの参加も。期限の後 410 `BOOKING_OFFER_EXPIRED`・打診中でない 409 `BOOKING_OFFER_NOT_PENDING`・当日の空きが埋まった 409 `BOOKING_NO_SEAT`） |
-| POST | `/entry-tokens/{entryToken}/respond` | だれでも（札を知る本人） | 同じ（申込みの札か返事の札） |
-| POST | `/jobs/tick` | Cloud Scheduler（`Authorization: Bearer <JOB_TRIGGER_SECRET>`。合わなければ 404） | 定期の仕事（10分おき・9時〜23時台）：使い方が自前で中止していない交流会のうち、待っている打診かキャンセル待ちがあるか、知らせた日時が1日前より後か空のものごとに、片付けと変更の知らせ。答えは数だけ（`{ events, expired, offered, sameDay, changed }`） |
+| POST | `/entry-tokens/{entryToken}/respond` | だれでも（札を知る本人） | 同じ（申込みの札か返事の札。返事の札は待っている打診にだけ効き、打診を閉じる・申込みの札を替えると使えない） |
+| POST | `/jobs/tick` | Cloud Scheduler（`Authorization: Bearer <JOB_TRIGGER_SECRET>`。合わなければ 404） | 定期の仕事（10分おき・9時〜23時台）：使い方が自前で中止していない交流会のうち、待っている打診かキャンセル待ちがあるか、知らせた日時が1日前より後か空のものごとに、片付けと変更の知らせ（始まったあとの直しは知らせず、知らせた日時と場所をそろえるだけ）。交流会ごとに誤りを受け止め、ログ（ID と誤りの種類）に出して次へ進む。答えは数だけ（`{ events, expired, offered, sameDay, changed }`） |
 
-- `…/setting` の答えに `capacity`・`quotas`・`seats`（席の内訳：定員・埋まった席・確定・打診中・キャンセル待ち・自前の残り・超えた人数・満員・枠を押さえるのをやめたか・当日の空き・枠ごとの残り・満員のとき止める媒体）・`cancelled`・`change`（前と今の日時と場所・定期の仕事が知らせる予定の時刻）を足した。名簿の行に `waitlistPosition`・`offer`（期限・期限切れか・手で打診したか）、人数に `waitlisted`・`offered`。
+- `…/setting` の答えに `capacity`・`quotas`・`seats`（席の内訳：定員・埋まった席・確定・打診中・キャンセル待ち・自前の残り・超えた人数・満員・枠を押さえるのをやめたか・当日の空き・枠ごとの残り・満員のとき止める媒体）・`cancelled`・`change`（前と今の日時と場所・定期の仕事が知らせる予定の時刻。始まったあとは出さない）を足した。名簿の行に `waitlistPosition`・`offer`（期限・期限切れか・手で打診したか）・`hasContact`（アカウントかメールがあるか。宛先は返さない）、人数に `waitlisted`・`offered`。
 - `…/entries` の手で足す入力に `waitlist`（自前で定員があるとき。キャンセル待ちに入れる）。`…/status` の入力は確定と取り消しだけ（キャンセル待ち・打診中を確定にすると確定の知らせ、取り消すと次の人へ。取り消しの知らせは送らない）。
-- **片付け**（`waitlist.ts` の `settleEvent`）：`booking_setting` の行を `FOR UPDATE` で押さえ、押さえたあとに読み直した行から、満員なら枠を押さえるのをやめる → 期限の来た打診を期限切れ（申込みは取り消し・`offer_expired`）→ 空いた席の分だけキャンセル待ちの先頭に打診（期限・メールの人は返事の札〈SHA-256 だけ〉・`offered`）→ 期限が1時間取れなければ当日の空き（交流会ごとに1回 `same_day`）。申込み・確定・取り消し・返事・主催者の操作・取り込み・定員の保存・定期の仕事のどれも同じ関数を通す。知らせはトランザクションが確定したあとに送る（送れなくても処理は成り立つ）。
+- **片付け**（`waitlist.ts` の `settleEvent`）：`booking_setting` の行を `FOR UPDATE` で押さえ、押さえたあとに読み直した行から、満員なら枠を押さえるのをやめる → 期限の来た打診を期限切れ（申込みは取り消し・`offer_expired`）→ 空いた席の分だけキャンセル待ちの先頭に打診（期限・メールの人は返事の札〈SHA-256 だけ〉・`offered`。連絡先のない行は飛ばして主催者の手の打診だけにする）→ 期限が1時間取れなければ当日の空き（交流会ごとに1回 `same_day`）。申込み・確定・取り消し・返事・主催者の操作（手の打診も）・取り込み・飛び入り・定員の保存・定期の仕事のどれも同じ関数を通す（申込みは片付けのあとに自分の行を読む）。定員を保存すると「枠を押さえるのをやめる」印を消してから片付ける。交流会の日にちが変わったら、知らせた日時をそろえるときに印と当日の空きの知らせを戻す。知らせはトランザクションが確定したあとに送る（送れなくても処理は成り立つ）。
 - 読む窓口（申込みページ・自分の申込み・札のページ・名簿・設定）は書かない。期限を過ぎた打診は期限切れとして見せ（席を押さえない・返事できない）、キャンセル待ちがいれば新しい人の残りは0と見せる。
 - 申込みページの答えに `seats`（定員・新しく申し込む人の残り・キャンセル待ちの人数・当日の空き）と受付の状態 `cancelled`、本人の申込み（`MyEntry`・`MyEntryItem`・札のページ）に `waitlistPosition`・`offerDeadline`・`offerExpired`・`canAccept` を足した。ほかの人の名前は返さない。
 - 中止のあとは申し込む・確定する・受付を開くが 409 `BOOKING_EVENT_CANCELLED`。

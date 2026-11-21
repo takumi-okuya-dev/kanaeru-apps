@@ -19,6 +19,7 @@ import {
   NOTICE_LOG_MAX,
   usesRoster,
 } from "@workspace/contracts/booking";
+import { jstDate } from "@workspace/contracts/core";
 import type { EventSummary } from "@workspace/contracts/event";
 import type { Executor } from "../../kernel/db.ts";
 import { AppError } from "../../kernel/errors.ts";
@@ -211,6 +212,16 @@ async function offerTo(
   });
 }
 
+/**
+ * 自動で打診・当日の空きを知らせる相手か（アカウントかメールがある。手で足したキャンセル待ちなど連絡先のない行は、
+ * 主催者の手の打診だけにする。research R14）。
+ * @param entry 申込み
+ * @returns 連絡先があれば true
+ */
+export function hasContact(entry: Pick<SeatEntryRow, "accountId" | "emailOnly">): boolean {
+  return entry.accountId !== null || entry.emailOnly;
+}
+
 /** 片付けの数。 */
 export type SettleResult = { expired: string[]; offered: number; sameDay: number };
 
@@ -257,6 +268,7 @@ export async function settleEvent(
       await updateWaitlistSetting(tx, eventId, { sameDayNotifiedAt: now });
       for (const entryId of count.waitlist) {
         const entry = state.entries.find((row) => row.id === entryId);
+        if (!entry || !hasContact(entry)) continue;
         const respond = entry?.accountId ? myBookingsUrl(deps) : applyUrl(deps, eventId);
         queue.push({ entryId, kind: "same_day", links: { respond } });
         result.sameDay += 1;
@@ -268,7 +280,8 @@ export async function settleEvent(
   for (const entryId of count.waitlist) {
     if (remaining < 1) break;
     const entry = state.entries.find((row) => row.id === entryId);
-    if (!entry) continue;
+    // 連絡先のない行は飛ばす（主催者の手の打診だけ。次の人に回す）
+    if (!entry || !hasContact(entry)) continue;
     await offerTo(deps, tx, eventId, entry, deadline, null, queue);
     result.offered += 1;
     remaining -= 1;
@@ -515,6 +528,9 @@ export async function saveCapacity(
     const setting = await findWaitlistSetting(tx, eventId, true);
     if (!setting || !usesRoster(setting.mode)) throw new AppError(BOOKING_ERRORS.ROSTER_OFF);
     await replaceCapacity(tx, eventId, input.capacity, input.quotas);
+    // 定員・枠を保存したら「一度満員なら枠を押さえるのをやめる」印を消してから片付けを通す（保存のあとも満員なら、片付けが
+    // すぐ付け直す。定員を下げた保存の一瞬で付いた印を、定員を戻したときに戻せるように。research R3【仮決め】）
+    await updateWaitlistSetting(tx, eventId, { quotaReleasedAt: null });
     await settleEvent(deps, tx, eventId, new Date(context.event.startsAt), now, queue);
   });
   await flushNotices(deps, queue);
@@ -588,6 +604,8 @@ export async function offerByOrganizer(
     const deadline = offerDeadline(now, startsAt);
     if (!deadline) throw new AppError(BOOKING_ERRORS.OFFER_WINDOW_SHORT);
     await offerTo(deps, tx, eventId, entry, deadline, organizerId, queue);
+    // 手の打診で席が埋まれば、枠を押さえるのをやめる印を付ける（片付けを通す。R3）
+    await settleEvent(deps, tx, eventId, startsAt, now, queue);
   });
   await flushNotices(deps, queue);
 }
@@ -616,18 +634,38 @@ export async function cancelBooking(deps: WaitlistDeps, eventId: string, now: Da
 }
 
 /**
- * 最後に知らせた日時と場所と、今の要約の違い（自前で中止していないとき。research R10）。
+ * 交流会が始まったか（最後に知らせた始まりと今の始まりの早いほうを過ぎた。始まったあとの直しは知らせない。research R10）。
+ * @param setting 設定（最後に知らせた始まり）
+ * @param event 要約
+ * @param now 今の時刻
+ * @returns 始まっていれば true
+ */
+export function startedForChange(
+  setting: Pick<WaitlistSetting, "notifiedStartsAt">,
+  event: EventSummary,
+  now: Date,
+): boolean {
+  const current = new Date(event.startsAt).getTime();
+  const notified = setting.notifiedStartsAt?.getTime() ?? current;
+  return now.getTime() >= Math.min(notified, current);
+}
+
+/**
+ * 最後に知らせた日時と場所と、今の要約の違い（自前で中止していない・始まっていないとき。research R10）。
  * @param setting 設定
  * @param event 要約
+ * @param now 今の時刻（始まったあとは違いを出さない）
  * @returns 違い（なければ null）
  */
 export function scheduleChangeOf(
   setting: WaitlistSetting | null,
   event: EventSummary,
+  now: Date,
 ): ScheduleChange | null {
   if (setting?.mode !== "self_page" || setting.cancelledAt || !setting.notifiedStartsAt) {
     return null;
   }
+  if (startedForChange(setting, event, now)) return null;
   const startsChanged = setting.notifiedStartsAt.getTime() !== new Date(event.startsAt).getTime();
   const venueChanged = (setting.notifiedVenue ?? null) !== (event.venue ?? null);
   if (!startsChanged && !venueChanged) return null;
@@ -645,6 +683,17 @@ export function scheduleChangeOf(
 }
 
 /**
+ * キャンセル待ち・打診中の申込みがあるか（使い方を自前から外す前の確かめ。research R21）。
+ * @param db DB
+ * @param eventId 交流会の ID
+ * @returns あれば true
+ */
+export async function hasWaitingEntries(db: Executor, eventId: string): Promise<boolean> {
+  const entries = await listActiveEntries(db, eventId);
+  return entries.some((entry) => entry.status === "waitlisted" || entry.status === "offered");
+}
+
+/**
  * 最後に知らせた日時と場所を、今の要約に合わせる（使い始め・知らせたあと・済ませたあと）。
  * @param db DB
  * @param eventId 交流会の ID
@@ -655,10 +704,16 @@ export async function markNotified(
   eventId: string,
   event: EventSummary,
 ): Promise<void> {
+  const setting = await findWaitlistSetting(db, eventId);
+  const startsAt = new Date(event.startsAt);
+  // 交流会の日にち（日本時間）が変わったら、当日の空きの知らせと「枠を押さえるのをやめる」印を戻す（新しい日にちで決め直す）
+  const dayChanged =
+    setting?.notifiedStartsAt != null && jstDate(setting.notifiedStartsAt) !== jstDate(startsAt);
   await updateWaitlistSetting(db, eventId, {
-    notifiedStartsAt: new Date(event.startsAt),
+    notifiedStartsAt: startsAt,
     notifiedVenue: event.venue,
     changeDetectedAt: null,
+    ...(dayChanged ? { sameDayNotifiedAt: null, quotaReleasedAt: null } : {}),
   });
 }
 
@@ -703,19 +758,21 @@ async function queueChange(
  * @param deps 道具
  * @param eventId 交流会の ID
  * @param notify 知らせるか
+ * @param now 今の時刻（始まったあとは変更として扱わない）
  * @throws {AppError} 自前でない（409 BOOKING_SELF_PAGE_OFF）・変更がない（409 BOOKING_NO_CHANGE）とき
  */
 export async function resolveScheduleChange(
   deps: WaitlistDeps,
   eventId: string,
   notify: boolean,
+  now: Date = new Date(),
 ): Promise<void> {
   const queue: NoticeQueue = [];
   await deps.db.transaction(async (tx) => {
     const setting = await findWaitlistSetting(tx, eventId, true);
     if (setting?.mode !== "self_page") throw new AppError(BOOKING_ERRORS.SELF_PAGE_OFF);
     const context = await requireContext(deps, tx, eventId);
-    const change = scheduleChangeOf(setting, context.event);
+    const change = scheduleChangeOf(setting, context.event, now);
     if (!change) throw new AppError(BOOKING_ERRORS.NO_CHANGE);
     if (notify) await queueChange(deps, tx, context, change, queue);
     else await markNotified(tx, eventId, context.event);
@@ -733,51 +790,85 @@ export async function runWaitlistJob(deps: WaitlistDeps, now: Date): Promise<Wai
   const summary: WaitlistJobSummary = { events: 0, expired: 0, offered: 0, sameDay: 0, changed: 0 };
   const ids = await listJobEventIds(deps.db, new Date(now.getTime() - DAY_MS));
   for (const eventId of ids) {
-    const context = await eventContext(deps, deps.db, eventId);
-    if (!context) continue;
-    summary.events += 1;
-    const queue: NoticeQueue = [];
-    await deps.db.transaction(async (tx) => {
-      const settled = await settleEvent(
-        deps,
-        tx,
-        eventId,
-        new Date(context.event.startsAt),
-        now,
-        queue,
+    // 交流会ごとに分ける（1つの交流会の誤りで、ほかの交流会の片付けと知らせを止めない。ログには ID と誤りの種類だけ）
+    try {
+      await runJobForEvent(deps, eventId, now, summary);
+    } catch (error) {
+      deps.logger.error(
+        { eventId, errorName: error instanceof Error ? error.name : "unknown" },
+        "予約の定期の仕事で、交流会の処理に失敗しました",
       );
-      summary.expired += settled.expired.length;
-      summary.offered += settled.offered;
-      summary.sameDay += settled.sameDay;
-      const setting = await findWaitlistSetting(tx, eventId, true);
-      if (setting?.mode !== "self_page" || setting.cancelledAt) return;
-      if (!setting.notifiedStartsAt) {
-        await markNotified(tx, eventId, context.event);
-        return;
-      }
-      const change = scheduleChangeOf(setting, context.event);
-      if (!change) {
-        if (setting.changeDetectedAt) {
-          await updateWaitlistSetting(tx, eventId, { changeDetectedAt: null });
-        }
-        return;
-      }
-      if (!setting.changeDetectedAt) {
-        await updateWaitlistSetting(tx, eventId, { changeDetectedAt: now });
-        return;
-      }
-      if (
-        now.getTime() - setting.changeDetectedAt.getTime() >=
-        CHANGE_NOTICE_DELAY_MINUTES * MINUTE_MS
-      ) {
-        await queueChange(deps, tx, context, change, queue);
-        summary.changed += 1;
-      }
-    });
-    await flushNotices(deps, queue);
+    }
   }
   deps.logger.info({ ...summary }, "予約の定期の仕事");
   return summary;
+}
+
+/**
+ * 定期の仕事の、1つの交流会の分（片付けと変更の知らせ）。
+ * @param deps 道具
+ * @param eventId 交流会の ID
+ * @param now 今の時刻
+ * @param summary 数（足していく）
+ */
+async function runJobForEvent(
+  deps: WaitlistDeps,
+  eventId: string,
+  now: Date,
+  summary: WaitlistJobSummary,
+): Promise<void> {
+  const context = await eventContext(deps, deps.db, eventId);
+  if (!context) return;
+  summary.events += 1;
+  const queue: NoticeQueue = [];
+  await deps.db.transaction(async (tx) => {
+    const settled = await settleEvent(
+      deps,
+      tx,
+      eventId,
+      new Date(context.event.startsAt),
+      now,
+      queue,
+    );
+    summary.expired += settled.expired.length;
+    summary.offered += settled.offered;
+    summary.sameDay += settled.sameDay;
+    const setting = await findWaitlistSetting(tx, eventId, true);
+    if (setting?.mode !== "self_page" || setting.cancelledAt) return;
+    if (!setting.notifiedStartsAt) {
+      await markNotified(tx, eventId, context.event);
+      return;
+    }
+    if (startedForChange(setting, context.event, now)) {
+      // 始まったあとの直し（日時・場所）は知らせない。知らせた日時と場所を今にそろえるだけ（research R10）
+      const startsChanged =
+        setting.notifiedStartsAt.getTime() !== new Date(context.event.startsAt).getTime();
+      const venueChanged = (setting.notifiedVenue ?? null) !== (context.event.venue ?? null);
+      if (startsChanged || venueChanged || setting.changeDetectedAt) {
+        await markNotified(tx, eventId, context.event);
+      }
+      return;
+    }
+    const change = scheduleChangeOf(setting, context.event, now);
+    if (!change) {
+      if (setting.changeDetectedAt) {
+        await updateWaitlistSetting(tx, eventId, { changeDetectedAt: null });
+      }
+      return;
+    }
+    if (!setting.changeDetectedAt) {
+      await updateWaitlistSetting(tx, eventId, { changeDetectedAt: now });
+      return;
+    }
+    if (
+      now.getTime() - setting.changeDetectedAt.getTime() >=
+      CHANGE_NOTICE_DELAY_MINUTES * MINUTE_MS
+    ) {
+      await queueChange(deps, tx, context, change, queue);
+      summary.changed += 1;
+    }
+  });
+  await flushNotices(deps, queue);
 }
 
 /**
@@ -816,6 +907,6 @@ export async function waitlistSettingFields(
       state.setting?.mode === "self_page" && isSameDayWindow(now, startsAt),
     ),
     cancelled: state.setting?.cancelledAt != null,
-    change: scheduleChangeOf(state.setting, event),
+    change: scheduleChangeOf(state.setting, event, now),
   };
 }

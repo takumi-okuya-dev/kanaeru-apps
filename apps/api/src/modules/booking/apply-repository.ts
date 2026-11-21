@@ -1,10 +1,16 @@
 // 自前の申込みページの表の読み書き（booking-003。表は booking の領域だけが読み書きする。AD-3）：申込みページの設定の列・
 // 本人の申込み・メールの申込み・案内の同意・確認の待ち。名前・メールアドレス・札はログに出さない。
 // 名簿の答え（views.ts）は列を選んで作るので、ここで読む連絡のメールは名簿に出ない（research R14）。
-import { and, asc, count, desc, eq, gt, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import type { BookingMode, EntryStatus, Visibility } from "@workspace/contracts/booking";
 import type { Executor } from "../../kernel/db.ts";
-import { bookingConsent, bookingEmailRequest, bookingEntry, bookingSetting } from "./schema.ts";
+import {
+  bookingConsent,
+  bookingEmailRequest,
+  bookingEntry,
+  bookingOffer,
+  bookingSetting,
+} from "./schema.ts";
 
 /** 申込みページの設定（行がなければ受付だけ・閉じる・誰でも。中止の時刻は booking-004）。 */
 export type PageSetting = {
@@ -305,7 +311,21 @@ export async function reconfirmEntry(
     .where(eq(bookingEntry.id, entryId))
     .returning(selfEntryColumns);
   if (!row) throw new Error("申込みを直せませんでした。");
+  // 前の打診の返事の札も使えなくする（booking-003 R10。申し込み直したら前のリンクは使えない）
+  await clearOfferTokens(db, entryId);
   return row;
+}
+
+/**
+ * 申込みの打診の返事の札をすべて空にする（申込みの札を替えた・申し込み直したとき。前のリンクを使えなくする。booking-003 R10）。
+ * @param db DB
+ * @param entryId 申込みの ID
+ */
+async function clearOfferTokens(db: Executor, entryId: string): Promise<void> {
+  await db
+    .update(bookingOffer)
+    .set({ tokenHash: null, updatedAt: sql`now()` })
+    .where(and(eq(bookingOffer.entryId, entryId), isNotNull(bookingOffer.tokenHash)));
 }
 
 /**
@@ -328,6 +348,8 @@ export async function replaceEntryToken(
     .where(eq(bookingEntry.id, entryId))
     .returning(selfEntryColumns);
   if (!row) throw new Error("申込みを直せませんでした。");
+  // 申込みの札を替えたら、打診の返事の札も使えなくする（前のメールのリンクを使えなくする。booking-003 R10）
+  await clearOfferTokens(db, entryId);
   return row;
 }
 

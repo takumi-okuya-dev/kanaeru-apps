@@ -146,6 +146,71 @@ describe("変更と中止の知らせ", () => {
     expect(detected.rows[0]?.change_detected_at).toBeNull();
   });
 
+  it("始まったあとに交流会を直しても、変更を知らせず帯も出さない（知らせた日時と場所を今にそろえるだけ）", async () => {
+    const confirmed = await join("中村 さき");
+    await database.pool.query(
+      "UPDATE event SET starts_at = now() - interval '1 hour', venue = '直した会場' WHERE id = $1",
+      [eventId],
+    );
+    expect((await readSetting()).change).toBeNull();
+    await database.pool.query(
+      "UPDATE booking_setting SET change_detected_at = now() - interval '31 minutes' WHERE event_id = $1",
+      [eventId],
+    );
+    expect(await (await tick(app)).json()).toMatchObject({ changed: 0 });
+    expect(await noticeKinds(database, confirmed)).toEqual(["confirmed"]);
+    const notified = await database.pool.query<{
+      notified_venue: string | null;
+      change_detected_at: Date | null;
+    }>("SELECT notified_venue, change_detected_at FROM booking_setting WHERE event_id = $1", [
+      eventId,
+    ]);
+    expect(notified.rows).toEqual([{ notified_venue: "直した会場", change_detected_at: null }]);
+    const resolve = await call(app, owner.cookie, `${base}/change-notice`, "POST", {
+      notify: true,
+    });
+    expect(resolve.status).toBe(409);
+  });
+
+  it("交流会の日にちが変わったら、当日の空きの知らせと枠を押さえるのをやめる印を戻す", async () => {
+    await join("中村 さき");
+    await database.pool.query(
+      "UPDATE booking_setting SET same_day_notified_at = now(), quota_released_at = now() WHERE event_id = $1",
+      [eventId],
+    );
+    await editEvent({ startsAt: new Date(Date.now() + 9 * DAY_MS).toISOString() });
+    expect(
+      (await call(app, owner.cookie, `${base}/change-notice`, "POST", { notify: false })).status,
+    ).toBe(200);
+    const reset = await database.pool.query<{
+      same_day_notified_at: Date | null;
+      quota_released_at: Date | null;
+    }>("SELECT same_day_notified_at, quota_released_at FROM booking_setting WHERE event_id = $1", [
+      eventId,
+    ]);
+    expect(reset.rows).toEqual([{ same_day_notified_at: null, quota_released_at: null }]);
+  });
+
+  it("キャンセル待ち・打診中の人がいると使い方を自前から外せない（409）。外して戻すと、外していた間の変更は知らせない", async () => {
+    await setCapacity(app, owner.cookie, eventId, 1);
+    await join("中村 さき");
+    const waiting = await join("森 はるか");
+    const blocked = await call(app, owner.cookie, `${base}/setting`, "PUT", { mode: "roster" });
+    expect(blocked.status).toBe(409);
+    expect(((await blocked.json()) as ErrorBody).error.code).toBe("BOOKING_WAITLIST_ACTIVE");
+    await call(app, owner.cookie, `${base}/entries/${waiting}/status`, "PUT", {
+      status: "cancelled",
+    });
+    expect(
+      (await call(app, owner.cookie, `${base}/setting`, "PUT", { mode: "roster" })).status,
+    ).toBe(200);
+    await editEvent({ venue: "外していた間の会場" });
+    expect(
+      (await call(app, owner.cookie, `${base}/setting`, "PUT", { mode: "self_page" })).status,
+    ).toBe(200);
+    expect((await readSetting()).change).toBeNull();
+  });
+
   it("予約を中止すると、取り消しでない申込みを取り消しにして中止を知らせ、ページは中止になる", async () => {
     await setCapacity(app, owner.cookie, eventId, 1);
     const confirmed = await join("中村 さき");

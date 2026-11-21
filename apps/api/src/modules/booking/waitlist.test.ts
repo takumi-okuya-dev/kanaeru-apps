@@ -30,6 +30,7 @@ import {
 } from "../../../test/helpers/booking-waitlist.ts";
 import { truncateAllTables, useTestDatabase } from "../../../test/helpers/db.ts";
 import { call, createEvent } from "../../../test/helpers/event.ts";
+import { SAMPLE_CHECKIN } from "../../../test/helpers/reception.ts";
 import type { ErrorBody } from "../../../test/helpers/event.ts";
 
 const database = useTestDatabase();
@@ -334,6 +335,133 @@ describe("キャンセル待ちと繰り上げ", () => {
       await anonymous(app, `/api/v1/booking/entry-tokens/${entryToken}`)
     ).json()) as EntryTokenView;
     expect(again.entry?.status).toBe("confirmed");
+  });
+
+  it("返事の札は待っている打診にだけ効き、打診を閉じる・申込みの札を替えると使えない", async () => {
+    await setCapacity(app, owner.cookie, eventId, 1);
+    const first = await join("中村 さき");
+    /**
+     * メールで申し込んで確定し、申込みの札を返す。
+     * @returns 申込みの札
+     */
+    const emailApply = async (): Promise<string> => {
+      await anonymous(app, `${base}/email-requests`, "POST", { name: "小林 はると", email: GUEST });
+      const [mail] = (await readOutbox(app, owner.cookie)).filter((m) => m.method === "email");
+      const token = entryTokenOf(mail?.text ?? "");
+      await anonymous(app, `/api/v1/booking/entry-tokens/${token}/confirm`, "POST");
+      return token;
+    };
+    const entryToken = await emailApply();
+    await call(app, first.cookie, `/api/v1/booking/me/entries/${first.entry.id}/cancel`, "POST");
+    const [offerMail] = (await readOutbox(app, owner.cookie)).filter((m) => m.method === "email");
+    const offerToken = entryTokenOf(offerMail?.text ?? "");
+    const accepted = await anonymous(
+      app,
+      `/api/v1/booking/entry-tokens/${offerToken}/respond`,
+      "POST",
+      { answer: "accept" },
+    );
+    expect(accepted.status).toBe(200);
+    // 打診を閉じたら、返事の札では見る・取り消す・返事ができない（申込みの札は使える）
+    expect((await anonymous(app, `/api/v1/booking/entry-tokens/${offerToken}`)).status).toBe(404);
+    expect(
+      (await anonymous(app, `/api/v1/booking/entry-tokens/${offerToken}/cancel`, "POST")).status,
+    ).toBe(404);
+    expect((await anonymous(app, `/api/v1/booking/entry-tokens/${entryToken}`)).status).toBe(200);
+    const tokens = await database.pool.query(
+      "SELECT 1 FROM booking_offer WHERE token_hash IS NOT NULL",
+    );
+    expect(tokens.rowCount).toBe(0);
+    // 確定の知らせに、使えなくなった返事の札のリンクを入れない
+    const [confirmedMail] = (await readOutbox(app, owner.cookie)).filter(
+      (m) => m.method === "email",
+    );
+    expect(confirmedMail?.text).not.toContain(offerToken);
+  });
+
+  it("打診中にもう一度メールで申し込むと、前の返事の札は使えなくなる", async () => {
+    await setCapacity(app, owner.cookie, eventId, 1);
+    const first = await join("中村 さき");
+    await anonymous(app, `${base}/email-requests`, "POST", { name: "小林 はると", email: GUEST });
+    const [mail] = (await readOutbox(app, owner.cookie)).filter((m) => m.method === "email");
+    await anonymous(
+      app,
+      `/api/v1/booking/entry-tokens/${entryTokenOf(mail?.text ?? "")}/confirm`,
+      "POST",
+    );
+    await call(app, first.cookie, `/api/v1/booking/me/entries/${first.entry.id}/cancel`, "POST");
+    const [offerMail] = (await readOutbox(app, owner.cookie)).filter((m) => m.method === "email");
+    const offerToken = entryTokenOf(offerMail?.text ?? "");
+    await database.pool.query(
+      "UPDATE booking_email_request SET created_at = now() - interval '11 minutes'",
+    );
+    await anonymous(app, `${base}/email-requests`, "POST", { name: "小林 はると", email: GUEST });
+    const [again] = (await readOutbox(app, owner.cookie)).filter((m) => m.method === "email");
+    const newToken = entryTokenOf(again?.text ?? "");
+    await anonymous(app, `/api/v1/booking/entry-tokens/${newToken}/confirm`, "POST");
+    expect((await anonymous(app, `/api/v1/booking/entry-tokens/${offerToken}`)).status).toBe(404);
+    // 新しい申込みの札で打診に答えられる
+    const accepted = await anonymous(
+      app,
+      `/api/v1/booking/entry-tokens/${newToken}/respond`,
+      "POST",
+      { answer: "accept" },
+    );
+    expect(accepted.status).toBe(200);
+  });
+
+  it("期限の切れた打診中の人が申し込み直すと、片付けのあとに決める（打診中のまま返さない）", async () => {
+    await setCapacity(app, owner.cookie, eventId, 1);
+    const first = await join("中村 さき");
+    const second = await join("森 はるか");
+    await call(app, first.cookie, `/api/v1/booking/me/entries/${first.entry.id}/cancel`, "POST");
+    expect(await statusOf(database, second.entry.id)).toBe("offered");
+    await expireOffer(database, second.entry.id);
+    const again = await apply(app, second.cookie, eventId, { name: "森 はるか" });
+    expect(again.status).toBe(201);
+    expect(((await again.json()) as ApplyResult).entry.status).toBe("confirmed");
+    expect(await noticeKinds(database, second.entry.id)).toContain("offer_expired");
+  });
+
+  it("連絡先のないキャンセル待ち（手で足した人）には自動で打診せず、次の人に回す。名簿に連絡先がないことが出る", async () => {
+    await setCapacity(app, owner.cookie, eventId, 1);
+    const first = await join("中村 さき");
+    const manual = await call(app, owner.cookie, `${base}/entries`, "POST", {
+      name: "電話の 山田",
+      applicationSource: "other",
+      waitlist: true,
+    });
+    const manualId = ((await manual.json()) as { id: string }).id;
+    const second = await join("森 はるか");
+    await call(app, first.cookie, `/api/v1/booking/me/entries/${first.entry.id}/cancel`, "POST");
+    expect(await statusOf(database, manualId)).toBe("waitlisted");
+    expect(await statusOf(database, second.entry.id)).toBe("offered");
+    const roster = (await (await call(app, owner.cookie, `${base}/entries`)).json()) as {
+      entries: { id: string; hasContact: boolean }[];
+    };
+    expect(roster.entries.find((entry) => entry.id === manualId)?.hasContact).toBe(false);
+    expect(roster.entries.find((entry) => entry.id === second.entry.id)?.hasContact).toBe(true);
+    // 主催者の手の打診はできる
+    const offered = await call(app, owner.cookie, `${base}/entries/${manualId}/offer`, "POST");
+    expect(offered.status).toBe(200);
+  });
+
+  it("定員を保存すると枠を押さえるのをやめる印を消し、飛び入りで満員になると付け直す", async () => {
+    await setCapacity(app, owner.cookie, eventId, 1);
+    await join("中村 さき");
+    const released = async () =>
+      (
+        await database.pool.query<{ at: Date | null }>(
+          "SELECT quota_released_at AS at FROM booking_setting WHERE event_id = $1",
+          [eventId],
+        )
+      ).rows[0]?.at ?? null;
+    expect(await released()).not.toBeNull();
+    await setCapacity(app, owner.cookie, eventId, 2);
+    expect(await released()).toBeNull();
+    const walkIn = await call(app, owner.cookie, `${base}/walk-ins`, "POST", SAMPLE_CHECKIN);
+    expect(walkIn.status).toBe(201);
+    expect(await released()).not.toBeNull();
   });
 
   it("始まりが近いと打診せず当日の空きにし、キャンセル待ちに1回だけ知らせ、先着で確定する", async () => {

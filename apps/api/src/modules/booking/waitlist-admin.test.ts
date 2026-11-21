@@ -227,6 +227,42 @@ describe("主催者のキャンセル待ちの操作", () => {
     expect(log.text()).not.toContain(TEST_JOB_SECRET);
   });
 
+  it("定期の仕事は交流会ごとに分け、1つの交流会の誤りはログに出して次の交流会へ進む", async () => {
+    // 1つ目：キャンセル待ちの人に、待っている打診がもう1つある（打診を作ると一意の制約で失敗する）
+    const first = await join("中村 さき");
+    const broken = await join("森 はるか");
+    await database.pool.query(
+      `INSERT INTO booking_offer (event_id, entry_id, deadline, status)
+       VALUES ($1, $2, now() + interval '1 day', 'pending')`,
+      [eventId, broken],
+    );
+    await database.pool.query("UPDATE booking_entry SET status = 'cancelled' WHERE id = $1", [
+      first,
+    ]);
+    // 2つ目：ふつうに打診できる交流会
+    const otherId = (await createEvent(app, owner.cookie, { name: "日曜の練習" })).id;
+    await openSelfPage(app, owner.cookie, otherId);
+    await setCapacity(app, owner.cookie, otherId, 1);
+    const person = await loginAs(app, { displayName: "林" });
+    const confirmed = (await (await apply(app, person.cookie, otherId, { name: "林" })).json()) as {
+      entry: { id: string };
+    };
+    const waiter = await loginAs(app, { displayName: "井上" });
+    const waiting = (await (await apply(app, waiter.cookie, otherId, { name: "井上" })).json()) as {
+      entry: { id: string };
+    };
+    await database.pool.query("UPDATE booking_entry SET status = 'cancelled' WHERE id = $1", [
+      confirmed.entry.id,
+    ]);
+    const response = await tick(app);
+    expect(response.status).toBe(200);
+    expect(await statusOf(database, waiting.entry.id)).toBe("offered");
+    const logged = log.text();
+    expect(logged).toContain("交流会の処理に失敗しました");
+    expect(logged).toContain(eventId);
+    expect(logged).not.toContain("森 はるか");
+  });
+
   it("合言葉の設定がなければ、定期の窓口はいつも 404", async () => {
     const plain = buildApp(database, notifyConfig());
     expect((await tick(plain)).status).toBe(404);

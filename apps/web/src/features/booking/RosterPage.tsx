@@ -95,7 +95,9 @@ function waitlistOrder(a: RosterEntry, b: RosterEntry): number {
  */
 export function statusText(entry: RosterEntry): string {
   if (entry.status === "waitlisted" && entry.waitlistPosition !== null) {
-    return `キャンセル待ち（${entry.waitlistPosition}番目）`;
+    return entry.hasContact
+      ? `キャンセル待ち（${entry.waitlistPosition}番目）`
+      : `キャンセル待ち（${entry.waitlistPosition}番目。連絡先がないので自動で打診しません）`;
   }
   if (entry.status === "offered" && entry.offer) {
     return entry.offer.expired

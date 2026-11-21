@@ -10,7 +10,7 @@ import { renderWithRouter } from "../../lib/testing.tsx";
 import { ImportPage } from "./ImportPage.tsx";
 import { MatchPage } from "./MatchPage.tsx";
 import { ModeSection } from "./ModeSection.tsx";
-import { RosterPage } from "./RosterPage.tsx";
+import { RosterPage, statusText } from "./RosterPage.tsx";
 
 /** 試しの交流会の ID。 */
 const EVENT_ID = "0193a1b2-0000-7000-8000-000000000001";
@@ -65,6 +65,7 @@ function entry(id: string, name: string, values: Partial<Roster["entries"][numbe
     match: null,
     waitlistPosition: null,
     offer: null,
+    hasContact: false,
     ...values,
   };
 }
@@ -270,6 +271,19 @@ describe("名簿", () => {
     renderWithRouter(<RosterPage eventId={EVENT_ID} />);
     expect(await screen.findByText(/この交流会は名簿を使っていません/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "準備の画面を開く" })).toBeInTheDocument();
+  });
+});
+
+describe("名簿の行の状態の文", () => {
+  it("連絡先のないキャンセル待ちには、自動で打診しないことを出す", () => {
+    expect(
+      statusText(entry("31", "電話の 山田", { status: "waitlisted", waitlistPosition: 2 })),
+    ).toBe("キャンセル待ち（2番目。連絡先がないので自動で打診しません）");
+    expect(
+      statusText(
+        entry("32", "森", { status: "waitlisted", waitlistPosition: 1, hasContact: true }),
+      ),
+    ).toBe("キャンセル待ち（1番目）");
   });
 });
 

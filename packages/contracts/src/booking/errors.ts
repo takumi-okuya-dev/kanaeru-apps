@@ -194,6 +194,13 @@ export const BOOKING_ERRORS = {
     message:
       "この交流会はキャンセル待ちを使っていません。自前で申込みを受け、定員を入れると使えます。",
   },
+  /** キャンセル待ち・打診中の人がいるのに、使い方を自前でないものに変えようとした（booking-004 research R21） */
+  WAITLIST_ACTIVE: {
+    code: "BOOKING_WAITLIST_ACTIVE",
+    status: 409,
+    message:
+      "キャンセル待ち・打診中の人がいるので、使い方を変えられません。名簿でその人たちを確定か取り消しにしてから、もう一度変えてください。",
+  },
   /** 手で打診する行がキャンセル待ちでない（research R14） */
   ENTRY_NOT_WAITLISTED: {
     code: "BOOKING_ENTRY_NOT_WAITLISTED",

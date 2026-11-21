@@ -160,6 +160,8 @@ export const RosterEntry = z.object({
   waitlistPosition: z.number().int().nullable(),
   /** 待っている打診（打診中のとき。期限・期限が過ぎたか・手で打診したか） */
   offer: z.object({ deadline: isoDateTime, expired: z.boolean(), manual: z.boolean() }).nullable(),
+  /** 連絡先があるか（アカウントかメールがある。ないキャンセル待ちには自動で打診しない。宛先そのものは返さない。booking-004 R14） */
+  hasContact: z.boolean(),
 });
 
 /** 名簿の行の型。 */
