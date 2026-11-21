@@ -42,6 +42,7 @@ import {
 import { findMembership, listMemberships } from "../suite/index.ts";
 import {
   cancelEntryRow,
+  clearOfferTokens,
   consumeRequestsOf,
   countRecentRequests,
   deleteConsent,
@@ -947,6 +948,10 @@ export async function confirmEntryToken(
     if (!context) throw new AppError(BOOKING_ERRORS.ENTRY_TOKEN_INVALID);
     const startsAt = startsOf(context.event);
     assertEmailOpen(await findPageSetting(tx, request.eventId, true), context.event, now);
+    // もう申込みがあれば、片付けの前に前の打診の返事の札を空にする（新しい札に替えると前のリンクは使えない。booking-003 R10）。
+    // 片付けのあとに空にすると、片付けで今送ろうとしている新しい打診の返事の札まで消してしまう
+    const prior = await findEntryByContactEmail(tx, request.eventId, request.email);
+    if (prior && prior.status !== "cancelled") await clearOfferTokens(tx, prior.id);
     // 片付け（期限切れ・打診）のあとに、そのアドレスの申込みを読む（期限の切れた打診中を見ないように。booking-004 R9）
     await settleEvent(deps, tx, request.eventId, startsAt, now, queue);
     const existing = await findEntryByContactEmail(tx, request.eventId, request.email, true);

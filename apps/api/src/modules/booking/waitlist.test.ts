@@ -420,6 +420,48 @@ describe("キャンセル待ちと繰り上げ", () => {
     expect(accepted.status).toBe(200);
   });
 
+  it("キャンセル待ちのメールの人が確定し直したときの片付けで打診したら、その知らせの返事の札は使える", async () => {
+    await setCapacity(app, owner.cookie, eventId, 1);
+    const first = await join("中村 さき");
+    const second = await join("森 はるか");
+    await anonymous(app, `${base}/email-requests`, "POST", { name: "小林 はると", email: GUEST });
+    const [mail] = (await readOutbox(app, owner.cookie)).filter((m) => m.method === "email");
+    await anonymous(
+      app,
+      `/api/v1/booking/entry-tokens/${entryTokenOf(mail?.text ?? "")}/confirm`,
+      "POST",
+    );
+    // 1人目が取り消して2人目に打診し、その打診の期限が切れる
+    await call(app, first.cookie, `/api/v1/booking/me/entries/${first.entry.id}/cancel`, "POST");
+    expect(await statusOf(database, second.entry.id)).toBe("offered");
+    await expireOffer(database, second.entry.id);
+    // メールの人が新しい確認の札で確定し直すと、片付けで2人目が取り消しになり、メールの人に打診する
+    await database.pool.query(
+      "UPDATE booking_email_request SET created_at = now() - interval '11 minutes'",
+    );
+    await anonymous(app, `${base}/email-requests`, "POST", { name: "小林 はると", email: GUEST });
+    const [again] = (await readOutbox(app, owner.cookie)).filter((m) => m.method === "email");
+    const newToken = entryTokenOf(again?.text ?? "");
+    const reconfirmed = await anonymous(
+      app,
+      `/api/v1/booking/entry-tokens/${newToken}/confirm`,
+      "POST",
+    );
+    expect(reconfirmed.status).toBe(200);
+    expect(await statusOf(database, second.entry.id)).toBe("cancelled");
+    const [offerMail] = (await readOutbox(app, owner.cookie)).filter((m) => m.method === "email");
+    const offerToken = entryTokenOf(offerMail?.text ?? "");
+    expect(offerToken).not.toBe(newToken);
+    expect((await anonymous(app, `/api/v1/booking/entry-tokens/${offerToken}`)).status).toBe(200);
+    const accepted = await anonymous(
+      app,
+      `/api/v1/booking/entry-tokens/${offerToken}/respond`,
+      "POST",
+      { answer: "accept" },
+    );
+    expect(accepted.status).toBe(200);
+  });
+
   it("期限の切れた打診中の人が申し込み直すと、片付けのあとに決める（打診中のまま返さない）", async () => {
     await setCapacity(app, owner.cookie, eventId, 1);
     const first = await join("中村 さき");

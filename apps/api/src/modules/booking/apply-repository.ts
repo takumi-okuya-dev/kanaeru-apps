@@ -321,7 +321,7 @@ export async function reconfirmEntry(
  * @param db DB
  * @param entryId 申込みの ID
  */
-async function clearOfferTokens(db: Executor, entryId: string): Promise<void> {
+export async function clearOfferTokens(db: Executor, entryId: string): Promise<void> {
   await db
     .update(bookingOffer)
     .set({ tokenHash: null, updatedAt: sql`now()` })
@@ -329,7 +329,8 @@ async function clearOfferTokens(db: Executor, entryId: string): Promise<void> {
 }
 
 /**
- * メールの申込みの札と名前を替える（もう確定の申込みに、新しい確認の札で確定したとき。申し込んだ日時は変えない）。
+ * メールの申込みの札と名前を替える（もう確定の申込みに、新しい確認の札で確定したとき。申し込んだ日時は変えない。
+ * 前の打診の返事の札は、呼ぶ側が片付けの前に clearOfferTokens で空にする）。
  * @param db DB
  * @param entryId 行の ID
  * @param values 名前と新しい札の SHA-256
@@ -348,8 +349,7 @@ export async function replaceEntryToken(
     .where(eq(bookingEntry.id, entryId))
     .returning(selfEntryColumns);
   if (!row) throw new Error("申込みを直せませんでした。");
-  // 申込みの札を替えたら、打診の返事の札も使えなくする（前のメールのリンクを使えなくする。booking-003 R10）
-  await clearOfferTokens(db, entryId);
+  // 打診の返事の札は、呼ぶ側が片付けの前に空にする（片付けで新しく送った返事の札を消さないように。clearOfferTokens）
   return row;
 }
 
