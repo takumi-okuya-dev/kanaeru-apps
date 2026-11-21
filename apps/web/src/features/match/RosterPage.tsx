@@ -7,6 +7,7 @@
 // - 設定：1試合の長さ・試合の時間（→ 組ごとの試合の数）・試合の形・レベルの分け方。レベル別の人数と試合の数を出す
 // - 「試合表を作る」（作ってあれば「組み直す」。終わった試合は残す）で組み、試合表の画面へ移る
 // 直すたびに担当の端末から保存する（AD-28。table-editor.ts）。担当でない端末は見るだけ。
+// QR の受付で入った人は、担当の端末で開くと名簿に入る（use-joins.ts。match-004）。同じ呼び名の人には「同じ名前」の印。
 import {
   MATCH_FORMATS,
   MATCH_FORMAT_LABELS,
@@ -30,6 +31,7 @@ import type {
   MatchTable,
   PlayerStatus,
 } from "@workspace/contracts/match";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
@@ -50,6 +52,10 @@ import { formatPlayDate } from "./format.ts";
 import { MATCH_ROUTE_PATTERNS, matchPaths } from "./paths.ts";
 import { buildPlan, hasDoneGames, summarizeGroups } from "./plan.ts";
 import { changeSettings, describeSettingsChange } from "./regroup.ts";
+import { deleteJoin } from "./api.ts";
+import { joinIdOfPlayer } from "./joins.ts";
+import { MATCH_QUERY_KEYS } from "./queries.ts";
+import { joinsQueryKey, useJoins } from "./use-joins.ts";
 import { addPlayer, countRoster, importPeople, removePlayer, updatePlayer } from "./roster-edit.ts";
 import type { ImportMode } from "./roster-edit.ts";
 import { assignNicknames, readRoster } from "./roster-read.ts";
@@ -351,10 +357,23 @@ function NicknameInput({
  * @param props.fullNames 名簿の人の ID → 氏名（貼った画面を開いている間だけ）
  * @returns 要素
  */
-function RosterTable({ table, editor, fullNames }: BodyProps & { fullNames: Map<string, string> }) {
+function RosterTable({
+  table,
+  editor,
+  fullNames,
+  onRemoved,
+}: BodyProps & { fullNames: Map<string, string>; onRemoved: (playerId: string) => void }) {
   const players = table.content.players;
   const disabled = !editor.isEditor;
   const showNames = fullNames.size > 0;
+  // 同じ呼び名の人（受付で入った人と、貼った人など。AD-30「同じ名前」の印）
+  const nameCounts = new Map<string, number>();
+  for (const player of players) {
+    const key = player.nickname.normalize("NFKC").replace(/\s+/gu, "");
+    nameCounts.set(key, (nameCounts.get(key) ?? 0) + 1);
+  }
+  const isDuplicate = (nickname: string) =>
+    (nameCounts.get(nickname.normalize("NFKC").replace(/\s+/gu, "")) ?? 0) > 1;
   if (players.length === 0) {
     return (
       <p className="text-m text-text-sub">
@@ -399,6 +418,7 @@ function RosterTable({ table, editor, fullNames }: BodyProps & { fullNames: Map<
                     }
                   />
                   {player.nameCheck ? <Badge>姓と名の間に空白がありません</Badge> : null}
+                  {isDuplicate(player.nickname) ? <Badge>同じ名前</Badge> : null}
                 </div>
               </td>
               <td className="px-xxs py-xxs">
@@ -451,12 +471,13 @@ function RosterTable({ table, editor, fullNames }: BodyProps & { fullNames: Map<
                   variant="text"
                   disabled={disabled}
                   aria-label={`${player.nickname}を名簿から消す`}
-                  onClick={() =>
-                    editor.apply((draft) => ({
+                  onClick={() => {
+                    const applied = editor.apply((draft) => ({
                       ...draft,
                       content: removePlayer(draft.content, player.id),
-                    }))
-                  }
+                    }));
+                    if (applied) onRemoved(player.id);
+                  }}
                 >
                   消す
                 </Button>
@@ -745,6 +766,26 @@ function SettingsCard({ table, editor }: BodyProps) {
  */
 function RosterBody({ table, editor }: BodyProps) {
   const [fullNames, setFullNames] = useState<Map<string, string>>(new Map());
+  const queryClient = useQueryClient();
+  // QR の受付で入った人を名簿に入れる（担当の端末。開いたときに1度読む。match-004）
+  const { joins } = useJoins(table, editor, false);
+
+  /**
+   * 名簿から消した人が受付で入った人なら、受付の行も消す（消さないと、次に読んだときにまた名簿に入る）。
+   * 終わった試合に入っていて「来ない」にしただけのときは消さない。
+   * @param playerId 名簿の人の ID
+   */
+  const removeJoin = (playerId: string) => {
+    const joinId = joinIdOfPlayer(playerId, joins.data?.joins ?? []);
+    if (!joinId) return;
+    const stillListed = queryClient
+      .getQueryData<MatchTable>(MATCH_QUERY_KEYS.table(table.id))
+      ?.content.players.some((player) => player.id === playerId);
+    if (stillListed) return;
+    void deleteJoin(table.id, joinId)
+      .then(() => queryClient.invalidateQueries({ queryKey: joinsQueryKey(table.id) }))
+      .catch(() => undefined);
+  };
   const counts = countRoster(table.content.players);
   const levels = MATCH_LEVELS.map(
     (level) => `${MATCH_LEVEL_LABELS[level]} ${counts.byLevel[level]}`,
@@ -774,7 +815,7 @@ function RosterBody({ table, editor }: BodyProps) {
           {counts.left > 0 ? <span>帰った {counts.left}人</span> : null}
           {counts.checks > 0 ? <span>確かめる所 {counts.checks}件</span> : null}
         </p>
-        <RosterTable table={table} editor={editor} fullNames={fullNames} />
+        <RosterTable table={table} editor={editor} fullNames={fullNames} onRemoved={removeJoin} />
         <p className="text-s text-text-sub">
           氏名はこの端末の画面にだけ出し、保存しません。保存するのは呼び名・レベル・当日の印だけです。「遅れて来る」「来ない」「帰った」の人は試合に入りません。当日は、試合表の画面の「人を選んで直す」を使うと、その人の組のこれからの試合だけを組み直します。
         </p>

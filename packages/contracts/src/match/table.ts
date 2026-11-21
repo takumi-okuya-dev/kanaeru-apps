@@ -312,6 +312,15 @@ export const MatchTable = MatchTableSummary.extend({
   seed: z.number().int(),
   /** 担当の端末の ID（なければ null） */
   editorDeviceId: z.string().nullable(),
+  /** 見るだけ・受付の札の状態（札そのものは返さない。期限を過ぎていれば null。match-004） */
+  links: z.object({
+    /** 見るだけの札の期限 */
+    viewExpiresAt: isoDateTime.nullable(),
+    /** 受付の札の期限 */
+    joinExpiresAt: isoDateTime.nullable(),
+    /** 受付を締めた時刻 */
+    joinClosedAt: isoDateTime.nullable(),
+  }),
 });
 
 /** 試合表の型。 */

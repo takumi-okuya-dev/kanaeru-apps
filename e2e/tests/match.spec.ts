@@ -376,3 +376,160 @@ test("当日：人を選んで直す・分け方を変える・大きく映す�
   }
   expect(await readCspViolations()).toEqual([]);
 });
+
+test("見るだけのページと QR の受付：リンクと QR を作り、ログインなしで見て、受け付ける（match-004）", async ({
+  page,
+  browser,
+}, testInfo) => {
+  const readCspViolations = await collectCspViolations(page);
+  const tag = testInfo.project.name === "mobile" ? "e2" : "e1";
+  const lineUserId = `U${(tag + Date.now().toString(16)).padStart(32, "0")}`;
+  const deviceA = `d-e2e-${tag}-device-a`;
+  await page.addInitScript((id) => {
+    window.localStorage.setItem("kanaeru.match.deviceId", id);
+  }, deviceA);
+  const login = await page.request.post("/api/v1/auth/test-login", {
+    data: { lineUserId, displayName: `見せる運営（${testInfo.project.name}）` },
+    headers: ORIGIN,
+  });
+  expect(login.status()).toBe(200);
+  const created = await page.request.post("/api/v1/match/tables", {
+    data: { name: "12/27(日) 練習会", playDate: "2099-12-27", deviceId: deviceA },
+    headers: ORIGIN,
+  });
+  expect(created.status()).toBe(201);
+  const table = (await created.json()) as {
+    id: string;
+    version: number;
+    content: { settings: Record<string, unknown> };
+  };
+  const players = DAY_PLAYERS.slice(0, 4);
+  const saved = await page.request.put(`/api/v1/match/tables/${table.id}`, {
+    data: {
+      deviceId: deviceA,
+      baseVersion: table.version,
+      changeId: crypto.randomUUID(),
+      seed: 3,
+      content: {
+        settings: table.content.settings,
+        players: players.map(([id, nickname, level]) => ({
+          id,
+          nickname,
+          level,
+          status: "present",
+        })),
+        plan: [
+          {
+            key: "advanced",
+            games: [
+              { players: ["a1", "a2", "a3", "a4"], done: true },
+              { players: ["a4", "a3", "a2", "a1"], done: false },
+            ],
+          },
+        ],
+      },
+    },
+    headers: ORIGIN,
+  });
+  expect(saved.status()).toBe(200);
+
+  // 運営：見るだけのリンクを作る → QR とリンク
+  await page.goto(`/match/tables/${table.id}/view-link`);
+  await expect(page.getByRole("heading", { level: 1, name: "見るだけのページ" })).toBeVisible();
+  await page.getByRole("button", { name: "見るだけのリンクを作る" }).click();
+  const viewQr = page.getByRole("img", { name: "見るだけのページの QR" });
+  await expect(viewQr).toBeVisible();
+  const viewUrl = (await viewQr.getAttribute("data-qr-value")) ?? "";
+  expect(viewUrl).toMatch(/\/match\/view\/[A-Za-z0-9_-]{32}$/u);
+  await expect(page.getByText("2099/12/27(日) の終わりまで見られます。")).toBeVisible();
+  await checkPage(page, "見るだけのページのリンク");
+
+  // 印刷：版の右上に QR・入口に貼る1枚（R2）
+  await page.goto(`/match/tables/${table.id}/print`);
+  await expect(page.getByText("版の右上に、見るだけのページの QR が入ります")).toBeVisible();
+  await page.getByRole("checkbox", { name: /入口に貼る1枚/u }).check();
+  await expect(page.getByRole("figure", { name: "入口に貼る1枚" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "2枚を印刷する（A3 縦・入口の1枚は A4 縦）" }),
+  ).toBeVisible();
+  await checkPage(page, "印刷（QR つき）");
+
+  // 運営：QR で受け付ける（M7）
+  await page.goto(`/match/tables/${table.id}/join`);
+  await expect(page.getByRole("heading", { level: 1, name: "QR で受け付ける" })).toBeVisible();
+  await page.getByRole("button", { name: "受付を始める" }).click();
+  const joinQr = page.getByRole("img", { name: "受付のページの QR" });
+  await expect(joinQr).toBeVisible();
+  const joinUrl = (await joinQr.getAttribute("data-qr-value")) ?? "";
+  expect(joinUrl).toMatch(/\/match\/join\/[A-Za-z0-9_-]{32}$/u);
+  await expect(page.getByRole("heading", { level: 2, name: "受付中" })).toBeVisible();
+  await checkPage(page, "QR で受け付ける");
+
+  // 参加者（ログインなし・別のブラウザ）
+  const guestContext = await browser.newContext({
+    baseURL: E2E_WEB_URL,
+    viewport: page.viewportSize() ?? undefined,
+  });
+  try {
+    const guest = await guestContext.newPage();
+    const readGuestCsp = await collectCspViolations(guest);
+
+    // P2 受付：空なら欄のそばに誤り → 名前とレベルを入れて受付する → P3
+    await guest.goto(joinUrl);
+    await expect(guest.getByRole("heading", { level: 1, name: "12/27(日) 練習会" })).toBeVisible();
+    await expect(guest.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/u);
+    await guest.getByRole("button", { name: "受付する" }).click();
+    await expect(guest.getByText("名前を入れてください。")).toBeVisible();
+    await expect(guest.getByText("レベルを選んでください。")).toBeVisible();
+    await checkPage(guest, "受付（誤り）");
+    await guest.getByRole("textbox", { name: /名前/u }).fill("石川");
+    await guest.getByRole("radio", { name: "入門" }).click();
+    await guest.getByRole("button", { name: "受付する" }).click();
+    await expect(guest.getByRole("heading", { level: 1, name: "受付できました" })).toBeVisible();
+    await checkPage(guest, "受付できました");
+
+    // P1 見るだけのページ：名前だけの表・自分の名前に印（この端末に残る）・FR-M25 の入口・noindex
+    await guest.goto(viewUrl);
+    await expect(guest.getByRole("heading", { level: 1, name: "12/27(日) 練習会" })).toBeVisible();
+    await expect(guest.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/u);
+    const viewTable = guest.getByRole("table", { name: "上級の試合表" });
+    await expect(viewTable.getByRole("row")).toHaveCount(2);
+    await expect(guest.getByText("今 第2試合")).toBeVisible();
+    await guest.getByRole("combobox", { name: "自分の名前に印を付ける" }).selectOption("青木");
+    await expect(viewTable.locator("mark", { hasText: "青木" })).toHaveCount(2);
+    await guest.reload();
+    await expect(
+      guest.getByRole("table", { name: "上級の試合表" }).locator("mark", { hasText: "青木" }),
+    ).toHaveCount(2);
+    await expect(guest.getByRole("link", { name: "自分のサークルでも使う" })).toHaveAttribute(
+      "href",
+      "/match",
+    );
+    await expect(guest.getByText(/に読んだ表です/u)).toBeVisible();
+    await checkPage(guest, "見るだけのページ");
+    // 電波がなくなると、最後に読んだ表とその時刻を出す
+    await guestContext.setOffline(true);
+    await expect(
+      guest.getByText(/電波がないか読めないため、.+に読んだ表を出しています/u),
+    ).toBeVisible();
+    await guestContext.setOffline(false);
+    expect(await readGuestCsp()).toEqual([]);
+
+    // 運営：受け付けた人が一覧に出て、担当の端末なので名簿に入る
+    await expect(page.getByText("石川", { exact: true })).toBeVisible({ timeout: 10_000 });
+    await waitSaved(page);
+    // 受付を締める → 受付のページは締め切り
+    await page.getByRole("button", { name: "受付を締める" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "締める" }).click();
+    await expect(page.getByRole("heading", { level: 2, name: "受付を締めました" })).toBeVisible();
+    await guest.goto(joinUrl);
+    await expect(
+      guest.getByRole("heading", { level: 1, name: "受付は締め切られました" }),
+    ).toBeVisible();
+  } finally {
+    await guestContext.close();
+  }
+  await page.getByRole("link", { name: "この名簿で試合表を作る" }).click();
+  await expect(page.getByRole("textbox", { name: "石川の呼び名" })).toBeVisible();
+  expect(await readCspViolations()).toEqual([]);
+});

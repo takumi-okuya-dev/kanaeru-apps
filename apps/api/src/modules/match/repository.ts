@@ -11,6 +11,7 @@ import { listMemberships } from "../suite/index.ts";
 import { EDITING_ROLES } from "./access.ts";
 import type { TableAccess } from "./access.ts";
 import { matchTable, matchTableOrganization } from "./schema.ts";
+import { linkStateOf } from "./share-repository.ts";
 
 /** 試合の日から消すまでの日数（AD-25【仮決め】）。 */
 export const RETENTION_DAYS = 90;
@@ -264,5 +265,29 @@ export async function readTable(
     version: row.version,
     seed: row.seed,
     editorDeviceId: row.editorDeviceId,
+    links: linkStateOf(row, new Date()),
   };
+}
+
+/**
+ * 試合表の中身と試合の日と札の状態を読む（権限は呼ぶ側が確かめる。見せる・受け付ける窓口が使う）。
+ * @param db DB
+ * @param tableId 試合表の ID
+ * @returns 中身・試合の日・札の状態
+ * @throws {AppError} 行がないとき（MATCH_NOT_FOUND）
+ * @throws {Error} 中身の形が合わないとき
+ */
+export async function readContent(
+  db: Executor,
+  tableId: string,
+): Promise<{
+  content: MatchTableContent;
+  playDate: string;
+  links: MatchTable["links"];
+}> {
+  const [row] = await db.select().from(matchTable).where(eq(matchTable.id, tableId));
+  if (!row) throw new AppError(MATCH_ERRORS.NOT_FOUND);
+  const parsed = MatchTableContent.safeParse(row.content);
+  if (!parsed.success) throw new Error("試合表の中身の形が合いません。");
+  return { content: parsed.data, playDate: row.playDate, links: linkStateOf(row, new Date()) };
 }

@@ -1,6 +1,10 @@
 // 試合表の窓口の呼び出し（型は apps/api/src/client.ts の ModuleRoutes["match"] から import type で読む）。
 // 読み書きは lib/api.ts の request を通す（エラーの読み方をそろえる）。
-import type { MatchTableCreateInput, MatchTableUpdateInput } from "@workspace/contracts/match";
+import type {
+  MatchJoinInput,
+  MatchTableCreateInput,
+  MatchTableUpdateInput,
+} from "@workspace/contracts/match";
 import type { ModuleRoutes } from "../../../../api/src/client.ts";
 import { createApiClient, request } from "../../lib/api.ts";
 
@@ -78,4 +82,91 @@ export function takeEditor(tableId: string, deviceId: string) {
  */
 export function deleteTable(tableId: string) {
   return request(() => matchApi().tables[":tableId"].$delete({ param: { tableId } }));
+}
+
+/**
+ * 見るだけの札を作り直す（前の札・QR は使えなくなる）。
+ * @param tableId 試合表の ID
+ * @returns 札と期限
+ */
+export function issueViewLink(tableId: string) {
+  return request(() => matchApi().tables[":tableId"]["view-link"].$put({ param: { tableId } }));
+}
+
+/**
+ * 受付の札を作り直して受付を開く（前の札は使えなくなる）。
+ * @param tableId 試合表の ID
+ * @returns 札と期限
+ */
+export function issueJoinLink(tableId: string) {
+  return request(() => matchApi().tables[":tableId"]["join-link"].$put({ param: { tableId } }));
+}
+
+/**
+ * 受付を締める。
+ * @param tableId 試合表の ID
+ * @returns 締めたあとの受付の一覧
+ */
+export function closeJoin(tableId: string) {
+  return request(() =>
+    matchApi().tables[":tableId"]["join-link"].close.$post({ param: { tableId } }),
+  );
+}
+
+/**
+ * 受付の一覧。
+ * @param tableId 試合表の ID
+ * @returns 受付の一覧
+ */
+export function fetchJoins(tableId: string) {
+  return request(() => matchApi().tables[":tableId"].joins.$get({ param: { tableId } }));
+}
+
+/**
+ * 受付の行を消す。
+ * @param tableId 試合表の ID
+ * @param joinId 受付の ID
+ * @returns 終わり
+ */
+export function deleteJoin(tableId: string, joinId: string) {
+  return request(() =>
+    matchApi().tables[":tableId"].joins[":joinId"].$delete({ param: { tableId, joinId } }),
+  );
+}
+
+/**
+ * 見るだけのページの中身（ログインなし）。
+ * @param viewToken 見るだけの札
+ * @returns 中身
+ */
+export function fetchView(viewToken: string) {
+  return request(() => matchApi().views[":viewToken"].$get({ param: { viewToken } }));
+}
+
+/**
+ * 見るだけのページの版の番号（ログインなし）。
+ * @param viewToken 見るだけの札
+ * @returns 版の番号
+ */
+export function fetchViewVersion(viewToken: string) {
+  return request(() => matchApi().views[":viewToken"].version.$get({ param: { viewToken } }));
+}
+
+/**
+ * 受付のページの中身（ログインなし）。
+ * @param joinToken 受付の札
+ * @returns 試合表の名前と日付・選べるレベル
+ */
+export function fetchJoinInfo(joinToken: string) {
+  return request(() => matchApi().joins[":joinToken"].$get({ param: { joinToken } }));
+}
+
+/**
+ * 受け付ける（ログインなし）。
+ * @param joinToken 受付の札
+ * @param input 呼び名とレベル
+ * @returns 受け付けた呼び名とレベル
+ */
+export function submitJoin(joinToken: string, input: MatchJoinInput) {
+  return request(() => matchApi().joins[":joinToken"].$post({ param: { joinToken }, json: input }));
 }
