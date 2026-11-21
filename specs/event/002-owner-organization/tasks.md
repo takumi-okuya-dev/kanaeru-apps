@@ -8,7 +8,7 @@
 
 - [x] T001 結合のテストを先に書く：作ると `event.owner_account_id` が作った人になる・運営者が一覧を開くと持ち主のない交流会が運営者のものになる（`apps/api/src/modules/event/owner.test.ts`）
 - [x] T002 `apps/api/src/modules/event/schema.ts` に `owner_account_id`（空を許す・account を `RESTRICT`・索引）と `event_organization`（`organization_member` への複合の外部キー `CASCADE`・索引）を足す
-- [x] T003 `pnpm db:generate --name event_owner` → `apps/api/drizzle/0014_event_owner.sql` を読む（足すだけで、消す・名前を変えるがないこと）→ `pnpm db:migrate`
+- [x] T003 `pnpm db:generate --name event_owner` → `apps/api/drizzle/0015_event_owner.sql` を読む（足すだけで、消す・名前を変えるがないこと）→ `pnpm db:migrate`
 - [x] T004 `apps/api/src/modules/event/repository.ts` の `insertEvent` に持ち主を渡し、`claimLegacyEvents` を足す。`routes.ts` の作る・一覧から呼ぶ（権限は前のまま）
 - [x] T005 `pnpm check` を流し、コミットする
 

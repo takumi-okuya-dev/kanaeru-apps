@@ -1,6 +1,6 @@
 // 今の利用者が、今の運用アカウントでできること（threads-013。PRD 組織 5.2）。AccountGate が GET /access で読んで渡す。
 // 画面の出し分けだけに使う（判定の正は API。権限が足りない操作は API が 403 で断る）。
-// 読む前と、組織に入れていない自分の運用アカウントでは、すべてできる（今の個人の運用の画面を変えない）。
+// 読む前と、チームに入れていない自分の運用アカウントでは、すべてできる（今の個人の運用の画面を変えない）。
 import type { ThreadsAccountAccess } from "@workspace/contracts/threads";
 import { createContext, useContext } from "react";
 
