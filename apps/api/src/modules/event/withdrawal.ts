@@ -37,20 +37,35 @@ async function handOverPlacedEvents(tx: Executor, accountId: string): Promise<vo
 }
 
 /**
+ * その人が持ち主の、組織に入れていない交流会の ID（退会で消える交流会。ほかの領域も index.ts から使う。booking の退会の確かめ）。
+ * @param db DB
+ * @param accountId 持ち主
+ * @param lock 交流会の行を押さえるか（退会のトランザクションの中だけ。外側の結合の側は押さえられないので event だけ）
+ * @returns 交流会の ID
+ */
+export async function listPersonalEventIds(
+  db: Executor,
+  accountId: string,
+  lock = false,
+): Promise<string[]> {
+  const query = db
+    .select({ id: event.id })
+    .from(event)
+    .leftJoin(eventOrganization, eq(eventOrganization.eventId, event.id))
+    .where(and(eq(event.ownerAccountId, accountId), isNull(eventOrganization.eventId)));
+  const rows = lock ? await query.for("update", { of: event }) : await query;
+  return rows.map((row) => row.id);
+}
+
+/**
  * 組織に入れていない交流会を、子の行（受付係・招待のリンク・割引）ごと消す。
  * チェックインがある交流会は、外部キーで止まる（投げた誤りは account の窓口が 409 にする）。
  * @param tx account を消すトランザクション
  * @param accountId 退会する人
  */
 async function deletePersonalEvents(tx: Executor, accountId: string): Promise<void> {
-  const rows = await tx
-    .select({ id: event.id })
-    .from(event)
-    .leftJoin(eventOrganization, eq(eventOrganization.eventId, event.id))
-    .where(and(eq(event.ownerAccountId, accountId), isNull(eventOrganization.eventId)))
-    // 消すまでの間に、ほかの要求がこの交流会を組織に入れたり直したりしないよう押さえる（外側の結合の側は押さえられないので event だけ）
-    .for("update", { of: event });
-  const ids = rows.map((row) => row.id);
+  // 消すまでの間に、ほかの要求がこの交流会を組織に入れたり直したりしないよう押さえる
+  const ids = await listPersonalEventIds(tx, accountId, true);
   if (ids.length === 0) return;
   await tx.delete(eventStaff).where(inArray(eventStaff.eventId, ids));
   await tx.delete(staffInvite).where(inArray(staffInvite.eventId, ids));

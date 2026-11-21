@@ -12,9 +12,11 @@ export { findEventDiscount, listEventDiscounts } from "./discounts.ts";
 export type { EventDiscountRecord } from "./discounts.ts";
 export { currentEventRole, getEventRole, requireEventRole } from "./access.ts";
 export { getEventSummary } from "./summary.ts";
+// 交流会の持ち主（booking が CSV の列の対応を持ち主ごとに覚えるため。booking-001）
+export { findEventOwnerAccountId } from "./repository.ts";
 export { eventForbiddenResponse, eventNotFoundResponse } from "./routes.ts";
 // 退会の手順（AD-22 の (2)。組み立てが suite の段のあとに流す。event-002）
-export { eventWithdrawal as withdrawal } from "./withdrawal.ts";
+export { eventWithdrawal as withdrawal, listPersonalEventIds } from "./withdrawal.ts";
 
 /**
  * 交流会の領域の道。戻り値の型は書かない（書くと画面に渡す型が消える）。

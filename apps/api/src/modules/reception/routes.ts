@@ -28,6 +28,7 @@ import {
 import { decideAmount } from "./amount.ts";
 import { discountForNewCheckin, discountForUpdate } from "./discount.ts";
 import { buildParticipantsCsv } from "./csv.ts";
+import { createManualCheckin } from "./manual.ts";
 import {
   countBySourceAndReferral,
   deleteCheckin,
@@ -464,15 +465,10 @@ export function receptionRoutes(deps: DomainRouteDeps) {
     })
     .openapi(routes.createManual, async (c) => {
       const { eventId } = c.req.valid("param");
-      const input = c.req.valid("json");
-      const fee = await currentFee(deps, eventId);
-      const discount = await discountForNewCheckin(db, eventId, input);
-      const record = await insertCheckin(db, {
+      const record = await createManualCheckin(db, deps.config, {
         eventId,
         enteredBy: currentAccount(c).accountId,
-        ...checkinFields(input),
-        ...discount,
-        amount: decideAmount(input.paymentMethod, fee, discount.discountAmount),
+        input: c.req.valid("json"),
       });
       const showReferrer = currentEventRole(c) === "organizer";
       return c.json(await toViewInEvent(deps, record, showReferrer), 201);

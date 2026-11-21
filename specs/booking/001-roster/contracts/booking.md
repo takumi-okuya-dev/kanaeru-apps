@@ -13,7 +13,7 @@
 | PUT | `…/entries/{entryId}/status` | 主催者 | `{ status: "confirmed" \| "cancelled" }` → `RosterEntry` |
 | POST | `…/entries/merge` | 主催者 | `{ keepEntryId, removeEntryId }` → `RosterEntry`（残した行） |
 | POST | `…/entries/import/preview` | 主催者 | `RosterImportInput` → `RosterImportPreview`（書かない） |
-| POST | `…/entries/import` | 主催者 | `RosterImportInput` → `RosterImportResult`（入った・すでにある・名前が空の数）。`mapping` があれば持ち主の列の対応を覚える |
+| POST | `…/entries/import` | 主催者 | `RosterImportInput` → `RosterImportResult`（入った・すでにある・名前が空の数）。`mapping` があれば持ち主の列の対応を覚える（画面は、列が50を超える・見出しが100文字を超える CSV では `mapping` を送らず名前だけで取り込む） |
 | GET | `…/import-mappings` | 主催者 | `{ mappings: { headers, nameColumn, applicationSource }[] }`（交流会の持ち主のもの） |
 | GET | `…/entries/export` | 主催者 | 名簿の CSV |
 | GET | `…/matches` | 主催者・受付係 | `MatchBoard`：チェックインごとの当ての状態（新しい順）・名簿から選べる行・人数 |
@@ -62,8 +62,8 @@ type Attendance = "came" | "no_show" | "pending"; // 来た・来なかった・
 // RosterImportInput（ファイルは送らない。research R5）
 {
   applicationSource: ApplicationSource;
-  rows: { line: number; name: string }[]; // 1〜2000行。name は空でもよい（「名前が空」になる）・50文字まで
-  mapping?: { headers: string[]; nameColumn: string }; // CSV のときだけ。見出しは100列・200文字まで
+  rows: { line: number; name: string }[]; // 1〜500行。name は空でもよい（「名前が空」になる）・50文字まで
+  mapping?: { headers: string[]; nameColumn: string }; // CSV のときだけ。見出しは50列・100文字まで
 }
 
 // RosterImportPreview
@@ -101,6 +101,7 @@ type Attendance = "came" | "no_show" | "pending"; // 来た・来なかった・
 | `BOOKING_CHECKIN_ALREADY_MATCHED` | 409 | このチェックインは、もう名簿に当たっています。画面を読み直してください。 |
 | `BOOKING_MATCH_NOT_MANUAL` | 409 | この当ては、同じ LINE のアカウントで自動で当たったものなので外せません。違うときは、チェックインを取り消してください。 |
 | `BOOKING_MERGE_NAME_MISMATCH` | 400 | まとめられるのは、同じ名前の行どうしだけです。 |
+| `BOOKING_MERGE_BOTH_MATCHED` | 409 | 2人とも来ています。別の人ではありませんか。同じ人なら、先に片方の当てを外してからまとめてください。 |
 
 ## ほかの領域が使うもの
 

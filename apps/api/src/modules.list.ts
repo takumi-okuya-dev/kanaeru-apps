@@ -8,3 +8,4 @@ export * as reception from "./modules/reception/index.ts";
 export * as survey from "./modules/survey/index.ts";
 export * as threads from "./modules/threads/index.ts";
 export * as suite from "./modules/suite/index.ts";
+export * as booking from "./modules/booking/index.ts";

@@ -3,6 +3,7 @@
 // 一覧・合計・内訳は5秒おきに読み直す（queries.ts）。読み直しが失敗しても前のものを出したまま「最新にできませんでした」
 // （夜間の停止の時間帯の 503 だけは読み直しを止め、夜間の文を出す）。初めに読めなかったときは API の文を出す。
 // 主催者には「書き出しと削除」（A5）への入口と内訳を出す。受付係には出さない（隠す。EXPERIENCE）。
+// 一覧の上には、ほかの領域が差しこみの場所（registerReceptionSection）から出す節を並べる（booking の「名簿」。booking-001）。
 import type { EventView } from "@workspace/contracts/event";
 import { Link, getRouteApi } from "@tanstack/react-router";
 import { buttonVariants } from "@workspace/ui/components/button";
@@ -17,6 +18,7 @@ import { EventAccessGate, formatEventDateTime } from "../event/index.ts";
 import { ParticipantsTab } from "./ParticipantsTab.tsx";
 import { TotalsTab } from "./TotalsTab.tsx";
 import { isNightStop, useBreakdown, useCheckinList, useTotals } from "./queries.ts";
+import { receptionSectionList } from "./slots.ts";
 
 /** タブ。 */
 const TABS = [
@@ -140,6 +142,9 @@ function Reception({ event }: { event: EventView }) {
       ) : firstError && !(list.data && totals.data) ? (
         <ResponseMessage tone="danger">{errorMessage(firstError)}</ResponseMessage>
       ) : null}
+      {receptionSectionList().map(({ id, Component }) => (
+        <Component key={id} event={event} />
+      ))}
       <div className="flex flex-col gap-xs">
         <TabList selected={tab} onSelect={setTab} />
         <div
