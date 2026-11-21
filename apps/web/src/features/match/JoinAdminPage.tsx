@@ -3,6 +3,7 @@
 // - 受け付けた人の一覧（受け付けた順・レベル・時刻・同じ名前の印・消す）。5秒おきに読み直す
 // - 担当の端末は、受け付けた人を名簿に入れる（use-joins.ts）。消すと名簿からも消す
 // - 「受付を締める」（受付のページは見られなくなる）・「この名簿で試合表を作る」（名簿と設定へ）
+// - 「参加者の QR を読む」（電波がなくて送れなかった参加者の QR をカメラで読んで名簿に入れる。AD-30。match-005。JoinQrReader）
 import { MATCH_LEVELS, MATCH_LEVEL_LABELS, joinPlayerId } from "@workspace/contracts/match";
 import type { MatchJoinEntry, MatchJoinList, MatchTable } from "@workspace/contracts/match";
 import { useQueryClient } from "@tanstack/react-query";
@@ -15,7 +16,8 @@ import { useState } from "react";
 import { errorMessage } from "../../lib/api.ts";
 import { Page } from "../../lib/page.tsx";
 import { closeJoin, issueJoinLink } from "./api.ts";
-import { formatPlayDate } from "./format.ts";
+import { formatClock, formatPlayDate } from "./format.ts";
+import { JoinQrReader } from "./JoinQrReader.tsx";
 import { useStoredLink } from "./link-store.ts";
 import { MATCH_ROUTE_PATTERNS, matchPaths } from "./paths.ts";
 import { QrCode } from "./qr.tsx";
@@ -23,15 +25,6 @@ import { removePlayer } from "./roster-edit.ts";
 import { EditorState, TableFrame } from "./TableFrame.tsx";
 import type { TableEditor } from "./table-editor.ts";
 import { forgetJoinedPlayer, joinsQueryKey, useJoins } from "./use-joins.ts";
-
-/**
- * 時刻を「12:21」の形にする。
- * @param iso 時刻（ISO 8601）
- * @returns 文字
- */
-function clockOf(iso: string): string {
-  return new Date(iso).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
-}
 
 /**
  * リンクを写す（できたら true）。
@@ -200,7 +193,9 @@ function JoinBody({ table, editor }: { table: MatchTable; editor: TableEditor })
                   <span className="text-m font-bold">{join.nickname}</span>
                   <Badge>{MATCH_LEVEL_LABELS[join.level]}</Badge>
                   {join.duplicate ? <Badge>同じ名前</Badge> : null}
-                  <span className="text-s text-text-sub">{clockOf(join.createdAt)}</span>
+                  <span className="text-s text-text-sub">
+                    {formatClock(Date.parse(join.createdAt))}
+                  </span>
                   <Button
                     size="small"
                     variant="text"
@@ -238,6 +233,11 @@ function JoinBody({ table, editor }: { table: MatchTable; editor: TableEditor })
             </Link>
           </div>
           {message ? <ResponseMessage tone={message.tone}>{message.text}</ResponseMessage> : null}
+          <JoinQrReader
+            table={table}
+            editor={editor}
+            joinHint={joins.data?.hint ?? table.links.joinHint}
+          />
         </section>
       </div>
       <ConfirmDialog

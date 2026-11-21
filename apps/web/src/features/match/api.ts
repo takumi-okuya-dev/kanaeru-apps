@@ -170,3 +170,11 @@ export function fetchJoinInfo(joinToken: string) {
 export function submitJoin(joinToken: string, input: MatchJoinInput) {
   return request(() => matchApi().joins[":joinToken"].$post({ param: { joinToken }, json: input }));
 }
+
+/**
+ * ネットなしで開く仕組みを使うか（機能の印 match.offline。ログインなし。AD-27）。
+ * @returns 使うか
+ */
+export function fetchOfflineSetting() {
+  return request(() => matchApi().offline.$get());
+}

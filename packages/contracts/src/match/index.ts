@@ -56,6 +56,7 @@ export {
   MatchJoinInput,
   MatchJoinList,
   MatchLinkIssued,
+  MatchOfflineSetting,
   MatchView,
   MatchViewGame,
   MatchViewGroup,

@@ -11,10 +11,10 @@ import { Link, useParams } from "@tanstack/react-router";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
 import { cn } from "@workspace/ui/lib/cn";
 import { useEffect, useId, useState } from "react";
-import { fetchTable } from "./api.ts";
 import { GroupTabs, currentGameIndex, currentGameNumber } from "./GroupTabs.tsx";
 import { MatchGate } from "./MatchGate.tsx";
 import { useOnline } from "./online.ts";
+import { loadTable } from "./offline/table-sync.ts";
 import { MATCH_ROUTE_PATTERNS } from "./paths.ts";
 import { textWidthEm } from "./print-layout.ts";
 import { groupsOf } from "./plan.ts";
@@ -248,7 +248,8 @@ export function BigRoute() {
   // 担当でない端末だけ、つながっている間は読み直す（担当の端末は、自分で直した中身がいつも最新）
   const refresh = useQuery({
     queryKey: MATCH_QUERY_KEYS.table(tableId),
-    queryFn: () => fetchTable(tableId),
+    queryFn: () => loadTable(tableId),
+    networkMode: "always",
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: false,
     refetchInterval: !editor.isEditor && online ? REFRESH_MS : false,
