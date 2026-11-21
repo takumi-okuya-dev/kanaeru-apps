@@ -71,6 +71,13 @@ export const BOOKING_ERRORS = {
     message:
       "アクセストークンが合いません。LINE Developers の Messaging API の画面で発行した「チャネルアクセストークン（長期）」を貼り直してください。",
   },
+  /** 同じチャネル ID が、ほかの持ち主の設定に入っている（booking-002 research R10） */
+  LINE_CHANNEL_TAKEN: {
+    code: "BOOKING_LINE_CHANNEL_TAKEN",
+    status: 409,
+    message:
+      "この公式アカウント（チャネル ID）は、ほかの組織か人の設定で使われています。1つの公式アカウントは1つの設定にだけ入れられます。",
+  },
   /** ボット情報を読めなかった（LINE に届かない） */
   LINE_UNREACHABLE: {
     code: "BOOKING_LINE_UNREACHABLE",

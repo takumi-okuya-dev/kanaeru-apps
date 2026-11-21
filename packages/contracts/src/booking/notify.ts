@@ -157,6 +157,8 @@ export const LineLinkPreview = z.object({
   linkedToMe: z.boolean(),
   /** 期限 */
   expiresAt: isoDateTime,
+  /** その札の LINE の友だちの表示名（使える札で、LINE から読めたときだけ。ほかは null。research S7） */
+  lineDisplayName: z.string().nullable(),
 });
 
 /** 紐づけの札の中身の型。 */

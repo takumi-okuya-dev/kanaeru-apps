@@ -6,6 +6,7 @@ import { jstDate } from "@workspace/contracts/core";
 import type { SecretBox } from "@workspace/secret-box";
 import type { Executor } from "../../kernel/db.ts";
 import { AppError } from "../../kernel/errors.ts";
+import { isUniqueViolation } from "../../kernel/pg-errors.ts";
 import type { DomainRouteDeps } from "../../kernel/http.ts";
 import type { Notifier } from "../../kernel/notifier.ts";
 import { createNotifier } from "../../platform/notify/index.ts";
@@ -166,11 +167,12 @@ function tailOf(value: string): string {
 /**
  * 公式アカウントの設定を入れる・入れ直す（research R10・R21）。
  * 初めは3つとも要る。チャネル ID を変えるときはシークレットとアクセストークンも要り、前の紐づけと札を消す。
- * アクセストークンを入れたときは、ボット情報で確かめてから保存する。
+ * アクセストークンを入れたときは、ボット情報で確かめてから保存する（ボットの userId が替われば、前の紐づけと札を消す）。
  * @param deps 道具
  * @param holder 持ち主
  * @param input 入れた値
- * @throws {AppError} 秘密の箱がない（503）・値が足りない（400）・トークンが合わない（400）・LINE に届かない（502）
+ * @throws {AppError} 秘密の箱がない（503）・値が足りない（400）・トークンが合わない（400）・LINE に届かない（502）・
+ *   同じチャネル ID がほかの設定にある（409）
  */
 export async function saveLineChannel(
   deps: NotifyDeps,
@@ -203,6 +205,7 @@ export async function saveLineChannel(
     }
   }
   let basicId = current?.basicId ?? null;
+  let botUserId = current?.botUserId ?? null;
   if (input.accessToken !== undefined) {
     const info = await notifierOf(deps).getLineBotInfo(input.accessToken);
     if (!info.ok) {
@@ -214,7 +217,54 @@ export async function saveLineChannel(
       throw new AppError(BOOKING_ERRORS.LINE_UNREACHABLE);
     }
     basicId = info.basicId;
+    botUserId = info.userId;
   }
+  try {
+    await writeChannel(deps, box, holder, input, { basicId, botUserId });
+  } catch (error) {
+    // 同じチャネル ID がほかの持ち主の設定に入っている（同時に入れても DB の一意の制約で止まる）
+    if (isUniqueViolation(error)) throw new AppError(BOOKING_ERRORS.LINE_CHANNEL_TAKEN);
+    throw error;
+  }
+}
+
+/**
+ * アクセストークンを入れ直したら、別の公式アカウントに替わったか（ボットの userId が違う。前の版で userId を持っていない行は
+ * ベーシック ID が違う。どちらも分からなければ替わっていないとみなす）。
+ * @param channel 今の設定の行
+ * @param next 新しいボット情報
+ * @param next.basicId ベーシック ID
+ * @param next.botUserId ボットの userId
+ * @returns 替わったら true
+ */
+function botChanged(
+  channel: ChannelRecord,
+  next: { basicId: string | null; botUserId: string | null },
+): boolean {
+  if (channel.botUserId && next.botUserId) return channel.botUserId !== next.botUserId;
+  if (channel.basicId && next.basicId) return channel.basicId !== next.basicId;
+  return false;
+}
+
+/**
+ * 設定の行に LINE の値を包んで書く（チャネル ID か公式アカウントが替わったら、前の紐づけと札を消す）。
+ * @param deps 道具
+ * @param box 秘密の箱
+ * @param holder 持ち主
+ * @param input 入れた値
+ * @param bot ボット情報（ベーシック ID・userId）
+ * @param bot.basicId ベーシック ID
+ * @param bot.botUserId ボットの userId
+ * @throws {AppError} 前の値が開けず、足りないとき（400）
+ */
+async function writeChannel(
+  deps: NotifyDeps,
+  box: SecretBox,
+  holder: NotifyHolderRef,
+  input: LineChannelInput,
+  bot: { basicId: string | null; botUserId: string | null },
+): Promise<void> {
+  const { basicId, botUserId } = bot;
   await deps.db.transaction(async (tx) => {
     const channel = await ensureChannel(tx, holder);
     const previous = channel.lineChannelId !== null ? await openLine(box, channel) : null;
@@ -246,9 +296,15 @@ export async function saveLineChannel(
       accessTokenKeyVersion: tokenSealed.keyVersion,
       accessTokenTail: tailOf(accessToken),
       basicId,
+      botUserId,
     };
-    if (channel.lineChannelId !== null && channel.lineChannelId !== lineChannelId) {
+    if (
+      channel.lineChannelId !== null &&
+      (channel.lineChannelId !== lineChannelId ||
+        (input.accessToken !== undefined && botChanged(channel, bot)))
+    ) {
       // 公式アカウントが替わると LINE のユーザー ID も替わるので、前の紐づけと札は使えない
+      // （チャネル ID が同じでも、アクセストークンだけを別の公式アカウントのものに入れ直したときも）
       await clearLinksOfChannel(tx, channel.id);
     }
     await writeLineValues(tx, channel.id, values);
