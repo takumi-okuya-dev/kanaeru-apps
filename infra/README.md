@@ -1,7 +1,7 @@
 # infra（GCP の資源の Terraform）
 
 - 作成日：2026-11-19（core-002）
-- 直した日：2026-11-20（threads-002：`threads.tf` と9章。threads-015：9章の5に OAuth を入にする手順）
+- 直した日：2026-11-20（threads-002：`threads.tf` と9章。threads-015：9章の5に OAuth を入にする手順）・2026-11-21（booking-005：`booking.tf` と10章）
 - 読む人：本番の置き場所を作る・直す人（主催者）。Terraform と GCP の考え方は [Terraformの学び](../docs/study/terraform.md)・[GCPの学び](../docs/study/gcp.md)。
 - 決めごとの正本は[構成の決めごと](../_bmad-output/architecture-kanaeru/architecture-kanaeru.md) AD-8〜AD-11、デプロイの決まりは[開発の流れの決まり](../docs/rules/development-flow.md) 5章。なぜこの形にしたかは [specs/core/002-infra/research.md](../specs/core/002-infra/research.md)。
 
@@ -21,7 +21,8 @@
 | `cloud_run.tf` | Cloud Run のサービス（画面と `/api`）と、DB の変更を当てる job |
 | `scheduler.tf` | 毎日0時に DB を止め、8時に動かす（日本時間） |
 | `budget.tf` | 請求の予算（月2,000円・50%と100%でメール） |
-| `threads.tf` | Threads の運用アプリ（`threads_enabled` が true のときだけ）：トークンを包む鍵の束と定期の仕事の合言葉の秘密・5分おきの定期の仕事。`threads_oauth_enabled` も true なら Meta のアプリの秘密の値の入れ物（9章） |
+| `threads.tf` | Threads の運用アプリ（`threads_enabled` が true のときだけ）：トークンを包む鍵の束と定期の仕事の合言葉の秘密・5分おきの定期の仕事。`threads_oauth_enabled` も true なら Meta のアプリの秘密の値の入れ物（9章）。鍵の束と合言葉は、予約（`booking_enabled`）が入でも作る |
+| `booking.tf` | 予約（`booking_enabled` が true のときだけ）：知らせの許可リストの入れ物・10分おきの定期の仕事。鍵の束と合言葉は `threads.tf` のものを共に使う（10章） |
 
 Terraform は**手元から**流す（GitHub Actions からは流さない）。GitHub Actions が変えるのはイメージだけで、ほかの設定（台数・環境の値・権限）は Terraform だけが変える。
 
@@ -167,3 +168,25 @@ Cloud SQL は `prevent_destroy`・`deletion_protection`・`deletion_protection_e
 
    4. `threads_oauth_enabled = true` にして apply する（Cloud Run に `THREADS_APP_ID`・`THREADS_APP_SECRET`・`DOMAIN_FEATURES=threads.oauth` が足される）。設定の「Threads への接続」に「Meta のアプリでつなぐ」が出る
    5. 止めたいときは `threads_oauth_enabled = false` にして apply する（OAuth と Webhook の窓口は 404 になり、貼り付けた接続はそのまま使える。秘密の値は残るので、入に戻すときは 4 だけでよい）
+
+## 10. 予約の知らせと定期の仕事を入にする（booking-005）
+
+予約（booking-002〜004）の知らせは、組織・個人の LINE 公式アカウントから送る（AD-24）。本番は切（`booking_enabled = false`・`booking_notify_mode = "off"`）のまま出す。ステージングがないので、「送らない → 自分たちだけに送る → 送る」の順に広げる。
+
+1. 前に済ませること：予約の PR（#38〜#48）がマージされ、本番に出ていること（窓口がないうちに定期の仕事を作ると、10分ごとに 404 になる）。
+2. `booking_enabled = true` にして apply する（許可リストの入れ物・10分おきの定期の仕事ができ、Cloud Run に `NOTIFY_MODE=off`・`TOKEN_ENCRYPTION_KEY_VERSION`・`TOKEN_ENCRYPTION_KEYS`・`JOB_TRIGGER_SECRET` が足される）。
+   - Threads を入にしていない（鍵の束に版がない）ときは、9章の1・2と同じく、入れ物だけ先に作って版を足してから全体を apply する：`terraform apply -target=google_secret_manager_secret.threads_token_keys` → 9章の2 → 全体の apply。秘密の名前は Threads のときのまま（`kanaeru-token-encryption-keys`）。
+   - `off` の間は、何も送らない（友だち追加のあいさつも送らない）。LINE 公式アカウントの設定・Webhook・紐づけは使える。
+3. 組織（または個人）の設定で LINE 公式アカウントをつなぐ。保存すると設定の画面に Webhook の URL（`<WEB_URL>/api/v1/booking/webhooks/line/<設定の ID>`）が出るので、LINE Developers のコンソールの Webhook の URL に入れる。
+4. 自分たちだけに送って確かめる：許可リストの版を足し（手元で入れ、ファイルや履歴に残さない）、`booking_notify_mode = "allowlist"` にして apply する。許可リストは LINE のユーザー ID（`U` と16進の32文字）かメールアドレスを、カンマで並べる。
+
+   ```bash
+   read -rs NOTIFY_ALLOWLIST && printf '%s' "$NOTIFY_ALLOWLIST" | \
+     gcloud secrets versions add kanaeru-notify-allowlist --data-file=- && unset NOTIFY_ALLOWLIST
+   ```
+
+   - 許可リストを変えたら、版を足したあと `gcloud run services update kanaeru --region=asia-northeast1 --update-labels=rotated=<日付>` で新しい版に切り替える（動いている台は古い値を持っているため。6章のパスワードと同じ）。
+5. 広げる：`booking_notify_mode = "on"` にして apply する。止めたいときは `"off"` に戻して apply する（送るのが止まるだけで、申込み・名簿・紐づけは残る）。
+6. 定期の仕事（`kanaeru-booking-tick`）は日本時間 9時〜23時台の10分おき。止めたいときは `gcloud scheduler jobs pause kanaeru-booking-tick --location=asia-northeast1`（止めても、打診の期限は書く窓口と読む窓口で守られる）。
+7. 鍵の束を替えるとき（9章の3）：予約の LINE 公式アカウントのトークンは自動で包み直されない（主催者が設定を保存し直したときだけ）。古い鍵は、予約の設定がすべて新しい版で保存し直されるまで外さない。
+8. メールの知らせ（LINE を使わずに申し込む人への確認・知らせ）は、送る仕組み（メールの送信サービス）をまだつないでいない。`on` にしても、メールは「送れない」として記録され、LINE の知らせだけが届く。

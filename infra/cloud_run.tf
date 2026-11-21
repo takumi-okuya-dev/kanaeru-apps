@@ -29,8 +29,9 @@ locals {
   # Threads の運用アプリ（threads.tf）を入にしたときだけ足す設定と秘密
   # （アプリを見せるかは、アプリの台帳〈設定 → アプリの台帳〉で決める。AD-16）
   # OAuth の接続と Meta の Webhook（threads-010）を入にしたときは、Meta のアプリの ID・秘密の値と、機能の印 threads.oauth も足す
+  # 鍵の束と合言葉は、予約（booking.tf）を入にしたときも足す（threads.tf の local.shared_secrets_enabled）
   threads_env = merge(
-    var.threads_enabled ? {
+    local.shared_secrets_enabled ? {
       TOKEN_ENCRYPTION_KEY_VERSION = tostring(var.threads_token_key_version)
     } : {},
     local.threads_oauth ? {
@@ -39,7 +40,7 @@ locals {
     } : {},
   )
   threads_secret_env = merge(
-    var.threads_enabled ? {
+    local.shared_secrets_enabled ? {
       TOKEN_ENCRYPTION_KEYS = google_secret_manager_secret.threads_token_keys[0].secret_id
       JOB_TRIGGER_SECRET    = google_secret_manager_secret.job_trigger[0].secret_id
     } : {},
@@ -47,6 +48,10 @@ locals {
       THREADS_APP_SECRET = google_secret_manager_secret.threads_app_secret[0].secret_id
     } : {},
   )
+
+  # 予約（booking.tf）を入にしたときだけ足す設定と秘密。許可リストは送り方が allowlist のときだけ読む
+  booking_env        = var.booking_enabled ? { NOTIFY_MODE = var.booking_notify_mode } : {}
+  booking_secret_env = var.booking_notify_mode == "allowlist" ? { NOTIFY_ALLOWLIST = google_secret_manager_secret.notify_allowlist[0].secret_id } : {}
 }
 
 resource "google_cloud_run_v2_service" "app" {
@@ -100,7 +105,7 @@ resource "google_cloud_run_v2_service" "app" {
       }
 
       dynamic "env" {
-        for_each = merge(local.service_env, local.threads_env)
+        for_each = merge(local.service_env, local.threads_env, local.booking_env)
         content {
           name  = env.key
           value = env.value
@@ -108,7 +113,7 @@ resource "google_cloud_run_v2_service" "app" {
       }
 
       dynamic "env" {
-        for_each = local.threads_secret_env
+        for_each = merge(local.threads_secret_env, local.booking_secret_env)
         content {
           name = env.key
           value_source {
@@ -150,11 +155,13 @@ resource "google_cloud_run_v2_service" "app" {
     google_project_iam_member.runtime_sql_client,
     google_secret_manager_secret_iam_member.runtime_database_url,
     google_secret_manager_secret_version.database_url,
-    # Threads を入にしたとき（threads.tf）：秘密を読む権限と合言葉の版ができてから、新しい版を立ち上げる
+    # Threads か予約を入にしたとき（threads.tf）：秘密を読む権限と合言葉の版ができてから、新しい版を立ち上げる
     google_secret_manager_secret_iam_member.runtime_threads_token_keys,
     google_secret_manager_secret_iam_member.runtime_job_trigger,
     google_secret_manager_secret_version.job_trigger,
     google_secret_manager_secret_iam_member.runtime_threads_app_secret,
+    # 予約を入にしたとき（booking.tf）：許可リストを読む権限ができてから
+    google_secret_manager_secret_iam_member.runtime_notify_allowlist,
   ]
 }
 
