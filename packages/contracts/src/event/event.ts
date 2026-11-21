@@ -146,6 +146,28 @@ export const EventDiscountView = z.object({
 /** 使っている割引の型。 */
 export type EventDiscountView = z.infer<typeof EventDiscountView>;
 
+/** 交流会の持ち主（表示名は account から引いたもの。event-002）。 */
+export const EventOwnerView = z.object({
+  /** account の ID */
+  accountId: z.guid(),
+  /** 表示名（LINE の名前） */
+  displayName: z.string(),
+});
+
+/** 交流会の持ち主の型。 */
+export type EventOwnerView = z.infer<typeof EventOwnerView>;
+
+/** 交流会を入れた組織・選べる組織（event-002）。 */
+export const EventOrganizationView = z.object({
+  /** 組織の ID */
+  id: z.guid(),
+  /** 組織の名前 */
+  name: z.string(),
+});
+
+/** 組織の型。 */
+export type EventOrganizationView = z.infer<typeof EventOrganizationView>;
+
 /** 交流会（主催者と受付係が読む形。自分の役目つき）。 */
 export const EventView = z.object({
   /** 交流会の ID */
@@ -172,6 +194,12 @@ export const EventView = z.object({
   updatedAt: isoDateTime,
   /** 今の利用者の、この交流会での役目 */
   myRole: EventRoleSchema,
+  /** 持ち主（持ち主のない今の交流会は null。event-002） */
+  owner: EventOwnerView.nullable(),
+  /** 入れた組織（入れていなければ null） */
+  organization: EventOrganizationView.nullable(),
+  /** 今の利用者が持ち主か */
+  isOwner: z.boolean(),
 });
 
 /** 交流会の型。 */
@@ -226,6 +254,29 @@ export const SurveyState = z.object({ surveyOpen: z.boolean() });
 
 /** アンケートの開閉の今の状態の型。 */
 export type SurveyState = z.infer<typeof SurveyState>;
+
+/** 交流会の持ち主と組織の状態（準備の画面の「持ち主と組織」。event-002）。 */
+export const EventOrganizationState = z.object({
+  /** 持ち主（持ち主のない今の交流会は null） */
+  owner: EventOwnerView.nullable(),
+  /** 入れた組織（入れていなければ null） */
+  organization: EventOrganizationView.nullable(),
+  /** 今の利用者が持ち主か（組織に入れる・外すのは持ち主だけ） */
+  isOwner: z.boolean(),
+  /** 選べる組織（持ち主が入っている組織を入った順。持ち主でなければ空） */
+  options: z.array(EventOrganizationView),
+});
+
+/** 交流会の持ち主と組織の状態の型。 */
+export type EventOrganizationState = z.infer<typeof EventOrganizationState>;
+
+/** 交流会を組織に入れる・外すの入力（null で外す）。 */
+export const EventOrganizationInput = z.strictObject({
+  organizationId: z.guid({ error: "組織を選んでください。" }).nullable(),
+});
+
+/** 交流会を組織に入れる・外すの入力の型。 */
+export type EventOrganizationInput = z.infer<typeof EventOrganizationInput>;
 
 /** 招待の印の形（32 バイトの base64url。形が違えば DB を引かない）。 */
 export const STAFF_INVITE_TOKEN_FORMAT = /^[A-Za-z0-9_-]{43}$/;

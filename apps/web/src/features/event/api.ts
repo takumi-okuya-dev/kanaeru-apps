@@ -25,7 +25,7 @@ function eventApi(eventId: string) {
 }
 
 /**
- * 交流会の一覧（主催者はすべて・受付係は自分の交流会だけ）。
+ * 交流会の一覧（自分が主催者の交流会と、受付係の交流会。行ごとに持ち主と組織つき）。
  * @returns 交流会の一覧
  */
 export function fetchEvents() {
@@ -33,7 +33,7 @@ export function fetchEvents() {
 }
 
 /**
- * 交流会を作る（主催者だけ）。
+ * 交流会を作る（ログインした誰でも。作った人が持ち主）。
  * @param input 入力
  * @returns 作った交流会
  */
@@ -123,6 +123,27 @@ export function removeStaff(eventId: string, accountId: string) {
   return request(() =>
     api().api.v1.events[":eventId"].staff[":accountId"].$delete({ param: { eventId, accountId } }),
   );
+}
+
+/**
+ * 持ち主と組織（主催者だけ。選べる組織は持ち主のときだけ。event-002）。
+ * @param eventId 交流会の ID
+ * @returns 持ち主と組織
+ */
+export function fetchEventOrganization(eventId: string) {
+  const { endpoint, param } = eventApi(eventId);
+  return request(() => endpoint.organization.$get({ param }));
+}
+
+/**
+ * 交流会を組織に入れる・外す（持ち主だけ。null で外す）。
+ * @param eventId 交流会の ID
+ * @param organizationId 入れる組織（null で外す）
+ * @returns 入れたあとの持ち主と組織
+ */
+export function setEventOrganization(eventId: string, organizationId: string | null) {
+  const { endpoint, param } = eventApi(eventId);
+  return request(() => endpoint.organization.$put({ param, json: { organizationId } }));
 }
 
 /**

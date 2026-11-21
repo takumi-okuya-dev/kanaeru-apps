@@ -1,8 +1,9 @@
 // 交流会・受付係・招待のリンクの読み書き（表は event の領域だけが読み書きする。AD-3）。
 // 受付係の表示名は account の findAccountById で引く（account の表を読まない。research R7）。
-import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import type { Executor } from "../../kernel/db.ts";
-import { event, eventStaff, staffInvite } from "./schema.ts";
+import { event, eventOrganization, eventStaff, staffInvite } from "./schema.ts";
 
 /** 交流会の行（読み出す形）。 */
 export type EventRecord = typeof event.$inferSelect;
@@ -110,56 +111,102 @@ export async function findEventById(db: Executor, id: string): Promise<EventReco
   return row ?? null;
 }
 
-/**
- * すべての交流会（主催者の一覧）。
- * @param db DB
- * @returns 交流会の並び（新しい順）
- */
-export function listAllEvents(db: Executor): Promise<EventRecord[]> {
-  return db
-    .select()
-    .from(event)
-    .orderBy(...NEWEST_FIRST);
-}
+/** 一覧の行（交流会・入れた組織・今の利用者が受付係か）。 */
+export type AccessibleEventRow = {
+  event: EventRecord;
+  organizationId: string | null;
+  isStaff: boolean;
+};
 
 /**
- * その人が受付係の交流会（受付係の一覧）。
+ * 今の利用者が主催者か受付係の交流会（一覧。event-002 research R9）。主催者の交流会は、持ち主が自分か、
+ * 管理者・編集者の組織に入れたもの。役目は呼ぶ側が決める（判定の1か所と同じ条件。access.ts）。
  * @param db DB
- * @param accountId account の ID
- * @returns 交流会の並び（新しい順）
+ * @param accountId 今の利用者
+ * @param managedOrganizationIds 今の利用者が管理者・編集者の組織（suite の index.ts から引いたもの）
+ * @returns 行の並び（日時の新しい順）
  */
-export async function listStaffEvents(db: Executor, accountId: string): Promise<EventRecord[]> {
+export async function listAccessibleEvents(
+  db: Executor,
+  accountId: string,
+  managedOrganizationIds: readonly string[],
+): Promise<AccessibleEventRow[]> {
+  const conditions: SQL[] = [eq(event.ownerAccountId, accountId), isNotNull(eventStaff.id)];
+  if (managedOrganizationIds.length > 0) {
+    conditions.push(inArray(eventOrganization.organizationId, [...managedOrganizationIds]));
+  }
   const rows = await db
-    .select({ event })
+    .select({ event, organizationId: eventOrganization.organizationId, staffId: eventStaff.id })
     .from(event)
-    .innerJoin(eventStaff, eq(eventStaff.eventId, event.id))
-    .where(eq(eventStaff.accountId, accountId))
+    .leftJoin(eventOrganization, eq(eventOrganization.eventId, event.id))
+    .leftJoin(
+      eventStaff,
+      and(eq(eventStaff.eventId, event.id), eq(eventStaff.accountId, accountId)),
+    )
+    .where(or(...conditions))
     .orderBy(...NEWEST_FIRST);
-  return rows.map((row) => row.event);
+  return rows.map((row) => ({
+    event: row.event,
+    organizationId: row.organizationId,
+    isStaff: row.staffId !== null,
+  }));
 }
 
 /**
- * 交流会があるかと、その人が受付係かを1回で読む（権限の確かめ。research R1）。
+ * 判定に要る行を1回で読む（持ち主・入れた組織・その人が受付係か。access.ts の resolveEventAccess）。
  * @param db DB
  * @param eventId 交流会の ID（uuid の形のもの）
  * @param accountId account の ID
- * @returns 交流会がなければ null。あれば受付係か
+ * @returns 交流会がなければ null
  */
-export async function findEventMembership(
+export async function findEventAccessRow(
   db: Executor,
   eventId: string,
   accountId: string,
-): Promise<{ isStaff: boolean } | null> {
+): Promise<{
+  ownerAccountId: string | null;
+  organizationId: string | null;
+  isStaff: boolean;
+} | null> {
   const [row] = await db
-    .select({ staffId: eventStaff.id })
+    .select({
+      ownerAccountId: event.ownerAccountId,
+      organizationId: eventOrganization.organizationId,
+      staffId: eventStaff.id,
+    })
     .from(event)
+    .leftJoin(eventOrganization, eq(eventOrganization.eventId, event.id))
     .leftJoin(
       eventStaff,
       and(eq(eventStaff.eventId, event.id), eq(eventStaff.accountId, accountId)),
     )
     .where(eq(event.id, eventId))
     .limit(1);
-  return row ? { isStaff: row.staffId !== null } : null;
+  return row
+    ? {
+        ownerAccountId: row.ownerAccountId,
+        organizationId: row.organizationId,
+        isStaff: row.staffId !== null,
+      }
+    : null;
+}
+
+/**
+ * 交流会を入れた組織を読む。
+ * @param db DB
+ * @param eventId 交流会の ID
+ * @returns 組織の ID（入れていなければ null）
+ */
+export async function findEventOrganizationId(
+  db: Executor,
+  eventId: string,
+): Promise<string | null> {
+  const [row] = await db
+    .select({ organizationId: eventOrganization.organizationId })
+    .from(eventOrganization)
+    .where(eq(eventOrganization.eventId, eventId))
+    .limit(1);
+  return row?.organizationId ?? null;
 }
 
 /**

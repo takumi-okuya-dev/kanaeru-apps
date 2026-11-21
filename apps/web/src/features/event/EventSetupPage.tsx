@@ -1,4 +1,4 @@
-// A4 準備（主催者だけ。EXPERIENCE.md）：受付QR・アンケートQRの表示と印刷・アンケートの開閉・
+// A4 準備（主催者だけ。EXPERIENCE.md）：持ち主と組織（event-002）・受付QR・アンケートQRの表示と印刷・アンケートの開閉・
 // 受付係の招待のリンク（写す・作り直す）・受付係の一覧（外す）。
 // 送った結果は押したボタンの近く（ResponseMessage）、作り直す・外す前は確かめの枠（ConfirmDialog）。
 import type { EventView } from "@workspace/contracts/event";
@@ -13,6 +13,7 @@ import { errorMessage } from "../../lib/api.ts";
 import { Page } from "../../lib/page.tsx";
 import { SessionGate } from "../account/index.ts";
 import { EventAccessGate, Loading } from "./EventAccessGate.tsx";
+import { OwnerOrganizationSection } from "./OwnerOrganizationSection.tsx";
 import { QrCode } from "./QrCode.tsx";
 import {
   createStaffInvite,
@@ -364,6 +365,7 @@ function Setup({ event }: { event: EventView }) {
         </Link>
       }
     >
+      <OwnerOrganizationSection eventId={event.id} />
       <QrSection event={event} />
       <SurveySection event={event} />
       <InviteSection event={event} />

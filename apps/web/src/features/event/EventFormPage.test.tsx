@@ -1,4 +1,4 @@
-// 交流会の作成の画面：誤りは欄のそばに出し、日本時間の日付と時刻を時差つきの日時にして送る。主催者でなければ使えない。
+// 交流会の作成の画面：誤りは欄のそばに出し、日本時間の日付と時刻を時差つきの日時にして送る。ログインした誰でも使える（event-002）。
 // API は fetch の差しかえで答える。
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -223,11 +223,12 @@ describe("交流会の作成の画面", () => {
     expect(venue).toHaveValue(VALUES.venue);
   });
 
-  it("主催者でなければ、使えない旨を出す", async () => {
+  it("運営者でなくても、作る画面を使える（作った人が持ち主。event-002）", async () => {
     stubApi(false);
     renderWithRouter(<EventNewPage />);
     expect(
-      await screen.findByRole("heading", { level: 1, name: "この画面は主催者だけが使えます" }),
+      await screen.findByRole("heading", { level: 1, name: "交流会を追加" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "作る" })).toBeInTheDocument();
   });
 });

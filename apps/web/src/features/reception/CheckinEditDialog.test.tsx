@@ -23,6 +23,9 @@ const EVENT: EventView = {
   updatedAt: "2026-11-19T10:00:00.000Z",
   myRole: "staff",
   discounts: [],
+  owner: null,
+  organization: null,
+  isOwner: false,
 };
 
 /** 手でのチェックインの見本。 */

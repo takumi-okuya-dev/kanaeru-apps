@@ -1,6 +1,7 @@
 // 交流会の窓口（交流会の作成・直す・一覧・詳細・要約・アンケートの開閉・招待のリンク・受付係）。
 // 道はすべて createRoute で書き、入力は約束（@workspace/contracts/event）で確かめる。名前と例は、ここで .openapi() で付ける。
 // どの道もログインが要る（account の requireSession）。交流会ごとの権限は access.ts の requireEventRole（AD-5）。
+// 交流会はログインした誰でも作れ、作った人が持ち主（event-002。AD-23）。組織に入れる・外すのは持ち主だけ（organization.ts）。
 // 招待の印はログに出さない（要求の1行は道の形 :inviteToken だけを出す。research R11）。
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { endOfJstDate } from "@workspace/contracts/core";
@@ -12,26 +13,25 @@ import type { ApiEnv, DomainRouteDeps } from "../../kernel/http.ts";
 import {
   currentAccount,
   findAccountById,
-  forbiddenResponse,
   isOrganizer,
-  requireOrganizer,
   requireSession,
   unauthenticatedResponse,
 } from "../account/index.ts";
-import { requireEventRole } from "./access.ts";
-import { listActiveDiscounts, listActiveDiscountsByEvents, saveDiscounts } from "./discounts.ts";
+import { listMemberships } from "../suite/index.ts";
+import { currentEventRole, requireEventRole, resolveEventAccess } from "./access.ts";
+import { saveDiscounts } from "./discounts.ts";
 import { generateInviteToken, isInviteToken } from "./ids.ts";
+import { getEventOrganizationState, placeEvent } from "./organization.ts";
 import {
   addStaff,
   claimLegacyEvents,
   findEventById,
   findEventByInviteToken,
-  findEventMembership,
+  findEventOrganizationId,
   findInviteByEvent,
   insertEvent,
-  listAllEvents,
+  listAccessibleEvents,
   listStaff,
-  listStaffEvents,
   removeStaff,
   replaceInviteToken,
   setSurveyOpen,
@@ -39,7 +39,7 @@ import {
   upsertInvite,
 } from "./repository.ts";
 import type { EventRecord, EventValues, StaffInviteRecord } from "./repository.ts";
-import { getEventSummary, toEventView } from "./summary.ts";
+import { buildEventViews, getEventSummary } from "./summary.ts";
 
 /** 交流会の入力（文書の名前と例つき）。 */
 const EventInput = contract.EventInput.openapi("EventInput", {
@@ -56,6 +56,14 @@ const EventInput = contract.EventInput.openapi("EventInput", {
 
 /** 交流会（文書の名前つき）。 */
 const EventView = contract.EventView.openapi("EventView");
+
+/** 交流会の持ち主と組織の状態（文書の名前つき）。 */
+const EventOrganizationState = contract.EventOrganizationState.openapi("EventOrganizationState");
+
+/** 交流会を組織に入れる・外すの入力（文書の名前と例つき）。 */
+const EventOrganizationInput = contract.EventOrganizationInput.openapi("EventOrganizationInput", {
+  example: { organizationId: "0193a1b2-0000-7000-8000-000000000001" },
+});
 
 /** 交流会の一覧（文書の名前つき）。 */
 const EventList = contract.EventList.openapi("EventList");
@@ -146,7 +154,10 @@ function defineRoutes(deps: DomainRouteDeps) {
       path: "/api/v1/events",
       tags,
       operationId: "eventList",
-      summary: "交流会の一覧（主催者はすべて・受付係は自分の交流会だけ・ほかは空。日時の新しい順）",
+      summary:
+        "交流会の一覧（自分が主催者の交流会〈持ち主・入れた組織の管理者と編集者〉と受付係の交流会。日時の新しい順）",
+      description:
+        "行ごとに持ち主・入れた組織・自分が持ち主かを返す（画面が組織ごとに絞る）。運営者もほかの人の交流会は見ない。運営者が開くと、持ち主のない今の交流会を運営者のものにする（event-002 research R1）。",
       middleware: [session] as const,
       responses: { 200: json(EventList, "交流会の一覧"), 401: unauthenticatedResponse },
     }),
@@ -155,8 +166,8 @@ function defineRoutes(deps: DomainRouteDeps) {
       path: "/api/v1/events",
       tags,
       operationId: "eventCreate",
-      summary: "交流会を作る（主催者だけ）",
-      middleware: [session, requireOrganizer(deps)] as const,
+      summary: "交流会を作る（ログインした誰でも。作った人が持ち主）",
+      middleware: [session] as const,
       request: {
         body: { required: true, content: { "application/json": { schema: EventInput } } },
       },
@@ -164,7 +175,6 @@ function defineRoutes(deps: DomainRouteDeps) {
         201: json(EventView, "作った交流会"),
         400: invalidInputResponse,
         401: unauthenticatedResponse,
-        403: forbiddenResponse,
       },
     }),
     get: createRoute({
@@ -297,6 +307,52 @@ function defineRoutes(deps: DomainRouteDeps) {
         404: notFoundResponse,
       },
     }),
+    getOrganization: createRoute({
+      method: "get",
+      path: "/api/v1/events/{eventId}/organization",
+      tags,
+      operationId: "eventGetOrganization",
+      summary: "持ち主と組織（主催者だけ。選べる組織は持ち主のときだけ）",
+      middleware: [session, organizerOfEvent] as const,
+      request: { params: EventParams },
+      responses: {
+        200: json(EventOrganizationState, "持ち主と組織"),
+        401: unauthenticatedResponse,
+        403: eventForbiddenResponse,
+        404: eventNotFoundResponse,
+      },
+    }),
+    putOrganization: createRoute({
+      method: "put",
+      path: "/api/v1/events/{eventId}/organization",
+      tags,
+      operationId: "eventPutOrganization",
+      summary:
+        "交流会を組織に入れる・入れ替える・外す（持ち主だけ。null で外す。今と同じなら何もしない）",
+      description:
+        "選べるのは持ち主が入っている組織だけ。入れると、その組織の管理者・編集者も主催者になり、メンバーは部員になる（AD-23）。",
+      middleware: [session, organizerOfEvent] as const,
+      request: {
+        params: EventParams,
+        body: {
+          required: true,
+          content: { "application/json": { schema: EventOrganizationInput } },
+        },
+      },
+      responses: {
+        200: json(EventOrganizationState, "入れたあとの持ち主と組織"),
+        400: invalidInputResponse,
+        401: unauthenticatedResponse,
+        403: domainErrorResponse(
+          EVENT_ERRORS.EVENT_OWNER_ONLY,
+          "主催者でない（FORBIDDEN）・主催者だが持ち主でない（EVENT_OWNER_ONLY）",
+        ),
+        404: domainErrorResponse(
+          EVENT_ERRORS.EVENT_ORGANIZATION_NOT_FOUND,
+          "交流会がない（NOT_FOUND）・持ち主が入っていない組織（EVENT_ORGANIZATION_NOT_FOUND）",
+        ),
+      },
+    }),
     previewInvite: createRoute({
       method: "get",
       path: "/api/v1/staff-invites/{inviteToken}",
@@ -316,7 +372,7 @@ function defineRoutes(deps: DomainRouteDeps) {
       path: "/api/v1/staff-invites/{inviteToken}/accept",
       tags,
       operationId: "eventAcceptStaffInvite",
-      summary: "招待を受けて受付係になる（すでに主催者・受付係なら何もしない）",
+      summary: "招待を受けて受付係になる（すでにその交流会の主催者・受付係なら何もしない）",
       description:
         "期限は「交流会の日時の、日本時間の日付が終わるまで」で、受けるときに交流会の今の日時から決める（AD-5）。",
       middleware: [session] as const,
@@ -375,6 +431,28 @@ async function mustFindEvent(deps: DomainRouteDeps, eventId: string): Promise<Ev
 }
 
 /**
+ * 交流会の行を答えの形にする（持ち主と組織・使っている割引つき）。
+ * @param deps 土台が渡す道具
+ * @param record 交流会
+ * @param viewerAccountId 今の利用者
+ * @param myRole 今の利用者の役目
+ * @returns 交流会
+ */
+async function viewOf(
+  deps: DomainRouteDeps,
+  record: EventRecord,
+  viewerAccountId: string,
+  myRole: contract.EventRole,
+): Promise<contract.EventView> {
+  const organizationId = await findEventOrganizationId(deps.db, record.id);
+  const [view] = await buildEventViews(deps.db, viewerAccountId, [
+    { record, organizationId, myRole },
+  ]);
+  if (!view) throw new Error("交流会の答えを作れませんでした。");
+  return view;
+}
+
+/**
  * 招待の印から交流会を読む。
  * @param deps 土台が渡す道具
  * @param token 招待の印
@@ -399,23 +477,27 @@ export function eventRoutes(deps: DomainRouteDeps) {
   return new OpenAPIHono<ApiEnv>()
     .openapi(routes.list, async (c) => {
       const me = currentAccount(c);
-      const organizer = isOrganizer(config, me);
-      // 持ち主のない今の交流会を、運営者が開いたときに運営者のものにする（event-002 research R1）
-      if (organizer) await claimLegacyEvents(db, me.accountId);
-      const records = organizer ? await listAllEvents(db) : await listStaffEvents(db, me.accountId);
-      const role = organizer ? "organizer" : "staff";
-      const discounts = await listActiveDiscountsByEvents(
+      // 持ち主のない今の交流会を、運営者が開いたときに運営者のものにする（research R1。権限には使わない）
+      if (isOrganizer(config, me)) await claimLegacyEvents(db, me.accountId);
+      // 主催者の条件は判定の1か所（access.ts の resolveEventAccess）と同じ：持ち主か、管理者・編集者の組織に入れたもの
+      const managed = (await listMemberships(db, me.accountId))
+        .filter((membership) => membership.role !== "member")
+        .map((membership) => membership.organizationId);
+      const rows = await listAccessibleEvents(db, me.accountId, managed);
+      const events = await buildEventViews(
         db,
-        records.map((record) => record.id),
+        me.accountId,
+        rows.map((row) => ({
+          record: row.event,
+          organizationId: row.organizationId,
+          myRole:
+            row.event.ownerAccountId === me.accountId ||
+            (row.organizationId !== null && managed.includes(row.organizationId))
+              ? "organizer"
+              : "staff",
+        })),
       );
-      return c.json(
-        {
-          events: records.map((record) =>
-            toEventView(record, role, discounts.get(record.id) ?? []),
-          ),
-        },
-        200,
-      );
+      return c.json({ events }, 200);
     })
     .openapi(routes.create, async (c) => {
       const input = c.req.valid("json");
@@ -426,16 +508,13 @@ export function eventRoutes(deps: DomainRouteDeps) {
         if (input.discounts) await saveDiscounts(tx, created.id, input.discounts);
         return created;
       });
-      return c.json(
-        toEventView(record, "organizer", await listActiveDiscounts(db, record.id)),
-        201,
-      );
+      return c.json(await viewOf(deps, record, me.accountId, "organizer"), 201);
     })
     .openapi(routes.get, async (c) => {
       const me = currentAccount(c);
       const record = await mustFindEvent(deps, c.req.valid("param").eventId);
-      const role = isOrganizer(config, me) ? "organizer" : "staff";
-      return c.json(toEventView(record, role, await listActiveDiscounts(db, record.id)), 200);
+      const role = currentEventRole(c) === "organizer" ? "organizer" : "staff";
+      return c.json(await viewOf(deps, record, me.accountId, role), 200);
     })
     .openapi(routes.update, async (c) => {
       const { eventId } = c.req.valid("param");
@@ -446,10 +525,7 @@ export function eventRoutes(deps: DomainRouteDeps) {
         if (input.discounts) await saveDiscounts(tx, eventId, input.discounts);
         return updated;
       });
-      return c.json(
-        toEventView(record, "organizer", await listActiveDiscounts(db, record.id)),
-        200,
-      );
+      return c.json(await viewOf(deps, record, currentAccount(c).accountId, "organizer"), 200);
     })
     .openapi(routes.summary, async (c) => {
       const summary = await getEventSummary(db, config, c.req.valid("param").eventId);
@@ -499,14 +575,26 @@ export function eventRoutes(deps: DomainRouteDeps) {
       if (!removed) throw new AppError("NOT_FOUND");
       return c.body(null, 204);
     })
+    .openapi(routes.getOrganization, async (c) => {
+      const state = await getEventOrganizationState(
+        db,
+        c.req.valid("param").eventId,
+        currentAccount(c).accountId,
+      );
+      return c.json(state, 200);
+    })
+    .openapi(routes.putOrganization, async (c) => {
+      const { eventId } = c.req.valid("param");
+      const me = currentAccount(c);
+      await placeEvent(db, eventId, me.accountId, c.req.valid("json").organizationId);
+      return c.json(await getEventOrganizationState(db, eventId, me.accountId), 200);
+    })
     .openapi(routes.previewInvite, async (c) => {
       const record = await findInvitedEvent(deps, c.req.valid("param").inviteToken);
       const me = currentAccount(c);
-      const myRole = isOrganizer(config, me)
-        ? "organizer"
-        : (await findEventMembership(db, record.id, me.accountId))?.isStaff
-          ? "staff"
-          : null;
+      const role = (await resolveEventAccess(db, config, record.id, me))?.role ?? null;
+      // 部員は受付係ではない（受ければ受付係になる）ので、受ける前の役目は「どれでもない」
+      const myRole = role === "organizer" || role === "staff" ? role : null;
       const expiresAt = endOfJstDate(record.startsAt);
       const preview: contract.InvitePreview = {
         eventId: record.id,
@@ -521,13 +609,13 @@ export function eventRoutes(deps: DomainRouteDeps) {
     .openapi(routes.acceptInvite, async (c) => {
       const record = await findInvitedEvent(deps, c.req.valid("param").inviteToken);
       const me = currentAccount(c);
-      if (isOrganizer(config, me)) {
+      const role = (await resolveEventAccess(db, config, record.id, me))?.role ?? null;
+      if (role === "organizer") {
         const accepted: contract.InviteAccepted = { eventId: record.id, role: "organizer" };
         return c.json(accepted, 200);
       }
-      const membership = await findEventMembership(db, record.id, me.accountId);
       // すでに受付係なら、期限にかかわらずそのまま通す（EXPERIENCE「すでに受付係なら、そのまま A3 へ」）
-      if (!membership?.isStaff) {
+      if (role !== "staff") {
         if (Date.now() >= endOfJstDate(record.startsAt).getTime()) {
           throw new AppError(EVENT_ERRORS.STAFF_INVITE_EXPIRED);
         }

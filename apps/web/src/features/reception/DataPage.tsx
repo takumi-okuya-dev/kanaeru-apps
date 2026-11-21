@@ -1,6 +1,7 @@
 // A5 書き出しと削除（主催者だけ。EXPERIENCE.md の A5・FR-15・FR-16）。
 // 参加者の CSV（API が作る BOM つきの CSV を受け取り、保存する）と、参加者のデータを消す（確かめの枠で何が消えるかを書く）。
-// アカウントのある人は account の窓口でアカウントごと消す（ほかの交流会のチェックインと回答も消える。AD-7）。
+// アカウントのある人は account の窓口でアカウントごと消す（ほかの交流会のチェックインと回答も消える。AD-7）。この窓口は運営者だけが
+// 使えるので、運営者でない主催者は、アカウントのある人もこの交流会のチェックインと回答だけを消す（event-002【仮決め】）。
 // 手でのチェックインは、そのチェックインを取り消す。主催者自身のアカウントは、ここでは消さない（ログインが切れるため）。
 // ほかの領域（survey の困りごとの CSV）は、差しこみの場所の節として足す（slots.ts。research R10）。
 import type { EventView } from "@workspace/contracts/event";
@@ -90,12 +91,17 @@ function ExportSection({ event }: { event: EventView }) {
 /**
  * 消す前の確かめの文（何が消えるか・元に戻せないこと）。
  * @param checkin 消す人のチェックイン
+ * @param operator 運営者か（アカウントごと消す窓口は運営者だけ）
  * @returns 文
  */
-function deletionText(checkin: CheckinView): string {
-  return checkin.accountId
-    ? `${checkin.name}さんのアカウント・チェックイン・アンケートの回答を消します。ほかの交流会のチェックインと回答も消えます。元に戻せません。`
-    : `${checkin.name}さんの手でのチェックインとアンケートの回答を消します。元に戻せません。`;
+function deletionText(checkin: CheckinView, operator: boolean): string {
+  if (checkin.accountId && operator) {
+    return `${checkin.name}さんのアカウント・チェックイン・アンケートの回答を消します。ほかの交流会のチェックインと回答も消えます。この人が持つ交流会も消えるか、組織に入れている交流会なら組織の管理者に引き継がれます。元に戻せません。`;
+  }
+  if (checkin.accountId) {
+    return `${checkin.name}さんの、この交流会のチェックインとアンケートの回答を消します。アカウントそのものは消えません（本人の退会で消えます）。元に戻せません。`;
+  }
+  return `${checkin.name}さんの手でのチェックインとアンケートの回答を消します。元に戻せません。`;
 }
 
 /**
@@ -108,12 +114,14 @@ function DeleteSection({ event }: { event: EventView }) {
   const queryClient = useQueryClient();
   const session = useSession();
   const myAccountId = session.status === "authenticated" ? session.account.id : undefined;
+  // アカウントごと消す窓口は運営者だけ（account）。運営者でなければ、この交流会のチェックインだけを消す
+  const operator = session.status === "authenticated" && session.account.isOrganizer;
   const list = useCheckinList(event.id);
   const [target, setTarget] = useState<CheckinView>();
   const [deleted, setDeleted] = useState<string>();
   const mutation = useMutation({
     mutationFn: async (checkin: CheckinView) => {
-      if (checkin.accountId) await deleteParticipantAccount(checkin.accountId);
+      if (checkin.accountId && operator) await deleteParticipantAccount(checkin.accountId);
       else await deleteCheckin(event.id, checkin.id);
     },
     onSuccess: async (_result, checkin) => {
@@ -126,7 +134,9 @@ function DeleteSection({ event }: { event: EventView }) {
   return (
     <Section id="data-delete" title="参加者のデータを消す">
       <p className="text-s text-text-sub">
-        参加者に頼まれたときに使います。アカウントのある人は、アカウントごと消えます。
+        {operator
+          ? "参加者に頼まれたときに使います。アカウントのある人は、アカウントごと消えます。"
+          : "参加者に頼まれたときに使います。この交流会のチェックインとアンケートの回答を消します。"}
       </p>
       {list.isPending ? (
         <p aria-busy="true" className="text-m text-text-sub">
@@ -183,7 +193,7 @@ function DeleteSection({ event }: { event: EventView }) {
           if (target) mutation.mutate(target);
         }}
       >
-        <p>{target ? deletionText(target) : ""}</p>
+        <p>{target ? deletionText(target, operator) : ""}</p>
       </ConfirmDialog>
     </Section>
   );
