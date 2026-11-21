@@ -14,6 +14,18 @@ const FAKE_INVALID_TOKEN_PREFIX = "invalid";
 /** 偽の送り手のベーシック ID。 */
 const FAKE_BASIC_ID = "@fake";
 
+/** 偽の送り手のボットの userId（Webhook の destination と同じ形）。 */
+export const FAKE_BOT_USER_ID = `U${"f".repeat(32)}`;
+
+/** 偽の送り手で、別の公式アカウントとみなすトークンの頭（アクセストークンだけを入れ直して替わったときを試すため）。 */
+const FAKE_OTHER_BOT_TOKEN_PREFIX = "otherbot";
+
+/** 偽の送り手の、別の公式アカウントのボットの userId とベーシック ID。 */
+const FAKE_OTHER_BOT = { basicId: "@fake2", userId: `U${"e".repeat(32)}` };
+
+/** 偽の送り手の友だちの表示名。 */
+export const FAKE_PROFILE_NAME = "LINE の友だち";
+
 /** 送る道具を作るのに使うもの。 */
 export type NotifierDeps = {
   /** 守りの設定 */
@@ -82,13 +94,20 @@ export function createNotifier(deps: NotifierDeps): Notifier {
     },
     getLineBotInfo(accessToken) {
       if (!line) {
+        if (accessToken.startsWith(FAKE_INVALID_TOKEN_PREFIX)) {
+          return Promise.resolve({ ok: false, reason: "unauthorized" });
+        }
         return Promise.resolve(
-          accessToken.startsWith(FAKE_INVALID_TOKEN_PREFIX)
-            ? { ok: false, reason: "unauthorized" }
-            : { ok: true, basicId: FAKE_BASIC_ID },
+          accessToken.startsWith(FAKE_OTHER_BOT_TOKEN_PREFIX)
+            ? { ok: true, ...FAKE_OTHER_BOT }
+            : { ok: true, basicId: FAKE_BASIC_ID, userId: FAKE_BOT_USER_ID },
         );
       }
       return line.botInfo(accessToken);
+    },
+    getLineProfile(accessToken, userId) {
+      if (!line) return Promise.resolve({ ok: true, displayName: FAKE_PROFILE_NAME });
+      return line.profile(accessToken, userId);
     },
     async sendEmail(message) {
       const stop = blocked(decideDelivery(policy, message.to));
