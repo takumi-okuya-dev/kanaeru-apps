@@ -43,7 +43,6 @@ import { buildRosterCsv } from "./csv.ts";
 import { planImport } from "./importing.ts";
 import { resolveMatches } from "./matching.ts";
 import {
-  deleteEntry,
   findEntry,
   findMode,
   insertDismissal,
@@ -51,8 +50,10 @@ import {
   insertEntry,
   listDismissals,
   listEntries,
+  listEntriesForImport,
   listImportMappings,
   lockMode,
+  markEntryMerged,
   saveImportMapping,
   saveMode,
   updateEntry,
@@ -139,6 +140,12 @@ const checkinNotFoundResponse = domainErrorResponse(
 const matchConflictResponse = domainErrorResponse(
   BOOKING_ERRORS.ENTRY_NOT_MATCHABLE,
   "当てられない（取り消しの行・もう当たっている行かチェックイン・手で当てたものでない）か、名簿を使っていない",
+);
+
+/** まとめられない応答。 */
+const mergeConflictResponse = domainErrorResponse(
+  BOOKING_ERRORS.MERGE_BOTH_MATCHED,
+  "2つの行がどちらもチェックインに当たっている（別の人かもしれない）か、名簿を使っていない",
 );
 
 /**
@@ -267,7 +274,7 @@ function defineRoutes(deps: DomainRouteDeps) {
       tags,
       operationId: "bookingMergeEntries",
       summary:
-        "同じ名前の2つの行をまとめる（主催者だけ。消す行の当て・アカウント・メモを残す行へ移す）",
+        "同じ名前の2つの行をまとめる（主催者だけ。まとめる行の当て・アカウント・メモを残す行へ移し、まとめる行は名簿から隠す）",
       middleware: [session, organizerOnly] as const,
       request: { params: EventParams, body: body(RosterMergeInput) },
       responses: {
@@ -275,6 +282,7 @@ function defineRoutes(deps: DomainRouteDeps) {
         400: invalidInputResponse,
         ...rosterErrors,
         404: entryNotFoundResponse,
+        409: mergeConflictResponse,
       },
     }),
     previewImport: createRoute({
@@ -688,17 +696,17 @@ export function bookingRoutes(deps: DomainRouteDeps) {
         ) {
           throw new AppError(BOOKING_ERRORS.MERGE_NAME_MISMATCH);
         }
-        // 消す行の当て・アカウント・連絡のメールと札を先に外してから移す（一意の制約に当たらないように。
+        // 2つともチェックインに当たっている（手でも自動でも）なら、別の人なので止める（当てを1つ失わないように）
+        const { byEntry } = await currentMatches(tx, eventId);
+        if (byEntry.has(keep.id) && byEntry.has(remove.id)) {
+          throw new AppError(BOOKING_ERRORS.MERGE_BOTH_MATCHED);
+        }
+        // まとめる行は消さずに残す（取り消しにし、当て・アカウント・連絡のメールと札を外して、まとめた先を入れる。同じ CSV を
+        // 取り込み直しても増やさないため。research R7）。先に外してから移す（一意の制約に当たらないように。
         // メールの申込みの連絡と札は、残す行になければ移す。booking-003 research R14）
         const moveContact = !keep.contactEmail && !keep.entryTokenHash;
-        await updateEntry(tx, eventId, remove.id, {
-          checkinId: null,
-          accountId: null,
-          contactEmail: null,
-          entryTokenHash: null,
-        });
-        // 状態は確定を優先し、なければ残す行の状態（取り消しなら消す行の状態）。消す行の打診は行と一緒に消えるので、
-        // 残す行が打診中でないのに打診中にはしない（キャンセル待ちにする。booking-004）
+        // 状態は確定を優先し、なければ残す行の状態（取り消しなら、まとめる行の状態）。まとめる行の打診は閉じる（行は残すが
+        // 取り消しになるので、打診を待たせたままにしない）ので、残す行が打診中でないのに打診中にはしない（キャンセル待ちにする。booking-004）
         const merged =
           keep.status === "confirmed" || remove.status === "confirmed"
             ? "confirmed"
@@ -707,9 +715,12 @@ export function bookingRoutes(deps: DomainRouteDeps) {
               : remove.status === "offered"
                 ? "waitlisted"
                 : remove.status;
+        const now = new Date();
+        if (remove.status === "offered") await closePendingOffer(tx, remove.id, "withdrawn", now);
         if (keep.status === "offered" && merged === "confirmed") {
-          await closePendingOffer(tx, keep.id, "withdrawn", new Date());
+          await closePendingOffer(tx, keep.id, "withdrawn", now);
         }
+        await markEntryMerged(tx, eventId, remove.id, keep.id);
         await updateEntry(tx, eventId, keep.id, {
           status: merged,
           checkinId: keep.checkinId ?? remove.checkinId,
@@ -719,9 +730,8 @@ export function bookingRoutes(deps: DomainRouteDeps) {
             ? { contactEmail: remove.contactEmail, entryTokenHash: remove.entryTokenHash }
             : {}),
         });
-        await deleteEntry(tx, eventId, remove.id);
         const context = await contextOf(tx, eventId);
-        await settleEvent(deps, tx, eventId, new Date(context.event.startsAt), new Date(), queue);
+        await settleEvent(deps, tx, eventId, new Date(context.event.startsAt), now, queue);
       });
       await flushNotices(deps, queue);
       return c.json(await readEntry(eventId, keepEntryId), 200);
@@ -730,7 +740,7 @@ export function bookingRoutes(deps: DomainRouteDeps) {
       const { eventId } = c.req.valid("param");
       const input = c.req.valid("json");
       await requireRoster(db, eventId);
-      const entries = await listEntries(db, eventId);
+      const entries = await listEntriesForImport(db, eventId);
       return c.json(planImport(input.rows, input.applicationSource, entries), 200);
     })
     .openapi(routes.runImport, async (c) => {
@@ -743,7 +753,7 @@ export function bookingRoutes(deps: DomainRouteDeps) {
         const plan = planImport(
           input.rows,
           input.applicationSource,
-          await listEntries(tx, eventId),
+          await listEntriesForImport(tx, eventId),
         );
         await insertEntries(
           tx,

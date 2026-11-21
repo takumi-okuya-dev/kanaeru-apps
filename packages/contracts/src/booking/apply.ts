@@ -31,8 +31,11 @@ export const EMAIL_REQUEST_TTL_HOURS = 24;
 /** 同じ交流会・同じアドレスに確認のメールを送り直せるまでの時間（分。research R11）。 */
 export const EMAIL_REQUEST_RESEND_MINUTES = 10;
 
-/** 交流会ごとの期限内の確認の待ちの上限（research R11）。 */
+/** 交流会ごとに、直近の時間（EMAIL_REQUEST_WINDOW_MINUTES）に作った確認の待ちの上限（research R11）。 */
 export const EMAIL_REQUESTS_PER_EVENT_MAX = 200;
+
+/** 確認の待ちの上限を数える時間（分。直近1時間。上限に当たっても、1時間たてばまた受け付ける。research R11）。 */
+export const EMAIL_REQUEST_WINDOW_MINUTES = 60;
 
 /** 見せる範囲の形。 */
 export const VisibilitySchema = z.enum(VISIBILITIES, { error: "見せる範囲を選んでください。" });

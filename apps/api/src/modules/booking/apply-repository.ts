@@ -332,7 +332,8 @@ export async function replaceEntryToken(
 }
 
 /**
- * 申込みを取り消しにする。
+ * 本人が申込みを取り消す（取り消しにし、メールで申し込んだ人の連絡のメールアドレスを消す。札は残し、札のページで
+ * 「取り消し」を見せる。Constitution II：本人がアドレスを消せるように。もう一度申し込むと新しい行になる。research R7）。
  * @param db DB
  * @param entryId 行の ID
  * @returns 直した申込み
@@ -340,7 +341,7 @@ export async function replaceEntryToken(
 export async function cancelEntryRow(db: Executor, entryId: string): Promise<SelfEntry> {
   const [row] = await db
     .update(bookingEntry)
-    .set({ status: "cancelled", updatedAt: sql`now()` })
+    .set({ status: "cancelled", contactEmail: null, updatedAt: sql`now()` })
     .where(eq(bookingEntry.id, entryId))
     .returning(selfEntryColumns);
   if (!row) throw new Error("申込みを直せませんでした。");
@@ -501,37 +502,39 @@ export async function countConsents(db: Executor, accountId: string): Promise<nu
 export type EmailRequestRecord = typeof bookingEmailRequest.$inferSelect;
 
 /**
- * その交流会の期限切れの待ちを消す（新しい待ちを作るとき。定時の処理を足さない。research R10）。
+ * 期限切れの待ちを、交流会に関係なくすべて消す（新しい待ちを作るとき。定時の処理を足さない。どの交流会の待ちも
+ * 期限を過ぎたら残さない〈名前とメールアドレスを持つため〉。research R10）。
  * @param db DB
- * @param eventId 交流会の ID
  * @param now 今の時刻
  */
-export async function deleteExpiredRequests(
-  db: Executor,
-  eventId: string,
-  now: Date,
-): Promise<void> {
-  await db
-    .delete(bookingEmailRequest)
-    .where(and(eq(bookingEmailRequest.eventId, eventId), lte(bookingEmailRequest.expiresAt, now)));
+export async function deleteExpiredRequests(db: Executor, now: Date): Promise<void> {
+  await db.delete(bookingEmailRequest).where(lte(bookingEmailRequest.expiresAt, now));
 }
 
 /**
- * その交流会の期限内の待ちの数。
+ * その交流会で、ある時刻よりあとに作った期限内の待ちの数（上限を数える。research R11）。
  * @param db DB
  * @param eventId 交流会の ID
+ * @param since 数え始める時刻（直近1時間）
  * @param now 今の時刻
  * @returns 数
  */
-export async function countActiveRequests(
+export async function countRecentRequests(
   db: Executor,
   eventId: string,
+  since: Date,
   now: Date,
 ): Promise<number> {
   const [row] = await db
     .select({ value: count() })
     .from(bookingEmailRequest)
-    .where(and(eq(bookingEmailRequest.eventId, eventId), gt(bookingEmailRequest.expiresAt, now)));
+    .where(
+      and(
+        eq(bookingEmailRequest.eventId, eventId),
+        gt(bookingEmailRequest.createdAt, since),
+        gt(bookingEmailRequest.expiresAt, now),
+      ),
+    );
   return row?.value ?? 0;
 }
 

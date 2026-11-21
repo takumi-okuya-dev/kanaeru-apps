@@ -36,6 +36,7 @@ export type SealedLineValues = {
   accessTokenKeyVersion: number;
   accessTokenTail: string;
   basicId: string | null;
+  botUserId: string | null;
 };
 
 /** 紐づけの札の行。 */
@@ -130,6 +131,7 @@ export async function writeLineValues(
     accessTokenKeyVersion: null,
     accessTokenTail: null,
     basicId: null,
+    botUserId: null,
   };
   await db
     .update(bookingLineChannel)
@@ -319,6 +321,30 @@ export async function replaceLink(
       ),
     );
   await db.insert(bookingLineLink).values(values);
+}
+
+/**
+ * その LINE の友だちの札をすべて押さえる（ブロックで紐づけを消す前。同じ時に札を使っている紐づけが終わるのを待ち、
+ * そのあとに消すので、ブロックのあとに紐づけが残らない。札を使う側も札 → 紐づけの順に押さえる）。
+ * @param tx トランザクション
+ * @param channelId 設定の行の ID
+ * @param lineUserId LINE のユーザー ID
+ */
+export async function lockTokensOfLineUser(
+  tx: Executor,
+  channelId: string,
+  lineUserId: string,
+): Promise<void> {
+  await tx
+    .select({ id: bookingLineLinkToken.id })
+    .from(bookingLineLinkToken)
+    .where(
+      and(
+        eq(bookingLineLinkToken.channelId, channelId),
+        eq(bookingLineLinkToken.lineUserId, lineUserId),
+      ),
+    )
+    .for("update");
 }
 
 /**

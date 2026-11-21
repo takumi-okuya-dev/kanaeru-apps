@@ -21,6 +21,7 @@ import type {
 import {
   BOOKING_ERRORS,
   EMAIL_REQUESTS_PER_EVENT_MAX,
+  EMAIL_REQUEST_WINDOW_MINUTES,
   EMAIL_REQUEST_RESEND_MINUTES,
   EMAIL_REQUEST_TTL_HOURS,
   googleCalendarUrl,
@@ -32,11 +33,16 @@ import type { Executor } from "../../kernel/db.ts";
 import { AppError } from "../../kernel/errors.ts";
 import type { SessionAccount } from "../account/index.ts";
 import { findDisplayNames } from "../account/index.ts";
-import { getEventRole, getEventSummary, listOrganizationEvents } from "../event/index.ts";
-import { listMemberships } from "../suite/index.ts";
+import {
+  findEventOrganizationId,
+  getEventRole,
+  getEventSummary,
+  listOrganizationEvents,
+} from "../event/index.ts";
+import { findMembership, listMemberships } from "../suite/index.ts";
 import {
   cancelEntryRow,
-  countActiveRequests,
+  countRecentRequests,
   deleteConsent,
   deleteExpiredRequests,
   deleteRequestsOf,
@@ -203,22 +209,32 @@ async function loadPage(deps: ApplyDeps, eventId: string): Promise<PageContext> 
 
 /**
  * 部員だけの回を、主催者と部員のほかに見せない（要求のたびに役目を引く。research R8）。
+ * event の役目は主催者 → 受付係 → 部員の順に1つだけ決まるので、受付係のときは組織のメンバーかを確かめ直す
+ * （部員で受付係も兼ねる人が、部員だけの回を開けるように）。
  * @param deps 道具
- * @param context 申込みページ
+ * @param context 申込みページ（見せる範囲は、呼ぶ側が押さえて読んだ設定を渡してよい）
  * @param viewer 今の利用者（ログインしていなければ null）
+ * @param db 読む DB（トランザクションの中なら、そのトランザクション）
  * @throws {AppError} 見られないとき（403 BOOKING_PAGE_MEMBERS_ONLY）
  */
 async function assertVisible(
   deps: ApplyDeps,
-  context: PageContext,
+  context: Pick<PageContext, "event" | "setting">,
   viewer: SessionAccount | null,
+  db: Executor = deps.db,
 ): Promise<void> {
   if (context.setting.visibility !== "members") return;
   if (!viewer) throw new AppError(BOOKING_ERRORS.PAGE_MEMBERS_ONLY);
-  const role = await getEventRole(deps.db, deps.config, context.event.id, viewer);
-  if (role !== "organizer" && role !== "member") {
-    throw new AppError(BOOKING_ERRORS.PAGE_MEMBERS_ONLY);
+  const role = await getEventRole(db, deps.config, context.event.id, viewer);
+  if (role === "organizer" || role === "member") return;
+  if (role === "staff") {
+    const organizationId = await findEventOrganizationId(db, context.event.id);
+    const membership = organizationId
+      ? await findMembership(db, organizationId, viewer.accountId)
+      : null;
+    if (membership) return;
   }
+  throw new AppError(BOOKING_ERRORS.PAGE_MEMBERS_ONLY);
 }
 
 /**
@@ -336,6 +352,8 @@ export async function applyWithAccount(
     // 設定の行を押さえて、受付中かを決め直す（同時の申込み・閉じた直後を順に流す。S8・S14）
     const setting = await findPageSetting(tx, eventId, true);
     if (setting.mode !== "self_page") throw new AppError(BOOKING_ERRORS.PAGE_NOT_FOUND);
+    // 見せる範囲も、押さえたあとの設定で決め直す（読んでから押さえるまでに部員だけに変わったとき）
+    await assertVisible(deps, { event: context.event, setting }, viewer, tx);
     assertOpen(setting, startsAt, now);
     const existing = await findAccountEntry(tx, eventId, me, true);
     if (input.consent && context.holder) await insertConsent(tx, me, context.holder);
@@ -726,14 +744,17 @@ export async function requestEmailApply(
   const token = await deps.db.transaction(async (tx) => {
     // 設定の行を押さえて、待ちの数を順に数える
     assertEmailOpen(await findPageSetting(tx, eventId, true), context.event, now);
-    await deleteExpiredRequests(tx, eventId, now);
+    await deleteExpiredRequests(tx, now);
+    // 上限は10分の確かめより先に（先に10分を見ると、上限のときに「そのアドレスの待ちがあるか」が答えの違いで分かるため）。
+    // 数えるのは直近1時間に作った待ちだけ（上限まで送られても、1時間たてばまた受け付ける。research R11）
+    const since = new Date(now.getTime() - EMAIL_REQUEST_WINDOW_MINUTES * MINUTE_MS);
+    if ((await countRecentRequests(tx, eventId, since, now)) >= EMAIL_REQUESTS_PER_EVENT_MAX) {
+      throw new AppError(BOOKING_ERRORS.EMAIL_REQUEST_LIMIT);
+    }
     const latest = await findLatestRequestAt(tx, eventId, input.email);
     // 同じアドレスは10分に1通（送らずに同じ答え。S6・S7）
     if (latest && now.getTime() - latest.getTime() < EMAIL_REQUEST_RESEND_MINUTES * MINUTE_MS) {
       return null;
-    }
-    if ((await countActiveRequests(tx, eventId, now)) >= EMAIL_REQUESTS_PER_EVENT_MAX) {
-      throw new AppError(BOOKING_ERRORS.EMAIL_REQUEST_LIMIT);
     }
     await deleteRequestsOf(tx, eventId, input.email);
     const created = createToken();
@@ -879,6 +900,9 @@ export async function confirmEntryToken(
   if (already) return entryView(deps, already, now);
   const queue: NoticeQueue = [];
   const outcome = await deps.db.transaction(async (tx) => {
+    // 押さえる順は「設定の行 → 待ちの行」（メールで申し込む側と同じ順。逆にするとデッドロックになる）
+    const peeked = await findRequestByHash(tx, hash);
+    if (peeked) await findPageSetting(tx, peeked.eventId, true);
     const request = await findRequestByHash(tx, hash, true);
     if (!request) {
       // 同時に押された2回目：先に確定したほうの申込みを返す

@@ -26,6 +26,24 @@ export const IMPORT_HEADERS_MAX = 50;
 /** CSV の見出し1つの文字数の上限。 */
 export const IMPORT_HEADER_MAX = 100;
 
+/**
+ * CSV の見出しと名前の列を、列の対応として覚えられるか（列の数と見出しの長さが上限の中）。
+ * 上限を超える CSV は、列の対応を送らずに名前だけで取り込む（取り込み自体は止めない。research R6）。
+ * @param headers 見出しの並び
+ * @param nameColumn 選んだ名前の列
+ * @returns 覚えられれば true
+ */
+export function importMappingFits(headers: readonly string[], nameColumn: string): boolean {
+  return (
+    headers.length >= 1 &&
+    headers.length <= IMPORT_HEADERS_MAX &&
+    headers.every((header) => header.length <= IMPORT_HEADER_MAX) &&
+    nameColumn.length >= 1 &&
+    nameColumn.length <= IMPORT_HEADER_MAX &&
+    headers.includes(nameColumn)
+  );
+}
+
 /** 画面で読む CSV のファイルの大きさの上限（バイト。research R5）。 */
 export const ROSTER_IMPORT_FILE_MAX_BYTES = 5 * 1024 * 1024;
 

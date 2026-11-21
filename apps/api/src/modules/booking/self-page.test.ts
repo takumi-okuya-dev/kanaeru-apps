@@ -1,5 +1,6 @@
 // 主催者の申込みページの設定の結合のテスト（booking-003 US2）：使い方を自前にする・受付を開く・閉じる・見せる範囲・
-// 組織に入れていないと部員だけを選べない・自前でないと 409・受付係と部員は変えられない・自前でも名簿の窓口が動く。名前は架空のもの。
+// 組織に入れていないと部員だけを選べない・自前でないと 409・受付係と部員は変えられない・自前でなくすと受付が閉じる・
+// 自前でも名簿の窓口が動く。名前は架空のもの。
 import "@hono/zod-openapi";
 import type { BookingSetting } from "@workspace/contracts/booking";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -110,6 +111,18 @@ describe("申込みページの設定（主催者）", () => {
     const body = { accepting: true, visibility: "public" };
     expect((await call(app, staff.cookie, `${base}/self-page`, "PUT", body)).status).toBe(403);
     expect((await call(app, member.cookie, `${base}/self-page`, "PUT", body)).status).toBe(403);
+  });
+
+  it("使い方を自前でなくすと受付が閉じ、自前に戻しても閉じたまま", async () => {
+    await call(app, owner.cookie, `${base}/setting`, "PUT", { mode: "self_page" });
+    await call(app, owner.cookie, `${base}/self-page`, "PUT", {
+      accepting: true,
+      visibility: "public",
+    });
+    const roster = await call(app, owner.cookie, `${base}/setting`, "PUT", { mode: "roster" });
+    expect(((await roster.json()) as BookingSetting).accepting).toBe(false);
+    const back = await call(app, owner.cookie, `${base}/setting`, "PUT", { mode: "self_page" });
+    expect(((await back.json()) as BookingSetting).accepting).toBe(false);
   });
 
   it("自前の交流会でも、名簿の窓口（取り込み・名簿）が動く", async () => {

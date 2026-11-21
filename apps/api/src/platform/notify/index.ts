@@ -5,6 +5,6 @@ export { FAKE_OUTBOX_MAX } from "./fake.ts";
 export { decideDelivery } from "./guard.ts";
 export type { DeliveryDecision, NotifyPolicy } from "./guard.ts";
 export { LINE_API_BASE_URL } from "./line-client.ts";
-export { createNotifier } from "./notifier.ts";
+export { FAKE_BOT_USER_ID, FAKE_PROFILE_NAME, createNotifier } from "./notifier.ts";
 export type { NotifierDeps } from "./notifier.ts";
 export { verifyLineSignature } from "./signature.ts";

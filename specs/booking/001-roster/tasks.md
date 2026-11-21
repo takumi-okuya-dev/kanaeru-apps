@@ -53,3 +53,11 @@
 
 - [x] T025 今の形の文書：`docs/apps/booking.md`（新）・`docs/README.md` 2章に1行・`docs/apps/reception.md`（index の関数・差しこみの場所）・`docs/apps/event.md`（準備の画面の差しこみの場所）
 - [ ] T026 `pnpm check` と関わる E2E を流し、コミットする
+
+## セルフレビューの直し（2026-11-21）
+
+- [x] T030 まとめた行を消さずに残す（`booking_entry.merged_into_id`。0015 に足す）。名簿・人数・当てから隠し、取り込みの「すでにある」には数える。結合のテスト「まとめたあとに同じ CSV を取り込み直しても増えない」
+- [x] T031 2つともチェックインに当たっている行はまとめず 409 `BOOKING_MERGE_BOTH_MATCHED`。片方だけなら当てが残す行へ移るテスト
+- [x] T032 列が多い・見出しが長い CSV は、画面が `mapping` を送らずに名前だけで取り込む（`importMappingFits`）
+- [x] T033 名前がそろう当たっていないチェックインが2つ以上なら候補を出さない（`matching.ts`）
+- [x] T034 名簿の人数の「来た」は確定の行だけ数える（`views.ts`）

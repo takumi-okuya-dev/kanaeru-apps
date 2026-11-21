@@ -144,7 +144,8 @@ test("組織の管理者が公式アカウントを設定し、参加者が友�
   await page.getByRole("button", { name: "保存する", exact: true }).click();
   await expect(page.getByText("チャネル ID を入れてください。")).toBeVisible();
   await checkPage(page, "予約の知らせ（組織・まだ設定なし）");
-  await page.getByLabel(/^チャネル ID/).fill("1234567890");
+  // 同じチャネル ID は1つの設定にしか入らないので、パソコンとスマホの幅で別の ID にする
+  await page.getByLabel(/^チャネル ID/).fill(tag === "b2" ? "1234567892" : "1234567891");
   await page.getByLabel(/^チャネルシークレット/).fill(CHANNEL_HEX);
   await page.getByLabel(/^チャネルアクセストークン/).fill(CHANNEL_ACCESS);
   await page.getByRole("button", { name: "保存する", exact: true }).click();

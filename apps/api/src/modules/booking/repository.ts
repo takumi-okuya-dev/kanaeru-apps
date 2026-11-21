@@ -1,5 +1,5 @@
 // 予約の表の読み書き（表は booking の領域だけが読み書きする。AD-3）。名前はログに出さない。
-import { and, asc, count, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { BookingMode, EntryKind, EntryStatus } from "@workspace/contracts/booking";
 import type { ApplicationSource } from "@workspace/contracts/reception";
 import type { Executor } from "../../kernel/db.ts";
@@ -62,34 +62,45 @@ export async function lockMode(tx: Executor, eventId: string): Promise<BookingMo
 }
 
 /**
- * 交流会の使い方を書く（行がなければ作る）。
+ * 交流会の使い方を書く（行がなければ作る）。自前で申込みを受ける以外にしたら、申込みページの受付を閉じる
+ * （あとで自前に戻したとき、知らないうちに受付が開いたままにならないように。booking-003 research R13）。
  * @param db DB
  * @param eventId 交流会の ID
  * @param mode 使い方
  */
 export async function saveMode(db: Executor, eventId: string, mode: BookingMode): Promise<void> {
+  const closing = mode === "self_page" ? {} : { accepting: false };
   await db
     .insert(bookingSetting)
     .values({ eventId, mode })
-    .onConflictDoUpdate({ target: bookingSetting.eventId, set: { mode, updatedAt: sql`now()` } });
+    .onConflictDoUpdate({
+      target: bookingSetting.eventId,
+      set: { mode, ...closing, updatedAt: sql`now()` },
+    });
 }
 
 /**
- * 交流会の名簿の行の数（隠れている行も数える）。
+ * 名簿に出る行の条件（その交流会の行で、まとめられていない。まとめた行は残すが名簿から隠す。research R7）。
+ * @param eventId 交流会の ID
+ * @returns where の条件
+ */
+function listedIn(eventId: string) {
+  return and(eq(bookingEntry.eventId, eventId), isNull(bookingEntry.mergedIntoId));
+}
+
+/**
+ * 交流会の名簿の行の数（使い方が受付だけで隠れている行も数える。まとめた行は数えない）。
  * @param db DB
  * @param eventId 交流会の ID
  * @returns 行の数
  */
 export async function countEntries(db: Executor, eventId: string): Promise<number> {
-  const [row] = await db
-    .select({ value: count() })
-    .from(bookingEntry)
-    .where(eq(bookingEntry.eventId, eventId));
+  const [row] = await db.select({ value: count() }).from(bookingEntry).where(listedIn(eventId));
   return row?.value ?? 0;
 }
 
 /**
- * 交流会の名簿（申し込んだ日時の古い順）。
+ * 交流会の名簿（申し込んだ日時の古い順。まとめた行は出さない）。
  * @param db DB
  * @param eventId 交流会の ID
  * @returns 名簿の行
@@ -98,12 +109,26 @@ export function listEntries(db: Executor, eventId: string): Promise<EntryRecord[
   return db
     .select()
     .from(bookingEntry)
+    .where(listedIn(eventId))
+    .orderBy(...OLDEST_FIRST);
+}
+
+/**
+ * 取り込みの見比べに使う行（まとめた行も含む。まとめたあとに同じ CSV を取り込み直しても増やさないため。research R4・R7）。
+ * @param db DB
+ * @param eventId 交流会の ID
+ * @returns 名簿の行（まとめた行を含む）
+ */
+export function listEntriesForImport(db: Executor, eventId: string): Promise<EntryRecord[]> {
+  return db
+    .select()
+    .from(bookingEntry)
     .where(eq(bookingEntry.eventId, eventId))
     .orderBy(...OLDEST_FIRST);
 }
 
 /**
- * 交流会の名簿の行を ID で読む（ほかの交流会の行は返さない）。
+ * 交流会の名簿の行を ID で読む（ほかの交流会の行・まとめた行は返さない）。
  * @param db DB
  * @param eventId 交流会の ID
  * @param entryId 行の ID
@@ -119,7 +144,7 @@ export async function findEntry(
   const query = db
     .select()
     .from(bookingEntry)
-    .where(and(eq(bookingEntry.id, entryId), eq(bookingEntry.eventId, eventId)))
+    .where(and(eq(bookingEntry.id, entryId), listedIn(eventId)))
     .limit(1);
   const [row] = lock ? await query.for("update") : await query;
   return row ?? null;
@@ -200,14 +225,29 @@ export async function updateEntry(
 }
 
 /**
- * 名簿の行を消す（まとめるとき）。
+ * 名簿の行を「まとめた」にする（消さずに残し、取り消しにして当て・アカウント・連絡のメールと札を外し、まとめた先を入れる。research R7）。
  * @param db DB
  * @param eventId 交流会の ID
- * @param entryId 行の ID
+ * @param entryId まとめる（隠す）行の ID
+ * @param keepEntryId まとめた先の行の ID
  */
-export async function deleteEntry(db: Executor, eventId: string, entryId: string): Promise<void> {
+export async function markEntryMerged(
+  db: Executor,
+  eventId: string,
+  entryId: string,
+  keepEntryId: string,
+): Promise<void> {
   await db
-    .delete(bookingEntry)
+    .update(bookingEntry)
+    .set({
+      status: "cancelled",
+      checkinId: null,
+      accountId: null,
+      contactEmail: null,
+      entryTokenHash: null,
+      mergedIntoId: keepEntryId,
+      updatedAt: sql`now()`,
+    })
     .where(and(eq(bookingEntry.id, entryId), eq(bookingEntry.eventId, eventId)));
 }
 

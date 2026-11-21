@@ -419,7 +419,10 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
       await next();
     }),
   );
-  // 本文の大きさの上限と、回数の制限（IP ごと。/api/v1 の状態を変える道）
+  // 本文の大きさの上限と、回数の制限（IP ごと。/api/v1 の状態を変える道）。
+  // 領域の Webhook の道（/api/v1/<領域>/webhooks/…）は IP ごとに数えない（LINE・Meta などの送り元は多くの利用者で共通の IP なので、
+  // 数えると正しい知らせを落とす）。Webhook の道の回数は、領域が署名を確かめたあとに設定ごとに数える
+  // （例：booking の LINE の Webhook）
   app.use(
     "/api/v1/*",
     bodyLimit({
@@ -433,7 +436,7 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
     "/api/v1/*",
     createRateLimiter(
       { ...config.rateLimit, trustedProxyHops: config.trustedProxyHops },
-      { applies: (c) => !SAFE_METHODS.test(c.req.method) },
+      { applies: (c) => !SAFE_METHODS.test(c.req.method) && !WEBHOOK_PATH.test(c.req.path) },
     ),
   );
 

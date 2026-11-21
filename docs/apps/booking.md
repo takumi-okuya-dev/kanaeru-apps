@@ -17,7 +17,7 @@
 | 表 | 列 | 決まり |
 |---|---|---|
 | `booking_setting` | `event_id`（主キー）・`mode`・`accepting`・`visibility`・`capacity`・`quota_released_at`・`cancelled_at`・`notified_starts_at`・`notified_venue`・`change_detected_at`・`same_day_notified_at`・`created_at`・`updated_at` | 交流会ごとの使い方。行がなければ受付だけ。`mode` は `reception`（受付だけ）・`roster`（名簿を使う）・`self_page`（自前で申込みを受ける。booking-003）の CHECK（`booking_setting_mode_check`）。「受付だけ」に戻しても行は消さない。`accepting`（申込みページの受付を開いているか。既定 false）・`visibility`（`public`＝誰でも・`members`＝部員だけ。既定 `public`。CHECK `booking_setting_visibility_check`）は booking-003。`capacity`（定員。空＝定員なし。1〜1000 の CHECK `booking_setting_capacity_check`）・`quota_released_at`（一度満員になって媒体の枠を押さえるのをやめた時刻）・`cancelled_at`（予約を中止した時刻）・`notified_starts_at`・`notified_venue`（最後に知らせた日時と場所。変更を比べる）・`change_detected_at`（定期の仕事が変更に気づいた時刻）・`same_day_notified_at`（当日の空きを知らせた時刻）は booking-004 |
-| `booking_entry` | `id`・`event_id`・`name`・`application_source`（媒体）・`entry_kind`（入口）・`status`（状態）・`applied_at`（申し込んだ日時）・`entered_by`（入れた人）・`memo`・`account_id`（本人の申込み〈自前のページで LINE ログインして申し込んだ人〉）・`checkin_id`（手で当てたチェックイン）・`contact_email`（メールで申し込んだ人の連絡のメール。主催者に見せない）・`entry_token_hash`（メールで申し込んだ人の札の SHA-256）・`created_at`・`updated_at` | 名簿の1行。媒体は受付の申し込みの媒体（`connpass`・`peatix`・`direct`・`other`）、入口は `manual`（手で足す）・`import`（取り込み）・`walk_in`（飛び入り）・`self_page`（自前。booking-003）、状態は `confirmed`（確定）・`waitlisted`（キャンセル待ち）・`offered`（打診中）・`cancelled`（取り消し）の CHECK（キャンセル待ち・打診中は booking-004）。`checkin_id` は空でない行で一意（`booking_entry_checkin_id_unique`）、`(event_id, account_id)` は `account_id` が空でない行で一意、`(event_id, contact_email)`・`entry_token_hash` は空でない行で一意（booking-003）。`contact_email` は254文字まで。索引 `booking_entry_event_id_applied_at_idx`・`booking_entry_entered_by_idx`・`booking_entry_account_id_idx`・`booking_entry_event_id_status_idx`（booking-004） |
+| `booking_entry` | `id`・`event_id`・`name`・`application_source`（媒体）・`entry_kind`（入口）・`status`（状態）・`applied_at`（申し込んだ日時）・`entered_by`（入れた人）・`memo`・`account_id`（本人の申込み〈自前のページで LINE ログインして申し込んだ人〉）・`checkin_id`（手で当てたチェックイン）・`merged_into_id`（まとめた先の行）・`contact_email`（メールで申し込んだ人の連絡のメール。主催者に見せない）・`entry_token_hash`（メールで申し込んだ人の札の SHA-256）・`created_at`・`updated_at` | 名簿の1行。媒体は受付の申し込みの媒体（`connpass`・`peatix`・`direct`・`other`）、入口は `manual`（手で足す）・`import`（取り込み）・`walk_in`（飛び入り）・`self_page`（自前。booking-003）、状態は `confirmed`（確定）・`waitlisted`（キャンセル待ち）・`offered`（打診中）・`cancelled`（取り消し）の CHECK（キャンセル待ち・打診中は booking-004）。`checkin_id` は空でない行で一意（`booking_entry_checkin_id_unique`）、`(event_id, account_id)` は `account_id` が空でない行で一意、`(event_id, contact_email)`・`entry_token_hash` は空でない行で一意（booking-003）。`contact_email` は254文字まで。索引 `booking_entry_event_id_applied_at_idx`・`booking_entry_entered_by_idx`・`booking_entry_account_id_idx`・`booking_entry_event_id_status_idx`（booking-004）・`booking_entry_merged_into_id_idx`。`merged_into_id` が空でない行（まとめた行）は消さずに残し、名簿・人数・当てから隠す（取り込みの「すでにある」には数える） |
 | `booking_dismissal` | `id`・`event_id`・`checkin_id`・`entry_id`・`dismissed_by`・`created_at` | 受付係が「ちがう人」にした組。`(checkin_id, entry_id)` で一意 |
 | `booking_import_mapping` | `id`・`owner_account_id`・`header_key`（見出しの並びの JSON）・`name_column`・`application_source`・`created_at`・`updated_at` | 交流会の持ち主ごとの CSV の列の対応。`(owner_account_id, header_key)` で一意 |
 
@@ -39,6 +39,7 @@
 | `booking_entry.account_id`・`booking_import_mapping.owner_account_id` | `CASCADE`（本人の申込み・持ち主のデータ） |
 | `booking_entry.entered_by`・`booking_dismissal.dismissed_by` | `SET NULL`（誰がしたか） |
 | `booking_entry.checkin_id` | `SET NULL`（チェックインを取り消すと当てが外れる） |
+| `booking_entry.merged_into_id` | `SET NULL`（まとめた先の行が消えると、取り消しの行として名簿に出る） |
 | `booking_dismissal.checkin_id`・`booking_dismissal.entry_id` | `CASCADE` |
 | `booking_line_channel` の持ち主（アカウント・組織）・`booking_line_link.account_id`・`booking_contact.account_id` | `CASCADE`（持ち主・本人のデータ。booking-002） |
 | `booking_line_link.channel_id`・`booking_line_link_token.channel_id` | `CASCADE` |
@@ -62,9 +63,9 @@
 | GET | `…/entries` | 主催者・受付係 | 名簿（行は申し込んだ日時の古い順。行ごとに `sameName`・`attendance`〈`came`・`no_show`・`pending`〉・`match`〈`manual`・`auto`〉・`enteredByName`〈手で足した・飛び入りの入れた人〉）・人数（確定・取り消し・来た・来なかった・飛び入り・媒体ごとの確定）・`eventEnded` |
 | POST | `…/entries` | 主催者・受付係 | 1人足す（名前・媒体・メモ。入口は手で足す。201） |
 | PUT | `…/entries/{entryId}/status` | 主催者 | 取り消す・戻す |
-| POST | `…/entries/merge` | 主催者 | 同じ名前の2つの行をまとめる（`{ keepEntryId, removeEntryId }`。消す行の当て・アカウント・メモを、残す行になければ移す。名前が違えば 400 `BOOKING_MERGE_NAME_MISMATCH`） |
+| POST | `…/entries/merge` | 主催者 | 同じ名前の2つの行をまとめる（`{ keepEntryId, removeEntryId }`。まとめる行の当て・アカウント・メモを、残す行になければ移し、まとめる行は取り消しにして `merged_into_id` を入れる〈消さない〉。名前が違えば 400 `BOOKING_MERGE_NAME_MISMATCH`、2つともチェックインに当たっていれば 409 `BOOKING_MERGE_BOTH_MATCHED`） |
 | POST | `…/entries/import/preview` | 主催者 | 取り込む前の見積もり（書かない） |
-| POST | `…/entries/import` | 主催者 | 取り込む（`{ applicationSource, rows: [{ line, name }], mapping? }`。1〜500行・名前は50文字まで。`mapping` があれば持ち主の列の対応を覚える） |
+| POST | `…/entries/import` | 主催者 | 取り込む（`{ applicationSource, rows: [{ line, name }], mapping? }`。1〜500行・名前は50文字まで。`mapping` があれば持ち主の列の対応を覚える。画面は、列が50を超える・見出しが100文字を超える CSV では `mapping` を送らない） |
 | GET | `…/import-mappings` | 主催者 | 交流会の持ち主が覚えた列の対応（新しく覚えた順） |
 | GET | `…/entries/export` | 主催者 | 名簿の CSV（`roster-YYYY-MM-DD.csv`。列は 名前・媒体・入口・状態・申し込んだ日時・来た・入れた人・メモ。`@workspace/csv` で BOM・CRLF・式の守り） |
 | GET | `…/matches` | 主催者・受付係 | 名簿に当てる画面（チェックインごとの `state`〈`candidate`・`unmatched`・`matched_auto`・`matched_manual`・`walk_in`〉と当たった行か候補・名簿から選べる行・人数） |
@@ -74,7 +75,7 @@
 | DELETE | `…/entries/{entryId}/match` | 主催者・受付係 | 手で当てたものを外す（同じアカウントの自動の当ては 409 `BOOKING_MATCH_NOT_MANUAL`） |
 | POST | `…/entries/{entryId}/checkin` | 主催者・受付係 | 名簿から選んで手でチェックインし、その行に当てる（受付の `CheckinInput`。201） |
 | POST | `…/walk-ins` | 主催者・受付係 | 名簿にいない人を手でチェックインし、飛び入りの行を足す（受付の `CheckinInput`。201） |
-| PUT | `…/self-page` | 主催者 | 申込みページの受付を開く・閉じると見せる範囲（`{ accepting, visibility }`。使い方が自前でなければ 409 `BOOKING_SELF_PAGE_OFF`・組織に入れていないのに `members` は 400 `BOOKING_VISIBILITY_NEEDS_ORGANIZATION`。booking-003） |
+| PUT | `…/self-page` | 主催者 | 申込みページの受付を開く・閉じると見せる範囲（`{ accepting, visibility }`。使い方が自前でなければ 409 `BOOKING_SELF_PAGE_OFF`。使い方を自前でないものに変えると受付は閉じる・組織に入れていないのに `members` は 400 `BOOKING_VISIBILITY_NEEDS_ORGANIZATION`。booking-003） |
 
 - `…/setting` の答えは `{ mode, entryCount, accepting, visibility, started, inOrganization }`（後ろの4つは booking-003。`started` は始まりを過ぎたか）。使い方は `reception`・`roster`・`self_page`。
 - 交流会がない・形の違う ID は 404（event の `NOT_FOUND`）、役目が違えば 403（event の `FORBIDDEN`。部員とほかの人も）。使い方が受付だけなら、`…/setting` のほかは 409 `BOOKING_ROSTER_OFF`（名簿を使う・自前で申込みを受けるのどちらでも名簿の窓口は動く）。
@@ -89,12 +90,12 @@
 | 動き | 道 | だれ | すること |
 |---|---|---|---|
 | GET | `/notify-settings/{holder}` | 本人・組織の管理者 | 設定の画面の答え（持ち主・今の送り方・LINE の値〈末尾・Webhook の URL・紐づいた人数・今月 LINE で送った数〉・あいさつの見本・送り主の名前と返信先・自分が紐づいているか。個人のときは自分が管理者の組織の一覧） |
-| PUT | `/notify-settings/{holder}/line` | 同じ | LINE の値を入れる・入れ直す（初めは3つとも、入れ直しは1つ以上。チャネル ID を変えるときは3つとも要り、前の紐づけと札を消す）。アクセストークンはボット情報で確かめ（401 は 400 `BOOKING_LINE_TOKEN_INVALID`・届かないと 502 `BOOKING_LINE_UNREACHABLE`）、ベーシック ID を持つ。秘密の箱がなければ 503 `BOOKING_NOTIFY_UNAVAILABLE` |
+| PUT | `/notify-settings/{holder}/line` | 同じ | LINE の値を入れる・入れ直す（初めは3つとも、入れ直しは1つ以上。チャネル ID を変えるときは3つとも要り、前の紐づけと札を消す）。アクセストークンはボット情報で確かめ（401 は 400 `BOOKING_LINE_TOKEN_INVALID`・届かないと 502 `BOOKING_LINE_UNREACHABLE`）、ベーシック ID とボットの userId を持つ（アクセストークンだけを入れ直して userId〈前の版の行はベーシック ID〉が替われば、前の紐づけと札を消す）。同じチャネル ID がほかの持ち主の設定にあれば 409 `BOOKING_LINE_CHANNEL_TAKEN`。秘密の箱がなければ 503 `BOOKING_NOTIFY_UNAVAILABLE` |
 | DELETE | `/notify-settings/{holder}/line` | 同じ | LINE の値と紐づけ・札を消す（返信先は残る） |
 | PUT | `/notify-settings/{holder}/mail` | 同じ | 返信先を変える（`{ replyToEmail }`。null で消す） |
 | POST | `/notify-settings/{holder}/test` | 同じ | 自分に確かめのメッセージを送る（紐づいていなければ `not_linked`。許可リストにないときは本人の ID を返す。LINE の値がなければ 409 `BOOKING_LINE_NOT_SET`） |
-| POST | `/webhooks/line/{channelId}` | LINE（ログインなし） | 署名（`x-line-signature`）を確かめ、友だち追加にあいさつ（札つきのリンク）を返事で送り、ブロックで紐づけと札を消す。署名・形が合わない・64KB を超える → 本文のない 400。知らない設定 → 404 |
-| GET・POST | `/line-links/{linkToken}` | ログインした人 | 札の中身（持ち主の名前・使える・使った・期限切れ・自分が紐づいているか）／紐づける（使った 409 `BOOKING_LINK_USED`・期限切れ 410 `BOOKING_LINK_EXPIRED`・知らない 404 `BOOKING_LINK_INVALID`） |
+| POST | `/webhooks/line/{channelId}` | LINE（ログインなし） | 署名（`x-line-signature`。届いたままの本文で比べる）を確かめ、友だち追加にあいさつ（札つきのリンク）を返事で送り（LINE の送り直しでは送らず札も作り直さない）、ブロックでその友だちの札を押さえてから紐づけと札を消す。署名・形が合わない・64KB を超える・`destination` が設定のボットと違う → 本文のない 400。知らない設定 → 404。IP ごとの回数の制限は効かず、署名が合ったあとに設定ごとに60秒に600回まで（超えたら本文のない 429） |
+| GET・POST | `/line-links/{linkToken}` | ログインした人 | 札の中身（持ち主の名前・使える・使った・期限切れ・自分が紐づいているか・使える札ならその LINE の友だちの表示名）／紐づける（紐づけたら、その LINE に「◯◯さんのアカウントと紐づきました。心当たりがなければブロック」を送る。守りを通す）（使った 409 `BOOKING_LINK_USED`・期限切れ 410 `BOOKING_LINK_EXPIRED`・知らない 404 `BOOKING_LINK_INVALID`） |
 | GET・PUT・DELETE | `/me/contact` | ログインした人（本人） | 連絡のメールアドレスを読む・入れる（小文字にそろえる）・消す |
 | GET | `/dev/notify-outbox` | ログインした人 | 試験用のログインが入で偽の送り手のときだけ、偽の送り手が覚えたもの（手元と E2E であいさつのリンクを読む）。ほかは 404 |
 
@@ -105,14 +106,14 @@
 | GET | `/events/{eventId}/page` | だれでも（ログインは任意。account の `findSessionViewer`） | 申込みページ（交流会の名前・日時・会場・参加費・主催〈組織の名前か持ち主の表示名〉・受付の状態〈`open`・`closed`・`started`〉・見せる範囲・カレンダーのリンク・友だち追加の URL〈ベーシック ID があるとき〉。ログインしていれば名前の初めの値・自分の申込み・案内の同意・紐づけ・連絡のメールがあるか）。使い方が自前でない・ない交流会は 404 `BOOKING_PAGE_NOT_FOUND` |
 | POST | `/events/{eventId}/apply` | ログインした人 | 申し込む（`{ name, consent? }`。新しく・取り消しから戻したら 201、もう確定なら 200 で何もしない）。受付中でなければ 409 `BOOKING_PAGE_CLOSED`。確定したら `sendNotice`（確定・申込みページとカレンダーのリンク） |
 | GET | `/events/{eventId}/calendar` | だれでも | `.ics`（添付。終わりは始まりの2時間後） |
-| POST | `/events/{eventId}/email-requests` | だれでも | LINE を使わずに申し込む：確認の待ちを作り確認のメールを送る（`{ name, email }`。答えはいつも 202。同じ交流会・同じアドレスは10分に1通・交流会ごとの待ちは200件まで〈超えたら 429 `BOOKING_EMAIL_REQUEST_LIMIT`〉） |
-| GET・POST | `/entry-tokens/{entryToken}`・`…/confirm`・`…/cancel` | だれでも（札を知る本人） | 札のページ（`pending`〈確認の前〉・`entry`〈申込みがある〉）／確定する（2回押しても1行。すでにそのアドレスの申込みがあれば札を替える。確定したら `sendNotice`）／取り消す（始まりまで）。期限切れ 410 `BOOKING_ENTRY_TOKEN_EXPIRED`・知らない 404 `BOOKING_ENTRY_TOKEN_INVALID` |
+| POST | `/events/{eventId}/email-requests` | だれでも | LINE を使わずに申し込む：確認の待ちを作り確認のメールを送る（`{ name, email }`。答えはいつも 202。同じ交流会・同じアドレスは10分に1通・交流会ごとに直近1時間に作った待ちは200件まで〈超えたら 429 `BOOKING_EMAIL_REQUEST_LIMIT`。上限は10分の確かめより先に見る〉。期限切れの待ちは交流会に関係なく消す） |
+| GET・POST | `/entry-tokens/{entryToken}`・`…/confirm`・`…/cancel` | だれでも（札を知る本人） | 札のページ（`pending`〈確認の前〉・`entry`〈申込みがある〉）／確定する（2回押しても1行。すでにそのアドレスの申込みがあれば札を替える。確定したら `sendNotice`）／取り消す（始まりまで。連絡のメールアドレスを消し、もう一度申し込むと新しい行になる）。確定は設定の行 → 確認の待ちの順に押さえる。期限切れ 410 `BOOKING_ENTRY_TOKEN_EXPIRED`・知らない 404 `BOOKING_ENTRY_TOKEN_INVALID` |
 | GET | `/me/entries` | ログインした人 | 自分の申込み（始まりの日が終わっていない会・始まりの近い順） |
 | POST | `/me/entries/{entryId}/cancel` | ログインした人（本人の行だけ） | 取り消す（始まりを過ぎたら 409 `BOOKING_CANCEL_CLOSED`・ほかの人の行は 404） |
 | GET | `/me/schedule` | ログインした人 | 部の予定（自分がメンバーの組織に入れた自前の会。部員だけの回も） |
 | GET・DELETE | `/me/consents`・`/me/consents/{consentId}` | ログインした人（本人だけ） | 案内の同意の一覧・外す（ほかの人のものは 404 `BOOKING_CONSENT_NOT_FOUND`） |
 
-- 部員だけの回（`visibility = members`）は、ページ・申込み・`.ics` が主催者と部員（event の `getEventRole`）のほかに 403 `BOOKING_PAGE_MEMBERS_ONLY`（中身を返さない）。メールで申し込む・確定するは誰でもの会だけ。
+- 部員だけの回（`visibility = members`）は、ページ・申込み・`.ics` が主催者と部員（event の `getEventRole`。受付係なら組織のメンバーかを確かめ直す）のほかに 403 `BOOKING_PAGE_MEMBERS_ONLY`（中身を返さない）。メールで申し込む・確定するは誰でもの会だけ。
 - 申し込む・確定するは、`booking_setting` の行を `FOR UPDATE` で押さえて受付中かを決め直す（同時に押しても1行）。
 - GET は何も書かない（確定・取り消しは画面のボタンの POST だけ。メールの下見の仕組みが開いても確定しない）。
 - 名前・メールアドレス・札はログに出さない。メールで申し込んだ人の連絡のメールは名簿・CSV・当てる画面の答えに出さない（答えは列を選んで作る）。
@@ -152,14 +153,14 @@
 
 1. 行の `checkin_id`（手で当てた・飛び入り）
 2. 行のアカウント = チェックインのアカウント（自動。自前のページで LINE ログインして申し込んだ人に効く。FR-B100）
-3. 残りのチェックインに、当たっていない確定の行で、そろえた名前が同じで「ちがう人」にしていない行がちょうど1つ → 候補
+3. 残りのチェックインに、当たっていない確定の行で、そろえた名前が同じで「ちがう人」にしていない行がちょうど1つ → 候補（当たっていないチェックインの側にも、そろえた名前が同じものがちょうど1つのときだけ）
 4. ほかは名簿にいない（名簿から選ぶ・飛び入りにする）
 
-取り消しの行は当てない。来なかった＝交流会の始まりの日（日本時間）の終わり（`endOfJstDate`）を過ぎ、確定で当たっていない行。受付の内訳の画面には出さない（受付は予約を知らない）。
+取り消しの行は当てない。名簿の人数の「来た」は確定の行だけ数える。来なかった＝交流会の始まりの日（日本時間）の終わり（`endOfJstDate`）を過ぎ、確定で当たっていない行。受付の内訳の画面には出さない（受付は予約を知らない）。
 
 ### 取り込みの「すでにある」（`importing.ts`）
 
-同じ交流会・入口が取り込み・同じ媒体の行（取り消しも数える）を、そろえた名前ごとに数え、その数までを「すでにある」として入れない。名前が空の行は入れない。入る行には、名簿（取り消しでない行）か同じ取り込みのほかの入る行に同じ名前があれば印を付ける。
+同じ交流会・入口が取り込み・同じ媒体の行（取り消しも、まとめた行も数える）を、そろえた名前ごとに数え、その数までを「すでにある」として入れない。名前が空の行は入れない。入る行には、名簿（取り消しでない行）か同じ取り込みのほかの入る行に同じ名前があれば印を付ける。
 
 ## 3. ほかの領域が使うもの
 
@@ -193,7 +194,7 @@ booking が読むもの：event の `requireEventRole`・`getEventRole`・`getEv
 | `/admin/events/$eventId/roster/match` | S1 名簿に当てる（主催者・受付係） | 来た・確定・飛び入りの人数。当てを待つチェックインのカード（候補なら「名簿の候補：…」と「当てる」「ちがう人」、名簿にいなければ「名簿から選ぶ」〈名前で探す〉「飛び入りにする」）・さっきのチェックイン（名簿に当たった〈自動・手〉・飛び入り）・下の「手でチェックイン（名簿から選ぶ）」（名前で探して選ぶと、受付の欄〈名前と媒体を入れておく〉でチェックイン。「名簿にいない人（飛び入り）」）。5秒おきに読み直す（夜間の停止では止める） |
 | `/settings/reception/notify` | A4 予約の知らせ（個人。設定の画面の下） | 今の送り方の帯・自分が管理者の組織の一覧（組織の設定への入口）・LINE 公式アカウントの節・メールの節 |
 | `/settings/reception/notify/organizations/$organizationId` | A4 予約の知らせ（組織） | 組織の管理者だけ（ほかは「組織の管理者だけが変えられます」）。LINE の節：まだなければ3つの欄のフォーム、あれば末尾・ベーシック ID・紐づいた人・今月 LINE で送った数・「入れ直す」（空の欄は前のまま）・「公式アカウントの設定を消す」（確かめの枠）・Webhook の URL とコピー・LINE の画面での手順・あいさつの見本・「自分に確かめのメッセージを送る」（結果はボタンのそば）。メールの節：送り主の名前（変えられない）と返信先 |
-| `/line-link/$linkToken` | 紐づけ（参加者が外から開く。外枠のナビなし） | ログイン（SessionGate）→ 持ち主の名前と「紐づける」→「紐づけました」。使った札は本人なら「もう紐づいています」、知らない・期限切れ・ほかの人が使った札は理由と、友だち追加し直すと新しいリンクが届くこと |
+| `/line-link/$linkToken` | 紐づけ（参加者が外から開く。外枠のナビなし） | ログイン（SessionGate）→ 持ち主の名前・紐づける LINE の表示名（読めたときだけ）・「自分の LINE に届いたリンクでなければ押さない」と「紐づける」→「紐づけました」。使った札は本人なら「もう紐づいています」、知らない・期限切れ・ほかの人が使った札は理由と、友だち追加し直すと新しいリンクが届くこと |
 
 | `/e/$eventId` | 申込みページ（参加者が外から開く。外枠のナビなし。booking-003） | ログインなしで交流会の欄（日時・会場・参加費・主催）と受付の状態。受付中なら「LINE でログインして申し込む」（主のボタン）と「LINE を使わずに申し込む」（同じ画面の中で名前とメールアドレスの欄に切り替え、「確認のメールを送る」）。ログインしたら名前（初めの値つき）と案内のチェック（初めは外す。同意していれば文）と「申し込む」。申し込んだら「申し込みました」（確定・カレンダーに追加〈Google・.ics〉・公式 LINE の友だち追加〈設定があるとき〉・任意のメールアドレス・自分の申込みを見る・取り消す〈確かめの枠〉）。部員だけの回は「この会は見られません」（ログインしていなければログインの入口）。定員があれば「残り n 席」・「満員です（キャンセル待ち n 人）」と「キャンセル待ちに申し込む」・「当日の空き：残り n 席（先着）」、完了の画面は「キャンセル待ちに入りました」と何番目か、打診中なら期限と自分の申込みへの案内。中止なら「この会は中止になりました」（booking-004） |
 | `/e/$eventId/entry/$entryToken` | 札のページ（メールで申し込んだ人。ログインなし） | 確認の前は「申込みを確定する」（開いただけでは確定しない）、確定のあとは状態・カレンダーに追加・取り消す。期限切れは申込みページへの入口、知らない札は「使えません」。キャンセル待ちは何番目か、打診中は期限と「参加する」（主のボタン）「辞退する」、当日の空きなら「参加する」。打診の知らせの返事の札でも同じ画面（booking-004） |

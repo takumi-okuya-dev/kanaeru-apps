@@ -737,6 +737,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "merged_into_id": {
+          "name": "merged_into_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "contact_email": {
           "name": "contact_email",
           "type": "text",
@@ -806,6 +812,21 @@
           "columns": [
             {
               "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "booking_entry_merged_into_id_idx": {
+          "name": "booking_entry_merged_into_id_idx",
+          "columns": [
+            {
+              "expression": "merged_into_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -960,6 +981,19 @@
           "tableTo": "checkin",
           "columnsFrom": [
             "checkin_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "booking_entry_merged_into_id_booking_entry_id_fk": {
+          "name": "booking_entry_merged_into_id_booking_entry_id_fk",
+          "tableFrom": "booking_entry",
+          "tableTo": "booking_entry",
+          "columnsFrom": [
+            "merged_into_id"
           ],
           "columnsTo": [
             "id"
@@ -1173,6 +1207,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "bot_user_id": {
+          "name": "bot_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "reply_to_email": {
           "name": "reply_to_email",
           "type": "text",
@@ -1223,6 +1263,22 @@
           ],
           "isUnique": true,
           "where": "\"booking_line_channel\".\"holder_organization_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "booking_line_channel_line_channel_id_unique": {
+          "name": "booking_line_channel_line_channel_id_unique",
+          "columns": [
+            {
+              "expression": "line_channel_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"booking_line_channel\".\"line_channel_id\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}

@@ -39,9 +39,13 @@ export type LineReplyInput = {
   text: string;
 };
 
-/** ボット情報を読んだ結果。 */
+/** ボット情報を読んだ結果（userId は公式アカウントそのものの ID。Webhook の destination と同じ）。 */
 export type LineBotInfoResult =
-  { ok: true; basicId: string | null } | { ok: false; reason: "unauthorized" | "unreachable" };
+  | { ok: true; basicId: string | null; userId: string | null }
+  | { ok: false; reason: "unauthorized" | "unreachable" };
+
+/** 友だちのプロフィールを読んだ結果（表示名だけ。読めなければ ok: false）。 */
+export type LineProfileResult = { ok: true; displayName: string } | { ok: false };
 
 /** メールの中身（送り主のアドレスは送り手が決める。kanaeru 共通の送り主）。 */
 export type EmailMessage = {
@@ -95,6 +99,13 @@ export type Notifier = {
    * @returns 結果
    */
   getLineBotInfo(accessToken: string): Promise<LineBotInfoResult>;
+  /**
+   * 公式アカウントの友だちの表示名を読む（紐づけのページで、その札の LINE がだれかを見せる。メッセージを送らないので守りを通さない）。
+   * @param accessToken チャネルアクセストークン
+   * @param userId 公式アカウントから見える LINE のユーザー ID
+   * @returns 結果（友だちでない・届かないときは ok: false）
+   */
+  getLineProfile(accessToken: string, userId: string): Promise<LineProfileResult>;
   /**
    * メール。守り：off なら送らない・allowlist なら許可リストの宛先だけ。送り手がなければ unavailable。
    * @param message 中身
