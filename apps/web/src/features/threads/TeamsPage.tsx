@@ -92,10 +92,7 @@ function Teams() {
   }
   const organizations = [...new Map(list.teams.map((row) => [row.organizationId, row])).values()];
   return (
-    <ThreadsPage
-      title="チーム"
-      lead="チームに入れた運用アカウントを、何人かで運用します。チームを開くと、運用アカウント・担当・運用状況を見られます。"
-    >
+    <ThreadsPage title="チーム" lead="チームに入れた運用アカウントを、何人かで運用します">
       {list.teams.length === 0 ? (
         <StartTeam list={list} />
       ) : (

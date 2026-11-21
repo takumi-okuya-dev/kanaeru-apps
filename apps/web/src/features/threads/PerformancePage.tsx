@@ -399,10 +399,7 @@ function PerformanceContent({ account }: { account: ThreadsAccount }) {
   const { summary } = first;
   const items = query.data.pages.flatMap((page) => page.items);
   return (
-    <ThreadsPage
-      title="反応"
-      lead={`${account.name}：投稿ごとの反応を、このアカウントの基準値と比べて判定します。`}
-    >
+    <ThreadsPage title="反応" lead={`${account.name}：投稿ごとの反応を基準値と比べます`}>
       <SummarySection accountId={account.id} summary={summary} />
       <ChoiceChips
         label="表示する投稿"

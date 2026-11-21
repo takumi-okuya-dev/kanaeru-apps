@@ -23,7 +23,7 @@ export function ResearchPage({ accountId }: { accountId: string }) {
       {(account: ThreadsAccount) => (
         <ThreadsPage
           title="宣伝とリサーチ"
-          lead={`${account.name}：宣伝・参考の投稿・キーワードは、案を作るプロンプトの材料になります。`}
+          lead={`${account.name}：案を作る材料（宣伝・参考の投稿・キーワード）`}
         >
           <div className="flex max-w-form flex-col gap-l">
             <PromotionsSection accountId={account.id} />

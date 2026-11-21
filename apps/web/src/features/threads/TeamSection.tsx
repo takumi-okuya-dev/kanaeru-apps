@@ -7,6 +7,7 @@
 import type { ThreadsAccountTeam, ThreadsTeamPerson } from "@workspace/contracts/threads";
 import { TEAM_ROLE_LABELS } from "@workspace/contracts/threads";
 import { useQueryClient } from "@tanstack/react-query";
+import { Disclosure } from "@workspace/ui/components/disclosure";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
 import { Field, useFieldControl } from "@workspace/ui/components/field";
@@ -205,9 +206,12 @@ function OwnerControls({ accountId, team }: { accountId: string; team: ThreadsAc
   return (
     <div className="flex flex-col gap-s">
       <div className="flex flex-col gap-xxs">
-        <Field label="入れるチーム" description={PLACEMENT_NOTE}>
+        <Field label="入れるチーム">
           <TeamSelect candidates={team.candidates} value={selected} onChange={setSelected} />
         </Field>
+        <Disclosure summary="チームに入れると">
+          <p className="text-s text-text-sub">{PLACEMENT_NOTE}</p>
+        </Disclosure>
         <div className="flex flex-col items-start gap-xxs">
           <Button
             disabled={!changed}

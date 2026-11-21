@@ -14,6 +14,7 @@ import { TEAM_ROLE_LABELS } from "@workspace/contracts/threads";
 import { jstDate } from "@workspace/contracts/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, getRouteApi } from "@tanstack/react-router";
+import { Disclosure } from "@workspace/ui/components/disclosure";
 import { Badge } from "@workspace/ui/components/badge";
 import { buttonVariants } from "@workspace/ui/components/button";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
@@ -206,9 +207,11 @@ function TeamAssignments({ view }: { view: ThreadsTeamView }) {
       <h2 id="threads-team-assignments" className="text-l font-bold">
         担当を決める
       </h2>
-      <p className="text-s text-text-sub">
-        担当の人は、その運用アカウントの投稿の案と戦略を作れます。承認は、持ち主が任せたときだけです。担当にできるのは、このチームの編集者と管理者です（設定の「組織」で決めます）。
-      </p>
+      <Disclosure summary="担当の人ができること">
+        <p className="text-s text-text-sub">
+          担当の人は、その運用アカウントの投稿の案と戦略を作れます。承認は、持ち主が任せたときだけです。担当にできるのは、このチームの編集者と管理者です（設定の「組織」で決めます）。
+        </p>
+      </Disclosure>
       {view.assignments.length === 0 || view.accounts.length === 0 ? (
         <p className="text-m">
           {view.accounts.length === 0

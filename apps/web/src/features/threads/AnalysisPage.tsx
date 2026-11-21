@@ -948,7 +948,7 @@ function AnalysisContent({ account }: { account: ThreadsAccount }) {
     <ThreadsPage
       wide
       title="分析"
-      lead={`${account.name}：確定した投稿の反応から、伸びやすい時間帯・長さ・書き出しを見つけます。`}
+      lead={`${account.name}：伸びやすい時間帯・長さ・書き出しを見つけます`}
     >
       <SummarySection view={view} />
       <ChoiceChips
