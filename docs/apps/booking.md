@@ -164,7 +164,7 @@
 
 ## 3. ほかの領域が使うもの
 
-API の入口（`apps/api/src/modules/booking/index.ts`）は `routes` と `withdrawal`（退会の確かめの中身だけ：組織に入れていない交流会の名簿の人数と、個人の公式アカウントの設定があること・自分の申込みと案内の同意の件数〈booking-003〉。消すのは外部キー）を出す。ほかの領域・ほかのアプリに出す関数はない（チェックインした人は reception の `listEventAttendees`・`hasCheckedIn`）。
+API の入口（`apps/api/src/modules/booking/index.ts`）は `routes` と `withdrawal`（退会の確かめの中身だけ：組織に入れていない交流会の名簿の人数と、個人の公式アカウントの設定があること・自分の申込みと案内の同意の件数〈booking-003〉。消すのは外部キー）と `eventLinkRestriction`（`event-links.ts`。見せる範囲が「部員だけ」の交流会では、event の要約の招待のリンクを主催者・受付係・部員に絞る。組み立てが event に渡す。AD-5・research R8）を出す。ほかの領域・ほかのアプリに出す関数はない（チェックインした人は reception の `listEventAttendees`・`hasCheckedIn`）。
 
 booking が読むもの：event の `requireEventRole`・`getEventRole`・`getEventSummary`・`findEventOwnerAccountId`・`findEventOrganizationId`・`listOrganizationEvents`（booking-003）・`listPersonalEventIds`・`eventTable`、reception の `listEventAttendees`・`getCheckin`・`createManualCheckin`・`checkinTable`、account の `requireSession`・`currentAccount`・`findSessionViewer`（booking-003）・`findDisplayNames`・`accountTable`、suite の `findMembership`・`listMemberships`・`findOrganization`・`organizationTable`、共通の `platform/notify`（`verifyLineSignature`・`createNotifier`）と土台の `DomainRouteDeps.notifier`・`secretBox`。
 
@@ -207,7 +207,7 @@ booking が読むもの：event の `requireEventRole`・`getEventRole`・`getEv
 | 所 | ファイル |
 |---|---|
 | 約束 | `packages/contracts/src/booking/`（`options.ts`・`roster.ts`・`notify-options.ts`・`notify.ts`・`apply.ts`・`calendar.ts`・`errors.ts`・`paths.ts`・`index.ts`） |
-| API | `apps/api/src/modules/booking/`（`schema.ts`・`repository.ts`・`importing.ts`・`matching.ts`・`views.ts`・`csv.ts`・`routes.ts`・`notify-repository.ts`・`notify-settings.ts`・`line-link.ts`・`notice-templates.ts`・`notify.ts`・`routes-notify.ts`・`routes-webhook.ts`・`tokens.ts`・`apply-repository.ts`・`apply.ts`・`calendar-ics.ts`・`routes-apply.ts`・`deadline.ts`・`seats.ts`・`page-links.ts`・`waitlist-repository.ts`・`waitlist.ts`・`setting-view.ts`・`routes-waitlist.ts`・`withdrawal.ts`・`index.ts`・テスト） |
+| API | `apps/api/src/modules/booking/`（`schema.ts`・`repository.ts`・`importing.ts`・`matching.ts`・`views.ts`・`csv.ts`・`routes.ts`・`notify-repository.ts`・`notify-settings.ts`・`line-link.ts`・`notice-templates.ts`・`notify.ts`・`routes-notify.ts`・`routes-webhook.ts`・`tokens.ts`・`apply-repository.ts`・`apply.ts`・`calendar-ics.ts`・`routes-apply.ts`・`deadline.ts`・`seats.ts`・`page-links.ts`・`waitlist-repository.ts`・`waitlist.ts`・`setting-view.ts`・`routes-waitlist.ts`・`event-links.ts`・`withdrawal.ts`・`index.ts`・テスト） |
 | DB の変更 | `apps/api/drizzle/0016_booking.sql`・`0017_booking_notify.sql`・`0018_booking_apply.sql`・`0019_booking_waitlist.sql` |
 | 画面 | `apps/web/src/features/booking/`（`api.ts`・`queries.ts`・`nav-items.ts`・`csv-read.ts`・`ModeSection.tsx`・`ReceptionRosterSection.tsx`・`RosterGate.tsx`・`RosterPage.tsx`・`ImportPage.tsx`・`MatchPage.tsx`・`notify-api.ts`・`NotifySettingsPage.tsx`・`LineLinkPage.tsx`・`apply-api.ts`・`apply-parts.tsx`・`links.ts`・`ApplyPage.tsx`・`EntryTokenPage.tsx`・`MyBookingsPage.tsx`・`SelfPageSection.tsx`・`waitlist-api.ts`・`waitlist-parts.tsx`・`SeatSummary.tsx`・`CapacitySection.tsx`・`NoticeLog.tsx`・`routes.ts`・`index.ts`） |
 | テストの手伝い | `apps/api/test/helpers/booking.ts`・`booking-notify.ts`・`booking-apply.ts`・`booking-waitlist.ts` |

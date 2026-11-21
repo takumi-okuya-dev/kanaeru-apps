@@ -34,7 +34,7 @@
 | POST | `/api/v1/events` | ログインした人 | 作る（201。作った人が持ち主。`discounts` があれば同じ取引で割引も作る） |
 | GET | `/api/v1/events/{eventId}` | 主催者・その受付係 | 交流会（`myRole` つき） |
 | PUT | `/api/v1/events/{eventId}` | 主催者 | 直す。`discounts`（`{ id?, name, amount, asksReferrer? }` の並び・10まで・名前は重ねない）を送ると、それが使う割引のすべてになる（id のある行は直す・ない行は足す・並びにない割引は使うのをやめる）。送らなければ割引は変えない。ほかの交流会の割引の id は 400 `DISCOUNT_NOT_FOUND` |
-| GET | `/api/v1/events/{eventId}/summary` | ログインした人 | 要約（名前・日時・会場・参加費・開いているか・GoogleフォームのURL・LINEグループの招待リンク・オープンチャットの URL・使っている割引） |
+| GET | `/api/v1/events/{eventId}/summary` | ログインした人 | 要約（名前・日時・会場・参加費・開いているか・GoogleフォームのURL・LINEグループの招待リンク・オープンチャットの URL・使っている割引）。招待のリンクを絞る交流会（予約の「部員だけ」の回）では、役目のない人に2つのリンクを null で返す（`summary.ts` の `withVisibleLinks`。決まりは組み立てが `deps.eventLinkRestrictions` で渡す。AD-5） |
 | PUT | `/api/v1/events/{eventId}/survey` | 主催者 | アンケートを開く・閉じる（`{ open }`） |
 | GET | `/api/v1/events/{eventId}/organization` | 主催者 | 持ち主と組織（`EventOrganizationState`：`owner`・`organization`・`isOwner`・`options`〈持ち主が入っている組織。持ち主のときだけ〉） |
 | PUT | `/api/v1/events/{eventId}/organization` | 持ち主 | 組織に入れる・入れ替える・外す（`{ organizationId }`。null で外す。今と同じなら何もしない）。持ち主でない主催者は 403 `EVENT_OWNER_ONLY`、持ち主が入っていない組織は 404 `EVENT_ORGANIZATION_NOT_FOUND` |
