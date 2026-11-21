@@ -37,6 +37,11 @@
     display: none;
   }
 
+  /* 開いたら、その開け閉めの印だけを下に向ける（入れ子の内側の印は回さない） */
+  details[open] > summary > [data-slot="disclosure-chevron"] {
+    transform: rotate(90deg);
+  }
+
   /*
    * フォーカスの輪（DESIGN.md shadow.focus。四辺とも見える）。キーボードで動かしたときだけ出す。
    * 色を消す設定（Windows のハイコントラスト）でも見えるよう、透明の outline を残す。
