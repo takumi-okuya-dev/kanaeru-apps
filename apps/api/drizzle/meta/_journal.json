@@ -134,6 +134,13 @@
       "when": 1795227039800,
       "tag": "0018_booking_apply",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795227489614,
+      "tag": "0019_booking_waitlist",
+      "breakpoints": true
     }
   ]
 }

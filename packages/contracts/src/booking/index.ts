@@ -9,8 +9,12 @@ export {
   ENTRY_KIND_LABELS,
   ENTRY_STATUSES,
   ENTRY_STATUS_LABELS,
+  OFFER_STATUSES,
   PAGE_STATES,
   PAGE_STATE_LABELS,
+  QUOTA_SOURCES,
+  SEAT_STATUSES,
+  SETTABLE_ENTRY_STATUSES,
   VISIBILITIES,
   VISIBILITY_LABELS,
   usesRoster,
@@ -20,7 +24,9 @@ export type {
   BookingMode,
   EntryKind,
   EntryStatus,
+  OfferStatus,
   PageState,
+  QuotaSource,
   Visibility,
 } from "./options.ts";
 export {

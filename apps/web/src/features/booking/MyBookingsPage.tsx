@@ -1,7 +1,7 @@
 // 自分の申込み（/my-bookings。参加者の画面。外枠のナビなし。booking-003 US3・モックアップ P6・PRD 11章の4）。
 // タブ「自分の申込み」（今後の回・状態・カレンダーに追加・取り消す〈確かめを1つ〉）と「部の予定」（自分の組織の自前の会）。
 // 下の「知らせと案内」で、メールアドレスを入れる・消す、案内を受け取る組織を外す。ほかの人の名前は出さない。
-import type { MyEntryItem } from "@workspace/contracts/booking";
+import type { EntryStatus, MyEntryItem } from "@workspace/contracts/booking";
 import { PAGE_STATE_LABELS } from "@workspace/contracts/booking";
 import { PARTICIPANT_ROUTE_PATTERNS } from "@workspace/contracts/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -34,7 +34,7 @@ export type MyBookingsTab = "entries" | "schedule";
  * @param props.status 確定・取り消し
  * @returns 札の要素
  */
-function StatusBadge({ status }: { status: "confirmed" | "cancelled" }) {
+function StatusBadge({ status }: { status: EntryStatus }) {
   return status === "confirmed" ? <Badge variant="success">確定</Badge> : <Badge>取り消し</Badge>;
 }
 

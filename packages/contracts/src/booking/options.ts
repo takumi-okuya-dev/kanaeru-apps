@@ -45,8 +45,11 @@ export const VISIBILITY_LABELS = {
   members: "部員だけ",
 } as const satisfies Record<Visibility, string>;
 
-/** 申込みページの受付の状態の code（受付中・閉じている・始まりを過ぎた。保存せず、読むときに決める。research R1）。 */
-export const PAGE_STATES = ["open", "closed", "started"] as const;
+/**
+ * 申込みページの受付の状態の code（受付中・閉じている・始まりを過ぎた・中止〈booking-004〉。保存せず、読むときに決める。
+ * research R1）。
+ */
+export const PAGE_STATES = ["open", "closed", "started", "cancelled"] as const;
 
 /** 申込みページの受付の状態。 */
 export type PageState = (typeof PAGE_STATES)[number];
@@ -56,6 +59,7 @@ export const PAGE_STATE_LABELS = {
   open: "受付中",
   closed: "受付を閉じています",
   started: "受付を終えました",
+  cancelled: "この会は中止になりました",
 } as const satisfies Record<PageState, string>;
 
 /** 名簿の行の入口の code（手で足す・取り込み〈貼る・CSV〉・飛び入り・自前のページ〈booking-003〉）。 */
@@ -72,8 +76,8 @@ export const ENTRY_KIND_LABELS = {
   self_page: "自前",
 } as const satisfies Record<EntryKind, string>;
 
-/** 名簿の行の状態の code（確定・取り消し。キャンセル待ち・打診中は、定員の仕様で足す）。 */
-export const ENTRY_STATUSES = ["confirmed", "cancelled"] as const;
+/** 名簿の行の状態の code（確定・キャンセル待ち・打診中〈booking-004〉・取り消し）。 */
+export const ENTRY_STATUSES = ["confirmed", "waitlisted", "offered", "cancelled"] as const;
 
 /** 名簿の行の状態。 */
 export type EntryStatus = (typeof ENTRY_STATUSES)[number];
@@ -81,8 +85,31 @@ export type EntryStatus = (typeof ENTRY_STATUSES)[number];
 /** 名簿の行の状態の画面の言葉。 */
 export const ENTRY_STATUS_LABELS = {
   confirmed: "確定",
+  waitlisted: "キャンセル待ち",
+  offered: "打診中",
   cancelled: "取り消し",
 } as const satisfies Record<EntryStatus, string>;
+
+/** 主催者が名簿で選べる状態（確定・取り消し。キャンセル待ち・打診中は窓口が決める。booking-004 research R14）。 */
+export const SETTABLE_ENTRY_STATUSES = ["confirmed", "cancelled"] as const;
+
+/** 席を押さえる状態（埋まった席＝確定＋打診中。booking-004 research R2）。 */
+export const SEAT_STATUSES = ["confirmed", "offered"] as const;
+
+/** 打診の状態の code（待っている・参加・辞退・期限切れ・取り下げ。booking-004 research R5）。 */
+export const OFFER_STATUSES = ["pending", "accepted", "declined", "expired", "withdrawn"] as const;
+
+/** 打診の状態。 */
+export type OfferStatus = (typeof OFFER_STATUSES)[number];
+
+/**
+ * 媒体の枠を置ける媒体の code（受付の申し込みの媒体から直接〈direct〉を除いたもの。並びは受付と同じ。booking-004 research R1）。
+ * 受付の約束を読まずに値を書く（options.test.ts が受付の値と食い違わないかを見張る）。
+ */
+export const QUOTA_SOURCES = ["connpass", "peatix", "other"] as const;
+
+/** 媒体の枠を置ける媒体。 */
+export type QuotaSource = (typeof QUOTA_SOURCES)[number];
 
 /** 来たかの code（来た・来なかった・まだ。保存せず、読むときに決める。research R8）。 */
 export const ATTENDANCES = ["came", "no_show", "pending"] as const;

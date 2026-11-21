@@ -1,6 +1,6 @@
 # 予約（booking）の地図
 
-2026-11-20 作成（booking-001。決めた理由は [specs/booking/001-roster/research.md](../../specs/booking/001-roster/research.md)）。2026-11-20 直した（booking-002：知らせの仕組み〈LINE 公式アカウントの設定・Webhook・紐づけ・参加者の連絡のメールアドレス・知らせの記録・`sendNotice`〉。理由は [specs/booking/002-notify/research.md](../../specs/booking/002-notify/research.md)）。2026-11-20 直した（booking-003：自前の申込みページ〈申込みページ・LINE ログインで申し込む・案内の同意・取り消し・カレンダー・部員だけの回・メールで申し込む・自分の申込みと部の予定〉。理由は [specs/booking/003-apply/research.md](../../specs/booking/003-apply/research.md)）。
+2026-11-20 作成（booking-001。決めた理由は [specs/booking/001-roster/research.md](../../specs/booking/001-roster/research.md)）。2026-11-20 直した（booking-002：知らせの仕組み〈LINE 公式アカウントの設定・Webhook・紐づけ・参加者の連絡のメールアドレス・知らせの記録・`sendNotice`〉。理由は [specs/booking/002-notify/research.md](../../specs/booking/002-notify/research.md)）。2026-11-20 直した（booking-003：自前の申込みページ〈申込みページ・LINE ログインで申し込む・案内の同意・取り消し・カレンダー・部員だけの回・メールで申し込む・自分の申込みと部の予定〉。理由は [specs/booking/003-apply/research.md](../../specs/booking/003-apply/research.md)）。2026-11-20 直した（booking-004 の1つ目：定員・媒体の枠・キャンセル待ち・打診の表と列。窓口と画面は次の変更。理由は [specs/booking/004-waitlist/research.md](../../specs/booking/004-waitlist/research.md)）。
 
 受付アプリの4つ目の領域（構成の決めごと AD-23）。交流会ごとの使い方（受付だけ・名簿を使う・自前で申込みを受ける）と名簿（申込み）を持ち、名簿を手で足す・貼る・CSV で作る・取り消す・まとめる・書き出す窓口と、受付係がチェックインを名簿に当てる窓口・画面を出す。依存は booking → reception → event の一方向で、reception は booking を読まない。チェックインとの当ては booking が読むときに決める（AD-3・AD-5・AD-7・AD-19・AD-23）。
 
@@ -14,8 +14,8 @@
 
 | 表 | 列 | 決まり |
 |---|---|---|
-| `booking_setting` | `event_id`（主キー）・`mode`・`accepting`・`visibility`・`created_at`・`updated_at` | 交流会ごとの使い方。行がなければ受付だけ。`mode` は `reception`（受付だけ）・`roster`（名簿を使う）・`self_page`（自前で申込みを受ける。booking-003）の CHECK（`booking_setting_mode_check`）。「受付だけ」に戻しても行は消さない。`accepting`（申込みページの受付を開いているか。既定 false）・`visibility`（`public`＝誰でも・`members`＝部員だけ。既定 `public`。CHECK `booking_setting_visibility_check`）は booking-003 |
-| `booking_entry` | `id`・`event_id`・`name`・`application_source`（媒体）・`entry_kind`（入口）・`status`（状態）・`applied_at`（申し込んだ日時）・`entered_by`（入れた人）・`memo`・`account_id`（本人の申込み〈自前のページで LINE ログインして申し込んだ人〉）・`checkin_id`（手で当てたチェックイン）・`merged_into_id`（まとめた先の行）・`contact_email`（メールで申し込んだ人の連絡のメール。主催者に見せない）・`entry_token_hash`（メールで申し込んだ人の札の SHA-256）・`created_at`・`updated_at` | 名簿の1行。媒体は受付の申し込みの媒体（`connpass`・`peatix`・`direct`・`other`）、入口は `manual`（手で足す）・`import`（取り込み）・`walk_in`（飛び入り）・`self_page`（自前。booking-003）、状態は `confirmed`（確定）・`cancelled`（取り消し）の CHECK。`checkin_id` は空でない行で一意（`booking_entry_checkin_id_unique`）、`(event_id, account_id)` は `account_id` が空でない行で一意、`(event_id, contact_email)`・`entry_token_hash` は空でない行で一意（booking-003）。`contact_email` は254文字まで。索引 `booking_entry_event_id_applied_at_idx`・`booking_entry_entered_by_idx`・`booking_entry_account_id_idx`・`booking_entry_merged_into_id_idx`。`merged_into_id` が空でない行（まとめた行）は消さずに残し、名簿・人数・当てから隠す（取り込みの「すでにある」には数える） |
+| `booking_setting` | `event_id`（主キー）・`mode`・`accepting`・`visibility`・`capacity`・`quota_released_at`・`cancelled_at`・`notified_starts_at`・`notified_venue`・`change_detected_at`・`same_day_notified_at`・`created_at`・`updated_at` | 交流会ごとの使い方。行がなければ受付だけ。`mode` は `reception`（受付だけ）・`roster`（名簿を使う）・`self_page`（自前で申込みを受ける。booking-003）の CHECK（`booking_setting_mode_check`）。「受付だけ」に戻しても行は消さない。`accepting`（申込みページの受付を開いているか。既定 false）・`visibility`（`public`＝誰でも・`members`＝部員だけ。既定 `public`。CHECK `booking_setting_visibility_check`）は booking-003。`capacity`（定員。空＝定員なし。1〜1000 の CHECK `booking_setting_capacity_check`）・`quota_released_at`（一度満員になって媒体の枠を押さえるのをやめた時刻）・`cancelled_at`（予約を中止した時刻）・`notified_starts_at`・`notified_venue`（最後に知らせた日時と場所。変更を比べる）・`change_detected_at`（定期の仕事が変更に気づいた時刻）・`same_day_notified_at`（当日の空きを知らせた時刻）は booking-004 |
+| `booking_entry` | `id`・`event_id`・`name`・`application_source`（媒体）・`entry_kind`（入口）・`status`（状態）・`applied_at`（申し込んだ日時）・`entered_by`（入れた人）・`memo`・`account_id`（本人の申込み〈自前のページで LINE ログインして申し込んだ人〉）・`checkin_id`（手で当てたチェックイン）・`merged_into_id`（まとめた先の行）・`contact_email`（メールで申し込んだ人の連絡のメール。主催者に見せない）・`entry_token_hash`（メールで申し込んだ人の札の SHA-256）・`created_at`・`updated_at` | 名簿の1行。媒体は受付の申し込みの媒体（`connpass`・`peatix`・`direct`・`other`）、入口は `manual`（手で足す）・`import`（取り込み）・`walk_in`（飛び入り）・`self_page`（自前。booking-003）、状態は `confirmed`（確定）・`waitlisted`（キャンセル待ち）・`offered`（打診中）・`cancelled`（取り消し）の CHECK（キャンセル待ち・打診中は booking-004）。`checkin_id` は空でない行で一意（`booking_entry_checkin_id_unique`）、`(event_id, account_id)` は `account_id` が空でない行で一意、`(event_id, contact_email)`・`entry_token_hash` は空でない行で一意（booking-003）。`contact_email` は254文字まで。索引 `booking_entry_event_id_applied_at_idx`・`booking_entry_entered_by_idx`・`booking_entry_account_id_idx`・`booking_entry_event_id_status_idx`（booking-004）・`booking_entry_merged_into_id_idx`。`merged_into_id` が空でない行（まとめた行）は消さずに残し、名簿・人数・当てから隠す（取り込みの「すでにある」には数える） |
 | `booking_dismissal` | `id`・`event_id`・`checkin_id`・`entry_id`・`dismissed_by`・`created_at` | 受付係が「ちがう人」にした組。`(checkin_id, entry_id)` で一意 |
 | `booking_import_mapping` | `id`・`owner_account_id`・`header_key`（見出しの並びの JSON）・`name_column`・`application_source`・`created_at`・`updated_at` | 交流会の持ち主ごとの CSV の列の対応。`(owner_account_id, header_key)` で一意 |
 
@@ -25,7 +25,9 @@
 | `booking_contact` | `account_id`（主キー）・`email`・`created_at`・`updated_at` | 参加者の連絡のメールアドレス（予約の知らせのためだけ・任意・本人の窓口だけが読み書きする・主催者に見せない。254文字まで） |
 | `booking_consent` | `id`・`account_id`（同意した人）・`organization_id`・`owner_account_id`・`created_at` | 案内の同意（booking-003）。相手は組織か交流会の持ち主のどちらか1つ（`booking_consent_holder_check`）。相手ごとに1つ（部分の一意）。案内を送る機能はまだない（記録だけ） |
 | `booking_email_request` | `id`・`event_id`・`name`・`email`・`token_hash`（SHA-256。一意）・`expires_at`・`created_at` | メールで申し込む確認の待ち（booking-003）。24時間。確定すると消し、期限切れはその交流会に新しい待ちを作るときに消す |
-| `booking_notice` | `id`・`entry_id`・`channel_id`・`kind`・`method`・`result`・`created_at` | 知らせの記録。種類 `confirmed`・`waitlisted`・`offered`・`offer_expired`・`changed`・`cancelled_event`・`test`、手段 `line`・`email`・`none`、結果 `sent`・`off`・`not_allowed`・`no_destination`・`failed`・`unavailable` の CHECK。申込みが空なのは確かめのメッセージ（`test`）だけ。本文・宛先・トークンは持たない |
+| `booking_quota` | `id`・`event_id`・`application_source`・`seats`・`manage_url`・`created_at`・`updated_at` | 媒体の枠（booking-004）。媒体は直接を除く `connpass`・`peatix`・`other` の CHECK、席は1〜1000、管理ページの URL は任意（`http(s)://` で500文字まで）。`(event_id, application_source)` で一意 |
+| `booking_offer` | `id`・`event_id`・`entry_id`・`status`・`deadline`・`token_hash`・`offered_by`・`responded_at`・`created_at`・`updated_at` | 打診と返事の期限（booking-004）。状態は `pending`（待っている）・`accepted`（参加）・`declined`（辞退）・`expired`（期限切れ）・`withdrawn`（取り下げ）の CHECK。待っている打診は申込みごとに1つ（`booking_offer_entry_id_pending_unique`）。`token_hash` はメールの人の返事の札の SHA-256（空でなければ一意）、`offered_by` は手で打診した主催者（自動は空）。索引 `(status, deadline)`・`event_id`・`offered_by` |
+| `booking_notice` | `id`・`entry_id`・`channel_id`・`kind`・`method`・`result`・`created_at` | 知らせの記録。種類 `confirmed`・`waitlisted`・`offered`・`offer_expired`・`changed`・`cancelled_event`・`same_day`（当日の空き。booking-004）・`test`、手段 `line`・`email`・`none`、結果 `sent`・`off`・`not_allowed`・`no_destination`・`failed`・`unavailable` の CHECK。申込みが空なのは確かめのメッセージ（`test`）だけ。本文・宛先・トークンは持たない |
 
 消し方（research R11）：
 
@@ -43,8 +45,10 @@
 | `booking_notice.entry_id` | `CASCADE`／`booking_notice.channel_id` は `SET NULL`（記録は残る） |
 | `booking_consent` の `account_id`・`organization_id`・`owner_account_id` | `CASCADE`（本人の同意・相手がいなくなれば消える。booking-003） |
 | `booking_email_request.event_id` | `CASCADE`（交流会と一緒に消える） |
+| `booking_quota.event_id`・`booking_offer.event_id`・`booking_offer.entry_id` | `CASCADE`（交流会・申込みと一緒に消える。booking-004） |
+| `booking_offer.offered_by` | `SET NULL`（誰がしたか。booking-004） |
 
-- 使い方・入口・状態の値は今使うものだけを CHECK に入れている。キャンセル待ち・打診中を足すときは、CHECK を広げる（今の行はどれも通るので1回の DB の変更でよい。`self_page` は booking-003 でこの形で足した）。
+- 使い方・入口・状態の値は今使うものだけを CHECK に入れている。足すときは CHECK を広げる（今の行はどれも通るので1回の DB の変更でよい。`self_page` は booking-003、キャンセル待ち・打診中・当日の空きは booking-004 でこの形で足した）。
 - 名前は前後の空白を消して持つ。そろえた名前（`normalizeCheckinName`）は持たず、比べるときに作る。名前はログに出さない。
 - 参加者のメールアドレスは、メールで申し込んだ人の `contact_email` と、本人が入れた `booking_contact` だけ。主催者・受付係の答え（名簿・CSV・当てる画面）には出さない（PRD FR-B26・Constitution II）。
 
@@ -178,7 +182,7 @@ booking が読むもの：event の `requireEventRole`・`getEventRole`・`getEv
 |---|---|
 | 約束 | `packages/contracts/src/booking/`（`options.ts`・`roster.ts`・`notify-options.ts`・`notify.ts`・`apply.ts`・`calendar.ts`・`errors.ts`・`paths.ts`・`index.ts`） |
 | API | `apps/api/src/modules/booking/`（`schema.ts`・`repository.ts`・`importing.ts`・`matching.ts`・`views.ts`・`csv.ts`・`routes.ts`・`notify-repository.ts`・`notify-settings.ts`・`line-link.ts`・`notice-templates.ts`・`notify.ts`・`routes-notify.ts`・`routes-webhook.ts`・`tokens.ts`・`apply-repository.ts`・`apply.ts`・`calendar-ics.ts`・`routes-apply.ts`・`withdrawal.ts`・`index.ts`・テスト） |
-| DB の変更 | `apps/api/drizzle/0016_booking.sql`・`0017_booking_notify.sql`・`0018_booking_apply.sql` |
+| DB の変更 | `apps/api/drizzle/0016_booking.sql`・`0017_booking_notify.sql`・`0018_booking_apply.sql`・`0019_booking_waitlist.sql` |
 | 画面 | `apps/web/src/features/booking/`（`api.ts`・`queries.ts`・`nav-items.ts`・`csv-read.ts`・`ModeSection.tsx`・`ReceptionRosterSection.tsx`・`RosterGate.tsx`・`RosterPage.tsx`・`ImportPage.tsx`・`MatchPage.tsx`・`notify-api.ts`・`NotifySettingsPage.tsx`・`LineLinkPage.tsx`・`apply-api.ts`・`apply-parts.tsx`・`links.ts`・`ApplyPage.tsx`・`EntryTokenPage.tsx`・`MyBookingsPage.tsx`・`SelfPageSection.tsx`・`routes.ts`・`index.ts`） |
 | テストの手伝い | `apps/api/test/helpers/booking.ts`・`booking-notify.ts`・`booking-apply.ts` |
 | 通しのテスト | `e2e/tests/booking.spec.ts`・`booking-notify.spec.ts`・`booking-apply.spec.ts` |

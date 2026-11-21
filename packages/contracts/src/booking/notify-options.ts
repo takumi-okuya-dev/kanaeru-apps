@@ -16,7 +16,10 @@ export const NOTIFY_MODE_LABELS = {
   on: "知らせを送ります。",
 } as const satisfies Record<NotifyMode, string>;
 
-/** 知らせの種類の code（6つの知らせと、設定の画面の確かめのメッセージ。PRD FR-B80）。 */
+/**
+ * 知らせの種類の code（6つの知らせと、設定の画面の確かめのメッセージ。PRD FR-B80。当日の空き〈same_day〉は PRD FR-B67 の
+ * 「当日の空きが出ました」。booking-004 research R7）。
+ */
 export const NOTICE_KINDS = [
   "confirmed",
   "waitlisted",
@@ -24,6 +27,7 @@ export const NOTICE_KINDS = [
   "offer_expired",
   "changed",
   "cancelled_event",
+  "same_day",
   "test",
 ] as const;
 
@@ -38,6 +42,7 @@ export const NOTICE_KIND_LABELS = {
   offer_expired: "打診の期限が過ぎた",
   changed: "日時や場所の変更",
   cancelled_event: "中止",
+  same_day: "当日の空き",
   test: "確かめのメッセージ",
 } as const satisfies Record<NoticeKind, string>;
 

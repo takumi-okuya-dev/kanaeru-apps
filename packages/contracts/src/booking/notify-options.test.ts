@@ -23,7 +23,8 @@ describe("予約の知らせの選択肢", () => {
     expect(NOTIFY_MODES[0]).toBe("off");
   });
 
-  it("知らせの種類は、PRD の6つと確かめのメッセージ", () => {
-    expect(NOTICE_KINDS.filter((kind) => kind !== "test")).toHaveLength(6);
+  it("知らせの種類は、PRD の6つと当日の空き（FR-B67。booking-004）と確かめのメッセージ", () => {
+    expect(NOTICE_KINDS.filter((kind) => kind !== "test" && kind !== "same_day")).toHaveLength(6);
+    expect(NOTICE_KINDS).toContain("same_day");
   });
 });

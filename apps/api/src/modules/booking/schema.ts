@@ -15,6 +15,7 @@ import {
   check,
   customType,
   index,
+  integer,
   pgTable,
   smallint,
   text,
@@ -29,6 +30,8 @@ import {
   NOTICE_KINDS,
   NOTICE_METHODS,
   NOTICE_RESULTS,
+  OFFER_STATUSES,
+  QUOTA_SOURCES,
   VISIBILITIES,
 } from "@workspace/contracts/booking";
 import { APPLICATION_SOURCES } from "@workspace/contracts/reception";
@@ -51,11 +54,29 @@ export const bookingSetting = pgTable(
     accepting: boolean("accepting").notNull().default(false),
     /** 申込みページの見せる範囲（誰でも・部員だけ。booking-003 R8） */
     visibility: text("visibility", { enum: VISIBILITIES }).notNull().default("public"),
+    /** 定員（空＝定員なし。booking-004 research R1） */
+    capacity: integer("capacity"),
+    /** 一度満員になって、媒体の枠を押さえるのをやめた時刻（booking-004 research R2） */
+    quotaReleasedAt: timestamptz("quota_released_at"),
+    /** 予約を中止した時刻（booking-004 research R11） */
+    cancelledAt: timestamptz("cancelled_at"),
+    /** 最後に知らせた（か使い始めた）交流会の日時（空なら比べない。booking-004 research R10） */
+    notifiedStartsAt: timestamptz("notified_starts_at"),
+    /** 最後に知らせた（か使い始めた）場所 */
+    notifiedVenue: text("notified_venue"),
+    /** 定期の仕事が日時や場所の変更に初めて気づいた時刻 */
+    changeDetectedAt: timestamptz("change_detected_at"),
+    /** 当日の空きを知らせた時刻（交流会ごとに1回。booking-004 research R7） */
+    sameDayNotifiedAt: timestamptz("same_day_notified_at"),
     ...timestamps(),
   },
   (table) => [
     check("booking_setting_mode_check", sql`${table.mode} in ('reception', 'roster', 'self_page')`),
     check("booking_setting_visibility_check", sql`${table.visibility} in ('public', 'members')`),
+    check(
+      "booking_setting_capacity_check",
+      sql`${table.capacity} is null or ${table.capacity} between 1 and 1000`,
+    ),
   ],
 );
 
@@ -73,7 +94,7 @@ export const bookingEntry = pgTable(
     applicationSource: text("application_source", { enum: APPLICATION_SOURCES }).notNull(),
     /** 入口（手で足す・取り込み・飛び入り・自前のページ） */
     entryKind: text("entry_kind", { enum: ENTRY_KINDS }).notNull(),
-    /** 状態（確定・取り消し） */
+    /** 状態（確定・キャンセル待ち・打診中・取り消し。booking-004） */
     status: text("status", { enum: ENTRY_STATUSES }).notNull().default("confirmed"),
     /** 申し込んだ日時（手で足す・取り込み・飛び入りでは、行を作った時刻。research R16） */
     appliedAt: timestamptz("applied_at").defaultNow().notNull(),
@@ -102,6 +123,7 @@ export const bookingEntry = pgTable(
     index("booking_entry_event_id_applied_at_idx").on(table.eventId, table.appliedAt),
     index("booking_entry_entered_by_idx").on(table.enteredBy),
     index("booking_entry_account_id_idx").on(table.accountId),
+    index("booking_entry_event_id_status_idx").on(table.eventId, table.status),
     index("booking_entry_merged_into_id_idx").on(table.mergedIntoId),
     uniqueIndex("booking_entry_checkin_id_unique")
       .on(table.checkinId)
@@ -127,7 +149,10 @@ export const bookingEntry = pgTable(
       "booking_entry_entry_kind_check",
       sql`${table.entryKind} in ('manual', 'import', 'walk_in', 'self_page')`,
     ),
-    check("booking_entry_status_check", sql`${table.status} in ('confirmed', 'cancelled')`),
+    check(
+      "booking_entry_status_check",
+      sql`${table.status} in ('confirmed', 'waitlisted', 'offered', 'cancelled')`,
+    ),
   ],
 );
 
@@ -360,7 +385,7 @@ export const bookingNotice = pgTable(
     index("booking_notice_channel_id_created_at_idx").on(table.channelId, table.createdAt),
     check(
       "booking_notice_kind_check",
-      sql`${table.kind} in ('confirmed', 'waitlisted', 'offered', 'offer_expired', 'changed', 'cancelled_event', 'test')`,
+      sql`${table.kind} in ('confirmed', 'waitlisted', 'offered', 'offer_expired', 'changed', 'cancelled_event', 'same_day', 'test')`,
     ),
     check("booking_notice_method_check", sql`${table.method} in ('line', 'email', 'none')`),
     check(
@@ -434,5 +459,82 @@ export const bookingEmailRequest = pgTable(
     uniqueIndex("booking_email_request_token_hash_unique").on(table.tokenHash),
     index("booking_email_request_event_id_email_idx").on(table.eventId, table.email),
     check("booking_email_request_email_check", sql`char_length(${table.email}) <= 254`),
+  ],
+);
+
+// ---- 定員・媒体の枠・キャンセル待ち・打診（booking-004。specs/booking/004-waitlist/data-model.md・AD-3） ----
+// 媒体の枠は交流会と一緒に消える。打診は交流会・申込みと一緒に消え、手で打診した主催者を消すと空になる。
+// 待っている打診は申込みごとに1つ（部分の一意。同時に走ったときの二重目の守り。research R5）。
+
+/** 媒体の枠（直接を除く媒体ごとに1つ。booking-004 research R1）。 */
+export const bookingQuota = pgTable(
+  "booking_quota",
+  {
+    id: primaryId(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => eventTable.id, { onDelete: "cascade" }),
+    /** 媒体（直接を除く） */
+    applicationSource: text("application_source", { enum: QUOTA_SOURCES }).notNull(),
+    /** 席の数 */
+    seats: integer("seats").notNull(),
+    /** 媒体の管理ページの URL（任意） */
+    manageUrl: text("manage_url"),
+    ...timestamps(),
+  },
+  (table) => [
+    uniqueIndex("booking_quota_event_id_application_source_unique").on(
+      table.eventId,
+      table.applicationSource,
+    ),
+    check(
+      "booking_quota_application_source_check",
+      sql`${table.applicationSource} in ('connpass', 'peatix', 'other')`,
+    ),
+    check("booking_quota_seats_check", sql`${table.seats} between 1 and 1000`),
+    check(
+      "booking_quota_manage_url_check",
+      sql`${table.manageUrl} is null or (char_length(${table.manageUrl}) <= 500 and ${table.manageUrl} ~ '^https?://')`,
+    ),
+  ],
+);
+
+/** 打診と返事の期限（booking-004 research R5・R6・R8）。 */
+export const bookingOffer = pgTable(
+  "booking_offer",
+  {
+    id: primaryId(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => eventTable.id, { onDelete: "cascade" }),
+    entryId: uuid("entry_id")
+      .notNull()
+      .references(() => bookingEntry.id, { onDelete: "cascade" }),
+    /** 状態（待っている・参加・辞退・期限切れ・取り下げ） */
+    status: text("status", { enum: OFFER_STATUSES }).notNull().default("pending"),
+    /** 返事の期限 */
+    deadline: timestamptz("deadline").notNull(),
+    /** メールの人の返事の札の SHA-256（16進） */
+    tokenHash: text("token_hash"),
+    /** 手で打診した主催者（自動は空） */
+    offeredBy: uuid("offered_by").references(() => accountTable.id, { onDelete: "set null" }),
+    /** 参加・辞退・期限切れ・取り下げの時刻 */
+    respondedAt: timestamptz("responded_at"),
+    ...timestamps(),
+  },
+  (table) => [
+    uniqueIndex("booking_offer_entry_id_pending_unique")
+      .on(table.entryId)
+      .where(sql`${table.status} = 'pending'`),
+    uniqueIndex("booking_offer_token_hash_unique")
+      .on(table.tokenHash)
+      .where(sql`${table.tokenHash} is not null`),
+    index("booking_offer_status_deadline_idx").on(table.status, table.deadline),
+    index("booking_offer_event_id_idx").on(table.eventId),
+    index("booking_offer_offered_by_idx").on(table.offeredBy),
+    check(
+      "booking_offer_status_check",
+      sql`${table.status} in ('pending', 'accepted', 'declined', 'expired', 'withdrawn')`,
+    ),
   ],
 );
