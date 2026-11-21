@@ -1,18 +1,17 @@
 // 運用アカウントのホーム（threads-012。めぐるの pages/account-home.tsx・components/guides/IntroGuide.tsx・
 // components/NotConnectedNotice.tsx の振る舞いを、kanaeru の部品で作り直したもの）：
-// - はじめに読んでほしいこと（初めは開いた状態。「閉じる」で見出しだけにし、閉じたことは利用者ごとにこの端末に覚える）
+// - はじめに読んでほしいこと（「詳しく」の開け閉め。初めは閉じておく。threads-017）
 // - 未接続の帯（Threads につなぐと、承認した案を自動で投稿し、反応を分析できる）・接続し直しが要るときの知らせ
 // - 次にやること（約束の homeNextStep：つなぐ → 戦略 → 宣伝 → リサーチ → 案を作る）と、その行き先のボタン
 // - 投稿の材料の3枚のカード（戦略の入れた数・宣伝の対象の数・参考の投稿の数）。次にやることのカードは枠を強める
 import { homeNextStep } from "@workspace/contracts/threads";
 import type { HomeStepTarget, ThreadsAccount } from "@workspace/contracts/threads";
 import { Link, getRouteApi } from "@tanstack/react-router";
-import { Button, buttonVariants } from "@workspace/ui/components/button";
+import { buttonVariants } from "@workspace/ui/components/button";
+import { Disclosure } from "@workspace/ui/components/disclosure";
 import { cn } from "@workspace/ui/lib/cn";
-import { useId, useState } from "react";
 import type * as React from "react";
 import { Icon } from "../../lib/icon.tsx";
-import { useSession } from "../account/index.ts";
 import { AccountGate, LoadFailure, Loading } from "./AccountGate.tsx";
 import { accountSecondary } from "./AccountSwitcher.tsx";
 import { ThreadsPage } from "./ThreadsPage.tsx";
@@ -30,85 +29,18 @@ const INTRO_POINTS = [
 ];
 
 /**
- * 閉じたことを覚える鍵（利用者ごと）。
- * @param userId kanaeru のアカウントの ID
- * @returns 鍵
- */
-function introKey(userId: string): string {
-  return `threads:intro-closed:${userId}`;
-}
-
-/**
- * 閉じたかを読む（読めない端末では開いた状態にする）。
- * @param userId kanaeru のアカウントの ID
- * @returns 閉じたなら true
- */
-function readIntroClosed(userId: string): boolean {
-  try {
-    return window.localStorage.getItem(introKey(userId)) === "1";
-  } catch {
-    return false;
-  }
-}
-
-/**
- * 閉じたかを覚える（覚えられない端末では、その場だけ）。
- * @param userId kanaeru のアカウントの ID
- * @param closed 閉じたか
- */
-function writeIntroClosed(userId: string, closed: boolean): void {
-  try {
-    if (closed) window.localStorage.setItem(introKey(userId), "1");
-    else window.localStorage.removeItem(introKey(userId));
-  } catch {
-    // 覚えられなくても、開け閉めはその場で効く
-  }
-}
-
-/**
- * はじめに読んでほしいこと（利用者が分かってから出す）。
+ * はじめに読んでほしいこと（初めは閉じておき、見たい人が開く。core-010 の決まり）。
  * @returns 要素
  */
 function IntroGuide() {
-  const session = useSession();
-  if (session.status !== "authenticated") return null;
-  return <IntroGuideBody key={session.account.id} userId={session.account.id} />;
-}
-
-/**
- * はじめに読んでほしいことの中身。
- * @param props 利用者の ID（userId）
- * @returns 要素
- */
-function IntroGuideBody({ userId }: { userId: string }) {
-  const [closed, setClosed] = useState(() => readIntroClosed(userId));
-  const headingId = useId();
-  const listId = useId();
-  const toggle = () => {
-    writeIntroClosed(userId, !closed);
-    setClosed(!closed);
-  };
   return (
-    <section
-      aria-labelledby={headingId}
-      className="flex flex-col gap-xxs rounded-md border border-border bg-surface p-xs"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-xxs">
-        <h2 id={headingId} className="text-m font-bold">
-          はじめに読んでほしいこと
-        </h2>
-        <Button variant="secondary" aria-expanded={!closed} aria-controls={listId} onClick={toggle}>
-          {closed ? "開く" : "閉じる"}
-        </Button>
-      </div>
-      {closed ? null : (
-        <ul id={listId} className="flex list-disc flex-col gap-x3s pl-s text-m">
-          {INTRO_POINTS.map((point) => (
-            <li key={point}>{point}</li>
-          ))}
-        </ul>
-      )}
-    </section>
+    <Disclosure summary={`はじめに読んでほしいこと（${INTRO_POINTS.length}つ）`}>
+      <ul className="flex list-disc flex-col gap-x3s pl-s text-m">
+        {INTRO_POINTS.map((point) => (
+          <li key={point}>{point}</li>
+        ))}
+      </ul>
+    </Disclosure>
   );
 }
 
