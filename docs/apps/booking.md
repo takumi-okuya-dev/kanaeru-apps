@@ -88,7 +88,7 @@
 | DELETE | `/notify-settings/{holder}/line` | 同じ | LINE の値と紐づけ・札を消す（返信先は残る） |
 | PUT | `/notify-settings/{holder}/mail` | 同じ | 返信先を変える（`{ replyToEmail }`。null で消す） |
 | POST | `/notify-settings/{holder}/test` | 同じ | 自分に確かめのメッセージを送る（紐づいていなければ `not_linked`。許可リストにないときは本人の ID を返す。LINE の値がなければ 409 `BOOKING_LINE_NOT_SET`） |
-| POST | `/webhooks/line/{channelId}` | LINE（ログインなし） | 署名（`x-line-signature`。届いたままの本文で比べる）を確かめ、友だち追加にあいさつ（札つきのリンク）を返事で送り（LINE の送り直しでは送らず札も作り直さない）、ブロックでその友だちの札を押さえてから紐づけと札を消す。署名・形が合わない・64KB を超える・`destination` が設定のボットと違う → 本文のない 400。知らない設定 → 404。IP ごとの回数の制限は効かず、署名が合ったあとに設定ごとに60秒に600回まで（超えたら本文のない 429） |
+| POST | `/webhooks/line/{channelId}` | LINE（ログインなし） | 署名（`x-line-signature`。届いたままの本文で比べる）を確かめ、友だち追加にあいさつ（札つきのリンク）を返事で送り（LINE の送り直しでは送らず札も作り直さない）、ブロックでその友だちの札を押さえてから紐づけと札を消す。署名・形が合わない・64KB を超える・`destination` が設定のボットと違う → 本文のない 400。知らない設定 → 404。組み立ての IP ごとのふつうの回数の制限は効かず、代わりに IP ごとの別の上限（60秒に1200回。超えたら 429）、署名が合ったあとに設定ごとに60秒に600回まで（超えたら本文のない 429） |
 | GET・POST | `/line-links/{linkToken}` | ログインした人 | 札の中身（持ち主の名前・使える・使った・期限切れ・自分が紐づいているか・使える札ならその LINE の友だちの表示名）／紐づける（紐づけたら、その LINE に「◯◯さんのアカウントと紐づきました。心当たりがなければブロック」を送る。守りを通す）（使った 409 `BOOKING_LINK_USED`・期限切れ 410 `BOOKING_LINK_EXPIRED`・知らない 404 `BOOKING_LINK_INVALID`） |
 | GET・PUT・DELETE | `/me/contact` | ログインした人（本人） | 連絡のメールアドレスを読む・入れる（小文字にそろえる）・消す |
 | GET | `/dev/notify-outbox` | ログインした人 | 試験用のログインが入で偽の送り手のときだけ、偽の送り手が覚えたもの（手元と E2E であいさつのリンクを読む）。ほかは 404 |
@@ -178,7 +178,7 @@ booking が読むもの：event の `requireEventRole`・`getEventRole`・`getEv
 |---|---|
 | 約束 | `packages/contracts/src/booking/`（`options.ts`・`roster.ts`・`notify-options.ts`・`notify.ts`・`apply.ts`・`calendar.ts`・`errors.ts`・`paths.ts`・`index.ts`） |
 | API | `apps/api/src/modules/booking/`（`schema.ts`・`repository.ts`・`importing.ts`・`matching.ts`・`views.ts`・`csv.ts`・`routes.ts`・`notify-repository.ts`・`notify-settings.ts`・`line-link.ts`・`notice-templates.ts`・`notify.ts`・`routes-notify.ts`・`routes-webhook.ts`・`tokens.ts`・`apply-repository.ts`・`apply.ts`・`calendar-ics.ts`・`routes-apply.ts`・`withdrawal.ts`・`index.ts`・テスト） |
-| DB の変更 | `apps/api/drizzle/0015_booking.sql`・`0016_booking_notify.sql`・`0017_booking_apply.sql` |
+| DB の変更 | `apps/api/drizzle/0016_booking.sql`・`0017_booking_notify.sql`・`0018_booking_apply.sql` |
 | 画面 | `apps/web/src/features/booking/`（`api.ts`・`queries.ts`・`nav-items.ts`・`csv-read.ts`・`ModeSection.tsx`・`ReceptionRosterSection.tsx`・`RosterGate.tsx`・`RosterPage.tsx`・`ImportPage.tsx`・`MatchPage.tsx`・`notify-api.ts`・`NotifySettingsPage.tsx`・`LineLinkPage.tsx`・`apply-api.ts`・`apply-parts.tsx`・`links.ts`・`ApplyPage.tsx`・`EntryTokenPage.tsx`・`MyBookingsPage.tsx`・`SelfPageSection.tsx`・`routes.ts`・`index.ts`） |
 | テストの手伝い | `apps/api/test/helpers/booking.ts`・`booking-notify.ts`・`booking-apply.ts` |
 | 通しのテスト | `e2e/tests/booking.spec.ts`・`booking-notify.spec.ts`・`booking-apply.spec.ts` |

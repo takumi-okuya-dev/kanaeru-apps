@@ -7,7 +7,7 @@ import { Navigate } from "@tanstack/react-router";
 import { SessionGate } from "../account/index.ts";
 import { LoadFailure, Loading } from "./AccountGate.tsx";
 import { fetchAccounts } from "./api.ts";
-import { THREADS_QUERY_KEYS, useTeamOrganizations } from "./queries.ts";
+import { THREADS_QUERY_KEYS } from "./queries.ts";
 
 /**
  * 最後に開いた運用アカウント（どれも開いていなければ undefined）。
@@ -28,8 +28,6 @@ export function lastOpenedAccount(accounts: readonly ThreadsAccount[]): ThreadsA
  * @returns 移る要素か、読みこみ中・失敗の画面
  */
 function Landing() {
-  // 入っている組織を先に読んでおく（外枠のナビの「組織」に使う。threads-013）
-  useTeamOrganizations();
   const query = useQuery({
     queryKey: THREADS_QUERY_KEYS.accounts,
     queryFn: fetchAccounts,

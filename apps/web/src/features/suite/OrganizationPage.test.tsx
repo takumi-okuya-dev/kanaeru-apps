@@ -1,4 +1,4 @@
-// 組織の画面（suite-001）：管理者には人の操作・招待・引き継ぎ・消すを出し、メンバーには出さない。
+// 組織の画面（suite-001・suite-003）：管理者には人の操作・招待・引き継ぎ・消す・チームの操作を出し、メンバーには出さない。
 // 管理者が抜けるときは、引き継ぐ人を選ぶまで「引き継いで抜ける」を押せない。ほかに誰もいなければ、組織を消すよう案内する。
 // API は fetch の差しかえで答える。
 import type { OrganizationDetail } from "@workspace/contracts/suite";
@@ -15,6 +15,9 @@ const ORG_ID = "0193a1b2-0000-7000-8000-0000000000a1";
 const ME = "0193a1b2-0000-7000-8000-000000000001";
 const OTHER = "0193a1b2-0000-7000-8000-000000000002";
 
+/** 試しのチームの ID。 */
+const TEAM_ID = "0193a1b2-0000-7000-8000-0000000000b1";
+
 /** 送られた要求。 */
 type Sent = { method: string; path: string; body: unknown };
 
@@ -22,9 +25,14 @@ type Sent = { method: string; path: string; body: unknown };
  * 試しの組織。
  * @param myRole 自分の役割
  * @param alone 自分だけか
+ * @param withTeam チームを1つ持つか
  * @returns 組織
  */
-function organizationOf(myRole: "admin" | "member", alone = false): OrganizationDetail {
+function organizationOf(
+  myRole: "admin" | "member",
+  alone = false,
+  withTeam = false,
+): OrganizationDetail {
   const me = {
     accountId: ME,
     displayName: "田中",
@@ -48,6 +56,25 @@ function organizationOf(myRole: "admin" | "member", alone = false): Organization
     members: alone ? [me] : myRole === "admin" ? [me, other] : [other, me],
     memberLimit: 50,
     editorLimit: 10,
+    teams: withTeam
+      ? [
+          {
+            id: TEAM_ID,
+            name: "店舗A",
+            members: [
+              {
+                accountId: OTHER,
+                displayName: "鈴木",
+                role: other.role,
+                leader: true,
+                isMe: false,
+              },
+            ],
+            createdAt: "2026-11-20T03:00:00.000Z",
+          },
+        ]
+      : [],
+    teamLimit: 20,
     createdAt: "2026-11-20T00:00:00.000Z",
   };
 }
@@ -85,8 +112,12 @@ function stubApi(organization: OrganizationDetail): Sent[] {
       case `GET ${base}/invite`:
         return Response.json({ token: "t".repeat(43), createdAt: "2026-11-20T00:00:00.000Z" });
       case `PUT ${base}/members/${OTHER}`:
+      case `PUT ${base}/teams/${TEAM_ID}/members/${OTHER}`:
+      case `PUT ${base}/teams/${TEAM_ID}/members/${ME}`:
       case `POST ${base}/leave`:
         return new Response(null, { status: 204 });
+      case `POST ${base}/teams`:
+        return Response.json({ id: TEAM_ID }, { status: 201 });
       default:
         return Response.json({ error: { code: "NOT_FOUND", message: "ない道" } }, { status: 404 });
     }
@@ -161,5 +192,38 @@ describe("組織の画面", () => {
     expect(screen.queryByRole("heading", { name: "招待のリンク" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "組織を消す" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "組織を抜ける" })).toBeInTheDocument();
+  });
+
+  it("管理者はチームを作り、人を足し、リーダーを切り替えられる", async () => {
+    const sent = stubApi(organizationOf("admin", false, true));
+    renderWithRouter(<OrganizationPage organizationId={ORG_ID} />);
+    const teams = await screen.findByRole("list", { name: "チーム" });
+    const leader = within(teams).getByRole("listitem", { name: "鈴木" });
+    expect(within(leader).getByText("リーダー")).toBeInTheDocument();
+    await userEvent.click(within(leader).getByRole("button", { name: "リーダーから外す" }));
+    expect(
+      await within(leader).findByText("鈴木さんをリーダーから外しました。"),
+    ).toBeInTheDocument();
+    expect(
+      sent.find((item) => item.path.endsWith(`/teams/${TEAM_ID}/members/${OTHER}`))?.body,
+    ).toEqual({ leader: false });
+
+    await userEvent.selectOptions(screen.getByLabelText("「店舗A」に足す人"), ME);
+    await userEvent.click(screen.getByRole("button", { name: "チームに足す" }));
+    expect(await screen.findByText("田中さんを「店舗A」に足しました。")).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText(/新しいチームの名前/), "店舗B");
+    await userEvent.click(screen.getByRole("button", { name: "チームを作る" }));
+    expect(await screen.findByText(/チーム「店舗B」を作りました/)).toBeInTheDocument();
+    expect(sent.find((item) => item.method === "POST")?.body).toEqual({ name: "店舗B" });
+  });
+
+  it("メンバーには、チームの人とリーダーを出し、チームの操作は出さない", async () => {
+    stubApi(organizationOf("member", false, true));
+    renderWithRouter(<OrganizationPage organizationId={ORG_ID} />);
+    const teams = await screen.findByRole("list", { name: "チーム" });
+    expect(within(teams).getByText("リーダー")).toBeInTheDocument();
+    expect(within(teams).queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "チームを作る" })).not.toBeInTheDocument();
   });
 });

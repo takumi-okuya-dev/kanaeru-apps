@@ -14,7 +14,7 @@
 
 **Primary Dependencies**: Hono・@hono/zod-openapi・zod 4・Drizzle 0.45・React 19・TanStack Router/Query（新しい依存なし）
 
-**Storage**: PostgreSQL（列と表を足す DB の変更を1つ：`0017_booking_apply.sql`）
+**Storage**: PostgreSQL（列と表を足す DB の変更を1つ：`0018_booking_apply.sql`）
 
 **Testing**: Vitest（約束と `.ics`・カレンダーの単体・booking の API の結合〈本物の PostgreSQL〉・画面の単体）・Playwright（`e2e/tests/booking-apply.spec.ts`。axe・CSP・1440px と 375px）
 
@@ -82,7 +82,7 @@ apps/api/src/modules/booking/
 ├── notify.ts・notify-repository.ts  # 行の連絡のメールを送り先に足す
 ├── withdrawal.ts       # 申込みと同意の数を確かめの中身に足す
 └── index.ts
-apps/api/drizzle/0017_booking_apply.sql
+apps/api/drizzle/0018_booking_apply.sql
 apps/web/src/features/booking/
 ├── apply-api.ts・links.ts
 ├── ApplyPage.tsx・EntryTokenPage.tsx・MyBookingsPage.tsx
@@ -96,7 +96,7 @@ docs/apps/booking.md・docs/apps/event.md・_bmad-output/architecture-kanaeru/ar
 
 ## PR の分け方
 
-1. `feature/booking-003-apply`（DB の変更の PR）：仕様のフォルダ（1つ目のコミット）・選択肢の値（`options.ts`）・`schema.ts`・`0017_booking_apply.sql`・制約の結合のテスト（2つ目のコミット）。
+1. `feature/booking-003-apply`（DB の変更の PR）：仕様のフォルダ（1つ目のコミット）・選択肢の値（`options.ts`）・`schema.ts`・`0018_booking_apply.sql`・制約の結合のテスト（2つ目のコミット）。
 2. `feature/booking-003-pr2-apply`（1の上）：共通（`participant-paths.ts` の道）を1つ目のコミットに分け、そのあと booking の窓口・画面・知らせ・E2E・文書（event の `index.ts` の1つの関数を含む）。共通の変更は、並行開発の決まり 3-3 では小さな共通の PR に分けて先に入れる形なので、PR を出すときにユーザーに分けるかを確かめる。
 
 ## Complexity Tracking

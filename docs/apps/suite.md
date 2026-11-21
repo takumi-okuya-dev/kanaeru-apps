@@ -41,7 +41,9 @@
 |---|---|---|
 | `app_setting` | `id`（uuid）・`app_key`（text）・`visibility`（text）・`created_at`・`updated_at` | `app_key` は一意（`app_setting_app_key_unique`）。`visibility` は `off`・`operator_only`・`public`（CHECK）。行がないアプリは `operator_only`。DB の変更（`0008_suite.sql`）が受付アプリを `public` で入れる。書くのは suite だけ |
 | `organization` | `id`・`name`（1〜50文字の CHECK）・`admin_seen_at`（管理者が組織の画面を最後に見た日時）・`created_at`・`updated_at` | suite-001（`0012_suite_organization.sql`） |
-| `organization_member` | `organization_id`・`account_id`（主キーはこの組）・`role`（`admin`・`editor`・`member`）・`joined_at`・`demoted_at`（最後にメンバーに下げた日時） | 管理者は1組織に1人（`organization_member_admin_unique`。部分の一意）。どちらの外部キーも CASCADE。アプリの「組織に入れる」・担当の表は、この組を指す複合の外部キーを CASCADE で持つ |
+| `organization_member` | `organization_id`・`account_id`（主キーはこの組）・`role`（`admin`・`editor`・`member`）・`joined_at`・`demoted_at`（最後にメンバーに下げた日時） | 管理者は1組織に1人（`organization_member_admin_unique`。部分の一意）。どちらの外部キーも CASCADE。アプリの「チームに入れる」・担当の表は、この組を指す複合の外部キーを CASCADE で持つ |
+| `team` | `id`・`organization_id`・`name`（1〜30文字の CHECK）・`created_at`・`updated_at` | suite-003（組織の中のチーム。`0014_suite_team.sql`）。`(organization_id, name)` と `(id, organization_id)` が一意。組織が消えると消える。1つの組織に20まで（窓口が数える） |
+| `team_member` | `team_id`・`account_id`（主キーはこの組）・`organization_id`・`leader`（リーダー）・`joined_at` | `team(id, organization_id)` と `organization_member(organization_id, account_id)` を指す複合の外部キーを CASCADE（チームが消える・組織から抜けると消える）。アプリの「チームに入れる」・担当の表は、この組を指す外部キーを CASCADE で持つ |
 | `organization_invite` | `organization_id`（主キー）・`token_hash`（一意）・`token_ciphertext`・`token_iv`・`key_version`・`created_at` | 照らし合わせは SHA-256 だけ。出し直すための写しを秘密の箱で包む（箱がなければ空） |
 | `entitlement` | `id`・`app_key`・`holder_account_id`・`holder_organization_id`・`created_at`・`updated_at` | 持ち主はどちらか1つ（`entitlement_holder_check`）。どちらも CASCADE。売り始めるまで使わない（料金などの列はそのときに足す） |
 
@@ -57,6 +59,9 @@
 | PATCH・DELETE | `/api/v1/suite/organizations/{id}` | 名前を直す・組織を消す（管理者だけ） | 403 `ORGANIZATION_ADMIN_ONLY`・404 |
 | GET・POST | `/api/v1/suite/organizations/{id}/invite` | 招待の札を読む（なければ・出し直せなければ `null`）・作り直す（管理者だけ） | 403・404 |
 | PUT・DELETE | `/api/v1/suite/organizations/{id}/members/{accountId}` | 役割をメンバー⇔編集者に切り替える（編集者は10人まで）・外す（管理者だけ。自分と管理者は不可） | 403・404・409 |
+| POST | `/api/v1/suite/organizations/{id}/teams` | チームを作る（管理者だけ。1つの組織に20まで。組織の画面の `teams` に出る） | 403・404・409 `TEAM_LIMIT`・`TEAM_NAME_TAKEN` |
+| PATCH・DELETE | `/api/v1/suite/organizations/{id}/teams/{teamId}` | チームの名前を直す・消す（管理者だけ。消すとアプリの「チームに入れる」・担当が外れる） | 403・404 `TEAM_NOT_FOUND`・409 |
+| PUT・DELETE | `/api/v1/suite/organizations/{id}/teams/{teamId}/members/{accountId}` | 組織の人をチームに足す・リーダーを切り替える（`{ leader }`）・外す（管理者だけ） | 403・404 `TEAM_MEMBER_NOT_FOUND` |
 | POST | `/api/v1/suite/organizations/{id}/transfer` | 管理者を引き継ぐ（前の管理者は編集者） | 403・404・409 |
 | POST | `/api/v1/suite/organizations/{id}/leave` | 抜ける（管理者は `successorAccountId` が要る） | 404・409 `ORGANIZATION_SUCCESSOR_REQUIRED` |
 | GET・POST | `/api/v1/suite/organization-invites/{token}` | 招待の確かめの中身（名前・管理者・人数・すでに入っているか・満員か）・メンバーとして入る（同じ人は1回だけ） | 404 `ORGANIZATION_INVITE_INVALID`・409 `ORGANIZATION_FULL` |

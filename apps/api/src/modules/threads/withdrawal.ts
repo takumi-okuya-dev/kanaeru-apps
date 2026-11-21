@@ -2,13 +2,19 @@
 // suite の段（管理者の引き継ぎ・人のいない組織を消す）のあとに、組み立て（app.ts）が流す。suite の表には書かない。
 // - 退会する人が持ち主で、まだ組織に入っている運用アカウントは、その組織の今の管理者に引き継ぐ（持ち主を替える）
 //   Threads への接続は切る（トークンを消し「接続し直しが要る」にする。ユーザー名は表示のために残す）。自動投稿は切、
-//   時間差のメンションの待ちは取り消す。新しい持ち主の担当の行は消し、ほかの人の担当は残す。「承認を任せる」「組織に見せる」はオフに戻す
+//   時間差のメンションの待ちは取り消す。新しい持ち主の担当の行は消し、ほかの人の担当は残す。「承認を任せる」「チームに見せる」はオフに戻す
+// - 運用アカウントは同じチームに残る。新しい持ち主がそのチームにいなければ、suite の addTeamMember でチームに入れてから持ち主を替える（threads-016）
 // - 組織に入っていない運用アカウントは、このあと account がアカウントを消すときに CASCADE で消える（ここでは消さない）
 // - 運用アカウントごとのトランザクションで行い、2回流しても同じ結果になる（済んだものは持ち主が替わっている）
 import type { Db } from "../../kernel/db.ts";
 import type { WithdrawalStep } from "../../kernel/withdrawal.ts";
 import { findDisplayNames } from "../account/index.ts";
-import { adminAfterWithdrawal, findOrganization, findOrganizationAdmin } from "../suite/index.ts";
+import {
+  addTeamMember,
+  adminAfterWithdrawal,
+  findOrganization,
+  findOrganizationAdmin,
+} from "../suite/index.ts";
 import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { skipUnsentAttempts } from "./connection.ts";
 import { lockKey } from "./locks.ts";
@@ -89,6 +95,8 @@ async function handOverAccount(
         handoverFromName: fromName,
       })
       .where(eq(threadsAccount.id, threadsAccountId));
+    // 持ち主はチームの人でなければならない（team_member への外部キー）
+    await addTeamMember(tx, target.placement.teamId, target.placement.organizationId, newOwner);
     await tx
       .update(threadsOrganizationAccount)
       .set({ ownerAccountId: newOwner, shared: false })

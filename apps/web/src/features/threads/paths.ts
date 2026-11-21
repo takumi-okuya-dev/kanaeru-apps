@@ -17,10 +17,9 @@ export const THREADS_ROUTE_PATTERNS = {
   oauthComplete: "/threads/oauth/complete",
   dataDeletion: "/threads/data-deletion/$code",
   tokenGuide: "/threads/guide/threads-token",
-  organizations: "/threads/organizations",
-  organization: "/threads/organizations/$organizationId",
-  organizationStatus: "/threads/organizations/$organizationId/status",
-  sharedAccount: "/threads/organizations/$organizationId/accounts/$accountId",
+  teams: "/threads/teams",
+  team: "/threads/teams/$teamId",
+  sharedAccount: "/threads/teams/$teamId/accounts/$accountId",
 } as const;
 
 /**
@@ -122,28 +121,22 @@ export const threadsPaths = {
   listing: (accountId: string, promotionId: string, media: string) =>
     `/threads/accounts/${accountId}/media/${promotionId}/${media}`,
   /**
-   * 入っている組織（threads-013）。
+   * 見られるチーム（threads-016。ナビの「チーム」）。
    * @returns 道
    */
-  organizations: () => "/threads/organizations",
+  teams: () => "/threads/teams",
   /**
-   * Threads の組織の画面（threads-013）。
-   * @param organizationId 組織の ID
+   * Threads のチームの画面（運用アカウント・担当を決める・運用状況。threads-016）。
+   * @param teamId チームの ID
    * @returns 道
    */
-  organization: (organizationId: string) => `/threads/organizations/${organizationId}`,
+  team: (teamId: string) => `/threads/teams/${teamId}`,
   /**
-   * 運用状況（threads-013）。
-   * @param organizationId 組織の ID
-   * @returns 道
-   */
-  organizationStatus: (organizationId: string) => `/threads/organizations/${organizationId}/status`,
-  /**
-   * 見せてもらっている運用アカウント（読むだけ。threads-013）。
-   * @param organizationId 組織の ID
+   * 見せてもらっている運用アカウント（読むだけ。threads-013・threads-016）。
+   * @param teamId チームの ID
    * @param accountId 運用アカウントの ID
    * @returns 道
    */
-  sharedAccount: (organizationId: string, accountId: string) =>
-    `/threads/organizations/${organizationId}/accounts/${accountId}`,
+  sharedAccount: (teamId: string, accountId: string) =>
+    `/threads/teams/${teamId}/accounts/${accountId}`,
 };

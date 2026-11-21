@@ -1,6 +1,6 @@
 {
-  "id": "3675f56a-bea3-4a91-a720-a006f3748839",
-  "prevId": "5f83d469-7117-41e5-ad84-fe84ea9776bb",
+  "id": "892d6720-4ca2-4f6c-875d-c14f0f3af777",
+  "prevId": "ddedb598-0f95-47e1-a216-6c5f6d24b56b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -155,171 +155,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.booking_consent": {
-      "name": "booking_consent",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "uuidv7()"
-        },
-        "account_id": {
-          "name": "account_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "owner_account_id": {
-          "name": "owner_account_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "booking_consent_account_id_organization_id_unique": {
-          "name": "booking_consent_account_id_organization_id_unique",
-          "columns": [
-            {
-              "expression": "account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"booking_consent\".\"organization_id\" is not null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "booking_consent_account_id_owner_account_id_unique": {
-          "name": "booking_consent_account_id_owner_account_id_unique",
-          "columns": [
-            {
-              "expression": "account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "owner_account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"booking_consent\".\"owner_account_id\" is not null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "booking_consent_organization_id_idx": {
-          "name": "booking_consent_organization_id_idx",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "booking_consent_owner_account_id_idx": {
-          "name": "booking_consent_owner_account_id_idx",
-          "columns": [
-            {
-              "expression": "owner_account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "booking_consent_account_id_account_id_fk": {
-          "name": "booking_consent_account_id_account_id_fk",
-          "tableFrom": "booking_consent",
-          "tableTo": "account",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "booking_consent_organization_id_organization_id_fk": {
-          "name": "booking_consent_organization_id_organization_id_fk",
-          "tableFrom": "booking_consent",
-          "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "booking_consent_owner_account_id_account_id_fk": {
-          "name": "booking_consent_owner_account_id_account_id_fk",
-          "tableFrom": "booking_consent",
-          "tableTo": "account",
-          "columnsFrom": [
-            "owner_account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "booking_consent_holder_check": {
-          "name": "booking_consent_holder_check",
-          "value": "num_nonnulls(\"booking_consent\".\"organization_id\", \"booking_consent\".\"owner_account_id\") = 1"
-        }
-      },
       "isRLSEnabled": false
     },
     "public.booking_contact": {
@@ -551,119 +386,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.booking_email_request": {
-      "name": "booking_email_request",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "uuidv7()"
-        },
-        "event_id": {
-          "name": "event_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "token_hash": {
-          "name": "token_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "booking_email_request_token_hash_unique": {
-          "name": "booking_email_request_token_hash_unique",
-          "columns": [
-            {
-              "expression": "token_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "booking_email_request_event_id_email_idx": {
-          "name": "booking_email_request_event_id_email_idx",
-          "columns": [
-            {
-              "expression": "event_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "email",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "booking_email_request_event_id_event_id_fk": {
-          "name": "booking_email_request_event_id_event_id_fk",
-          "tableFrom": "booking_email_request",
-          "tableTo": "event",
-          "columnsFrom": [
-            "event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "booking_email_request_email_check": {
-          "name": "booking_email_request_email_check",
-          "value": "char_length(\"booking_email_request\".\"email\") <= 254"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.booking_entry": {
       "name": "booking_entry",
       "schema": "",
@@ -740,18 +462,6 @@
         "merged_into_id": {
           "name": "merged_into_id",
           "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "contact_email": {
-          "name": "contact_email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "entry_token_hash": {
-          "name": "entry_token_hash",
-          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -874,44 +584,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "booking_entry_event_id_contact_email_unique": {
-          "name": "booking_entry_event_id_contact_email_unique",
-          "columns": [
-            {
-              "expression": "event_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "contact_email",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"booking_entry\".\"contact_email\" is not null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "booking_entry_entry_token_hash_unique": {
-          "name": "booking_entry_entry_token_hash_unique",
-          "columns": [
-            {
-              "expression": "entry_token_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"booking_entry\".\"entry_token_hash\" is not null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -985,17 +657,13 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "booking_entry_contact_email_check": {
-          "name": "booking_entry_contact_email_check",
-          "value": "\"booking_entry\".\"contact_email\" is null or char_length(\"booking_entry\".\"contact_email\") <= 254"
-        },
         "booking_entry_application_source_check": {
           "name": "booking_entry_application_source_check",
           "value": "\"booking_entry\".\"application_source\" in ('connpass', 'peatix', 'direct', 'other')"
         },
         "booking_entry_entry_kind_check": {
           "name": "booking_entry_entry_kind_check",
-          "value": "\"booking_entry\".\"entry_kind\" in ('manual', 'import', 'walk_in', 'self_page')"
+          "value": "\"booking_entry\".\"entry_kind\" in ('manual', 'import', 'walk_in')"
         },
         "booking_entry_status_check": {
           "name": "booking_entry_status_check",
@@ -1749,20 +1417,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "accepting": {
-          "name": "accepting",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "visibility": {
-          "name": "visibility",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'public'"
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1800,11 +1454,7 @@
       "checkConstraints": {
         "booking_setting_mode_check": {
           "name": "booking_setting_mode_check",
-          "value": "\"booking_setting\".\"mode\" in ('reception', 'roster', 'self_page')"
-        },
-        "booking_setting_visibility_check": {
-          "name": "booking_setting_visibility_check",
-          "value": "\"booking_setting\".\"visibility\" in ('public', 'members')"
+          "value": "\"booking_setting\".\"mode\" in ('reception', 'roster')"
         }
       },
       "isRLSEnabled": false
@@ -3000,6 +2650,220 @@
       },
       "isRLSEnabled": false
     },
+    "public.team": {
+      "name": "team",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "uuidv7()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "team_id_organization_id_unique": {
+          "name": "team_id_organization_id_unique",
+          "columns": [
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "team_organization_id_name_unique": {
+          "name": "team_organization_id_name_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "team_organization_id_organization_id_fk": {
+          "name": "team_organization_id_organization_id_fk",
+          "tableFrom": "team",
+          "tableTo": "organization",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "team_name_length": {
+          "name": "team_name_length",
+          "value": "char_length(\"team\".\"name\") BETWEEN 1 AND 30"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.team_member": {
+      "name": "team_member",
+      "schema": "",
+      "columns": {
+        "team_id": {
+          "name": "team_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "leader": {
+          "name": "leader",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "joined_at": {
+          "name": "joined_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "team_member_organization_id_account_id_idx": {
+          "name": "team_member_organization_id_account_id_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "team_member_team_fk": {
+          "name": "team_member_team_fk",
+          "tableFrom": "team_member",
+          "tableTo": "team",
+          "columnsFrom": [
+            "team_id",
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id",
+            "organization_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "team_member_organization_member_fk": {
+          "name": "team_member_organization_member_fk",
+          "tableFrom": "team_member",
+          "tableTo": "organization_member",
+          "columnsFrom": [
+            "organization_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "organization_id",
+            "account_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "team_member_team_id_account_id_pk": {
+          "name": "team_member_team_id_account_id_pk",
+          "columns": [
+            "team_id",
+            "account_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.survey_answer": {
       "name": "survey_answer",
       "schema": "",
@@ -3658,6 +3522,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "team_id": {
+          "name": "team_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "account_id": {
           "name": "account_id",
           "type": "uuid",
@@ -3735,10 +3605,27 @@
           "tableFrom": "threads_assignment",
           "tableTo": "threads_organization_account",
           "columnsFrom": [
-            "threads_account_id"
+            "threads_account_id",
+            "team_id"
           ],
           "columnsTo": [
-            "threads_account_id"
+            "threads_account_id",
+            "team_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "threads_assignment_team_member_fk": {
+          "name": "threads_assignment_team_member_fk",
+          "tableFrom": "threads_assignment",
+          "tableTo": "team_member",
+          "columnsFrom": [
+            "team_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "team_id",
+            "account_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -4650,6 +4537,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "team_id": {
+          "name": "team_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "owner_account_id": {
           "name": "owner_account_id",
           "type": "uuid",
@@ -4686,6 +4579,42 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "threads_organization_account_team_id_idx": {
+          "name": "threads_organization_account_team_id_idx",
+          "columns": [
+            {
+              "expression": "team_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "threads_organization_account_id_team_id_unique": {
+          "name": "threads_organization_account_id_team_id_unique",
+          "columns": [
+            {
+              "expression": "threads_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "team_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -4712,6 +4641,36 @@
           ],
           "columnsTo": [
             "organization_id",
+            "account_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "threads_organization_account_team_fk": {
+          "name": "threads_organization_account_team_fk",
+          "tableFrom": "threads_organization_account",
+          "tableTo": "team",
+          "columnsFrom": [
+            "team_id",
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id",
+            "organization_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "threads_organization_account_team_member_fk": {
+          "name": "threads_organization_account_team_member_fk",
+          "tableFrom": "threads_organization_account",
+          "tableTo": "team_member",
+          "columnsFrom": [
+            "team_id",
+            "owner_account_id"
+          ],
+          "columnsTo": [
+            "team_id",
             "account_id"
           ],
           "onDelete": "cascade",
