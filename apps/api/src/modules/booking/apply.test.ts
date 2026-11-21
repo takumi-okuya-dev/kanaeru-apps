@@ -306,6 +306,26 @@ describe("自前の申込みページ（LINE ログインで申し込む）", ()
       expect((await readRoster(app, owner.cookie, eventId)).entries).toHaveLength(0);
     });
 
+    it("部員で受付係も兼ねる人は、部員だけの回を読めて申し込める（200）", async () => {
+      const invite = await call(
+        app,
+        owner.cookie,
+        `/api/v1/events/${eventId}/staff-invite`,
+        "POST",
+      );
+      const { token } = (await invite.json()) as { token: string };
+      const accepted = await call(
+        app,
+        member.cookie,
+        `/api/v1/staff-invites/${token}/accept`,
+        "POST",
+      );
+      expect(accepted.status).toBe(200);
+      expect(await accepted.json()).toMatchObject({ role: "staff" });
+      expect((await call(app, member.cookie, `${base}/page`)).status).toBe(200);
+      expect((await apply(app, member.cookie, eventId)).status).toBe(201);
+    });
+
     it("部員が抜けたら見られない。抜けた人も自分の申込みは取り消せる", async () => {
       const applied = (await (await apply(app, member.cookie, eventId)).json()) as ApplyResult;
       const left = await call(

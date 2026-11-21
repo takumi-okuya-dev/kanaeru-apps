@@ -172,6 +172,87 @@ describe("メールで申し込む", () => {
     expect(((await late.json()) as ErrorBody).error.code).toBe("BOOKING_CANCEL_CLOSED");
   });
 
+  it("本人が取り消すと連絡のメールアドレスが消える。もう一度申し込むと新しい行になる（Constitution II）", async () => {
+    const token = await requestToken();
+    await anonymous(app, `/api/v1/booking/entry-tokens/${token}/confirm`, "POST");
+    await anonymous(app, `/api/v1/booking/entry-tokens/${token}/cancel`, "POST");
+    const stored = await database.pool.query<{ contact_email: string | null }>(
+      "SELECT contact_email FROM booking_entry",
+    );
+    expect(stored.rows).toEqual([{ contact_email: null }]);
+    // 札のページでは取り消しのまま見られる
+    expect(
+      await (await anonymous(app, `/api/v1/booking/entry-tokens/${token}`)).json(),
+    ).toMatchObject({ entry: { status: "cancelled" } });
+    await database.pool.query(
+      "UPDATE booking_email_request SET created_at = now() - interval '11 minutes'",
+    );
+    const again = await requestToken();
+    await anonymous(app, `/api/v1/booking/entry-tokens/${again}/confirm`, "POST");
+    const roster = await readRoster(app, owner.cookie, eventId);
+    expect(roster.entries.map((entry) => entry.status)).toEqual(["cancelled", "confirmed"]);
+  });
+
+  it("主催者が取り消した申込みは、もう一度申し込んで確定すると同じ行が確定に戻り、前の札は使えない", async () => {
+    const first = await requestToken();
+    await anonymous(app, `/api/v1/booking/entry-tokens/${first}/confirm`, "POST");
+    const [entry] = (await readRoster(app, owner.cookie, eventId)).entries;
+    const cancelled = await call(app, owner.cookie, `${base}/entries/${entry?.id}/status`, "PUT", {
+      status: "cancelled",
+    });
+    expect(cancelled.status).toBe(200);
+    await database.pool.query(
+      "UPDATE booking_email_request SET created_at = now() - interval '11 minutes'",
+    );
+    const second = await requestToken();
+    const confirmed = await anonymous(
+      app,
+      `/api/v1/booking/entry-tokens/${second}/confirm`,
+      "POST",
+    );
+    expect(await confirmed.json()).toMatchObject({ entry: { status: "confirmed" } });
+    const roster = await readRoster(app, owner.cookie, eventId);
+    expect(roster.entries.map((item) => [item.id, item.status])).toEqual([
+      [entry?.id, "confirmed"],
+    ]);
+    expect((await anonymous(app, `/api/v1/booking/entry-tokens/${first}`)).status).toBe(404);
+  });
+
+  it("確認の待ちのあとに、受付を閉じた・始まった・部員だけに変わったら確定できない（409・409・403）", async () => {
+    const token = await requestToken();
+    const confirm = () => anonymous(app, `/api/v1/booking/entry-tokens/${token}/confirm`, "POST");
+    await openSelfPage(app, owner.cookie, eventId, { accepting: false });
+    const closed = await confirm();
+    expect(closed.status).toBe(409);
+    expect(((await closed.json()) as ErrorBody).error.code).toBe("BOOKING_PAGE_CLOSED");
+    await openSelfPage(app, owner.cookie, eventId);
+    const organizationId = await setUpOrganization(app, owner.cookie, []);
+    await placeEvent(app, owner.cookie, eventId, organizationId);
+    await openSelfPage(app, owner.cookie, eventId, { visibility: "members" });
+    const members = await confirm();
+    expect(members.status).toBe(403);
+    expect(((await members.json()) as ErrorBody).error.code).toBe("BOOKING_PAGE_MEMBERS_ONLY");
+    await openSelfPage(app, owner.cookie, eventId);
+    await database.pool.query(
+      "UPDATE event SET starts_at = now() - interval '1 minute' WHERE id = $1",
+      [eventId],
+    );
+    const started = await confirm();
+    expect(started.status).toBe(409);
+    expect(((await started.json()) as ErrorBody).error.code).toBe("BOOKING_PAGE_CLOSED");
+    expect((await readRoster(app, owner.cookie, eventId)).entries).toHaveLength(0);
+  });
+
+  it("同じ札で同時に2回確定しても、申込みは1行", async () => {
+    const token = await requestToken();
+    const path = `/api/v1/booking/entry-tokens/${token}/confirm`;
+    const statuses = (
+      await Promise.all([anonymous(app, path, "POST"), anonymous(app, path, "POST")])
+    ).map((response) => response.status);
+    expect(statuses).toEqual([200, 200]);
+    expect((await readRoster(app, owner.cookie, eventId)).entries).toHaveLength(1);
+  });
+
   it("期限切れの確認の札は 410、知らない札・形の違う札は 404", async () => {
     const token = await requestToken();
     await database.pool.query(
@@ -218,6 +299,40 @@ describe("メールで申し込む", () => {
     expect((await readRoster(app, owner.cookie, eventId)).entries).toHaveLength(1);
     expect((await anonymous(app, `/api/v1/booking/entry-tokens/${first}`)).status).toBe(404);
     expect((await anonymous(app, `/api/v1/booking/entry-tokens/${second}`)).status).toBe(200);
+  });
+
+  it("上限は直近1時間に作った待ちだけを数える。上限のときは、そのアドレスの待ちがあっても同じ 429", async () => {
+    await database.pool.query(
+      `INSERT INTO booking_email_request (event_id, name, email, token_hash, expires_at, created_at)
+       SELECT $1, '見本', 'old' || n || '@example.com', md5(n::text) || md5((n + 1)::text),
+              now() + interval '1 hour', now() - interval '2 hours'
+       FROM generate_series(1, $2::int) AS n`,
+      [eventId, EMAIL_REQUESTS_PER_EVENT_MAX],
+    );
+    // 2時間前の待ちは数えないので受け付ける
+    expect((await requestMail()).status).toBe(202);
+    await database.pool.query(
+      "UPDATE booking_email_request SET created_at = now() - interval '1 minute'",
+    );
+    // 上限のときは、10分のうちに頼んだアドレスも、ほかのアドレスと同じ 429（答えの違いで待ちの有無が分からない）
+    for (const email of [GUEST, "other@example.com"]) {
+      const response = await requestMail(email);
+      expect(response.status).toBe(429);
+    }
+  });
+
+  it("期限切れの確認の待ちは、ほかの交流会のものも消える", async () => {
+    const second = (await createEvent(app, owner.cookie)).id;
+    await database.pool.query(
+      `INSERT INTO booking_email_request (event_id, name, email, token_hash, expires_at)
+       VALUES ($1, '見本', 'stale@example.com', md5('stale') || md5('x'), now() - interval '1 minute')`,
+      [second],
+    );
+    expect((await requestMail()).status).toBe(202);
+    const left = await database.pool.query<{ email: string }>(
+      "SELECT email FROM booking_email_request",
+    );
+    expect(left.rows).toEqual([{ email: GUEST }]);
   });
 
   it("交流会ごとの確認の待ちが上限に達したら 429（メールは送らない）", async () => {

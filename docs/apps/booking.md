@@ -69,7 +69,7 @@
 | DELETE | `…/entries/{entryId}/match` | 主催者・受付係 | 手で当てたものを外す（同じアカウントの自動の当ては 409 `BOOKING_MATCH_NOT_MANUAL`） |
 | POST | `…/entries/{entryId}/checkin` | 主催者・受付係 | 名簿から選んで手でチェックインし、その行に当てる（受付の `CheckinInput`。201） |
 | POST | `…/walk-ins` | 主催者・受付係 | 名簿にいない人を手でチェックインし、飛び入りの行を足す（受付の `CheckinInput`。201） |
-| PUT | `…/self-page` | 主催者 | 申込みページの受付を開く・閉じると見せる範囲（`{ accepting, visibility }`。使い方が自前でなければ 409 `BOOKING_SELF_PAGE_OFF`・組織に入れていないのに `members` は 400 `BOOKING_VISIBILITY_NEEDS_ORGANIZATION`。booking-003） |
+| PUT | `…/self-page` | 主催者 | 申込みページの受付を開く・閉じると見せる範囲（`{ accepting, visibility }`。使い方が自前でなければ 409 `BOOKING_SELF_PAGE_OFF`。使い方を自前でないものに変えると受付は閉じる・組織に入れていないのに `members` は 400 `BOOKING_VISIBILITY_NEEDS_ORGANIZATION`。booking-003） |
 
 - `…/setting` の答えは `{ mode, entryCount, accepting, visibility, started, inOrganization }`（後ろの4つは booking-003。`started` は始まりを過ぎたか）。使い方は `reception`・`roster`・`self_page`。
 - 交流会がない・形の違う ID は 404（event の `NOT_FOUND`）、役目が違えば 403（event の `FORBIDDEN`。部員とほかの人も）。使い方が受付だけなら、`…/setting` のほかは 409 `BOOKING_ROSTER_OFF`（名簿を使う・自前で申込みを受けるのどちらでも名簿の窓口は動く）。
@@ -100,14 +100,14 @@
 | GET | `/events/{eventId}/page` | だれでも（ログインは任意。account の `findSessionViewer`） | 申込みページ（交流会の名前・日時・会場・参加費・主催〈組織の名前か持ち主の表示名〉・受付の状態〈`open`・`closed`・`started`〉・見せる範囲・カレンダーのリンク・友だち追加の URL〈ベーシック ID があるとき〉。ログインしていれば名前の初めの値・自分の申込み・案内の同意・紐づけ・連絡のメールがあるか）。使い方が自前でない・ない交流会は 404 `BOOKING_PAGE_NOT_FOUND` |
 | POST | `/events/{eventId}/apply` | ログインした人 | 申し込む（`{ name, consent? }`。新しく・取り消しから戻したら 201、もう確定なら 200 で何もしない）。受付中でなければ 409 `BOOKING_PAGE_CLOSED`。確定したら `sendNotice`（確定・申込みページとカレンダーのリンク） |
 | GET | `/events/{eventId}/calendar` | だれでも | `.ics`（添付。終わりは始まりの2時間後） |
-| POST | `/events/{eventId}/email-requests` | だれでも | LINE を使わずに申し込む：確認の待ちを作り確認のメールを送る（`{ name, email }`。答えはいつも 202。同じ交流会・同じアドレスは10分に1通・交流会ごとの待ちは200件まで〈超えたら 429 `BOOKING_EMAIL_REQUEST_LIMIT`〉） |
-| GET・POST | `/entry-tokens/{entryToken}`・`…/confirm`・`…/cancel` | だれでも（札を知る本人） | 札のページ（`pending`〈確認の前〉・`entry`〈申込みがある〉）／確定する（2回押しても1行。すでにそのアドレスの申込みがあれば札を替える。確定したら `sendNotice`）／取り消す（始まりまで）。期限切れ 410 `BOOKING_ENTRY_TOKEN_EXPIRED`・知らない 404 `BOOKING_ENTRY_TOKEN_INVALID` |
+| POST | `/events/{eventId}/email-requests` | だれでも | LINE を使わずに申し込む：確認の待ちを作り確認のメールを送る（`{ name, email }`。答えはいつも 202。同じ交流会・同じアドレスは10分に1通・交流会ごとに直近1時間に作った待ちは200件まで〈超えたら 429 `BOOKING_EMAIL_REQUEST_LIMIT`。上限は10分の確かめより先に見る〉。期限切れの待ちは交流会に関係なく消す） |
+| GET・POST | `/entry-tokens/{entryToken}`・`…/confirm`・`…/cancel` | だれでも（札を知る本人） | 札のページ（`pending`〈確認の前〉・`entry`〈申込みがある〉）／確定する（2回押しても1行。すでにそのアドレスの申込みがあれば札を替える。確定したら `sendNotice`）／取り消す（始まりまで。連絡のメールアドレスを消し、もう一度申し込むと新しい行になる）。確定は設定の行 → 確認の待ちの順に押さえる。期限切れ 410 `BOOKING_ENTRY_TOKEN_EXPIRED`・知らない 404 `BOOKING_ENTRY_TOKEN_INVALID` |
 | GET | `/me/entries` | ログインした人 | 自分の申込み（始まりの日が終わっていない会・始まりの近い順） |
 | POST | `/me/entries/{entryId}/cancel` | ログインした人（本人の行だけ） | 取り消す（始まりを過ぎたら 409 `BOOKING_CANCEL_CLOSED`・ほかの人の行は 404） |
 | GET | `/me/schedule` | ログインした人 | 部の予定（自分がメンバーの組織に入れた自前の会。部員だけの回も） |
 | GET・DELETE | `/me/consents`・`/me/consents/{consentId}` | ログインした人（本人だけ） | 案内の同意の一覧・外す（ほかの人のものは 404 `BOOKING_CONSENT_NOT_FOUND`） |
 
-- 部員だけの回（`visibility = members`）は、ページ・申込み・`.ics` が主催者と部員（event の `getEventRole`）のほかに 403 `BOOKING_PAGE_MEMBERS_ONLY`（中身を返さない）。メールで申し込む・確定するは誰でもの会だけ。
+- 部員だけの回（`visibility = members`）は、ページ・申込み・`.ics` が主催者と部員（event の `getEventRole`。受付係なら組織のメンバーかを確かめ直す）のほかに 403 `BOOKING_PAGE_MEMBERS_ONLY`（中身を返さない）。メールで申し込む・確定するは誰でもの会だけ。
 - 申し込む・確定するは、`booking_setting` の行を `FOR UPDATE` で押さえて受付中かを決め直す（同時に押しても1行）。
 - GET は何も書かない（確定・取り消しは画面のボタンの POST だけ。メールの下見の仕組みが開いても確定しない）。
 - 名前・メールアドレス・札はログに出さない。メールで申し込んだ人の連絡のメールは名簿・CSV・当てる画面の答えに出さない（答えは列を選んで作る）。
