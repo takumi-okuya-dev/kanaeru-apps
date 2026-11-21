@@ -308,6 +308,7 @@ describe("札のページ", () => {
       name: "小林 はると",
       entry: null,
       confirmable: true,
+      linkSpent: false,
       calendar: page.calendar,
       ...values,
     };

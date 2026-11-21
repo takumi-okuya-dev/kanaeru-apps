@@ -66,6 +66,7 @@
   name: string,                         // 入れた名前（本人だけが札を知る）
   entry: { status, cancellable } | null,  // state が entry のとき
   confirmable: boolean,                 // 確認の前なら、いま確定できるか（受付中・誰でもの会）
+  linkSpent: boolean,                   // このリンクを使い終わったか（打診の返事の札で答えた。booking-004 R8）
   calendar: { googleUrl, icsPath },
 }
 ```

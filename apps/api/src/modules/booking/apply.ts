@@ -838,10 +838,16 @@ async function tokenOwner(
  * @param deps 道具
  * @param entry 申込み
  * @param now 今の時刻
+ * @param linkSpent このリンクを使い終わったか（返事の札で答えた）
  * @returns 札のページ
  * @throws {AppError} 交流会が消えたとき（404 BOOKING_ENTRY_TOKEN_INVALID）
  */
-async function entryView(deps: ApplyDeps, entry: SelfEntry, now: Date): Promise<EntryTokenView> {
+async function entryView(
+  deps: ApplyDeps,
+  entry: SelfEntry,
+  now: Date,
+  linkSpent = false,
+): Promise<EntryTokenView> {
   const found = await eventLookup(deps)(entry.eventId);
   if (!found) throw new AppError(BOOKING_ERRORS.ENTRY_TOKEN_INVALID);
   const { event, hostName } = found;
@@ -853,10 +859,12 @@ async function entryView(deps: ApplyDeps, entry: SelfEntry, now: Date): Promise<
     name: entry.name,
     entry: {
       status: entry.status,
-      cancellable: isCancellable(entry.status, startsOf(event), now),
+      // 使い終わった返事の札では取り消せないので、取り消す入口を出さない
+      cancellable: !linkSpent && isCancellable(entry.status, startsOf(event), now),
       ...standingOf(seats, entry.id, startsOf(event), now),
     },
     confirmable: false,
+    linkSpent,
     calendar: calendarLinks(deps, event, hostName),
   };
 }
@@ -898,6 +906,7 @@ export async function readEntryToken(
       setting.mode === "self_page" &&
       setting.visibility === "public" &&
       pageStateOf(setting, startsOf(found.event), now) === "open",
+    linkSpent: false,
     calendar: calendarLinks(deps, found.event, found.hostName),
   };
 }
@@ -1044,5 +1053,6 @@ export async function respondEntryToken(
   );
   const after = await findSelfEntry(deps.db, own.id);
   if (!after) throw new AppError(BOOKING_ERRORS.ENTRY_TOKEN_INVALID);
-  return entryView(deps, after, now);
+  // 返事の札で答えたら、打診が閉じて札は使えなくなる（この答えが、その札で読める最後の答え）
+  return entryView(deps, after, now, found.viaOffer && after.status !== "offered");
 }

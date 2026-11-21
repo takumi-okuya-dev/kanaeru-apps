@@ -362,12 +362,22 @@ describe("キャンセル待ちと繰り上げ", () => {
       { answer: "accept" },
     );
     expect(accepted.status).toBe(200);
+    // 答えには「このリンクは使い終わった」を入れ、取り消す入口を出させない
+    expect(await accepted.json()).toMatchObject({
+      linkSpent: true,
+      entry: { status: "confirmed", cancellable: false },
+    });
     // 打診を閉じたら、返事の札では見る・取り消す・返事ができない（申込みの札は使える）
     expect((await anonymous(app, `/api/v1/booking/entry-tokens/${offerToken}`)).status).toBe(404);
     expect(
       (await anonymous(app, `/api/v1/booking/entry-tokens/${offerToken}/cancel`, "POST")).status,
     ).toBe(404);
-    expect((await anonymous(app, `/api/v1/booking/entry-tokens/${entryToken}`)).status).toBe(200);
+    const byEntryToken = await anonymous(app, `/api/v1/booking/entry-tokens/${entryToken}`);
+    expect(byEntryToken.status).toBe(200);
+    expect(await byEntryToken.json()).toMatchObject({
+      linkSpent: false,
+      entry: { cancellable: true },
+    });
     const tokens = await database.pool.query(
       "SELECT 1 FROM booking_offer WHERE token_hash IS NOT NULL",
     );
