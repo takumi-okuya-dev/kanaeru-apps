@@ -19,12 +19,13 @@
 | `access_token_key_version` | smallint（空を許す） | 包んだ鍵の版 |
 | `access_token_tail` | text（空を許す） | 末尾4文字 |
 | `basic_id` | text（空を許す） | ボット情報のベーシック ID（`@xxxx`。友だち追加のリンク。research R10） |
+| `bot_user_id` | text（空を許す） | ボット情報の `userId`（公式アカウントそのものの ID。Webhook の `destination` と同じ）。アクセストークンだけを入れ直して別の公式アカウントに替わったことを見つける（research R10） |
 | `reply_to_email` | text（空を許す） | メールの返信先（research R8） |
 | `created_at`・`updated_at` | timestamptz | `timestamps()` |
 
 - CHECK `booking_line_channel_holder_check`：`num_nonnulls(holder_account_id, holder_organization_id) = 1`（持ち主はどちらか1つ。AD-24）。
 - CHECK `booking_line_channel_line_check`：LINE の値の9つの列（`line_channel_id`〜`access_token_tail`）が、そろって空か、そろって入っているか（返信先だけの行を許す）。
-- 一意：`booking_line_channel_holder_account_id_unique`（`holder_account_id` が空でない行）・`booking_line_channel_holder_organization_id_unique`（`holder_organization_id` が空でない行）。
+- 一意：`booking_line_channel_holder_account_id_unique`（`holder_account_id` が空でない行）・`booking_line_channel_holder_organization_id_unique`（`holder_organization_id` が空でない行）・`booking_line_channel_line_channel_id_unique`（`line_channel_id` が空でない行。同じ公式アカウントを2つの設定に入れない）。
 
 ### `booking_line_link`（紐づけ）
 

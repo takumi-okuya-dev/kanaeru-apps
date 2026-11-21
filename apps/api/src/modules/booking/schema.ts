@@ -209,6 +209,11 @@ export const bookingLineChannel = pgTable(
     accessTokenTail: text("access_token_tail"),
     /** ボット情報のベーシック ID（友だち追加のリンク。research R10） */
     basicId: text("basic_id"),
+    /**
+     * ボット情報の userId（公式アカウントそのものの ID。Webhook の destination と同じ）。アクセストークンだけを入れ直して
+     * 別の公式アカウントに替わったことを見つける（替われば紐づけを消す）。前の版で入れた行は空（research R10）
+     */
+    botUserId: text("bot_user_id"),
     /** メールの返信先（任意） */
     replyToEmail: text("reply_to_email"),
     ...timestamps(),
@@ -228,6 +233,10 @@ export const bookingLineChannel = pgTable(
     uniqueIndex("booking_line_channel_holder_organization_id_unique")
       .on(table.holderOrganizationId)
       .where(sql`${table.holderOrganizationId} is not null`),
+    // 同じ公式アカウントを2つの設定に入れない（Webhook と紐づけが2つに分かれるため）
+    uniqueIndex("booking_line_channel_line_channel_id_unique")
+      .on(table.lineChannelId)
+      .where(sql`${table.lineChannelId} is not null`),
   ],
 );
 

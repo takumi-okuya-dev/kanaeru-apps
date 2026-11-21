@@ -854,6 +854,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "bot_user_id": {
+          "name": "bot_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "reply_to_email": {
           "name": "reply_to_email",
           "type": "text",
@@ -904,6 +910,22 @@
           ],
           "isUnique": true,
           "where": "\"booking_line_channel\".\"holder_organization_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "booking_line_channel_line_channel_id_unique": {
+          "name": "booking_line_channel_line_channel_id_unique",
+          "columns": [
+            {
+              "expression": "line_channel_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"booking_line_channel\".\"line_channel_id\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}
