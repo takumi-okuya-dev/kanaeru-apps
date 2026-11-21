@@ -213,7 +213,8 @@ export type EventList = z.infer<typeof EventList>;
 
 /**
  * 交流会の要約（ログインしていれば誰でも読める。AD-5）。参加者の画面・survey・reception が読む。
- * 受付係・招待・作った時刻などは含めない。
+ * 受付係・招待・作った時刻などは含めない。招待のリンクを絞る交流会（予約の「部員だけ」の回）では、交流会の役目のない人に
+ * googleFormUrl・lineGroupUrl を null で返す。
  */
 export const EventSummary = z.object({
   /** 交流会の ID */

@@ -1,5 +1,7 @@
 // 交流会の要約（ログインしていれば誰でも読める。AD-5）と、交流会の答えの形。
 // 要約の窓口と、index.ts の getEventSummary（survey が開閉を・reception が参加費を読む。AD-6・AD-13）が同じものを使う。
+// 招待のリンク（Googleフォーム・LINEグループ）は、絞る決まり（deps.eventLinkRestrictions。booking の「部員だけ」の回）が
+// あれば、窓口で交流会の役目のある人（主催者・受付係・部員）だけに返す（withVisibleLinks。2026-11-21 主催者が決めた）。
 import type {
   EventDiscountView,
   EventOrganizationView,
@@ -9,9 +11,11 @@ import type {
   EventView,
 } from "@workspace/contracts/event";
 import type { Executor } from "../../kernel/db.ts";
-import type { DomainConfig } from "../../kernel/http.ts";
+import type { DomainConfig, DomainRouteDeps } from "../../kernel/http.ts";
+import type { SessionAccount } from "../account/index.ts";
 import { findDisplayNames } from "../account/index.ts";
 import { findOrganization } from "../suite/index.ts";
+import { getEventRole } from "./access.ts";
 import { listActiveDiscounts, listActiveDiscountsByEvents } from "./discounts.ts";
 import { isUuid } from "./ids.ts";
 import { findEventById } from "./repository.ts";
@@ -59,6 +63,43 @@ export async function getEventSummary(
   const record = await findEventById(db, eventId);
   if (!record) return null;
   return toEventSummary(config, record, await listActiveDiscounts(db, record.id));
+}
+
+/**
+ * 参加者向けの要約から、見せてはいけない招待のリンクを外す（要約の窓口が返す前に通す。AD-5・AD-23）。
+ * 絞る決まりのどれかが true で、今の利用者に交流会の役目（主催者・受付係・部員）がなければ、Googleフォームと
+ * LINEグループのリンクを null にする。名前・日時・会場・参加費・割引・オープンチャットは残す（当日の受付で、組織の外の人も
+ * チェックインできるように）。決まりと役目は要求のたびに引く。
+ * @param deps 道具（DB・設定・絞る決まり）
+ * @param summary 要約
+ * @param account 今の利用者
+ * @returns 見せてよい要約
+ */
+export async function withVisibleLinks(
+  deps: Pick<DomainRouteDeps, "db" | "config" | "eventLinkRestrictions">,
+  summary: EventSummary,
+  account: SessionAccount,
+): Promise<EventSummary> {
+  if (summary.googleFormUrl === null && summary.lineGroupUrl === null) return summary;
+  if (!(await restrictsLinks(deps, summary.id))) return summary;
+  if ((await getEventRole(deps.db, deps.config, summary.id, account)) !== null) return summary;
+  return { ...summary, googleFormUrl: null, lineGroupUrl: null };
+}
+
+/**
+ * 絞る決まりのどれかが、その交流会の招待のリンクを絞るか。
+ * @param deps 道具（DB・絞る決まり）
+ * @param eventId 交流会の ID
+ * @returns 絞るなら true
+ */
+async function restrictsLinks(
+  deps: Pick<DomainRouteDeps, "db" | "eventLinkRestrictions">,
+  eventId: string,
+): Promise<boolean> {
+  for (const restriction of deps.eventLinkRestrictions ?? []) {
+    if (await restriction.restrictsLinks(deps.db, eventId)) return true;
+  }
+  return false;
 }
 
 /** 交流会の答えに添える、持ち主と組織（event-002）。 */

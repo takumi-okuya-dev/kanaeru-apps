@@ -39,7 +39,7 @@ import {
   upsertInvite,
 } from "./repository.ts";
 import type { EventRecord, EventValues, StaffInviteRecord } from "./repository.ts";
-import { buildEventViews, getEventSummary } from "./summary.ts";
+import { buildEventViews, getEventSummary, withVisibleLinks } from "./summary.ts";
 
 /** 交流会の入力（文書の名前と例つき）。 */
 const EventInput = contract.EventInput.openapi("EventInput", {
@@ -219,6 +219,8 @@ function defineRoutes(deps: DomainRouteDeps) {
       tags,
       operationId: "eventGetSummary",
       summary: "交流会の要約（ログインしていれば誰でも。参加者の画面が読む。AD-5）",
+      description:
+        "予約の「部員だけ」の回など、招待のリンクを絞る交流会では、交流会の役目（主催者・受付係・部員）のない人に GoogleフォームのURL と LINEグループの招待リンクを null で返す。",
       middleware: [session] as const,
       request: { params: EventParams },
       responses: {
@@ -530,7 +532,7 @@ export function eventRoutes(deps: DomainRouteDeps) {
     .openapi(routes.summary, async (c) => {
       const summary = await getEventSummary(db, config, c.req.valid("param").eventId);
       if (!summary) throw new AppError(EVENT_ERRORS.NOT_FOUND);
-      return c.json(summary, 200);
+      return c.json(await withVisibleLinks(deps, summary, currentAccount(c)), 200);
     })
     .openapi(routes.survey, async (c) => {
       const record = await setSurveyOpen(

@@ -1,5 +1,5 @@
 // 予約の領域の入口（docs/apps/booking.md・docs/rules/coding.md 6-6）。受付アプリの4つ目の領域（AD-23）。土台（app.ts）は
-// routes・withdrawal を読む。依存は booking → reception → event の一方向で、reception は booking を読まない。
+// routes・withdrawal・eventLinkRestriction を読む。依存は booking → reception → event の一方向で、reception は booking を読まない。
 // ほかの領域・ほかのアプリに出す関数はない（チェックインした人は reception の index.ts が出す。AD-23）。
 // 知らせ（booking-002。AD-24）：公式アカウントの設定・Webhook・紐づけ・連絡のメールアドレスの窓口。業務の関数 sendNotice は
 // booking の中（自前の申込み〈booking-003〉・キャンセル待ち〈booking-004〉）が呼ぶ。
@@ -14,6 +14,8 @@ import { bookingWebhookRoutes } from "./routes-webhook.ts";
 
 // 退会の手順（AD-22。名簿は外部キーで消えるので、確かめの中身だけ。research R11）
 export { bookingWithdrawal as withdrawal } from "./withdrawal.ts";
+// 交流会の招待のリンクを絞る決まり（「部員だけ」の回。組み立てが event の要約の窓口に渡す。AD-5・research R8）
+export { bookingEventLinkRestriction as eventLinkRestriction } from "./event-links.ts";
 
 /**
  * 予約の領域の道。戻り値の型は書かない（書くと画面に渡す型が消える）。
