@@ -187,6 +187,7 @@ test("組織の中のチームで担当が案を作り、任された承認を�
   // 持ち主：設定の「チーム」で、運用アカウントをチームに入れる（入れるときの説明が出る）
   await owner.page.goto(`/threads/accounts/${accountId}/settings`);
   await expect(owner.page.getByRole("heading", { level: 2, name: "チーム" })).toBeVisible();
+  await owner.page.getByText("チームに入れると").click();
   await expect(
     owner.page.getByText(/あなたが退会すると、この運用アカウントは組織の管理者に引き継がれます/),
   ).toBeVisible();

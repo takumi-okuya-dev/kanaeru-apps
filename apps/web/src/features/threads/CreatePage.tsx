@@ -28,6 +28,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useBlocker } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
+import { Disclosure } from "@workspace/ui/components/disclosure";
 import { Field } from "@workspace/ui/components/field";
 import { Input } from "@workspace/ui/components/input";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
@@ -398,9 +399,8 @@ function PromptSection({ accountId }: PromptSectionProps) {
       <h2 id="threads-prompt" className="text-l font-bold">
         2. プロンプトをコピーして、外の AI に貼る
       </h2>
-      <p className="text-m">
-        戦略・投稿のルール・NGワード・最近の案・却下の理由から作ります。アプリから AI
-        には何も送りません。
+      <p className="text-s text-text-sub">
+        戦略・NGワード・最近の案などから作ります。アプリから AI には何も送りません。
       </p>
       <div className="flex flex-col items-start gap-xxs">
         <Button
@@ -414,14 +414,16 @@ function PromptSection({ accountId }: PromptSectionProps) {
       </div>
       {prompt ? (
         <div className="flex flex-col gap-s">
-          <p className="text-m text-text-sub">
-            {prompt.count}件を作るプロンプトです（戦略 {prompt.summary.strategyFilledCount}
+          <p className="text-m">
+            {prompt.count}件を作るプロンプトです。
+            {parts.length > 1 ? "長いので、2回に分けて順に貼ってください。" : null}
+          </p>
+          <p className="text-s text-text-sub">
+            入れたもの：戦略 {prompt.summary.strategyFilledCount}
             項目・投稿のルール {prompt.summary.coreRuleCount}行・NGワード{" "}
             {prompt.summary.ngWordCount}個・却下の案 {prompt.summary.rejectedCount}
             件・宣伝 {prompt.summary.promotionCount}件・参考の投稿{" "}
-            {prompt.summary.referencePostCount}件・低調の投稿 {prompt.summary.poorPostCount}
-            件を入れました）。
-            {parts.length > 1 ? "長いので、2回に分けて順に貼ってください。" : null}
+            {prompt.summary.referencePostCount}件・低調の投稿 {prompt.summary.poorPostCount}件
           </p>
           <PromptMaterials accountId={accountId} prompt={prompt} />
           {parts.map((part, index) => {
@@ -429,9 +431,11 @@ function PromptSection({ accountId }: PromptSectionProps) {
               parts.length > 1 ? `プロンプト（${index + 1}／${parts.length}）` : "プロンプト";
             return (
               <div key={label} className="flex flex-col gap-xxs">
-                <Field label={label}>
-                  <Textarea readOnly rows={8} value={part} />
-                </Field>
+                <Disclosure summary={`${label}の中身を見る`}>
+                  <Field label={label}>
+                    <Textarea readOnly rows={8} value={part} />
+                  </Field>
+                </Disclosure>
                 <div className="flex flex-col items-start gap-xxs">
                   <Button variant="primary" onClick={() => void copy(part, index)}>
                     {parts.length > 1 ? `${index + 1}つ目をコピー` : "コピー"}

@@ -1,30 +1,56 @@
-// 戦略の進みのカード（threads-012）：数・区分ごとの十分の数・「次におすすめ」で項目へ移る・最後に保存した日時。
+// 戦略の進みのカードと区分のタブ（threads-012・threads-017）：数・「次におすすめ」で項目へ移る・最後に保存した日時・
+// タブの区分ごとの十分の数と今の区分。
 import { checkStrategy, emptyStrategyValues } from "@workspace/contracts/threads";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
-import { StrategyProgress, strategyFieldElementId } from "./StrategyProgress.tsx";
+import { describe, expect, it, vi } from "vitest";
+import { StrategyProgress, StrategySectionTabs } from "./StrategyProgress.tsx";
 
 describe("StrategyProgress", () => {
-  it("はじめは0件で、次におすすめは Q1。区分のチップに十分の数を出す", () => {
-    render(<StrategyProgress check={checkStrategy(emptyStrategyValues())} updatedAt={null} />);
+  it("はじめは0件で、次におすすめは Q1。まだ保存していない", () => {
+    render(
+      <StrategyProgress
+        check={checkStrategy(emptyStrategyValues())}
+        updatedAt={null}
+        onGoToField={() => undefined}
+      />,
+    );
     expect(screen.getByRole("button", { name: /^次におすすめ：Q1/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "目的（0/5）" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "下書き" })).toBeTruthy();
     expect(screen.getByText("まだ保存していません")).toBeTruthy();
   });
 
-  it("「次におすすめ」を押すと、その項目の欄にフォーカスが移る", () => {
+  it("「次におすすめ」を押すと、その項目へ移る", () => {
     const values = { ...emptyStrategyValues(), purposeOrigin: "x".repeat(80) };
+    const onGoToField = vi.fn();
     render(
-      <>
-        <StrategyProgress check={checkStrategy(values)} updatedAt="2026-11-20T01:02:00Z" />
-        <div id={strategyFieldElementId("purposeSelf")}>
-          <textarea aria-label="Q2" />
-        </div>
-      </>,
+      <StrategyProgress
+        check={checkStrategy(values)}
+        updatedAt="2026-11-20T01:02:00Z"
+        onGoToField={onGoToField}
+      />,
     );
     expect(screen.getByText("最後に保存：2026-11-20 10:02")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /^次におすすめ：Q2/ }));
-    expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Q2" }));
+    expect(onGoToField).toHaveBeenCalledWith("purposeSelf");
+  });
+});
+
+describe("StrategySectionTabs", () => {
+  it("完了の数と、区分ごとの十分の数を出し、今の区分に印を付け、押すと選ぶ", () => {
+    const onSelect = vi.fn();
+    render(
+      <StrategySectionTabs
+        check={checkStrategy(emptyStrategyValues())}
+        current="sales"
+        onSelect={onSelect}
+      />,
+    );
+    expect(screen.getByText("完了 0/16")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "目的 0/5" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "下書き" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "営業導線 0/5" }).getAttribute("aria-current")).toBe(
+      "true",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "目的 0/5" }));
+    expect(onSelect).toHaveBeenCalledWith("purpose");
   });
 });

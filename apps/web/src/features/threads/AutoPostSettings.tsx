@@ -11,6 +11,7 @@ import {
 import type { Connection, PostingScheduleView } from "@workspace/contracts/threads";
 import { jstDate } from "@workspace/contracts/core";
 import { useQueryClient } from "@tanstack/react-query";
+import { Disclosure } from "@workspace/ui/components/disclosure";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
@@ -317,11 +318,13 @@ function ScheduleForm({ accountId, view }: { accountId: string; view: PostingSch
       onSubmit={(submitEvent) => void submit(submitEvent)}
       className="flex flex-col gap-xs"
     >
-      <p className="text-m">
-        承認した案を、決めた時刻（日本時間）に Threads へ投稿します。夜間（0時〜8時）は DB
-        が止まるため、
-        {limits.earliest}〜{limits.latest} の中から選んでください。時刻は{limits.slots}個までです。
-      </p>
+      <p className="text-m">承認した案を、決めた時刻（日本時間）に Threads へ投稿します。</p>
+      <Disclosure summary="選べる時刻">
+        <p className="text-s text-text-sub">
+          夜間（0時〜8時）は DB が止まるため、{limits.earliest}〜{limits.latest}{" "}
+          の中から選んでください。時刻は{limits.slots}個までです。
+        </p>
+      </Disclosure>
       <label className="flex min-h-l items-center gap-xxs text-m">
         <input
           type="checkbox"

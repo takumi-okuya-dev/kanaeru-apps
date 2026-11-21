@@ -1,12 +1,12 @@
 // 戦略の入力の手助け（threads-009。めぐるの specs/014 戦略のガイド・specs/018 AI と壁打ち）。
 // - 項目ごと：入力の量の印（未入力・短め・十分）・考えるヒント（閉じたトグル）・「AI と深める」（プロンプトをコピーし、答えを貼ってこの項目に入れる）
-// - 全体：「全体を AI と見直す」のプロンプト・「AI と壁打ち」（選んだ区分の項目を質問してもらい、項目ごとの答えを貼って選んで入れる）
+// - 全体：「全体を AI と見直す」のプロンプト
+// - 区分ごと：見出しの横の「AI と考える」（その区分の項目を質問してもらい、項目ごとの答えを貼って選んで入れる。めぐるの 2026-11-04 の形。threads-017）
 // - 活動の軸：「5問から AI と整理する」（目的の5問から案を出してもらい、決めた一言を貼り戻して入れる。threads-012）
 // 貼った答えをまだ入れずに閉じるときは確かめる（threads-012）。
 // 入れた内容は画面の欄に入るだけで、保存は利用者が「保存」を押す。アプリは AI を呼ばない（AD-20）。
 import {
   SHORT_TIP,
-  SPARRING_SECTION_IDS,
   STRATEGY_TEXT_MAX,
   STRATEGY_SECTIONS,
   buildAxisPrompt,
@@ -36,7 +36,7 @@ import { Dialog } from "@workspace/ui/components/dialog";
 import { Field } from "@workspace/ui/components/field";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { Textarea } from "@workspace/ui/components/textarea";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { CopyButton } from "./CopyButton.tsx";
 
 /** 入力の量の印の名前。 */
@@ -64,42 +64,61 @@ export type FieldGuideProps = {
 export function FieldGuide({ fieldKey, label, check, values, onApply }: FieldGuideProps) {
   const hint = hintOf(fieldKey);
   const [open, setOpen] = useState(false);
+  const [hintOpen, setHintOpen] = useState(false);
+  const hintId = useId();
   if (!hint) return null;
   const item = check.items[fieldKey];
   return (
     <div className="flex flex-col gap-x3s">
+      {/* 入力の量の印・考えるヒント・AI と深めるを1行に（めぐるの課題の画面の形。threads-017） */}
       <div className="flex flex-wrap items-center gap-xxs">
         <Badge variant={item.status === "ok" ? "success" : "neutral"}>
           {STATUS_LABELS[item.status]}
         </Badge>
         {hint.star ? <Badge>特に大事</Badge> : null}
-        {item.status === "short" ? (
-          <span className="text-s text-text-sub">{hint.shortTip ?? SHORT_TIP}</span>
+        <Button
+          size="small"
+          variant="secondary"
+          aria-expanded={hintOpen}
+          aria-controls={hintId}
+          aria-label={`「${label}」の考えるヒント`}
+          onClick={() => setHintOpen((current) => !current)}
+        >
+          考えるヒント
+        </Button>
+        {fieldKey !== "tonePreset" ? (
+          <Button
+            size="small"
+            variant="secondary"
+            aria-label={`「${label}」を AI と深める`}
+            onClick={() => setOpen(true)}
+          >
+            AI と深める
+          </Button>
         ) : null}
       </div>
-      {hint.star && hint.starNote ? <p className="text-s text-text-sub">{hint.starNote}</p> : null}
-      <details>
-        <summary className="cursor-pointer text-s font-bold">{`「${label}」の考えるヒント`}</summary>
-        <dl className="mt-xxs flex flex-col gap-x3s text-s">
-          <dt className="font-bold">コツ</dt>
-          <dd>{hint.tip}</dd>
-          <dt className="font-bold">悪い例</dt>
-          <dd>{hint.bad}</dd>
-          <dt className="font-bold">良い例</dt>
-          <dd>{hint.good}</dd>
-          <dt className="font-bold">もっとこんな内容も</dt>
-          <dd>{hint.more.join("・")}</dd>
-          <dt className="font-bold">こんな場合はどうだろう？</dt>
-          <dd>{hint.whatIf}</dd>
-          <dt className="font-bold">もっと良くするなら</dt>
-          <dd>{hint.better}</dd>
-        </dl>
-      </details>
-      {fieldKey !== "tonePreset" ? (
-        <div>
-          <Button size="small" variant="secondary" onClick={() => setOpen(true)}>
-            {`「${label}」を AI と深める`}
-          </Button>
+      {item.status === "short" ? (
+        <p className="text-s text-text-sub">{hint.shortTip ?? SHORT_TIP}</p>
+      ) : null}
+      {hintOpen ? (
+        <div id={hintId} className="flex flex-col gap-x3s rounded-sm bg-surface-sunken p-xxs">
+          {hint.star && hint.starNote ? (
+            <p className="text-s text-text-sub">{hint.starNote}</p>
+          ) : null}
+          <dl className="flex flex-col gap-x3s text-s">
+            <dt className="font-bold">コツ</dt>
+            <dd>{hint.tip}</dd>
+            <dt className="font-bold">悪い例</dt>
+            <dd>{hint.bad}</dd>
+            <dt className="font-bold">良い例</dt>
+            <dd>{hint.good}</dd>
+            <dt className="font-bold">もっとこんな内容も</dt>
+            <dd>{hint.more.join("・")}</dd>
+            <dt className="font-bold">こんな場合はどうだろう？</dt>
+            <dd>{hint.whatIf}</dd>
+            <dt className="font-bold">もっと良くするなら</dt>
+            <dd>{hint.better}</dd>
+          </dl>
         </div>
       ) : null}
       {open ? (
@@ -303,8 +322,28 @@ export function AxisGuide({ values, onApply }: AxisGuideProps) {
   );
 }
 
-/** StrategyAiSection が受け取るもの。 */
-export type StrategyAiSectionProps = {
+/**
+ * 「全体を AI と見直す」（項目どうしの重なり・食い違い・抜けを質問してもらう。答えは取りこまない）。
+ * @param props 画面の今の値（values）
+ * @param props.values 画面の今の値
+ * @returns 要素
+ */
+export function StrategyOverallReview({ values }: { values: StrategyValues }) {
+  return (
+    <div className="flex flex-col gap-x3s">
+      <CopyButton
+        text={buildOverallPrompt(values)}
+        label="全体を AI と見直す"
+        successMessage="コピーしました。外の AI に貼って送ると、項目どうしの重なり・食い違い・抜けを質問の形で返してくれます。"
+      />
+    </div>
+  );
+}
+
+/** SectionThink が受け取るもの。 */
+export type SectionThinkProps = {
+  /** 区分 */
+  section: SparringSectionId;
   /** 自動チェック */
   check: StrategyCheck;
   /** 画面の今の値 */
@@ -316,24 +355,59 @@ export type StrategyAiSectionProps = {
 };
 
 /**
- * 戦略の上の「AI と考える」の節（全体の見直し・壁打ち）。
- * @param props 自動チェック・今の値・入れる・まだ入れていない答えの知らせ
- * @returns 節の要素
+ * 区分の見出しの横の「AI と考える」（めぐるの specs/018。2026-11-04 に区分ごとにした形）。押すと、その区分の項目だけを
+ * 質問してもらうプロンプトと、項目ごとの答えを貼って選んで入れる枠を開く。
+ * @param props 区分・自動チェック・今の値・入れる・まだ入れていない答えの知らせ
+ * @returns ボタンと枠
  */
-export function StrategyAiSection({
+export function SectionThink({
+  section,
   check,
   values,
   onApply,
   onDirtyChange,
-}: StrategyAiSectionProps) {
-  const [sections, setSections] = useState<SparringSectionId[]>([...SPARRING_SECTION_IDS]);
+}: SectionThinkProps) {
+  const [open, setOpen] = useState(false);
+  const title = `AI と考える（${STRATEGY_SECTIONS.find((item) => item.id === section)?.chip ?? ""}）`;
+  return (
+    <>
+      <Button size="small" variant="secondary" aria-label={title} onClick={() => setOpen(true)}>
+        AI と考える
+      </Button>
+      {open ? (
+        <SparringDialog
+          title={title}
+          section={section}
+          check={check}
+          values={values}
+          onApply={onApply}
+          onDirtyChange={onDirtyChange}
+          onClose={() => setOpen(false)}
+        />
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * 区分の「AI と考える」の枠（プロンプトをコピー → 答えを貼る → 選んだ項目に入れる。入れたら閉じる。保存はしない）。
+ * @param props 題・区分・自動チェック・今の値・入れる・まだ入れていない答えの知らせ・閉じる
+ * @returns 枠の要素
+ */
+function SparringDialog({
+  title,
+  section,
+  check,
+  values,
+  onApply,
+  onDirtyChange,
+  onClose,
+}: SectionThinkProps & { title: string; onClose: () => void }) {
   const [onlyIncomplete, setOnlyIncomplete] = useState(true);
   const [answer, setAnswer] = useState("");
   const [chosen, setChosen] = useState<ReadonlySet<SparringKey>>(new Set());
-  const [result, setResult] = useState<string>();
-  const [sparringOpen, setSparringOpen] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
-  const targets = selectSparringTargets(values, { sections, onlyIncomplete }, check);
+  const targets = selectSparringTargets(values, { sections: [section], onlyIncomplete }, check);
   const parsed = answer.trim() ? parseSparringAnswer(answer) : undefined;
   const candidates = parsed ? buildSparringCandidates(parsed.items, values) : [];
   const selectable = candidates.filter((candidate) => !candidate.over && !candidate.same);
@@ -345,68 +419,48 @@ export function StrategyAiSection({
   }, [dirty, onDirtyChange]);
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
 
-  /** 貼った答えを捨てて、壁打ちを閉じる。 */
-  const discardAndClose = () => {
-    setAnswer("");
-    setChosen(new Set());
-    setSparringOpen(false);
+  /** 閉じる（貼った答えがあれば先に確かめる）。 */
+  const requestClose = () => {
+    if (dirty) setConfirmClose(true);
+    else onClose();
   };
 
   return (
-    <section aria-labelledby="threads-strategy-ai" className="flex flex-col gap-xs">
-      <h2 id="threads-strategy-ai" className="text-l font-bold">
-        AI と考える
-      </h2>
-      <details>
-        <summary className="cursor-pointer text-m font-bold">全体を見直す</summary>
-        <div className="mt-xxs flex flex-col gap-xxs">
-          <p className="text-s text-text-sub">
-            項目どうしの重なり・食い違い・抜けを、質問の形で返してもらいます（答えは取りこみません）。活動の軸は、「活動の軸」の欄の「5問から
-            AI と整理する」で考えられます。
-          </p>
-          <CopyButton
-            text={buildOverallPrompt(values)}
-            label="全体を見直すプロンプトをコピー"
-            successMessage="コピーしました。外の AI に貼って送ると、項目どうしの重なり・食い違い・抜けを質問の形で返してくれます。"
-          />
-        </div>
-      </details>
-      <details open={sparringOpen}>
-        <summary
-          className="cursor-pointer text-m font-bold"
-          onClick={(click) => {
-            // 開け閉めは自分で持つ（貼った答えがあるまま閉じるときは確かめる）
-            click.preventDefault();
-            if (!sparringOpen) setSparringOpen(true);
-            else if (dirty) setConfirmClose(true);
-            else setSparringOpen(false);
-          }}
-        >
-          AI と壁打ちして、まとめて埋める
-        </summary>
-        <div className="mt-xxs flex flex-col gap-xs">
-          <fieldset className="flex flex-col gap-x3s">
-            <legend className="text-s font-bold">質問してもらう区分</legend>
-            {SPARRING_SECTION_IDS.map((id) => (
-              <label key={id} className="flex min-h-l items-center gap-xxs text-m">
-                <input
-                  type="checkbox"
-                  className="size-s accent-primary"
-                  checked={sections.includes(id)}
-                  onChange={(change) =>
-                    setSections((current) =>
-                      change.target.checked
-                        ? SPARRING_SECTION_IDS.filter(
-                            (item) => item === id || current.includes(item),
-                          )
-                        : current.filter((item) => item !== id),
-                    )
-                  }
-                />
-                {STRATEGY_SECTIONS.find((section) => section.id === id)?.title ?? id}
-              </label>
-            ))}
-          </fieldset>
+    <>
+      <Dialog
+        open
+        onOpenChange={(next) => {
+          if (!next) requestClose();
+        }}
+        title={title}
+        description="この区分の項目を AI に質問してもらい、やりとりのあとに出た完成版を貼って、選んだ項目に入れます。"
+        footer={
+          <div className="flex flex-wrap justify-end gap-xxs">
+            <Button variant="secondary" onClick={requestClose}>
+              やめる
+            </Button>
+            <Button
+              variant="primary"
+              aria-disabled={pickedCount === 0 || undefined}
+              onClick={() => {
+                if (pickedCount === 0) return;
+                onApply(
+                  Object.fromEntries(
+                    candidates
+                      .filter((candidate) => chosen.has(candidate.key))
+                      .map((candidate) => [candidate.key, candidate.proposed]),
+                  ),
+                );
+                onDirtyChange?.(false);
+                onClose();
+              }}
+            >
+              選んだ項目に入れる
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex flex-col gap-xs">
           <label className="flex min-h-l items-center gap-xxs text-m">
             <input
               type="checkbox"
@@ -417,26 +471,24 @@ export function StrategyAiSection({
             未入力と短めの項目だけにする
           </label>
           {targets.length === 0 ? (
-            <p className="text-s">質問してもらう項目がありません。区分を選び直してください。</p>
+            <p className="text-s">
+              質問してもらう項目がありません。「未入力と短めの項目だけにする」を外すと、全部の項目を見直せます。
+            </p>
           ) : (
-            <>
+            <div className="flex flex-col gap-x3s">
               <p className="text-s text-text-sub">{`質問してもらう項目：${targets.length}個`}</p>
-              <CopyButton
-                text={buildSparringPrompt(values, targets)}
-                label="壁打ちのプロンプトをコピー"
-              />
-            </>
+              <CopyButton text={buildSparringPrompt(values, targets)} label="プロンプトをコピー" />
+            </div>
           )}
           <Field
-            label="AI の壁打ちの答え"
+            label="AI の答え"
             description="【項目：〇〇】〜【項目ここまで】の目印のある完成版を、そのまま貼ります。"
           >
             <Textarea
-              rows={6}
+              rows={5}
               value={answer}
               onChange={(change) => {
                 setAnswer(change.target.value);
-                setResult(undefined);
                 const next = change.target.value.trim()
                   ? buildSparringCandidates(parseSparringAnswer(change.target.value).items, values)
                   : [];
@@ -499,33 +551,8 @@ export function StrategyAiSection({
               ))}
             </ul>
           ) : null}
-          {candidates.length > 0 ? (
-            <div className="flex flex-col items-start gap-xxs">
-              <Button
-                aria-disabled={pickedCount === 0 || undefined}
-                onClick={() => {
-                  if (pickedCount === 0) return;
-                  onApply(
-                    Object.fromEntries(
-                      candidates
-                        .filter((candidate) => chosen.has(candidate.key))
-                        .map((candidate) => [candidate.key, candidate.proposed]),
-                    ),
-                  );
-                  setResult(
-                    `${pickedCount}個の項目に入れました。確かめて「保存」を押してください。`,
-                  );
-                  setAnswer("");
-                  setChosen(new Set());
-                }}
-              >
-                選んだ項目に入れる
-              </Button>
-            </div>
-          ) : null}
-          {result ? <ResponseMessage tone="success">{result}</ResponseMessage> : null}
         </div>
-      </details>
+      </Dialog>
       <ConfirmDialog
         open={confirmClose}
         onOpenChange={setConfirmClose}
@@ -534,11 +561,12 @@ export function StrategyAiSection({
         cancelLabel="戻る"
         onConfirm={() => {
           setConfirmClose(false);
-          discardAndClose();
+          onDirtyChange?.(false);
+          onClose();
         }}
       >
         まだ項目に入れていません。閉じると、貼った答えは消えます。
       </ConfirmDialog>
-    </section>
+    </>
   );
 }

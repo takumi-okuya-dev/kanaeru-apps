@@ -15,6 +15,7 @@ import {
 import type { PostingRules, ThreadsAccount } from "@workspace/contracts/threads";
 import { useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
+import { Disclosure } from "@workspace/ui/components/disclosure";
 import { Button } from "@workspace/ui/components/button";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { Field } from "@workspace/ui/components/field";
@@ -292,9 +293,12 @@ function NgWordsSection({ accountId, rules }: RulesSectionProps) {
       <h2 id="threads-ng-words" className="text-l font-bold">
         NGワード
       </h2>
-      <p className="text-m">
-        NGワードを含む案は承認できません。案を作るプロンプトにも入ります。全角・半角、大文字・小文字の違いは同じ言葉として扱います。
-      </p>
+      <p className="text-m">NGワードを含む案は承認できません。案を作るプロンプトにも入ります。</p>
+      <Disclosure summary="見分け方">
+        <p className="text-s text-text-sub">
+          全角・半角、大文字・小文字の違いは同じ言葉として扱います。
+        </p>
+      </Disclosure>
       <p className="text-s text-text-sub">
         {rules.ngWords.length}／{NG_WORD_LIMIT}語
       </p>

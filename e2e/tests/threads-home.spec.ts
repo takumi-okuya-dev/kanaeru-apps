@@ -86,7 +86,9 @@ test("ホームで次にやることを見て、切り替えで別のアカウ�
   // 一覧の名前からホームへ
   await page.getByRole("link", { name: "ホーム部" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "ホーム" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "はじめに読んでほしいこと" })).toBeVisible();
+  // はじめに読んでほしいことは、初めは閉じている（threads-017）
+  await expect(page.getByText("SNS の運用は地道です。", { exact: false })).not.toBeVisible();
+  await page.getByText(/^はじめに読んでほしいこと/).click();
   await expect(page.getByText("SNS の運用は地道です。", { exact: false })).toBeVisible();
   await expect(page.getByRole("region", { name: "Threads への接続" })).toContainText("未接続");
   await expect(page.getByRole("heading", { name: "まずは「戦略」から埋めましょう" })).toBeVisible();
@@ -96,14 +98,9 @@ test("ホームで次にやることを見て、切り替えで別のアカウ�
   await expect(materials.getByRole("link", { name: /参考の投稿 0件/ })).toBeVisible();
   await checkPage(page, "ホーム");
 
-  // はじめに読んでほしいこと：閉じると見出しだけになり、開き直すまで閉じたまま
-  await page.getByRole("button", { name: "閉じる" }).click();
+  // はじめに読んでほしいこと：もう一度押すと閉じる
+  await page.getByText(/^はじめに読んでほしいこと/).click();
   await expect(page.getByText("SNS の運用は地道です。", { exact: false })).toBeHidden();
-  await page.reload();
-  await expect(page.getByRole("heading", { level: 1, name: "ホーム" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "開く" })).toBeVisible();
-  await page.getByRole("button", { name: "開く" }).click();
-  await expect(page.getByText("SNS の運用は地道です。", { exact: false })).toBeVisible();
 
   // 次にやることのボタンで戦略へ（切り替えはどの画面にも出る）
   await page.getByRole("link", { name: "戦略を書く" }).click();
