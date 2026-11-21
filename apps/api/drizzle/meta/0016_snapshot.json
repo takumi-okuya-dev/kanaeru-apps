@@ -459,6 +459,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "merged_into_id": {
+          "name": "merged_into_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -516,6 +522,21 @@
           "columns": [
             {
               "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "booking_entry_merged_into_id_idx": {
+          "name": "booking_entry_merged_into_id_idx",
+          "columns": [
+            {
+              "expression": "merged_into_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -611,6 +632,19 @@
           "tableTo": "checkin",
           "columnsFrom": [
             "checkin_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "booking_entry_merged_into_id_booking_entry_id_fk": {
+          "name": "booking_entry_merged_into_id_booking_entry_id_fk",
+          "tableFrom": "booking_entry",
+          "tableTo": "booking_entry",
+          "columnsFrom": [
+            "merged_into_id"
           ],
           "columnsTo": [
             "id"

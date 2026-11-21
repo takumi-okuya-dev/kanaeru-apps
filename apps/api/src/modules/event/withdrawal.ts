@@ -40,14 +40,20 @@ async function handOverPlacedEvents(tx: Executor, accountId: string): Promise<vo
  * その人が持ち主の、組織に入れていない交流会の ID（退会で消える交流会。ほかの領域も index.ts から使う。booking の退会の確かめ）。
  * @param db DB
  * @param accountId 持ち主
+ * @param lock 交流会の行を押さえるか（退会のトランザクションの中だけ。外側の結合の側は押さえられないので event だけ）
  * @returns 交流会の ID
  */
-export async function listPersonalEventIds(db: Executor, accountId: string): Promise<string[]> {
-  const rows = await db
+export async function listPersonalEventIds(
+  db: Executor,
+  accountId: string,
+  lock = false,
+): Promise<string[]> {
+  const query = db
     .select({ id: event.id })
     .from(event)
     .leftJoin(eventOrganization, eq(eventOrganization.eventId, event.id))
     .where(and(eq(event.ownerAccountId, accountId), isNull(eventOrganization.eventId)));
+  const rows = lock ? await query.for("update", { of: event }) : await query;
   return rows.map((row) => row.id);
 }
 
@@ -58,7 +64,8 @@ export async function listPersonalEventIds(db: Executor, accountId: string): Pro
  * @param accountId 退会する人
  */
 async function deletePersonalEvents(tx: Executor, accountId: string): Promise<void> {
-  const ids = await listPersonalEventIds(tx, accountId);
+  // 消すまでの間に、ほかの要求がこの交流会を組織に入れたり直したりしないよう押さえる
+  const ids = await listPersonalEventIds(tx, accountId, true);
   if (ids.length === 0) return;
   await tx.delete(eventStaff).where(inArray(eventStaff.eventId, ids));
   await tx.delete(staffInvite).where(inArray(staffInvite.eventId, ids));

@@ -50,6 +50,13 @@ export const BOOKING_ERRORS = {
     status: 400,
     message: "まとめられるのは、同じ名前の2つの行だけです。画面を読み直して、選び直してください。",
   },
+  /** 2つの行がどちらもチェックインに当たっているのに、まとめようとした（research R7） */
+  MERGE_BOTH_MATCHED: {
+    code: "BOOKING_MERGE_BOTH_MATCHED",
+    status: 409,
+    message:
+      "2人とも来ています。別の人ではありませんか。同じ人なら、先に片方の当てを外してからまとめてください。",
+  },
 } as const;
 
 /** 領域のエラーのキー。 */

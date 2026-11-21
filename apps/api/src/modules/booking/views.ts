@@ -93,7 +93,8 @@ export async function buildRoster(
     counts: {
       confirmed: confirmed.length,
       cancelled: views.length - confirmed.length,
-      came: views.filter((entry) => entry.attendance === "came").length,
+      // 来たは確定の行だけ数える（取り消した行に手の当てが残っていても数えない）
+      came: confirmed.filter((entry) => entry.attendance === "came").length,
       noShow: views.filter((entry) => entry.attendance === "no_show").length,
       walkIn: views.filter((entry) => entry.entryKind === "walk_in").length,
       bySource: APPLICATION_SOURCES.map((applicationSource) => ({

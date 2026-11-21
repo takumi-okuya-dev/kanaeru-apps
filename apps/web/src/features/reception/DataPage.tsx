@@ -96,7 +96,7 @@ function ExportSection({ event }: { event: EventView }) {
  */
 function deletionText(checkin: CheckinView, operator: boolean): string {
   if (checkin.accountId && operator) {
-    return `${checkin.name}さんのアカウント・チェックイン・アンケートの回答を消します。ほかの交流会のチェックインと回答も消えます。元に戻せません。`;
+    return `${checkin.name}さんのアカウント・チェックイン・アンケートの回答を消します。ほかの交流会のチェックインと回答も消えます。この人が持つ交流会も消えるか、組織に入れている交流会なら組織の管理者に引き継がれます。元に戻せません。`;
   }
   if (checkin.accountId) {
     return `${checkin.name}さんの、この交流会のチェックインとアンケートの回答を消します。アカウントそのものは消えません（本人の退会で消えます）。元に戻せません。`;

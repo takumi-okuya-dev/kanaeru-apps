@@ -11,7 +11,7 @@
 | 表 | 列 | 決まり |
 |---|---|---|
 | `booking_setting` | `event_id`（主キー）・`mode`・`created_at`・`updated_at` | 交流会ごとの使い方。行がなければ受付だけ。`mode` は `reception`（受付だけ）・`roster`（名簿を使う）の CHECK（`booking_setting_mode_check`）。「受付だけ」に戻しても行は消さない |
-| `booking_entry` | `id`・`event_id`・`name`・`application_source`（媒体）・`entry_kind`（入口）・`status`（状態）・`applied_at`（申し込んだ日時）・`entered_by`（入れた人）・`memo`・`account_id`（本人の申込み。この版では空）・`checkin_id`（手で当てたチェックイン）・`created_at`・`updated_at` | 名簿の1行。媒体は受付の申し込みの媒体（`connpass`・`peatix`・`direct`・`other`）、入口は `manual`（手で足す）・`import`（取り込み）・`walk_in`（飛び入り）、状態は `confirmed`（確定）・`cancelled`（取り消し）の CHECK。`checkin_id` は空でない行で一意（`booking_entry_checkin_id_unique`）、`(event_id, account_id)` は `account_id` が空でない行で一意。索引 `booking_entry_event_id_applied_at_idx`・`booking_entry_entered_by_idx`・`booking_entry_account_id_idx` |
+| `booking_entry` | `id`・`event_id`・`name`・`application_source`（媒体）・`entry_kind`（入口）・`status`（状態）・`applied_at`（申し込んだ日時）・`entered_by`（入れた人）・`memo`・`account_id`（本人の申込み。この版では空）・`checkin_id`（手で当てたチェックイン）・`merged_into_id`（まとめた先の行）・`created_at`・`updated_at` | 名簿の1行。媒体は受付の申し込みの媒体（`connpass`・`peatix`・`direct`・`other`）、入口は `manual`（手で足す）・`import`（取り込み）・`walk_in`（飛び入り）、状態は `confirmed`（確定）・`cancelled`（取り消し）の CHECK。`checkin_id` は空でない行で一意（`booking_entry_checkin_id_unique`）、`(event_id, account_id)` は `account_id` が空でない行で一意。索引 `booking_entry_event_id_applied_at_idx`・`booking_entry_entered_by_idx`・`booking_entry_account_id_idx`・`booking_entry_merged_into_id_idx`。`merged_into_id` が空でない行（まとめた行）は消さずに残し、名簿・人数・当てから隠す（取り込みの「すでにある」には数える） |
 | `booking_dismissal` | `id`・`event_id`・`checkin_id`・`entry_id`・`dismissed_by`・`created_at` | 受付係が「ちがう人」にした組。`(checkin_id, entry_id)` で一意 |
 | `booking_import_mapping` | `id`・`owner_account_id`・`header_key`（見出しの並びの JSON）・`name_column`・`application_source`・`created_at`・`updated_at` | 交流会の持ち主ごとの CSV の列の対応。`(owner_account_id, header_key)` で一意 |
 
@@ -23,6 +23,7 @@
 | `booking_entry.account_id`・`booking_import_mapping.owner_account_id` | `CASCADE`（本人の申込み・持ち主のデータ） |
 | `booking_entry.entered_by`・`booking_dismissal.dismissed_by` | `SET NULL`（誰がしたか） |
 | `booking_entry.checkin_id` | `SET NULL`（チェックインを取り消すと当てが外れる） |
+| `booking_entry.merged_into_id` | `SET NULL`（まとめた先の行が消えると、取り消しの行として名簿に出る） |
 | `booking_dismissal.checkin_id`・`booking_dismissal.entry_id` | `CASCADE` |
 
 - 使い方・入口・状態の値は今使うものだけを CHECK に入れている。「自前で申込みを受ける」（`self_page`）・入口の自前のページ・キャンセル待ち・打診中を足すときは、CHECK を広げる（今の行はどれも通るので1回の DB の変更でよい）。
@@ -38,9 +39,9 @@
 | GET | `…/entries` | 主催者・受付係 | 名簿（行は申し込んだ日時の古い順。行ごとに `sameName`・`attendance`〈`came`・`no_show`・`pending`〉・`match`〈`manual`・`auto`〉・`enteredByName`〈手で足した・飛び入りの入れた人〉）・人数（確定・取り消し・来た・来なかった・飛び入り・媒体ごとの確定）・`eventEnded` |
 | POST | `…/entries` | 主催者・受付係 | 1人足す（名前・媒体・メモ。入口は手で足す。201） |
 | PUT | `…/entries/{entryId}/status` | 主催者 | 取り消す・戻す |
-| POST | `…/entries/merge` | 主催者 | 同じ名前の2つの行をまとめる（`{ keepEntryId, removeEntryId }`。消す行の当て・アカウント・メモを、残す行になければ移す。名前が違えば 400 `BOOKING_MERGE_NAME_MISMATCH`） |
+| POST | `…/entries/merge` | 主催者 | 同じ名前の2つの行をまとめる（`{ keepEntryId, removeEntryId }`。まとめる行の当て・アカウント・メモを、残す行になければ移し、まとめる行は取り消しにして `merged_into_id` を入れる〈消さない〉。名前が違えば 400 `BOOKING_MERGE_NAME_MISMATCH`、2つともチェックインに当たっていれば 409 `BOOKING_MERGE_BOTH_MATCHED`） |
 | POST | `…/entries/import/preview` | 主催者 | 取り込む前の見積もり（書かない） |
-| POST | `…/entries/import` | 主催者 | 取り込む（`{ applicationSource, rows: [{ line, name }], mapping? }`。1〜500行・名前は50文字まで。`mapping` があれば持ち主の列の対応を覚える） |
+| POST | `…/entries/import` | 主催者 | 取り込む（`{ applicationSource, rows: [{ line, name }], mapping? }`。1〜500行・名前は50文字まで。`mapping` があれば持ち主の列の対応を覚える。画面は、列が50を超える・見出しが100文字を超える CSV では `mapping` を送らない） |
 | GET | `…/import-mappings` | 主催者 | 交流会の持ち主が覚えた列の対応（新しく覚えた順） |
 | GET | `…/entries/export` | 主催者 | 名簿の CSV（`roster-YYYY-MM-DD.csv`。列は 名前・媒体・入口・状態・申し込んだ日時・来た・入れた人・メモ。`@workspace/csv` で BOM・CRLF・式の守り） |
 | GET | `…/matches` | 主催者・受付係 | 名簿に当てる画面（チェックインごとの `state`〈`candidate`・`unmatched`・`matched_auto`・`matched_manual`・`walk_in`〉と当たった行か候補・名簿から選べる行・人数） |
@@ -60,14 +61,14 @@
 
 1. 行の `checkin_id`（手で当てた・飛び入り）
 2. 行のアカウント = チェックインのアカウント（自動。自前のページの申込みから効く）
-3. 残りのチェックインに、当たっていない確定の行で、そろえた名前が同じで「ちがう人」にしていない行がちょうど1つ → 候補
+3. 残りのチェックインに、当たっていない確定の行で、そろえた名前が同じで「ちがう人」にしていない行がちょうど1つ → 候補（当たっていないチェックインの側にも、そろえた名前が同じものがちょうど1つのときだけ）
 4. ほかは名簿にいない（名簿から選ぶ・飛び入りにする）
 
-取り消しの行は当てない。来なかった＝交流会の始まりの日（日本時間）の終わり（`endOfJstDate`）を過ぎ、確定で当たっていない行。受付の内訳の画面には出さない（受付は予約を知らない）。
+取り消しの行は当てない。名簿の人数の「来た」は確定の行だけ数える。来なかった＝交流会の始まりの日（日本時間）の終わり（`endOfJstDate`）を過ぎ、確定で当たっていない行。受付の内訳の画面には出さない（受付は予約を知らない）。
 
 ### 取り込みの「すでにある」（`importing.ts`）
 
-同じ交流会・入口が取り込み・同じ媒体の行（取り消しも数える）を、そろえた名前ごとに数え、その数までを「すでにある」として入れない。名前が空の行は入れない。入る行には、名簿（取り消しでない行）か同じ取り込みのほかの入る行に同じ名前があれば印を付ける。
+同じ交流会・入口が取り込み・同じ媒体の行（取り消しも、まとめた行も数える）を、そろえた名前ごとに数え、その数までを「すでにある」として入れない。名前が空の行は入れない。入る行には、名簿（取り消しでない行）か同じ取り込みのほかの入る行に同じ名前があれば印を付ける。
 
 ## 3. ほかの領域が使うもの
 
