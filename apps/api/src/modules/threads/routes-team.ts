@@ -1,6 +1,7 @@
 // チーム運用の窓口（threads-013。PRD 組織 5章）。道の頭は /api/v1/threads（AD-15）。どれもログインが要る。
-// - 運用アカウントの関わり・チーム・組織に入れる・見せる・承認を任せる：/api/v1/threads/accounts/{accountId}/…（判定は access.ts）
+// - 運用アカウントの関わり・チーム・チームに入れる・見せる・承認を任せる：/api/v1/threads/accounts/{accountId}/…（判定は access.ts）
 // - Threads の組織の画面・担当・運用状況：/api/v1/threads/organizations/{organizationId}/…（組織の人でなければ 404）
+// - Threads のチームの一覧・チームの画面・チームの運用状況：/api/v1/threads/teams/…（threads-016。組織の管理者かチームの人でなければ 404）
 // - はじめの画面の知らせ：/api/v1/threads/team-notices
 // 組織の役割は要求のたびに suite の index.ts から引く。suite の表には書かない。
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
@@ -24,6 +25,10 @@ import {
 import {
   getAccountTeam,
   getOrganizationView,
+  getTeamView,
+  listVisibleTeams,
+  requireTeamViewer,
+  teamStatusScopeOf,
   listTeamNotices,
   listTeamOrganizations,
   markTeamNoticesSeen,
@@ -42,6 +47,14 @@ const ORGANIZATIONS_BASE = "/api/v1/threads/organizations";
 /** 道の organizationId。 */
 const OrganizationParams = z.object({
   organizationId: uuidParam("organizationId", "組織の ID"),
+});
+
+/** チームの道の頭（threads-016）。 */
+const TEAMS_BASE = "/api/v1/threads/teams";
+
+/** 道の teamId。 */
+const TeamParams = z.object({
+  teamId: uuidParam("teamId", "チームの ID"),
 });
 
 /** 道の accountId と personId。 */
@@ -102,7 +115,7 @@ export function teamRoutes(deps: DomainRouteDeps) {
       tags: TAGS,
       operationId: "threadsPutAccountPlacement",
       summary:
-        "運用アカウントを組織に入れる・外す（持ち主だけ。外すと担当・任せる・見せる設定は消える）",
+        "運用アカウントを組織の中のチームに入れる・外す（持ち主だけ。持ち主が入っているチームだけ。外す・移すと担当・任せる・見せる設定は消える）",
       middleware,
       request: {
         params: AccountParams,
@@ -120,7 +133,7 @@ export function teamRoutes(deps: DomainRouteDeps) {
       tags: TAGS,
       operationId: "threadsPutAccountShared",
       summary:
-        "組織に見せるを切り替える（持ち主だけ。オンのとき、組織の人が投稿の案と戦略を読むだけで見られる）",
+        "チームに見せるを切り替える（持ち主だけ。オンのとき、チームの人と組織の管理者が投稿の案と戦略を読むだけで見られる）",
       middleware,
       request: {
         params: AccountParams,
@@ -198,6 +211,49 @@ export function teamRoutes(deps: DomainRouteDeps) {
         409: domainErrorResponse(THREADS_ERRORS.THREADS_ASSIGNMENT_NOT_ALLOWED, "担当にできない"),
       },
     }),
+    listTeams: createRoute({
+      method: "get",
+      path: TEAMS_BASE,
+      tags: TAGS,
+      operationId: "threadsListTeams",
+      summary: "見られるチーム（入っているチームと、管理者の組織のすべてのチーム。threads-016）",
+      middleware: [requireSession(deps)] as const,
+      responses: {
+        200: json(contract.ThreadsTeamList.openapi("ThreadsTeamList"), "チーム"),
+        401: unauthenticatedResponse,
+      },
+    }),
+    getTeamPage: createRoute({
+      method: "get",
+      path: `${TEAMS_BASE}/{teamId}`,
+      tags: TAGS,
+      operationId: "threadsGetTeam",
+      summary:
+        "Threads のチームの画面（運用アカウント・担当を決める表〈管理者とリーダー〉・運用状況を見られるか）",
+      middleware: [requireSession(deps)] as const,
+      request: { params: TeamParams },
+      responses: {
+        200: json(contract.ThreadsTeamView.openapi("ThreadsTeamView"), "チーム"),
+        401: unauthenticatedResponse,
+        404: teamNotFound,
+      },
+    }),
+    getTeamStatus: createRoute({
+      method: "get",
+      path: `${TEAMS_BASE}/{teamId}/status`,
+      tags: TAGS,
+      operationId: "threadsGetTeamOnlyStatus",
+      summary:
+        "チームの運用状況（数と日付だけ。管理者とリーダーはチームの全部、担当のある編集者は担当の分だけ）",
+      middleware: [requireSession(deps)] as const,
+      request: { params: TeamParams },
+      responses: {
+        200: json(contract.ThreadsTeamStatus, "運用状況"),
+        401: unauthenticatedResponse,
+        403: forbidden,
+        404: teamNotFound,
+      },
+    }),
     getStatus: createRoute({
       method: "get",
       path: `${ORGANIZATIONS_BASE}/{organizationId}/status`,
@@ -252,7 +308,7 @@ export function teamRoutes(deps: DomainRouteDeps) {
     })
     .openapi(routes.putPlacement, async (c) => {
       const access = await accountAccess(deps, c, c.req.valid("param").accountId, "manage");
-      await placeAccount(deps, access, c.req.valid("json").organizationId);
+      await placeAccount(deps, access, c.req.valid("json").teamId);
       return c.json(await getAccountTeam(db, access), 200);
     })
     .openapi(routes.putShared, async (c) => {
@@ -291,6 +347,23 @@ export function teamRoutes(deps: DomainRouteDeps) {
       // メンバーと担当のない編集者は、直接求めても断る（FR-T40）
       if (!scope) throw new AppError(THREADS_ERRORS.THREADS_TEAM_FORBIDDEN);
       return c.json(await getTeamStatus(db, organizationId, me, scope), 200);
+    })
+    .openapi(routes.listTeams, async (c) => {
+      return c.json(await listVisibleTeams(db, currentAccount(c).accountId), 200);
+    })
+    .openapi(routes.getTeamPage, async (c) => {
+      return c.json(
+        await getTeamView(db, c.req.valid("param").teamId, currentAccount(c).accountId),
+        200,
+      );
+    })
+    .openapi(routes.getTeamStatus, async (c) => {
+      const { teamId } = c.req.valid("param");
+      const me = currentAccount(c).accountId;
+      const { team, membership } = await requireTeamViewer(db, teamId, me);
+      const scope = await teamStatusScopeOf(db, teamId, membership);
+      if (!scope) throw new AppError(THREADS_ERRORS.THREADS_TEAM_FORBIDDEN);
+      return c.json(await getTeamStatus(db, team.organizationId, me, scope), 200);
     })
     .openapi(routes.getNotices, async (c) => {
       return c.json(await listTeamNotices(db, currentAccount(c).accountId), 200);

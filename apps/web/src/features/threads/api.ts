@@ -993,18 +993,18 @@ export function fetchAccountTeam(accountId: string) {
 }
 
 /**
- * 運用アカウントを組織に入れる・外す（null で外す。持ち主だけ）。
+ * 運用アカウントを組織の中のチームに入れる・外す（null で外す。持ち主だけ。threads-016）。
  * @param accountId 運用アカウントの ID
- * @param organizationId 入れる組織（null で外す）
+ * @param teamId 入れるチーム（null で外す）
  * @returns 変えたあとのチーム
  */
-export function placeAccount(accountId: string, organizationId: string | null) {
+export function placeAccount(accountId: string, teamId: string | null) {
   const { endpoint, param } = account(accountId);
-  return request(() => endpoint.team.placement.$put({ param, json: { organizationId } }));
+  return request(() => endpoint.team.placement.$put({ param, json: { teamId } }));
 }
 
 /**
- * 組織に見せるを切り替える（持ち主だけ）。
+ * チームに見せるを切り替える（持ち主だけ）。
  * @param accountId 運用アカウントの ID
  * @param shared 見せるか
  * @returns 変えたあとのチーム
@@ -1032,26 +1032,24 @@ export function setDelegation(accountId: string, personId: string, delegated: bo
 }
 
 /**
- * 入っている組織と、組織に入っている運用アカウントの数。
- * @returns 組織の一覧
+ * 見られるチーム（入っているチームと、管理者の組織のすべてのチーム。threads-016）。
+ * @returns チームの一覧
  */
-export function fetchTeamOrganizations() {
-  return request(() => threads().organizations.$get());
+export function fetchTeams() {
+  return request(() => threads().teams.$get());
 }
 
 /**
- * Threads の組織の画面。
- * @param organizationId 組織の ID
- * @returns 組織の画面
+ * Threads のチームの画面（threads-016）。
+ * @param teamId チームの ID
+ * @returns チームの画面
  */
-export function fetchTeamOrganization(organizationId: string) {
-  return request(() =>
-    threads().organizations[":organizationId"].$get({ param: { organizationId } }),
-  );
+export function fetchTeamPage(teamId: string) {
+  return request(() => threads().teams[":teamId"].$get({ param: { teamId } }));
 }
 
 /**
- * 担当を付け外しする（管理者だけ）。
+ * 担当を付け外しする（組織の管理者と、運用アカウントのチームのリーダー）。
  * @param organizationId 組織の ID
  * @param input 運用アカウント・担当の人・付けるか
  * @returns 変えたあとの組織の画面
@@ -1066,14 +1064,12 @@ export function setAssignment(organizationId: string, input: ThreadsAssignmentIn
 }
 
 /**
- * 運用状況（数と日付だけ）。
- * @param organizationId 組織の ID
+ * チームの運用状況（数と日付だけ。threads-016）。
+ * @param teamId チームの ID
  * @returns 運用状況
  */
-export function fetchTeamStatus(organizationId: string) {
-  return request(() =>
-    threads().organizations[":organizationId"].status.$get({ param: { organizationId } }),
-  );
+export function fetchTeamStatus(teamId: string) {
+  return request(() => threads().teams[":teamId"].status.$get({ param: { teamId } }));
 }
 
 /**

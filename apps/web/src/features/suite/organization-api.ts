@@ -1,10 +1,12 @@
-// 組織の窓口の呼び出し（suite-001。型は apps/api/src/client.ts の ModuleRoutes["suite"] から import type で読む）。
+// 組織の窓口の呼び出し（suite-001・suite-003 のチーム。型は apps/api/src/client.ts の ModuleRoutes["suite"] から import type で読む）。
 // 読み書きはすべて lib/api.ts の request を通す（エラーの読み方と 401 の知らせをそろえる）。
 import type {
   OrganizationLeaveInput,
   OrganizationMemberRoleInput,
   OrganizationNameInput,
   OrganizationTransferInput,
+  TeamMemberInput,
+  TeamNameInput,
 } from "@workspace/contracts/suite";
 import type { ModuleRoutes } from "../../../../api/src/client.ts";
 import { createApiClient, request } from "../../lib/api.ts";
@@ -167,4 +169,81 @@ export function fetchInvitePreview(token: string) {
  */
 export function joinOrganization(token: string) {
   return request(() => suite()["organization-invites"][":token"].$post({ param: { token } }));
+}
+
+/**
+ * 組織の中のチームの道（suite-003）。
+ * @param organizationId 組織の ID
+ * @param teamId チームの ID
+ * @returns 道と道の値
+ */
+function team(organizationId: string, teamId: string) {
+  const { endpoint, param } = organization(organizationId);
+  return { endpoint: endpoint.teams[":teamId"], param: { ...param, teamId } };
+}
+
+/**
+ * チームを作る（管理者だけ。1つの組織に20まで）。
+ * @param organizationId 組織の ID
+ * @param input 名前
+ * @returns 作ったチームの ID
+ */
+export function createTeam(organizationId: string, input: TeamNameInput) {
+  const { endpoint, param } = organization(organizationId);
+  return request(() => endpoint.teams.$post({ param, json: input }));
+}
+
+/**
+ * チームの名前を直す（管理者だけ）。
+ * @param organizationId 組織の ID
+ * @param teamId チームの ID
+ * @param input 名前
+ * @returns 終わり
+ */
+export function renameTeam(organizationId: string, teamId: string, input: TeamNameInput) {
+  const { endpoint, param } = team(organizationId, teamId);
+  return request(() => endpoint.$patch({ param, json: input }));
+}
+
+/**
+ * チームを消す（管理者だけ）。
+ * @param organizationId 組織の ID
+ * @param teamId チームの ID
+ * @returns 終わり
+ */
+export function deleteTeam(organizationId: string, teamId: string) {
+  const { endpoint, param } = team(organizationId, teamId);
+  return request(() => endpoint.$delete({ param }));
+}
+
+/**
+ * 組織の人をチームに足す・リーダーを切り替える（管理者だけ）。
+ * @param organizationId 組織の ID
+ * @param teamId チームの ID
+ * @param accountId 足す人
+ * @param input リーダーにするか
+ * @returns 終わり
+ */
+export function setTeamMember(
+  organizationId: string,
+  teamId: string,
+  accountId: string,
+  input: TeamMemberInput,
+) {
+  const { endpoint, param } = team(organizationId, teamId);
+  return request(() =>
+    endpoint.members[":accountId"].$put({ param: { ...param, accountId }, json: input }),
+  );
+}
+
+/**
+ * チームから人を外す（管理者だけ）。
+ * @param organizationId 組織の ID
+ * @param teamId チームの ID
+ * @param accountId 外す人
+ * @returns 終わり
+ */
+export function removeTeamMember(organizationId: string, teamId: string, accountId: string) {
+  const { endpoint, param } = team(organizationId, teamId);
+  return request(() => endpoint.members[":accountId"].$delete({ param: { ...param, accountId } }));
 }

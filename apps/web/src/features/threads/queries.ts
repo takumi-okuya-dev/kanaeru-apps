@@ -33,9 +33,9 @@ import {
   fetchAccountAccess,
   fetchAccountTeam,
   fetchTeamNotices,
-  fetchTeamOrganization,
-  fetchTeamOrganizations,
+  fetchTeamPage,
   fetchTeamStatus,
+  fetchTeams,
 } from "./api.ts";
 
 /** Threads の運用の問い合わせの鍵。 */
@@ -201,21 +201,20 @@ export const THREADS_QUERY_KEYS = {
    * @returns 鍵
    */
   team: (accountId: string) => ["threads", "account", accountId, "team"] as const,
-  /** 入っている組織（threads-013。ナビの「組織」を出すかにも使う） */
-  organizations: ["threads", "organizations"] as const,
+  /** 見られるチーム（threads-016） */
+  teams: ["threads", "teams"] as const,
   /**
-   * Threads の組織の画面（threads-013）。
-   * @param organizationId 組織の ID
+   * Threads のチームの画面（threads-016）。
+   * @param teamId チームの ID
    * @returns 鍵
    */
-  organization: (organizationId: string) => ["threads", "organizations", organizationId] as const,
+  teamPage: (teamId: string) => ["threads", "teams", teamId] as const,
   /**
-   * 運用状況（threads-013）。
-   * @param organizationId 組織の ID
+   * チームの運用状況（threads-016）。
+   * @param teamId チームの ID
    * @returns 鍵
    */
-  teamStatus: (organizationId: string) =>
-    ["threads", "organizations", organizationId, "status"] as const,
+  teamStatus: (teamId: string) => ["threads", "teams", teamId, "status"] as const,
   /** はじめの画面の知らせ（threads-013） */
   teamNotices: ["threads", "team-notices"] as const,
 };
@@ -525,34 +524,36 @@ export function useAccountTeam(accountId: string, enabled = true) {
 }
 
 /**
- * 入っている組織（threads-013。ナビの「組織」はこの読みこみの結果を使う）。
+ * 見られるチーム（threads-016）。
  * @returns 問い合わせ
  */
-export function useTeamOrganizations() {
-  return useQuery({ queryKey: THREADS_QUERY_KEYS.organizations, queryFn: fetchTeamOrganizations });
+export function useTeams() {
+  return useQuery({ queryKey: THREADS_QUERY_KEYS.teams, queryFn: fetchTeams });
 }
 
 /**
- * Threads の組織の画面（threads-013）。
- * @param organizationId 組織の ID
+ * Threads のチームの画面（threads-016）。
+ * @param teamId チームの ID
  * @returns 問い合わせ
  */
-export function useTeamOrganization(organizationId: string) {
+export function useTeamPage(teamId: string) {
   return useQuery({
-    queryKey: THREADS_QUERY_KEYS.organization(organizationId),
-    queryFn: () => fetchTeamOrganization(organizationId),
+    queryKey: THREADS_QUERY_KEYS.teamPage(teamId),
+    queryFn: () => fetchTeamPage(teamId),
   });
 }
 
 /**
- * 運用状況（threads-013。数と日付だけ）。
- * @param organizationId 組織の ID
+ * チームの運用状況（threads-016。数と日付だけ）。
+ * @param teamId チームの ID
+ * @param enabled 読むか（見られる人だけ）
  * @returns 問い合わせ
  */
-export function useTeamStatus(organizationId: string) {
+export function useTeamStatus(teamId: string, enabled = true) {
   return useQuery({
-    queryKey: THREADS_QUERY_KEYS.teamStatus(organizationId),
-    queryFn: () => fetchTeamStatus(organizationId),
+    queryKey: THREADS_QUERY_KEYS.teamStatus(teamId),
+    queryFn: () => fetchTeamStatus(teamId),
+    enabled,
   });
 }
 
