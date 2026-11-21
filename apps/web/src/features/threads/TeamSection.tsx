@@ -1,8 +1,8 @@
-// 設定の画面の「組織」の節と、カード「このアカウントのチーム」（threads-013。PRD 組織 FR-T1〜FR-T3・FR-T22・FR-T30〜FR-T33。
-// めぐるの team/TeamSection.tsx・TeamRoster.tsx を、kanaeru の組織〈suite〉の上に作り直したもの）。
-// - 持ち主：入っている組織の1つに入れる・外す（どの組織にも入っていなければ、この節を出さない）・組織に見せる・担当の人ごとに承認を任せる
+// 設定の画面の「チーム」の節と、カード「このアカウントのチーム」（threads-013・threads-016。PRD 組織 FR-T1〜FR-T3・FR-T22・FR-T30〜FR-T33。
+// めぐるの team/TeamSection.tsx・TeamRoster.tsx を、kanaeru の組織とチーム〈suite〉の上に作り直したもの）。
+// - 持ち主：入っているチームの1つに入れる・外す（どのチームにも入っていなければ、この節を出さない）・チームに見せる・担当の人ごとに承認を任せる
 // - 担当の人：カードだけ（変える操作は出さない）
-// - カード：組織の名前 → 管理者 → 持ち主 → 担当の人（承認を任されている人に印）。見ている人に「あなた」
+// - カード：組織とチームの名前 → 管理者 → 持ち主 → 担当の人（承認を任されている人に印）。見ている人に「あなた」
 // 送った結果は押したボタン・チェックの近く（EXPERIENCE.md）。判定の正は API。
 import type { ThreadsAccountTeam, ThreadsTeamPerson } from "@workspace/contracts/threads";
 import { TEAM_ROLE_LABELS } from "@workspace/contracts/threads";
@@ -22,9 +22,9 @@ import { THREADS_QUERY_KEYS, useAccountTeam } from "./queries.ts";
 /** 結果の知らせ。 */
 type Result = { tone: "success" | "danger"; message: string };
 
-/** 組織に入れるときの説明（FR-T1）。 */
+/** チームに入れるときの説明（FR-T1・threads-016）。 */
 export const PLACEMENT_NOTE =
-  "組織の管理者が担当を決めると、担当の人がこの運用アカウントの投稿の案と戦略を作れます。承認・設定・接続は、あなただけです。あなたが退会すると、この運用アカウントは組織の管理者に引き継がれます（Threads への接続は切れます）。";
+  "組織の管理者かチームのリーダーが担当を決めると、担当の人がこの運用アカウントの投稿の案と戦略を作れます。承認・設定・接続は、あなただけです。あなたが退会すると、この運用アカウントは組織の管理者に引き継がれます（Threads への接続は切れます）。";
 
 /** 「入れない」の選択肢の値。 */
 const NONE = "";
@@ -37,11 +37,11 @@ const POSITION_LABELS: Record<ThreadsTeamPerson["position"], string> = {
 };
 
 /**
- * 組織を選ぶ欄（Field の中で使う）。
+ * チームを選ぶ欄（組織ごとにまとめる。Field の中で使う）。
  * @param props 選択肢（candidates）・値（value）・変えたとき（onChange）
  * @returns 欄の要素
  */
-function OrganizationSelect({
+function TeamSelect({
   candidates,
   value,
   onChange,
@@ -58,18 +58,29 @@ function OrganizationSelect({
       value={value}
       onChange={(change) => onChange(change.target.value)}
     >
-      <option value={NONE}>組織に入れない（個人の運用）</option>
-      {candidates.map((candidate) => (
-        <option key={candidate.id} value={candidate.id}>
-          {candidate.name}
-        </option>
-      ))}
+      <option value={NONE}>チームに入れない（個人の運用）</option>
+      {[...new Set(candidates.map((candidate) => candidate.organizationId))].map(
+        (organizationId) => {
+          const group = candidates.filter(
+            (candidate) => candidate.organizationId === organizationId,
+          );
+          return (
+            <optgroup key={organizationId} label={group[0]?.organizationName ?? ""}>
+              {group.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {candidate.name}
+                </option>
+              ))}
+            </optgroup>
+          );
+        },
+      )}
     </select>
   );
 }
 
 /**
- * カード「このアカウントのチーム」（組織に入っていなければ出さない。FR-T30〜FR-T32）。
+ * カード「このアカウントのチーム」（チームに入っていなければ出さない。FR-T30〜FR-T32）。
  * @param props チーム（team）
  * @returns カードの要素
  */
@@ -83,7 +94,10 @@ export function TeamRosterCard({ team }: { team: ThreadsAccountTeam }) {
       <h3 id="threads-team-roster" className="text-m font-bold">
         このアカウントのチーム
       </h3>
-      <p className="text-m">組織：{team.organization.name}</p>
+      <p className="text-m break-words">
+        組織：{team.organization.name}
+        {team.team ? ` › チーム：${team.team.name}` : null}
+      </p>
       <ol aria-label="このアカウントのチームの人" className="flex flex-col gap-xxs">
         {team.people.map((person) => (
           <li
@@ -104,13 +118,13 @@ export function TeamRosterCard({ team }: { team: ThreadsAccountTeam }) {
 }
 
 /**
- * 持ち主の操作（組織に入れる・見せる・承認を任せる）。
+ * 持ち主の操作（チームに入れる・見せる・承認を任せる）。
  * @param props 運用アカウントの ID（accountId）・チーム（team）
  * @returns 要素
  */
 function OwnerControls({ accountId, team }: { accountId: string; team: ThreadsAccountTeam }) {
   const queryClient = useQueryClient();
-  const [selected, setSelected] = useState(team.organization?.id ?? NONE);
+  const [selected, setSelected] = useState(team.team?.id ?? NONE);
   const [placement, setPlacement] = useState<Result>();
   const [shareResult, setShareResult] = useState<Result>();
   const [delegationResult, setDelegationResult] = useState<Result>();
@@ -123,10 +137,10 @@ function OwnerControls({ accountId, team }: { accountId: string; team: ThreadsAc
   const apply = async (next: ThreadsAccountTeam) => {
     queryClient.setQueryData(THREADS_QUERY_KEYS.team(accountId), next);
     await queryClient.invalidateQueries({ queryKey: THREADS_QUERY_KEYS.access(accountId) });
-    await queryClient.invalidateQueries({ queryKey: THREADS_QUERY_KEYS.organizations });
+    await queryClient.invalidateQueries({ queryKey: THREADS_QUERY_KEYS.teams });
   };
 
-  /** 組織に入れる・外す。 */
+  /** チームに入れる・外す。 */
   const savePlacement = async () => {
     if (pending) return;
     setPending(true);
@@ -136,9 +150,10 @@ function OwnerControls({ accountId, team }: { accountId: string; team: ThreadsAc
       await apply(next);
       setPlacement({
         tone: "success",
-        message: next.organization
-          ? `組織「${next.organization.name}」に入れました。`
-          : "組織から外しました。個人の運用に戻りました。",
+        message:
+          next.organization && next.team
+            ? `組織「${next.organization.name}」のチーム「${next.team.name}」に入れました。`
+            : "チームから外しました。個人の運用に戻りました。",
       });
     } catch (caught) {
       setPlacement({ tone: "danger", message: `変えられませんでした。${errorMessage(caught)}` });
@@ -148,7 +163,7 @@ function OwnerControls({ accountId, team }: { accountId: string; team: ThreadsAc
   };
 
   /**
-   * 組織に見せるを切り替える（押すとすぐ保存する）。
+   * チームに見せるを切り替える（押すとすぐ保存する）。
    * @param shared 見せるか
    */
   const toggleShared = async (shared: boolean) => {
@@ -157,7 +172,7 @@ function OwnerControls({ accountId, team }: { accountId: string; team: ThreadsAc
       await apply(await setAccountShared(accountId, shared));
       setShareResult({
         tone: "success",
-        message: shared ? "組織に見せるようにしました。" : "組織に見せないようにしました。",
+        message: shared ? "チームに見せるようにしました。" : "チームに見せないようにしました。",
       });
     } catch (caught) {
       setShareResult({ tone: "danger", message: `変えられませんでした。${errorMessage(caught)}` });
@@ -186,16 +201,12 @@ function OwnerControls({ accountId, team }: { accountId: string; team: ThreadsAc
   };
 
   const assignees = team.people.filter((person) => person.position === "assignee");
-  const changed = selected !== (team.organization?.id ?? NONE);
+  const changed = selected !== (team.team?.id ?? NONE);
   return (
     <div className="flex flex-col gap-s">
       <div className="flex flex-col gap-xxs">
-        <Field label="入れる組織" description={PLACEMENT_NOTE}>
-          <OrganizationSelect
-            candidates={team.candidates}
-            value={selected}
-            onChange={setSelected}
-          />
+        <Field label="入れるチーム" description={PLACEMENT_NOTE}>
+          <TeamSelect candidates={team.candidates} value={selected} onChange={setSelected} />
         </Field>
         <div className="flex flex-col items-start gap-xxs">
           <Button
@@ -203,7 +214,7 @@ function OwnerControls({ accountId, team }: { accountId: string; team: ThreadsAc
             aria-disabled={pending || undefined}
             onClick={() => void savePlacement()}
           >
-            {pending ? "変えています…" : "組織を変える"}
+            {pending ? "変えています…" : "チームを変える"}
           </Button>
           {placement ? (
             <ResponseMessage tone={placement.tone}>{placement.message}</ResponseMessage>
@@ -219,7 +230,7 @@ function OwnerControls({ accountId, team }: { accountId: string; team: ThreadsAc
               checked={team.shared}
               onChange={(change) => void toggleShared(change.target.checked)}
             />
-            組織に見せる（組織の人が、投稿の案と戦略を読むだけで見られます）
+            チームに見せる（チームの人と組織の管理者が、投稿の案と戦略を読むだけで見られます）
           </label>
           {shareResult ? (
             <ResponseMessage tone={shareResult.tone}>{shareResult.message}</ResponseMessage>
@@ -234,7 +245,7 @@ function OwnerControls({ accountId, team }: { accountId: string; team: ThreadsAc
           </p>
           {assignees.length === 0 ? (
             <p className="text-m">
-              担当の人はまだいません。組織の管理者が「担当を決める」で決めます。
+              担当の人はまだいません。組織の管理者かチームのリーダーが「担当を決める」で決めます。
             </p>
           ) : (
             assignees.map((person) => (
@@ -261,7 +272,7 @@ function OwnerControls({ accountId, team }: { accountId: string; team: ThreadsAc
 }
 
 /**
- * 設定の画面の「組織」の節（持ち主がどの組織にも入っておらず、組織にも入れていなければ出さない）。
+ * 設定の画面の「チーム」の節（持ち主がどのチームにも入っておらず、チームにも入れていなければ出さない）。
  * @param props 運用アカウントの ID（accountId）・持ち主か（owner）
  * @returns 節の要素
  */
@@ -276,7 +287,7 @@ export function TeamSection({ accountId, owner }: { accountId: string; owner: bo
   return (
     <section aria-labelledby="threads-team" className="flex flex-col gap-xs">
       <h2 id="threads-team" className="text-l font-bold">
-        組織
+        チーム
       </h2>
       {owner ? <OwnerControls accountId={accountId} team={team} /> : null}
       <TeamRosterCard team={team} />
