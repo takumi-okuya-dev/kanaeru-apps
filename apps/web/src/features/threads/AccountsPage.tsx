@@ -223,7 +223,7 @@ function Accounts() {
   return (
     <ThreadsPage
       title="Threads のアカウント"
-      lead="運用する Threads のアカウントごとに、戦略・投稿の案・承認を管理します。"
+      lead="Threads のアカウントごとに、戦略・案・承認を管理します"
     >
       <TeamNotices />
       {accounts.length === 0 ? (

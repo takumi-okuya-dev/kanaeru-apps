@@ -1,6 +1,6 @@
 # スイート（suite）の地図
 
-2026-11-20 作成（core-005。決めた理由と仮決めは [specs/core/005-app-switcher/spec.md](../../specs/core/005-app-switcher/spec.md)、範囲は [PRD](../../_bmad-output/prd-kanaeru-suite/prd-kanaeru-suite.md)）。同じ日に suite-001（組織と退会の手順の組み立て。[specs/suite/001-organization](../../specs/suite/001-organization/spec.md)・[PRD 組織](../../_bmad-output/prd-kanaeru-org/prd-kanaeru-org.md)・AD-22）を足した。
+2026-11-20 作成（core-005。決めた理由と仮決めは [specs/core/005-app-switcher/spec.md](../../specs/core/005-app-switcher/spec.md)、範囲は [PRD](../../_bmad-output/prd-kanaeru-suite/prd-kanaeru-suite.md)）。同じ日に suite-001（組織と退会の手順の組み立て。[specs/suite/001-organization](../../specs/suite/001-organization/spec.md)・[PRD 組織](../../_bmad-output/prd-kanaeru-org/prd-kanaeru-org.md)・AD-22）を足した。同じ日に event-002 で、組織を使う領域と退会の手順を出す領域に event を足した。
 
 スイートの共通の領域（どのアプリにも属さない）。アプリの台帳（公開の状態）を持ち、アプリが見えるかを決める1か所（構成の決めごと AD-15・AD-16）。組織（人と役割・招待）と、契約の持ち主の形（`entitlement`。払うしくみと売り方は売り始めるときに足す）も持つ（AD-22）。画面では、すべてのアプリ・設定（一覧・アカウント・組織・アプリの台帳）・組織の招待の確かめの画面を持つ。
 
@@ -94,7 +94,7 @@ API（`apps/api/src/modules/suite/index.ts`）：
 | `withdrawal` | suite の退会の手順（管理者の組織をいちばん長くいる人に引き継ぐ・誰もいなければ消す）。組み立てがアプリより先に流す。アカウントを消すトランザクションの中の最後の確かめ（`finalize`）でも、同じことをもう一度確かめる。人ごとの鍵（組織を作る・管理者を引き継ぐ・最後の確かめで同じ鍵。順は「人 → 組織」）で、消える直前に管理者にされることを防ぐ |
 | `hasEntitlement(db, { ownerAccountId, organizationId }, appKey)`・`ENTITLEMENTS_ENFORCED` | 契約があるか（持ち主の個人の契約か、記録を入れた組織の契約）。売り始めるまで `ENTITLEMENTS_ENFORCED = false` で、いつも true。どの窓口もまだ呼ばない |
 
-退会の手順の組み立て（AD-22）：各領域の `index.ts` の `withdrawal`（`kernel/withdrawal.ts` の形）を、`app.ts` の `orderWithdrawalSteps` が共通（`COMMON_DOMAINS` の順）→ アプリの一覧の順に並べ、`DomainRouteDeps.withdrawalSteps` で account に渡す（account の地図 2章）。
+退会の手順の組み立て（AD-22）：各領域の `index.ts` の `withdrawal`（`kernel/withdrawal.ts` の形）を、`app.ts` の `orderWithdrawalSteps` が共通（`COMMON_DOMAINS` の順）→ アプリの一覧の順に並べ、`DomainRouteDeps.withdrawalSteps` で account に渡す（account の地図 2章）。手順を出している領域は suite・event（組織に入れた交流会の引き継ぎ・個人の交流会を消す。event の地図）・threads。組織の役割を読んで判定するアプリは threads（`access.ts`）と event（交流会の主催者・部員。`access.ts`）。
 
 テスト：`apps/api/test/helpers/suite.ts` の見本のアプリ（`DEMO_APP`・`DEMO_MODULE`。key `demo`・道 `GET /api/v1/demo/ping`）を `buildApp(database, config, { extraApps: [DEMO_APP], extraModules: { demo: DEMO_MODULE } })` に渡す。E2E の API（`apps/api/test/e2e-server.ts`）も見本のアプリを足し、立ち上げのときに見本のアプリを切・受付アプリを公開に戻す。
 

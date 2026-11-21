@@ -32,6 +32,7 @@ import type { OrganizationMembership } from "../suite/index.ts";
 import { allows, assignmentEffective } from "./access.ts";
 import type { AccountAccess } from "./access.ts";
 import { recordActivity } from "./activity-log.ts";
+import { countStoppedByTeam } from "./team-status.ts";
 import { DELETABLE_STATUSES, countDrafts } from "./repository.ts";
 import type { DraftCountsRecord, PostDraftRecord, ThreadsAccountRecord } from "./repository.ts";
 import {
@@ -169,6 +170,47 @@ export async function listAssignedAccounts(
     });
   }
   return result;
+}
+
+/**
+ * 運用アカウントが入っているチームの名前（切り替えとホームの印。threads-021）。入っていないものは含めない。
+ * チームと組織の名前は suite の読み出しで読む（suite の表は直に読まない。AD-3）。
+ * @param db DB
+ * @param threadsAccountIds 運用アカウントの ID
+ * @returns 運用アカウントごとのチーム
+ */
+export async function listAccountPlacements(
+  db: Executor,
+  threadsAccountIds: readonly string[],
+): Promise<
+  { threadsAccountId: string; teamId: string; teamName: string; organizationName: string }[]
+> {
+  if (threadsAccountIds.length === 0) return [];
+  const rows = await db
+    .select({
+      threadsAccountId: threadsOrganizationAccount.threadsAccountId,
+      teamId: threadsOrganizationAccount.teamId,
+      organizationId: threadsOrganizationAccount.organizationId,
+    })
+    .from(threadsOrganizationAccount)
+    .where(inArray(threadsOrganizationAccount.threadsAccountId, [...threadsAccountIds]));
+  const names = new Map<string, { teams: Map<string, string>; organizationName: string }>();
+  for (const organizationId of new Set(rows.map((row) => row.organizationId))) {
+    const [teams, found] = await Promise.all([
+      listTeams(db, organizationId),
+      findOrganization(db, organizationId),
+    ]);
+    names.set(organizationId, {
+      teams: new Map(teams.map((row) => [row.id, row.name])),
+      organizationName: found?.name ?? "",
+    });
+  }
+  return rows.map((row) => ({
+    threadsAccountId: row.threadsAccountId,
+    teamId: row.teamId,
+    teamName: names.get(row.organizationId)?.teams.get(row.teamId) ?? "",
+    organizationName: names.get(row.organizationId)?.organizationName ?? "",
+  }));
 }
 
 /**
@@ -714,8 +756,23 @@ export async function listVisibleTeams(
       )
       .groupBy(threadsOrganizationAccount.teamId);
     const countOf = new Map(counts.map((row) => [row.teamId, Number(row.n)]));
+    // 止まっている数は、要約を出すチーム（管理者はすべて・ほかはリーダーのチーム）の分をまとめて数える
+    const stopped = await countStoppedByTeam(
+      db,
+      membership.organizationId,
+      rows
+        .filter(
+          (row) =>
+            membership.role === "admin" ||
+            row.members.some((member) => member.accountId === viewerAccountId && member.leader),
+        )
+        .map((row) => ({ id: row.id, memberIds: row.members.map((member) => member.accountId) })),
+    );
     for (const row of rows) {
       const mine = row.members.find((member) => member.accountId === viewerAccountId);
+      // 管理者とリーダー（チームの全部の運用状況を見る人）には、止まっている数を一覧の要約に出す（threads-020。ほかは null）
+      const stoppedCount =
+        membership.role === "admin" || mine?.leader ? (stopped.get(row.id) ?? 0) : null;
       teams.push({
         id: row.id,
         name: row.name,
@@ -726,6 +783,7 @@ export async function listVisibleTeams(
         leader: mine?.leader ?? false,
         memberCount: row.members.length,
         accountCount: countOf.get(row.id) ?? 0,
+        stoppedCount,
       });
     }
   }

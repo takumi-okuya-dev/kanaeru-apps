@@ -1,6 +1,6 @@
 # 全体の形（アーキテクチャ）
 
-2026-11-18 作成（TypeScript の骨組み。`typescript` ブランチ）。2026-11-19 直した（core-001：見本の領域を消し、画面を API から返す形・LIFF の始め方・DB の夜間停止の 503・参加者の道と日本時間の関数・プロダクトの見た目の値を足した。account-001：アカウントとセッション・LINE のログイン・今の利用者の受け取り方を足した。event-001：交流会・受付係・招待・交流会ごとの権限・管理の画面の道とナビを足した。reception-001：チェックイン・一覧画面・合計と内訳・参加者の CSV と、選択肢のチップの部品を足した。survey-001：アンケートの回答・困りごとの一覧と CSV と、reception の差しこみの場所への節を足した。reception-002：交流会ごとの割引〈event〉と、チェックインの割引の写し・紹介者の名前〈reception〉を足した）。2026-11-20 直した（core-005：アプリの一覧と suite の台帳・組み立てが付ける `requireApp`・外枠のアプリの切り替えと設定・退会の窓口）。
+2026-11-18 作成（TypeScript の骨組み。`typescript` ブランチ）。2026-11-19 直した（core-001：見本の領域を消し、画面を API から返す形・LIFF の始め方・DB の夜間停止の 503・参加者の道と日本時間の関数・プロダクトの見た目の値を足した。account-001：アカウントとセッション・LINE のログイン・今の利用者の受け取り方を足した。event-001：交流会・受付係・招待・交流会ごとの権限・管理の画面の道とナビを足した。reception-001：チェックイン・一覧画面・合計と内訳・参加者の CSV と、選択肢のチップの部品を足した。survey-001：アンケートの回答・困りごとの一覧と CSV と、reception の差しこみの場所への節を足した。reception-002：交流会ごとの割引〈event〉と、チェックインの割引の写し・紹介者の名前〈reception〉を足した）。2026-11-20 直した（core-005：アプリの一覧と suite の台帳・組み立てが付ける `requireApp`・外枠のアプリの切り替えと設定・退会の窓口）。2026-11-20 直した（booking-002：知らせを送る道具 `platform/notify` と設定 `NOTIFY_MODE`・`NOTIFY_ALLOWLIST`）。
 
 今のシステムの形。選んだ技術の候補と目安は [技術選定の候補](./tech-selection.md)、守る決まりは [コードの書き方の決まり](./rules/coding.md) 6章。
 
@@ -54,6 +54,8 @@ flowchart LR
 | `WEB_DIST_DIR` | 組み立てた画面のフォルダ。あれば API が画面を返す | 要る |
 | `TEST_LOGIN_ENABLED` | 試験用のログイン（account の `POST /api/v1/auth/test-login`・画面の `/dev/login`）を使えるか。手元・テスト・E2E は true | true にできない（起動しない） |
 | `VITE_LIFF_ID` | 画面の組み立てのときに埋める LIFF ID（空なら LINE につながない仮の形） | 本番の組み立てで入れる |
+| `NOTIFY_MODE` | 予約の知らせ（LINE・メール）の送り方：`off`（既定。何も送らない）・`allowlist`（許可リストの宛先だけ）・`on`。`APP_ENV` が `local`・`test` なら、どの値でも偽の送り手だけ（本物を呼ばない） | 既定の `off` のまま出し、確かめるときに `allowlist` |
+| `NOTIFY_ALLOWLIST` | 送ってよい宛先（公式アカウントから見える LINE のユーザー ID とメールアドレス。カンマで並べる。秘密として扱う） | Secret Manager から渡す |
 
 ## 2. 依存の向き
 
@@ -61,7 +63,7 @@ flowchart LR
 
 | アプリ | 土台 | 共通 | 領域 | 組み立て |
 |---|---|---|---|---|
-| API（`apps/api/src/`） | `kernel/`（設定・DB の接続・ログ・エラーと読みかえ・PostgreSQL のエラーの見分け・共通の列・道の型と手伝い・要求の ID・機能の印） | `platform/<名前>/`（`health`・`rate-limit`・`web`） | `modules/<領域>/` | `app.ts`・`index.ts`・`modules.list.ts`・`client.ts` |
+| API（`apps/api/src/`） | `kernel/`（設定・DB の接続・ログ・エラーと読みかえ・PostgreSQL のエラーの見分け・共通の列・道の型と手伝い・要求の ID・機能の印・知らせを送る道具の型） | `platform/<名前>/`（`health`・`rate-limit`・`web`・`notify`） | `modules/<領域>/` | `app.ts`・`index.ts`・`modules.list.ts`・`client.ts` |
 | 画面（`apps/web/src/`） | — | `lib/`（API の呼び出し・LINE の始め方・道の根・ページの形・知らせ・フォームの誤り）・`shell/`（外枠・始められないときの画面） | `features/<領域>/` | `router.tsx`・`main.tsx`・`features.list.ts` |
 
 ```mermaid
@@ -84,6 +86,21 @@ flowchart TB
   lib -. "import type だけ" .-> client
 ```
 
+### 知らせを送る道具（`platform/notify`。booking-002・構成の決めごと AD-24）
+
+業務を知らない技術の道具。何をいつ誰に送るか（文面・送り先の決め方・記録）は領域（いまは booking）が持つ。
+
+| ファイル | 中身 |
+|---|---|
+| `guard.ts` | 守りの判定 `decideDelivery`（`off` は送らない・`allowlist` は許可リストの宛先だけ〈メールアドレスは大小を見ない〉・`on` は送る） |
+| `line-client.ts` | LINE の Messaging API の push・reply・ボット情報（ベーシック ID と userId）・友だちの表示名（プロフィール。ユーザー ID の形を確かめてから道に入れる）（宛先は `https://api.line.me` だけ・5秒で切る・push に送り直しの鍵）。トークン・宛先・本文をログに出さない |
+| `signature.ts` | LINE の Webhook の署名の確かめ `verifyLineSignature`（HMAC-SHA256 の base64 を `timingSafeEqual` で比べる） |
+| `email.ts` | メールの送り手の差しこみ口 `EmailSender`（送信のサービスは決まっていない。決めたら送り手を1つ足し、組み立てで渡す） |
+| `fake.ts` | 偽の送り手（送ったものを新しい順に50件まで覚える。ログには手段と文字数だけ） |
+| `notifier.ts` | `createNotifier({ policy, fetch, logger, emailSender? })`。守りを通してから偽か本物に渡す。`policy.fakeOnly`（`APP_ENV` が `local`・`test`）なら本物の HTTP を作らない。reply（友だち追加へのあいさつ）は `off` だけで止め、許可リストは見ない |
+
+組み立て（`app.ts`）が設定（`Config.notify`）から1度だけ作り、`DomainRouteDeps.notifier`（型は `kernel/notifier.ts`）で領域に渡す。許可リストの値は領域に渡さない。
+
 - 画面から API は、`apps/api/src/client.ts` の型（`AppType`・`ModuleRoutes`）だけを `import type` で読む。API の動くコードは画面に入らない。
 - 画面の道の型は、組み立て（`router.tsx`）が TanStack Router の `Register` に入れる。領域の `Link` の `to` と `params` は型で確かめられる。
 
@@ -92,7 +109,7 @@ flowchart TB
 | 触る所 | 中身 |
 |---|---|
 | `packages/contracts/src/<領域>/` | 入出力の形（zod）と、領域のエラーの code と文言 |
-| `apps/api/src/modules/<領域>/` | 表（`schema.ts`）・読み書き（`repository.ts`）・道（`routes.ts`。`createRoute`）。入口は `index.ts` の `routes(deps)`。土台が渡すのは `db`・`logger`・`features`（機能の印）・`config`（秘密でない設定だけの `DomainConfig`）・`fetch`（外のサービスへの出口。テストでは差しかえる）だけ。ログインが要る道は account の `requireSession(deps)` を `createRoute` の `middleware` に付け、`currentAccount(c)` で今の利用者を読む |
+| `apps/api/src/modules/<領域>/` | 表（`schema.ts`）・読み書き（`repository.ts`）・道（`routes.ts`。`createRoute`）。入口は `index.ts` の `routes(deps)`。土台が渡すのは `db`・`logger`・`features`（機能の印）・`config`（秘密でない設定だけの `DomainConfig`）・`fetch`（外のサービスへの出口。テストでは差しかえる）と、秘密の値を使う道具（秘密の箱・定期の仕事の合言葉の確かめ・Meta のアプリ・知らせを送る道具 `notifier`）だけ。ログインが要る道は account の `requireSession(deps)` を `createRoute` の `middleware` に付け、`currentAccount(c)` で今の利用者を読む |
 | `apps/api/src/modules.list.ts` | 1行足す（`merge=union`。[並行開発の決まり](./rules/parallel-development.md) 3-1） |
 | `packages/contracts/src/core/apps.list.ts` | 属するアプリの1行を足すか、その行の `domains` に足す（`merge=union`。足し忘れるとテストが落ち、API は起動しない） |
 | `apps/web/src/features/<領域>/` | 画面と道（`createRoute({ getParentRoute: () => rootRoute })`）。入口は `index.ts` の `feature`（`id`・`routes`・任意で `nav`） |
@@ -113,7 +130,7 @@ sequenceDiagram
   Note over B: main.tsx が initLiff() を待ってからルーターを作る
   B->>V: POST /api/v1/…（同じ源）
   V->>A: /api（本番は同じ API の中。手元は Vite が中継）
-  Note over A: 要求の ID → 守りの見出し → 要求ごとのログ1行<br/>→ 源の確かめ（Origin が画面の源と違えば 403）<br/>→ 本文の大きさ（100KB まで）→ 回数の制限（書く操作。IP ごと・IPv6 は /64 ごと）
+  Note over A: 要求の ID → 守りの見出し → 要求ごとのログ1行<br/>→ 源の確かめ（Origin が画面の源と違えば 403）<br/>→ 本文の大きさ（100KB まで）→ 回数の制限（書く操作。IP ごと・IPv6 は /64 ごと。booking の Webhook の道だけは別の高めの上限〈60秒に1200回〉で数え、booking が署名のあとに設定ごとにも数える）
   Note over A: アプリに属する領域の道は、組み立てが付けた suite の requireApp が<br/>app_setting の公開の状態を引く（見えなければ 404。運営者だけのアプリのときだけセッションも引く）
   Note over A: ログインが要る道は account の requireSession が<br/>クッキーの札の SHA-256 で session を引く（なければ 401 UNAUTHENTICATED）
   Note over A: 交流会ごとの権限が要る道は event の requireEventRole が<br/>event と event_staff を引く（ない交流会は 404・役目が合わなければ 403）

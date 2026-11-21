@@ -9,7 +9,13 @@ import { DB_UNAVAILABLE_MESSAGES } from "@workspace/contracts/core";
 import { describe, expect, it, vi } from "vitest";
 import { createDatabase } from "../src/kernel/db.ts";
 import { uuidParam } from "../src/kernel/http.ts";
-import { OPENAPI_DOC_PATH, orderWithdrawalSteps, toFieldErrors } from "../src/app.ts";
+import {
+  BOOKING_WEBHOOK_RATE_LIMIT,
+  OPENAPI_DOC_PATH,
+  collectEventLinkRestrictions,
+  orderWithdrawalSteps,
+  toFieldErrors,
+} from "../src/app.ts";
 import type { AppEnv, DomainModule, DomainRouteDeps } from "../src/app.ts";
 import { TEST_ORIGIN, buildApp, jsonRequest, testConfig } from "./helpers/app.ts";
 import { loginAs, withCookie } from "./helpers/account.ts";
@@ -105,15 +111,20 @@ describe("組み立て", () => {
       "apps",
       "config",
       "db",
+      "eventLinkRestrictions",
       "features",
       "fetch",
       "isJobRequest",
       "logger",
       "metaApp",
+      "notifier",
       "secretBox",
       "withdrawalSteps",
     ]);
     expect(received?.secretBox).toBeUndefined();
+    // 知らせを送る道具は、許可リストの値を持たず、テストでは偽の送り手で既定は止めている（booking-002）
+    expect(received?.notifier?.fake).toBe(true);
+    expect(received?.notifier?.mode).toBe("off");
     expect(received?.isJobRequest("Bearer ")).toBe(false);
     // Meta のアプリの設定がなければ、その道具もない
     expect(received?.metaApp).toBeUndefined();
@@ -293,6 +304,78 @@ describe("組み立て", () => {
       if (response.status === 429) expect(response.headers.get("retry-after")).toBeTruthy();
     }
     expect(statuses).toEqual([200, 200, 429]);
+  });
+
+  /** テストだけの Webhook の道（threads と booking の道の形。組み立ての回数の制限だけを見る）。 */
+  const webhookModule: DomainModule = {
+    routes: () =>
+      new OpenAPIHono<AppEnv>()
+        .openapi(
+          createRoute({
+            method: "post",
+            path: "/api/v1/threads/webhooks/test-only-ping",
+            responses: { 200: { description: "受け取った" } },
+          }),
+          (c) => c.json({}, 200),
+        )
+        .openapi(
+          createRoute({
+            method: "post",
+            path: "/api/v1/booking/webhooks/test-only-ping",
+            responses: { 200: { description: "受け取った" } },
+          }),
+          (c) => c.json({}, 200),
+        ),
+  };
+
+  it("booking 以外の Webhook の道（threads の Meta など）は、今までどおり IP ごとのふつうの上限で数える", async () => {
+    const config = testConfig({ rateLimit: { enabled: true, windowSeconds: 60, max: 2 } });
+    const app = buildApp(database, config, { extraModules: [webhookModule, testModule] });
+    const hook = () =>
+      app.request("/api/v1/threads/webhooks/test-only-ping", jsonRequest("POST", { events: [] }));
+    expect([(await hook()).status, (await hook()).status, (await hook()).status]).toEqual([
+      200, 200, 429,
+    ]);
+    // ほかの書く道と同じ数を使う
+    const echo = await app.request("/api/v1/test-only/echo", jsonRequest("POST", { value: "x" }));
+    expect(echo.status).toBe(429);
+  });
+
+  it("booking の Webhook の道は、ふつうの上限で数えず、IP ごとの別の高めの上限で数える", async () => {
+    const config = testConfig({ rateLimit: { enabled: true, windowSeconds: 60, max: 2 } });
+    const app = buildApp(database, config, { extraModules: [webhookModule, testModule] });
+    const hook = () =>
+      app.request("/api/v1/booking/webhooks/test-only-ping", jsonRequest("POST", { events: [] }));
+    const statuses: number[] = [];
+    for (let index = 0; index < 5; index += 1) statuses.push((await hook()).status);
+    expect(statuses).toEqual([200, 200, 200, 200, 200]);
+    // ふつうの上限の数を使わない（ほかの書く道は、今までどおり数える）
+    const echo = () => app.request("/api/v1/test-only/echo", jsonRequest("POST", { value: "x" }));
+    expect([(await echo()).status, (await echo()).status, (await echo()).status]).toEqual([
+      200, 200, 429,
+    ]);
+    // 別の上限（BOOKING_WEBHOOK_RATE_LIMIT）を超えたら 429 と Retry-After
+    for (let index = 5; index < BOOKING_WEBHOOK_RATE_LIMIT.max; index += 1) {
+      expect((await hook()).status).toBe(200);
+    }
+    const over = await hook();
+    expect(over.status).toBe(429);
+    expect(over.headers.get("retry-after")).toBeTruthy();
+  });
+
+  it("booking の Webhook の道の別の上限も、RATE_LIMIT_ENABLED が切なら数えない", async () => {
+    const config = testConfig({ rateLimit: { enabled: false, windowSeconds: 60, max: 2 } });
+    const app = buildApp(database, config, { extraModules: [webhookModule] });
+    for (let index = 0; index <= BOOKING_WEBHOOK_RATE_LIMIT.max; index += 1) {
+      expect(
+        (
+          await app.request(
+            "/api/v1/booking/webhooks/test-only-ping",
+            jsonRequest("POST", { events: [] }),
+          )
+        ).status,
+      ).toBe(200);
+    }
   });
 
   it("窓口の文書は OPENAPI_DOC_ENABLED のときだけ出し、すべての道が載る", async () => {
@@ -550,6 +633,17 @@ describe("退会の手順の並び（AD-22）", () => {
       accountData: "",
     };
   }
+
+  it("交流会の招待のリンクを絞る決まりは、出している領域のものだけを集める（AD-5・AD-23）", () => {
+    const restricts = { restrictsLinks: () => Promise.resolve(true) };
+    const never = { restrictsLinks: () => Promise.resolve(false) };
+    const collected = collectEventLinkRestrictions([
+      ["a1", { eventLinkRestriction: restricts }],
+      ["nostep", {}],
+      ["b1", { eventLinkRestriction: never }],
+    ]);
+    expect(collected).toEqual([restricts, never]);
+  });
 
   it("共通の領域を先、アプリを一覧の順（アプリの中は domains の順）、テストの領域を最後に並べ、account は入れない", () => {
     const calls: string[] = [];

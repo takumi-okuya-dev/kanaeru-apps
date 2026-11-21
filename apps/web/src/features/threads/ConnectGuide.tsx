@@ -2,6 +2,7 @@
 // - 押す前：「threads.com でログインしているアカウントで許可されます」と、閉じた「違うアカウントが出たときは」の手順
 // - 違うアカウントで戻ったとき：エラーの文に続けて、切り替えの手順と threads.com を開くリンク（その画面で次にすることなので閉じない）
 import { buttonVariants } from "@workspace/ui/components/button";
+import { Disclosure } from "@workspace/ui/components/disclosure";
 import { THREADS_WEB_URL, accountGuideParts, accountSwitchSteps } from "./connect-guide.ts";
 
 /**
@@ -49,19 +50,16 @@ export function ThreadsAccountGuide({ expected, again }: ThreadsAccountGuideProp
           </>
         ) : null}
       </p>
-      <details>
-        <summary className="min-h-l cursor-pointer text-text-link">
-          違うアカウントが出たときは
-        </summary>
-        <ul className="mt-xxs flex flex-col gap-x3s">
+      <Disclosure summary="違うアカウントが出たときは">
+        <ul className="flex flex-col gap-x3s">
           {accountSwitchSteps(expected, again).map((step) => (
             <li key={step}>・{step}</li>
           ))}
         </ul>
-        <p className="mt-xxs">
+        <p>
           <ThreadsWebLink />
         </p>
-      </details>
+      </Disclosure>
     </div>
   );
 }

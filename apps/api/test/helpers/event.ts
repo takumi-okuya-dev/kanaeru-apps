@@ -100,3 +100,22 @@ export async function makeStaff(
   }
   return staff;
 }
+
+/**
+ * 交流会を組織に入れる・外す（持ち主のクッキーで。event-002）。
+ * @param app 組み立てた API
+ * @param ownerCookie 持ち主のクッキー
+ * @param eventId 交流会の ID
+ * @param organizationId 入れる組織（null で外す）
+ * @returns 応答
+ */
+export function placeEvent(
+  app: TestApp,
+  ownerCookie: string,
+  eventId: string,
+  organizationId: string | null,
+): Promise<Response> {
+  return call(app, ownerCookie, `/api/v1/events/${eventId}/organization`, "PUT", {
+    organizationId,
+  });
+}

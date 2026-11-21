@@ -33,6 +33,7 @@
 |---|---|---|
 | [全体の形](./architecture.md) | 構成図・フォルダの役目・依存の向き・領域を足すときに触る所・要求の流れ・DB の全体・画面の骨格 | 全体の構成 |
 | [アカウント（account）の地図](./apps/account.md) | アカウントとセッションの表・LINE のログインの窓口・ほかの領域が今の利用者を受け取る形（`requireSession`・`useSession`）・テストの手伝い | account の領域 |
+| [予約（booking）の地図](./apps/booking.md) | 交流会ごとの使い方・名簿（申込み）・ちがう人・CSV の列の対応の表・窓口（使い方・名簿・取り込み・書き出し・名簿に当てる・飛び入り）・チェックインとの当て（読むとき）・来なかった・画面（名簿・入れる・名簿に当てる）と event・reception の差しこみの場所への節・知らせ（LINE 公式アカウントの設定・Webhook・紐づけ・連絡のメールアドレス・知らせの記録・`sendNotice`・設定の画面と紐づけの画面）・テストの手伝い | booking の領域 |
 | [交流会（event）の地図](./apps/event.md) | 交流会・受付係・招待のリンクの表・窓口・交流会ごとの権限（`requireEventRole`）と要約（`getEventSummary`）・管理の画面の道と外枠のナビの項目・テストの手伝い | event の領域 |
 | [受付（reception）の地図](./apps/reception.md) | チェックインの表・窓口（自分のチェックイン・一覧・手でのチェックイン・直す・取り消す・合計・内訳・CSV）・金額と同じ名前の決まり・survey が使う `findCheckin`・`listCheckins` と画面の差しこみの場所・テストの手伝い | reception の領域 |
 | [スイート（suite）の地図](./apps/suite.md) | アプリの一覧（1行に1つ）と新しい領域の足し方・台帳の表（公開の状態）・窓口・見えるか（`isAppVisible`・組み立てが付ける `requireApp`）・すべてのアプリと設定の画面・テストの見本のアプリ | suite の領域・アプリの登録 |

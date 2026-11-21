@@ -12,6 +12,7 @@ import type { APIRequest, APIRequestContext, Browser, Page } from "@playwright/t
 import { E2E_FAKE_THREADS_URL, E2E_ORGANIZER_LINE_USER_ID, E2E_WEB_URL } from "../env.ts";
 import { expectNoA11yViolations } from "../helpers/axe.ts";
 import { collectCspViolations } from "../helpers/csp.ts";
+import { openSettingsTab } from "../helpers/threads-settings.ts";
 import { clickNavLink } from "../helpers/nav.ts";
 
 /** 書く要求に付ける見出し（画面の源）。 */
@@ -186,12 +187,14 @@ test("組織の中のチームで担当が案を作り、任された承認を�
 
   // 持ち主：設定の「チーム」で、運用アカウントをチームに入れる（入れるときの説明が出る）
   await owner.page.goto(`/threads/accounts/${accountId}/settings`);
+  await openSettingsTab(owner.page, "チーム");
   await expect(owner.page.getByRole("heading", { level: 2, name: "チーム" })).toBeVisible();
+  await owner.page.getByText("チームに入れると").click();
   await expect(
     owner.page.getByText(/あなたが退会すると、この運用アカウントは組織の管理者に引き継がれます/),
   ).toBeVisible();
   await owner.page.getByLabel("入れるチーム").selectOption({ label: teamName });
-  await owner.page.getByRole("button", { name: "チームを変える" }).click();
+  await owner.page.getByRole("button", { name: "チームに入れる" }).click();
   await expect(
     owner.page.getByText(`組織「${organizationName}」のチーム「${teamName}」に入れました。`),
   ).toBeVisible();
@@ -205,13 +208,27 @@ test("組織の中のチームで担当が案を作り、任された承認を�
   await expect(
     admin.page.getByRole("heading", { level: 2, name: new RegExp(organizationName) }),
   ).toBeVisible();
+  // 一覧に運用状況の要約が出る（管理者とリーダーだけ。threads-020）
+  const teamLink = admin.page.getByRole("link", { name: new RegExp(`^${teamName}`) });
+  await expect(teamLink).toContainText("運用状況");
   await checkPage(admin.page, "チームの一覧（管理者）");
-  await admin.page.getByRole("link", { name: new RegExp(`^${teamName}`) }).click();
+  await teamLink.click();
   await expect(admin.page.getByRole("heading", { level: 1, name: teamName })).toBeVisible();
+  // 管理者は運用状況から開く（threads-020）
+  const teamTabs = admin.page.getByRole("navigation", { name: "見るもの" });
+  await expect(teamTabs.getByRole("button", { name: "運用状況" })).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
+  await expect(admin.page.getByRole("heading", { level: 2, name: "運用状況" })).toBeVisible();
+  await teamTabs.getByRole("button", { name: /^運用アカウント/ }).click();
   await expect(admin.page.getByRole("heading", { level: 3, name: accountName })).toBeVisible();
   await checkPage(admin.page, "チームの画面（管理者）");
   const teamUrl = admin.page.url();
-  await admin.page.getByRole("radio", { name: "担当を決める" }).click();
+  await admin.page
+    .getByRole("navigation", { name: "見るもの" })
+    .getByRole("button", { name: "担当を決める" })
+    .click();
   const editorGroup = admin.page.getByRole("group", {
     name: new RegExp(`^${escapeRegExp(editor.name)}`),
   });
@@ -245,9 +262,13 @@ test("組織の中のチームで担当が案を作り、任された承認を�
 
   // 持ち主：設定で、編集者に承認を任せる
   await owner.page.reload();
+  await openSettingsTab(owner.page, "チーム");
   await owner.page.getByRole("checkbox", { name: `${editor.name}さんに承認を任せる` }).click();
   await expect(owner.page.getByText(`${editor.name}さんに承認を任せました。`)).toBeVisible();
-  await expect(owner.page.getByText("承認を任されている")).toBeVisible();
+  // 持ち主のカードでは、担当の行の横のチェックで任せているかが分かる（threads-020）
+  await expect(
+    owner.page.getByRole("checkbox", { name: `${editor.name}さんに承認を任せる` }),
+  ).toBeChecked();
 
   // 編集者：任されたので承認できる（NG ワードの確かめは持ち主と同じ）
   await editor.page.reload();
@@ -256,7 +277,10 @@ test("組織の中のチームで担当が案を作り、任された承認を�
 
   // 管理者：運用状況（数と日付だけ。本文は出ない）
   await admin.page.goto(teamUrl);
-  await admin.page.getByRole("radio", { name: "運用状況" }).click();
+  await admin.page
+    .getByRole("navigation", { name: "見るもの" })
+    .getByRole("button", { name: "運用状況" })
+    .click();
   await expect(admin.page.getByRole("heading", { level: 2, name: "運用状況" })).toBeVisible();
   const statusAccounts = admin.page.getByRole("list", { name: "運用アカウントの運用状況" });
   await expect(statusAccounts.getByRole("heading", { name: accountName })).toBeVisible();
@@ -272,6 +296,10 @@ test("組織の中のチームで担当が案を作り、任された承認を�
   });
   expect(shared.status()).toBe(200);
   await admin.page.goto(teamUrl);
+  await admin.page
+    .getByRole("navigation", { name: "見るもの" })
+    .getByRole("button", { name: /^運用アカウント/ })
+    .click();
   await admin.page.getByRole("link", { name: "読むだけで見る" }).click();
   await expect(
     admin.page.getByText(

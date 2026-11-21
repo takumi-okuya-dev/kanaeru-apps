@@ -1,13 +1,15 @@
 // 見られるチーム（/threads/teams。threads-016。ナビの「チーム」）。入っているチーム（管理者は組織のすべてのチーム）を組織ごとに並べ、
-// チームの画面へ移る。チームが1つだけで、チームを作る人（管理者）でなければ、一覧を飛ばしてそのチームの画面を開く。
-// どこにも入っていなければ、チームで運用できることと始め方を出す（組織とチームを作るのは設定 › 組織。suite）。
+// チームの画面へ移る。運用状況を見られる人には、止まっている数を要約で出す（threads-020。押すとチームの画面の運用状況が開く）。チームが1つだけで、チームを作る人（管理者）でなければ、一覧を飛ばしてそのチームの画面を開く。
+// どこにも入っていなければ、チームで運用できることと、組織とチームを作るフォームを出す（threads-021。組織の管理者なら「チームを足す」も）。
 import type { ThreadsTeamList } from "@workspace/contracts/threads";
 import { TEAM_ROLE_LABELS } from "@workspace/contracts/threads";
 import { Link, Navigate } from "@tanstack/react-router";
 import { Badge } from "@workspace/ui/components/badge";
 import { buttonVariants } from "@workspace/ui/components/button";
+import { Disclosure } from "@workspace/ui/components/disclosure";
 import { SessionGate } from "../account/index.ts";
 import { LoadFailure, Loading } from "./AccountGate.tsx";
+import { TeamStartForm } from "./TeamStartForm.tsx";
 import { ThreadsPage } from "./ThreadsPage.tsx";
 import { useTeams } from "./queries.ts";
 
@@ -24,7 +26,6 @@ const TEAM_POINTS = [
  * @returns 要素
  */
 function StartTeam({ list }: { list: ThreadsTeamList }) {
-  const admin = list.adminOrganizations[0];
   return (
     <section
       aria-labelledby="threads-team-start"
@@ -38,18 +39,13 @@ function StartTeam({ list }: { list: ThreadsTeamList }) {
           <li key={point}>{point}</li>
         ))}
       </ul>
-      {admin ? (
+      {list.adminOrganizations.length > 0 ? (
         <>
-          <p className="text-m">組織「{admin.name}」に、チームを作って人を足してください。</p>
-          <div>
-            <Link
-              to="/settings/organizations/$organizationId"
-              params={{ organizationId: admin.id }}
-              className={buttonVariants({ variant: "primary" })}
-            >
-              チームを作る
-            </Link>
-          </div>
+          <p className="text-m">
+            組織「{list.adminOrganizations.map((row) => row.name).join("」「")}
+            」に、チームを作りましょう。
+          </p>
+          <TeamStartForm adminOrganizations={list.adminOrganizations} />
         </>
       ) : list.organizationCount > 0 ? (
         <p className="text-m">
@@ -57,12 +53,10 @@ function StartTeam({ list }: { list: ThreadsTeamList }) {
         </p>
       ) : (
         <>
-          <p className="text-m">はじめに組織を作り、チームを作って、招待のリンクで人を招きます。</p>
-          <div>
-            <Link to="/settings/organizations" className={buttonVariants({ variant: "primary" })}>
-              組織を作る
-            </Link>
-          </div>
+          <p className="text-m">
+            ここで組織とチームを作れます。作ったあと、組織の設定の招待のリンクでスタッフを招きます。
+          </p>
+          <TeamStartForm adminOrganizations={[]} />
         </>
       )}
     </section>
@@ -92,10 +86,7 @@ function Teams() {
   }
   const organizations = [...new Map(list.teams.map((row) => [row.organizationId, row])).values()];
   return (
-    <ThreadsPage
-      title="チーム"
-      lead="チームに入れた運用アカウントを、何人かで運用します。チームを開くと、運用アカウント・担当・運用状況を見られます。"
-    >
+    <ThreadsPage title="チーム" lead="チームに入れた運用アカウントを、何人かで運用します">
       {list.teams.length === 0 ? (
         <StartTeam list={list} />
       ) : (
@@ -135,20 +126,37 @@ function Teams() {
                       <span className="text-s text-text-sub">
                         運用アカウント {team.accountCount}・人 {team.memberCount}
                       </span>
+                      {team.stoppedCount === null ? null : team.stoppedCount > 0 ? (
+                        <span className="flex flex-wrap items-center gap-xxs text-s">
+                          <Badge variant="danger">止まっている {team.stoppedCount}</Badge>
+                          運用状況を見る
+                        </span>
+                      ) : (
+                        <span className="text-s">運用状況：止まっていません</span>
+                      )}
                     </Link>
                   </li>
                 ))}
               </ul>
               {organization.myRole === "admin" ? (
-                <div>
-                  <Link
-                    to="/settings/organizations/$organizationId"
-                    params={{ organizationId: organization.organizationId }}
-                    className={buttonVariants({ variant: "secondary", size: "small" })}
-                  >
-                    チームを作る・人を分ける
-                  </Link>
-                </div>
+                <>
+                  <Disclosure summary="チームを足す">
+                    <TeamStartForm
+                      adminOrganizations={[
+                        { id: organization.organizationId, name: organization.organizationName },
+                      ]}
+                    />
+                  </Disclosure>
+                  <div>
+                    <Link
+                      to="/settings/organizations/$organizationId"
+                      params={{ organizationId: organization.organizationId }}
+                      className={buttonVariants({ variant: "secondary", size: "small" })}
+                    >
+                      人を招く・チームに分ける
+                    </Link>
+                  </div>
+                </>
               ) : null}
             </section>
           );

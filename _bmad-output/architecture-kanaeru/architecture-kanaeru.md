@@ -4,18 +4,18 @@ type: architecture-spine
 purpose: build-substrate
 altitude: product
 paradigm: 'モジュラーモノリス（領域ごとのフォルダ・一方向の依存）'
-scope: 'kanaeru 全体（日常のちょっとした課題を解決するスイートの土台）と、最初の版の受付アプリ。2つ目からのアプリを並行して作るための決めごと（AD-15〜AD-21）。スイートの組織と契約の持ち主（AD-22）'
+scope: 'kanaeru 全体（日常のちょっとした課題を解決するスイートの土台）と、最初の版の受付アプリ。2つ目からのアプリを並行して作るための決めごと（AD-15〜AD-21）。スイートの組織と契約の持ち主（AD-22）。受付アプリの予約とほかの主催者に開くこと（AD-23・AD-24）'
 status: final
 created: '2026-11-19'
 updated: '2026-11-20'
-binds: ['FR-1〜FR-25（PRD kanaeru 受付アプリ）', 'docs/backlog.md A（スイートとして並行開発できる構成への見直し）', 'FR-O1〜FR-O55・FR-T1〜FR-T66（PRD 組織と Threads のチーム運用）']
-sources: ['../prd-kanaeru-reception/prd-kanaeru-reception.md', '../prd-kanaeru-org/prd-kanaeru-org.md', '../brief-kanaeru-apps/brief-kanaeru-apps.md', '../../docs/architecture.md']
+binds: ['FR-1〜FR-25（PRD kanaeru 受付アプリ）', 'docs/backlog.md A（スイートとして並行開発できる構成への見直し）', 'FR-O1〜FR-O55・FR-T1〜FR-T66（PRD 組織と Threads のチーム運用）', 'FR-B1〜FR-B103（PRD 受付アプリの予約）']
+sources: ['../prd-kanaeru-reception/prd-kanaeru-reception.md', '../prd-kanaeru-org/prd-kanaeru-org.md', '../prd-kanaeru-booking/prd-kanaeru-booking.md', '../brief-kanaeru-apps/brief-kanaeru-apps.md', '../../docs/architecture.md']
 companions: ['./.memlog.md']
 ---
 
 # 構成の決めごと — kanaeru
 
-作成：2026-11-19（決めた理由は [.memlog.md](./.memlog.md)。いまのコードの形は [docs/architecture.md](../../docs/architecture.md)。点検の記録は [reviews/](./reviews/)）。2026-11-19 直した（reception-002：交流会ごとの割引。AD-3・AD-5・AD-6・AD-7・Capability map。理由は [specs/reception/002-discounts/research.md](../../specs/reception/002-discounts/research.md)）。2026-11-19 直した（スイートとして並行開発できる構成への見直し：AD-15〜AD-21 を足し、AD-1・AD-3・AD-5・AD-9 を直した）。2026-11-19 主催者が確かめた（仮決めをすべて採用。AD-18 は共通にしてよいものを技術の道具に絞り、AD-20 の外の AI は本人の記録だけに決め、B1 はこのリポジトリの中。Constitution 1.1.0）。2026-11-20 直した（core-005：AD-3・AD-16 の売り方の列は売り始めるときに足す〈主催者が決めた〉・AD-15 の予約語に `settings`【仮決め】）。2026-11-20 直した（スイートの組織と契約の持ち主：AD-22 を足し、AD-3・AD-16・AD-19・Capability map・Deferred を直した。主催者が決めた〈組織単位の契約も見越す〉。同じ日に主催者の確かめで、持ち主の退会では組織に入れた記録を組織の管理者に引き継ぐ形と、退会の手順の順番〈suite → アプリ → account〉を AD-19・AD-22 に足した。範囲は [PRD 組織と Threads のチーム運用](../prd-kanaeru-org/prd-kanaeru-org.md)。【仮決め】の印は主催者の確かめを待つ）
+作成：2026-11-19（決めた理由は [.memlog.md](./.memlog.md)。いまのコードの形は [docs/architecture.md](../../docs/architecture.md)。点検の記録は [reviews/](./reviews/)）。2026-11-19 直した（reception-002：交流会ごとの割引。AD-3・AD-5・AD-6・AD-7・Capability map。理由は [specs/reception/002-discounts/research.md](../../specs/reception/002-discounts/research.md)）。2026-11-19 直した（スイートとして並行開発できる構成への見直し：AD-15〜AD-21 を足し、AD-1・AD-3・AD-5・AD-9 を直した）。2026-11-19 主催者が確かめた（仮決めをすべて採用。AD-18 は共通にしてよいものを技術の道具に絞り、AD-20 の外の AI は本人の記録だけに決め、B1 はこのリポジトリの中。Constitution 1.1.0）。2026-11-20 直した（core-005：AD-3・AD-16 の売り方の列は売り始めるときに足す〈主催者が決めた〉・AD-15 の予約語に `settings`【仮決め】）。2026-11-20 直した（スイートの組織と契約の持ち主：AD-22 を足し、AD-3・AD-16・AD-19・Capability map・Deferred を直した。主催者が決めた〈組織単位の契約も見越す〉。同じ日に主催者の確かめで、持ち主の退会では組織に入れた記録を組織の管理者に引き継ぐ形と、退会の手順の順番〈suite → アプリ → account〉を AD-19・AD-22 に足した。範囲は [PRD 組織と Threads のチーム運用](../prd-kanaeru-org/prd-kanaeru-org.md)。【仮決め】の印は主催者の確かめを待つ）。2026-11-20 直した（受付アプリの予約と、ほかの主催者に開くこと：AD-23・AD-24 を足し、AD-1・AD-3・AD-5・AD-14・AD-19・Conventions・Capability map・Open Questions・Deferred を直した。主催者が決めた〈SaaS として複数の組織・個人に出す・予約はオプション・各組織の LINE 公式アカウント・メールを使う〈Constitution 1.2.0〉〉。範囲は [PRD 受付アプリの予約](../prd-kanaeru-booking/prd-kanaeru-booking.md)。【仮決め】の印は主催者の確かめを待つ）。2026-11-20 直した（booking-002：AD-14 に紐づけの道、AD-24 に Webhook の道・あいさつと許可リスト・設定の行の中身・送る道具の型の置き場所の注。理由は [specs/booking/002-notify/research.md](../../specs/booking/002-notify/research.md)）
 
 ## Design Paradigm
 
@@ -33,6 +33,7 @@ flowchart TB
     event["event<br/>交流会・要約・受付係・招待・アンケートの開閉・権限"]
     reception["reception<br/>チェックイン・合計・内訳・参加者のCSV"]
     survey["survey<br/>アンケートの回答・困りごとの一覧とCSV"]
+    booking["booking<br/>予約：設定・名簿・申込み・キャンセル待ち・知らせ（AD-23・AD-24）"]
   end
   next["2つ目からのアプリの領域"]
   suite --> account
@@ -42,6 +43,10 @@ flowchart TB
   survey --> reception
   survey --> event
   survey --> account
+  booking --> reception
+  booking --> event
+  booking --> account
+  event -->|"組織の役割を読む（AD-23）"| suite
   event -.->|"requireApp"| suite
   next -->|"requireApp"| suite
   next --> account
@@ -53,7 +58,7 @@ flowchart TB
 
 - **Binds:** all
 - **Prevents:** アプリごとに別のサーバー・DB・ログインができ、共通のアカウントが割れること
-- **Rule:** スイートの新しいアプリは、新しい領域として同じ API・画面・DB に足す。別の置き場所に切り出すのは、この文書を直してから。**アプリ**は売る・公開する単位で、1つ以上の領域の束（受付アプリ＝event・reception・survey）。account と suite はスイートの共通の領域で、どのアプリにも属さない（AD-15）。
+- **Rule:** スイートの新しいアプリは、新しい領域として同じ API・画面・DB に足す。別の置き場所に切り出すのは、この文書を直してから。**アプリ**は売る・公開する単位で、1つ以上の領域の束（受付アプリ＝event・reception・survey・booking〈2026-11-20 足した。AD-23〉）。account と suite はスイートの共通の領域で、どのアプリにも属さない（AD-15）。
 
 ### AD-2 — アカウントは account の領域だけが持つ [ADOPTED]
 
@@ -65,14 +70,15 @@ flowchart TB
 
 - **Binds:** all
 - **Prevents:** 2つの領域が同じ表を書き、どちらが正しいか分からなくなること
-- **Rule:** 表は、それを作った領域だけが読み書きする。ほかの領域の表が要るときは、その領域の `index.ts` が出す関数（1つ目の引数はいつも `db`）を呼ぶ。外部キーのためだけに、持ち主の `index.ts` から表を出してよい（`.references()` にだけ使い、読み書きに使わない）。表を作る PR は **account → event → reception → survey** の順に develop へ入れる。DB の変更の通し方は AD-17。持ち主は次のとおり（suite・account の AI と認証の表は、その機能を作るときに足す）。
+- **Rule:** 表は、それを作った領域だけが読み書きする。ほかの領域の表が要るときは、その領域の `index.ts` が出す関数（1つ目の引数はいつも `db`）を呼ぶ。外部キーのためだけに、持ち主の `index.ts` から表を出してよい（`.references()` にだけ使い、読み書きに使わない）。表を作る PR は **account → event → reception → survey → booking** の順に develop へ入れる。DB の変更の通し方は AD-17。持ち主は次のとおり（suite・account の AI と認証の表は、その機能を作るときに足す）。
 
 | 領域 | 持つ表 |
 |---|---|
 | account | `account`（LINEのユーザーID・表示名・登録日）・`session`（`account_id`・期限だけ） |
-| event | `event`（名前・日時・会場・参加費・GoogleフォームのURL・LINEグループの招待リンク・アンケートの開閉）・`event_staff`（受付係）・`staff_invite`（招待のリンク）・`event_discount`（割引：名前・円の額・紹介者の名前を聞くか・使うのをやめた時刻。reception-002） |
+| event | `event`（名前・日時・会場・参加費・GoogleフォームのURL・LINEグループの招待リンク・アンケートの開閉）・`event_staff`（受付係）・`staff_invite`（招待のリンク）・`event_discount`（割引：名前・円の額・紹介者の名前を聞くか・使うのをやめた時刻。reception-002）・`event.owner_account_id`（持ち主）と `event_organization`（交流会を組織に入れる）〈2026-11-20 足した。AD-23〉 |
 | reception | `checkin`（名前・申し込みの媒体・知ったきっかけ・支払い方法・金額・`account_id`（LINEのとき）・入れた人（手のとき）・選んだ割引の ID とそのときの名前と額の写し・紹介者の名前（reception-002）） |
 | survey | `survey_answer`（`checkin_id`・困りごと・月いくら・テスター・仕事の立場・職種） |
+| booking〈2026-11-20 足した。AD-23・AD-24〉 | `booking_setting`（交流会ごとの使い方・定員・見せる範囲・受け付けるか。2026-11-21 booking-004 で、枠を押さえるのをやめた時刻・中止の時刻・最後に知らせた日時と場所・変更に気づいた時刻・当日の空きを知らせた時刻を足した）・`booking_quota`（媒体の枠）・`booking_entry`（申込み＝名簿の行：名前・媒体・入口・状態・account か連絡のメール・当てたチェックイン）・`booking_offer`（打診と返事の期限）・`booking_consent`（案内の同意。相手は組織か持ち主）・`booking_contact`（LINE で申し込んだ人の任意のメール）・`booking_line_channel`・`booking_line_link`（公式アカウントの設定と紐づけ）・`booking_notice`（知らせの記録）・`booking_email_request`（メールで申し込む確認の待ち。2026-11-20 booking-003 で足した。申込みになる前の名前・アドレス・札の SHA-256 を24時間だけ持つ）。細かい列は仕様で決める |
 | suite | `app_setting`（アプリの key・公開の状態。売り方の列は売り始めるときに足す〈core-005。主催者が決めた〉）・`organization`・`organization_member`・`organization_invite`（組織。AD-22〈2026-11-20 足した〉）・`entitlement`（契約。持ち主はアカウントか組織のどちらか1つ〈2026-11-20 直した〉。売り始めるとき。AD-16・AD-22） |
 | account（足すとき） | `ai_credential`（利用者の API キーの暗号文。AD-20）・OAuth のクライアントとトークン（AD-21） |
 
@@ -82,15 +88,18 @@ flowchart TB
 - **Prevents:** 画面が送ったプロフィールを信じてなりすまされること。画面ごとに LINE の始め方・ログインの確かめ方が変わること
 - **Rule:** `liff.init()`・ログイン・IDトークンを送ってセッションを作る処理は、画面の共通（`apps/web/src/lib/liff.ts`）に1つだけ置き、組み立てがルーターより先に呼ぶ。画面は `liff.getIDToken()` の生のIDトークンだけを `POST /api/v1/auth/line` に送る（ログインだけをし、ほかの用事を載せない）。API は LINE の `POST /oauth2/v2.1/verify`（`id_token`・`client_id`）で確かめ、`sub` を LINEのユーザーIDとして account を作るか探し、`session` の行と `HttpOnly; Secure; SameSite=Lax` のクッキーを出す。確かめる `client_id` は設定 `LINE_CHANNEL_IDS`（並び）で持つ。画面から送られた表示名やユーザーIDは使わない。LINEのトークンを長く持たない。セッションの期限は30日。LIFF ID は公開してよい値なので、組み立てのとき（`VITE_LIFF_ID`）に埋める。
 
-### AD-5 — 権限は「主催者か」と「交流会ごとの受付係か」の2つだけで、要求のたびに引く [ADOPTED]
+### AD-5 — 権限は「主催者」「受付係」「部員」の3つで、交流会ごとに要求のたびに引く [ADOPTED]
 
-- **Binds:** account・event・reception・survey、FR-3・FR-9・FR-10・FR-21
+〈2026-11-20 直した：主催者が受付アプリを複数の組織・個人に出すと決めた（AD-23）。前の見出しは「権限は『主催者か』と『交流会ごとの受付係か』の2つだけで、要求のたびに引く」。変えたのは主催者の決め方と部員を足したこと。受付係と、要求のたびに引くことは変えない〉
+
+- **Binds:** account・event・reception・survey・booking、FR-3・FR-9・FR-10・FR-21、PRD 受付アプリの予約 FR-B1〜B7
 - **Prevents:** 領域ごとに権限の確かめ方がばらばらになること。外した受付係がセッションの期限まで使えること。参加者の画面が交流会の情報を読めないこと
 - **Rule:**
-  - **主催者**は設定 `ORGANIZER_LINE_USER_ID`（秘密ではない。Terraform で Cloud Run の環境変数に渡す）と、今の利用者の LINEのユーザーIDが同じかで決める。表に印を持たない。この比べ方は account の `index.ts` が `isOrganizer` として出す。 この設定の人は、スイートの**運営者**（アプリの台帳を変えられる人。AD-16）も兼ねる。受付アプリをほかの主催者に開くときは、`event` に持ち主の `account_id` を足し、交流会の主催者はそこから決める形にこの AD を直す。
+  - **主催者**〈2026-11-20 直した〉は、その交流会の持ち主（`event.owner_account_id`）と、交流会を入れた組織（`event_organization`）の管理者・編集者（役割は suite の `index.ts` から要求のたびに引く。AD-22）。前は設定 `ORGANIZER_LINE_USER_ID` の1人だった。この設定の人はスイートの**運営者**（アプリの台帳を変えられる人。AD-16）だけになり、ほかの人の交流会を管理できない。account の `isOrganizer` は運営者かを答えるだけにし、受付アプリの権限には使わない（AD-19）。
+  - **部員**〈2026-11-20 足した〉は、交流会を入れた組織のメンバー（管理者・編集者でない人）。部員だけに見せる交流会を見て申し込める（booking。AD-23）。管理の画面は使えない。
   - **受付係**は `event_staff`（交流会と account の組）で決まり、その交流会の中だけで効く。
-  - 権限は、event の `index.ts` が出す1つの関数（その account がその交流会で主催者か・受付係か・どちらでもないか）を**要求のたびに**通す。セッションに写さない。受付係に許すのは PRD FR-3 の表の「受付係 ○」だけで、困りごと・書き出し・削除・交流会の作成の窓口は、主催者でなければ `403`。
-  - **参加者向けの要約**：event は、ログインしていれば誰でも読める要約を1つだけ出す（`GET /api/v1/events/{eventId}/summary` と `index.ts` の `getEventSummary`）。中身は名前・日時・会場・参加費・アンケートが開いているか・GoogleフォームのURL・LINEグループの招待リンク・使っている割引（名前・額・紹介者の名前を聞くか。reception-002） だけ。
+  - 権限は、event の `index.ts` が出す1つの関数（その account がその交流会で主催者か・受付係か・部員か・どれでもないか。主催者で受付係でもある人は主催者）を**要求のたびに**通す。セッションに写さない。受付係に許すのは PRD FR-3 の表の「受付係 ○」だけで、困りごと・書き出し・削除・交流会の作成の窓口は、主催者でなければ `403`。
+  - **参加者向けの要約**：event は、ログインしていれば誰でも読める要約を1つだけ出す（`GET /api/v1/events/{eventId}/summary` と `index.ts` の `getEventSummary`）。中身は名前・日時・会場・参加費・アンケートが開いているか・GoogleフォームのURL・LINEグループの招待リンク・使っている割引（名前・額・紹介者の名前を聞くか。reception-002） だけ。〈2026-11-21 主催者が決めた：予約の「部員だけ」（AD-23・booking-003 R8）の回では、要約の招待のリンク〈GoogleフォームのURL・LINEグループの招待リンク〉を、交流会の役目のある人〈主催者・受付係・部員〉だけに返し、ほかの人には null で返す。名前・日時・会場・参加費・割引・オープンチャットは、ログインした誰にでも返す〈当日の受付で、組織の外の飛び入りもチェックインできるように〉。event は booking を読まない〈向きは booking → reception → event〉ので、booking が `index.ts` から `eventLinkRestriction`〈`kernel/event-links.ts` の形〉を出し、組み立てが集めて `DomainRouteDeps.eventLinkRestrictions` で event の要約の窓口に渡す〈退会の手順と同じ向きの逆転。core-012〉。決まりと役目は要求のたびに引く。`index.ts` の `getEventSummary` は領域の中で使うもので、絞らない〈参加者に返す窓口は要約の窓口だけ〉〉
   - **招待**は event の窓口 `POST /api/v1/staff-invites/{inviteToken}/accept`（ログイン必須）で受け、`event_staff` を作る。招待のリンクは交流会ごとに1本・何人でも使える・作り直すと前のは使えない。期限は「交流会の日時の、日本時間の日付が終わるまで」で、受けるときに交流会の今の日時から計算する。
 
 ### AD-6 — チェックインは、そのときの名前と金額を写して持つ [ADOPTED]
@@ -106,7 +115,7 @@ flowchart TB
 - **Rule:**
   - 本人のデータを指す外部キーだけ `ON DELETE CASCADE`：`session.account_id`・`event_staff.account_id`・`checkin.account_id`・`survey_answer.checkin_id`。account を消せば、その人のセッション・受付係の割り当て・チェックイン・回答が消える。
   - 「誰がしたか」の記録（`checkin` の入れた人と、同じ種類の列）は `ON DELETE SET NULL`。
-  - `event` を指す外部キーは `RESTRICT`（この版は交流会を消す機能を作らない）。
+  - `event` を指す外部キーは `RESTRICT`（この版は交流会を消す機能を作らない）。〈2026-11-20 足した：booking の表〈`booking_`〉が `event` を指す外部キーは `ON DELETE CASCADE`。持ち主の退会で event が交流会を消す段〈AD-23〉が booking より先に流れるので、RESTRICT だと名簿のある交流会の持ち主が退会できないため。名簿は交流会の持ち主のデータ〈AD-19〉。理由は [specs/booking/001-roster/research.md](../../specs/booking/001-roster/research.md) R11〉
   - 割引（`event_discount`）は消さない。外すと「使うのをやめる」（`archived_at`）だけで、新しいチェックインで選べなくなる。`checkin` の `(event_id, discount_id)` は `event_discount(event_id, id)` を指す複合の外部キーで `RESTRICT`（別の交流会の割引を指せない）。チェックインは名前と額を写しているので、割引を直しても外しても履歴は変わらない（event は reception の表を読めないので、使われたかで消すかを決められない。reception-002）。
   - チェックインの取り消し（FR-8）は行を消す（`DELETE`）。回答も一緒に消える。取り消しの確かめの枠に「アンケートの回答があれば一緒に消えます」と出す。FR-5 の重なりをまとめるときは、LINE のほうを残し、手のほうを消す。
 
@@ -163,7 +172,7 @@ flowchart TB
 
 - **Binds:** event・reception・survey・画面、FR-2・FR-21
 - **Prevents:** QR を作る領域と画面を作る領域で URL の形が食い違うこと。置き場所の URL を変えると、印刷した QR が使えなくなること
-- **Rule:** 参加者が外から開く画面の道（`/e/{eventId}/checkin`・`/e/{eventId}/survey`・`/invite/{inviteToken}`）と、それを LINEミニアプリの URL（パーマリンク）にする関数は、`packages/contracts/src/core` に1つだけ置く。reception・survey・event の画面はこの道で作り、event はこの関数で QR と招待のリンクを作る。QR には Cloud Run の URL を直接入れない。
+- **Rule:** 参加者が外から開く画面の道（`/e/{eventId}/checkin`・`/e/{eventId}/survey`・`/invite/{inviteToken}`。2026-11-20 に予約の申込みのページ `/e/{eventId}` と、メールで申し込んだ人が開く `/e/{eventId}/entry/{entryToken}` を足した【仮決め】。AD-23。2026-11-20 に LINE 公式アカウントとの紐づけ `/line-link/{linkToken}` を足した【仮決め】。booking-002・AD-24。2026-11-20 に自分の申込み `/my-bookings`（部の予定のタブつき）を足し、`/e/{eventId}` と `/e/{eventId}/entry/{entryToken}` を `participantPaths.apply`・`entry` として置いた【仮決め】。booking-003。`-` を含むのでアプリの key とぶつからない。友だち追加のあいさつに入れる URL は、API が LIFF ID を知らないので画面の源＋道）と、それを LINEミニアプリの URL（パーマリンク）にする関数は、`packages/contracts/src/core` に1つだけ置く。reception・survey・event の画面はこの道で作り、event はこの関数で QR と招待のリンクを作る。QR には Cloud Run の URL を直接入れない。
 
 ### AD-15 — アプリは静的な一覧に1行で登録し、key・道・表の名前を取り合わない [ADOPTED]
 
@@ -217,7 +226,7 @@ flowchart TB
 - **Binds:** 2つ目からのアプリ・account・suite（組織。AD-22）
 - **Prevents:** 新しいアプリが運営者の設定（`ORGANIZER_LINE_USER_ID`）や `isOrganizer` を「持ち主」に使い、ほかの人に売れない形になること。アプリごとに「誰のものか」の持ち方が変わること。持ち主のアカウントを消すと、DB のエラーで落ちる・ほかの人の記録まで消えること。アプリごとにチームやグループの表ができること。組織から外れた人が、担当や見せる設定の残りで読み続けられること
 - **Rule:**
-  - 新しいアプリは、最上位の記録（例：本・レシピ・試合表・Threads の運用アカウント）に最初から持ち主の `account_id` を持つ。運営者だけに許すのは AD-16 の台帳の操作だけで、新しいアプリは `isOrganizer` を使わない。
+  - 新しいアプリは、最上位の記録（例：本・レシピ・試合表・Threads の運用アカウント）に最初から持ち主の `account_id` を持つ。受付アプリの交流会も、2026-11-20 にこの形にした（AD-23）。運営者だけに許すのは AD-16 の台帳の操作だけで、新しいアプリは `isOrganizer` を使わない。
   - **持ち主はいつも1人の account**。記録を組織に入れても、持ち主は変わらない（組織は記録の持ち主にならない。AD-22）。持ち主が替わるのは、持ち主の退会で組織の管理者に引き継ぐときだけ〈2026-11-20 足した〉。組織に入れるのは、手伝ってもらう・見せる範囲を広げることで、記録を組織に入れる表と、担当などアプリの中の関わりは、そのアプリが持つ〈2026-11-20 足した〉。
   - **権限**は、持ち主と、記録を組織に入れていれば組織の役割（suite の `index.ts` から要求のたびに引く）とアプリの中の関わり（担当など）から、そのアプリの領域の中の**1つの関数**で決め、すべての窓口が通す〈2026-11-20 足した〉。**払う人**（AD-16）は、持ち主の個人の契約か、記録を入れた組織の契約（AD-22）〈2026-11-20 直した。前は持ち主だけ〉。
   - **消し方**〈2026-11-20 直した〉：持ち主の記録と、組織の人が持ち主の記録の中に書いたもの（担当が作った投稿の案など）は、持ち主のデータとして `ON DELETE CASCADE`（AD-7）。「誰がしたか」の列（作った人・承認した人・操作の記録のした人）は `ON DELETE SET NULL`。`RESTRICT` にして account を消す窓口が `409`・code `ACCOUNT_OWNS_SHARED_RECORDS` を返す（先に記録を消すか渡す）のは、**ほかの人自身の本人の記録**（参加者が自分のものとして持つ回答など）が、その人の記録にぶら下がるときだけにする（前は「ほかの人が書きこむ記録」すべて）。
@@ -276,14 +285,47 @@ flowchart TB
   - **契約の持ち主**：`entitlement`（売り始めるときに作る）は、持ち主として `holder_account_id` と `holder_organization_id` の**どちらか1つだけ**を持つ（CHECK）。どちらも `ON DELETE CASCADE`（売り始めたら、消す前に支払いの会社の契約を止める）。何に効くかはアプリの key（スイートの束は AD-16 の売り方の列と一緒に決める）。料金・席数・期間・支払いの会社の ID の列は、売り始めるときに足す（どれを選んでも持ち主の形は変えない）。組織の契約を持つのは管理者だけ【仮決め】。
   - **使えるか**：`hasEntitlement(db, { ownerAccountId, organizationId }, appKey)`（AD-16 を直した）。記録の持ち主の個人の契約か、記録を入れた組織の契約のどちらかがあれば通す。組織の契約は、組織の人の個人の記録には効かない【仮決め】。新しい最上位の記録を作るときは、作る人と、作るときに入れる組織で引く。担当の人・見せてもらう人・参加者・受付係は契約を要らない。売り始める前は、いつも通す。組織の操作は契約の状態で止めない【仮決め】。
   - **組織が記録の持ち主になる形は作らない**（持ち主はいつも account。AD-19）。要るときは、この AD と AD-19 を直してから。
-  - 受付アプリの受付係（`event_staff`。AD-5）は、このまま。受付アプリをほかの主催者に開くときに、交流会の持ち主を組織にし、受付係を組織の人から選ぶ形に移せる（Deferred）。
+  - 受付アプリの受付係（`event_staff`。AD-5）は、このまま。〈2026-11-20 直した：受付アプリをほかの主催者に開いた（AD-23）。交流会の持ち主は account のまま組織に入れる形にし、受付係は組織と関係なく交流会ごとの招待のままにした（主催者が決めた：助っ人など組織の外の人も受付をするため）〉
+
+### AD-23 — 交流会は持ち主の account が持って組織に入れられ、予約は booking の領域が持つ（受付は予約を知らない） [ADOPTED]
+
+〈2026-11-20 足した：主催者が決めた（受付アプリを SaaS として複数の組織・個人に出す・各組織に複数の運営・予約はオプション・受付係は組織と関係ない）。範囲は [PRD 受付アプリの予約](../prd-kanaeru-booking/prd-kanaeru-booking.md)。【仮決め】の印は主催者の確かめを待つ〉
+
+- **Binds:** event・reception・survey・booking・suite（読むだけ）・account、PRD 受付アプリの予約の全体
+- **Prevents:** 主催者が設定の1人のままで、ほかの人に売れないこと。予約の表と処理が reception に混ざり、「受付だけ」の使い方が重くなること。booking と reception が互いを読んで輪になること。組織どうしで名簿・案内の同意・連絡先が混ざること
+- **Rule:**
+  - **交流会の持ち主**：`event.owner_account_id`（account。AD-19 の形）。ログインした人は誰でも交流会を作れる（売り始めたら `hasEntitlement`。AD-16・AD-22）。
+  - **組織に入れる**：`event_organization`（`event_id` が主キー・`organization_id`・`owner_account_id`）。`(organization_id, owner_account_id)` は `organization_member` を指す複合の外部キーで `ON DELETE CASCADE`（threads と同じ。AD-22）。1つの交流会は1つの組織まで。入れる・外すのは持ち主だけ。
+  - **役割の判定**は event の1つの関数（AD-5）。主催者＝持ち主か、入れた組織の管理者・編集者。部員＝入れた組織のメンバー。受付係＝`event_staff`。
+  - **退会と消し方**（AD-19・AD-22 の手順の (2)）：組織に入れた交流会は、その組織の今の管理者に引き継ぐ（持ち主を替える）。組織に入れていない交流会にチェックインや回答（参加者自身の記録）があれば、account を消す窓口は `409`・code `ACCOUNT_OWNS_SHARED_RECORDS` を返す（AD-19 の決まりのまま。先に組織に入れるか、交流会を消す）【仮決め】。
+  - **今のデータ**：今ある交流会の持ち主は運営者の account にする。DB の変更は2段に分ける（列を null 可で足す → 埋める → NOT NULL にする。前の版のアプリでも壊れない形。AD-17・[コードの書き方](../../docs/rules/coding.md) 3）。埋め方は仕様で決める【仮決め】。
+  - **予約の領域 booking**（受付アプリの4つ目の領域）：表は `booking_` で始め、API の道は `/api/v1/booking/…`。交流会ごとの予約の設定・申込み（名簿の行）・打診・案内の同意・連絡のメール・公式アカウントの設定と紐づけ・知らせの記録を持つ（AD-3）。使い方が「受付だけ」の交流会では、booking は何も持たない（設定の行がなければ受付だけ）。
+  - **依存は booking → reception → event の一方向**。reception は booking を知らない。チェックインとの当ては booking が持つ：LINE のチェックインは、同じ account の申込みに読むときに当てる（保存しない）。手で当てたものは `booking_entry.checkin_id`（reception の `checkin` を指す外部キー・`ON DELETE SET NULL`）に持つ。飛び入りは、booking が reception の `index.ts` の関数でチェックインを作ってから名簿に足す。受付係の「名簿に当てる」画面は booking の画面。
+  - **組織ごとに閉じる**：名簿・申込み・案内の同意・連絡先は、交流会の持ち主（組織に入れていれば組織）の外に出さない。案内の同意の相手は `organization_id` か `owner_account_id` のどちらか1つ（CHECK）。主催者に参加者のメールアドレスを見せない（Constitution II）。
+  - **ほかのアプリ**（試合表など）には、reception の `index.ts` が「その交流会でチェックインした人」を出す。booking は出さない。
+  - **選択肢**：申込みの媒体は reception の「申し込みの媒体」の選択肢を使う（同じ列挙を contracts から読む）。
+
+### AD-24 — 知らせは、送る道具を土台に、何をいつ誰に送るかを booking に置き、本番は止めて出す [ADOPTED]
+
+〈2026-11-20 足した：主催者が決めた（知らせは各組織・個人が設定する LINE 公式アカウントとメール・ステージングは作らない・前日のリマインドは送らない）。【仮決め】の印は主催者の確かめを待つ〉
+
+- **Binds:** booking・`platform/notify`・設定・Cloud Scheduler・Terraform（`infra/`）
+- **Prevents:** ステージングがないまま、本番で誤って外の人に送ること。LINE のユーザー ID をプロバイダーをまたいで使い、届かない・別人に送ること。鍵・メールアドレスが漏れること。夜中に打診の期限が切れて処理されないこと。送る道具がアプリごとに作られること
+- **Rule:**
+  - **送る道具**（LINE の Messaging API の push・メールの送信・本物に送らない偽の送り手・守りの判定）は、技術の道具として `platform/notify` に置く（AD-18）。業務（何をいつ誰に送るか・文面）は booking が持つ。
+  - **公式アカウントの設定**：`booking_line_channel`（持ち主は account か organization のどちらか1つ。チャネル ID と、シークレットとアクセストークンの暗号文〈`packages/secret-box`〉。2026-11-20 booking-002：末尾4文字・ベーシック ID・メールの返信先も同じ行に持つ）。送る道具の型は土台（`kernel/notifier.ts`）に置き、組み立てが `DomainRouteDeps.notifier` で渡す（土台は共通を読めないため）。画面には末尾だけを出す。組織のものを変えられるのは組織の管理者だけ、個人のものは本人だけ。メッセージの費用は各組織の LINE の契約で払う（原則 V）。
+  - **紐づけ**：LINE ログインの `sub` を、公式アカウントの送り先に使わない（プロバイダーが違うと ID が違う）。Webhook（`/api/v1/booking/webhooks/line/{channelId}`。その設定のシークレットで署名を確かめる。CSRF の確かめの外。2026-11-20 booking-002 で、組み立てが外のサービスの Webhook として扱う形〈`/api/v1/<領域>/webhooks/…`〉にそろえた【仮決め】）で友だち追加を受けたら、使い切りの札（SHA-256 だけを持つ）つきのリンクをあいさつで送る。参加者がリンクを開いて LINE ログインすると、`booking_line_link`（設定・公式アカウントから見えるユーザー ID・account）を作る。ブロックされたら消す。
+  - **メール**：kanaeru 共通の送り主（kanaeru のドメイン）から送る。送り主の名前に組織（持ち主）の名前を入れ、返信先は設定のアドレス（任意）。送信のサービスは無料枠のあるものを選ぶ（Open Questions 8）。メールで申し込む人には、確認のリンク（札は SHA-256 だけ・24時間）を送る。
+  - **守り**：設定 `NOTIFY_MODE`（`off`・`allowlist`・`on`。本番の既定は `off`）と `NOTIFY_ALLOWLIST`（LINE のユーザー ID とメールアドレスの並び。秘密の値と同じく Secret Manager）。`allowlist` では並びにない宛先には送らず、知らせの記録に「送らなかった」を残す（2026-11-20 booking-002：友だち追加へのあいさつ〈reply〉は `off` だけで止め、許可リストは見ない。許可リストに足す ID を、紐づけたあとの確かめのメッセージで本人に出すため【仮決め】）。`APP_ENV` が `local`・`test` のときは偽の送り手だけを使う（本物の API を呼ばない）。
+  - **定時の処理**：打診の期限切れと次の人への打診は、Cloud Scheduler からジョブの合言葉つきの窓口を呼んで行う（core-006 の形）。DB が動いている時間（8時〜24時）だけ。期限は夜（0時〜9時）に切れない形で決める（PRD FR-B65）。〈2026-11-21 booking-004：窓口は `POST /api/v1/booking/jobs/tick`（threads と同じ `isJobRequest`・合わなければ 404）。Cloud Scheduler は10分おき・9時〜23時台（8時台は DB の起動を待つ）。定期の仕事が止まっても、書く窓口は同じ片付けの関数を先に通し、読む窓口は期限を過ぎた打診を期限切れとして見せる。期限の決め方に「始まりの2時間前が夜に落ちたら0時」を足した【仮決め】。日時や場所の変更と中止の知らせは、event を直さず、booking が持つ「最後に知らせた日時と場所」と event の要約を比べて決め、中止は booking の「予約を中止する」で行う【仮決め】。理由は [specs/booking/004-waitlist/research.md](../../specs/booking/004-waitlist/research.md) R6・R9〜R11〉
+  - **記録**：`booking_notice`（相手の申込み・種類・手段・結果・時刻）。本文・メールアドレス・トークン・札はログに出さない。
 
 ## Consistency Conventions
 
 | Concern | Convention |
 | --- | --- |
 | 名前 | 領域のフォルダは英語の単数（`account`・`event`・`reception`・`survey`）。表は単数の snake_case。画面と文書の言葉は PRD 3章の用語集のまま |
-| 道の頭 | account：`/api/v1/auth/*`・`/api/v1/accounts/*`／event：`/api/v1/events/*`・`/api/v1/staff-invites/*`／reception：`/api/v1/events/{eventId}/checkins/*`／survey：`/api/v1/events/{eventId}/survey-answers/*`／suite：`/api/v1/suite/*` ／MCP：`/api/mcp`・認可：`/api/oauth/*` と `/.well-known/oauth-*` 。新しい領域は `/api/v1/<領域>/…`（AD-15）。`operationId` は領域の名前で始める。新しいアプリの画面の道は `/<アプリのkey>/…`（AD-15） |
+| 道の頭 | account：`/api/v1/auth/*`・`/api/v1/accounts/*`／event：`/api/v1/events/*`・`/api/v1/staff-invites/*`／reception：`/api/v1/events/{eventId}/checkins/*`／survey：`/api/v1/events/{eventId}/survey-answers/*`／suite：`/api/v1/suite/*` ／booking：`/api/v1/booking/*`（AD-23）／MCP：`/api/mcp`・認可：`/api/oauth/*` と `/.well-known/oauth-*` 。新しい領域は `/api/v1/<領域>/…`（AD-15）。`operationId` は領域の名前で始める。新しいアプリの画面の道は `/<アプリのkey>/…`（AD-15） |
 | ID・時刻 | 主キーは `uuid`（`uuidv7()`。PostgreSQL 18 が要る）。DB は `timestamptz`。API と画面の間の日時は時差つきの ISO 8601 だけ。「日本時間の日付」と「その日の終わり」を出す関数は `packages/contracts/src/core` に1つ置き、サーバーの時刻帯に頼らない |
 | 金額 | 円の整数（`integer`）。小数を使わない |
 | 選択肢 | 値は英語の短い code（例：`paypay`・`cash`・`free`）。文言と並び順は同じ列挙の隣に持つ。持ち主の領域の contracts に置く（申し込みの媒体・知ったきっかけ・支払い方法は reception、月いくら・仕事の立場・職種は survey）。DB は `text` と CHECK の制約 |
@@ -292,8 +334,8 @@ flowchart TB
 | エラー | テンプレートの形（`{error: {code, message, requestId, fields?}}`）。未ログインは `401 UNAUTHENTICATED`、権限なしは `403`、DB の夜間停止は `503 DB_UNAVAILABLE`。見えないアプリは `404`（AD-16）、AI の答えの形の崩れは `422 AI_RESPONSE_INVALID`、AI の会社のエラーは `502 AI_PROVIDER_ERROR`（AD-20）、ほかの人が書く記録を持つアカウントの削除は `409 ACCOUNT_OWNS_SHARED_RECORDS`（AD-19） |
 | 一覧画面の更新 | TanStack Query の読み直しを5秒おきにする（つなぎっぱなしの仕組みは使わない）。チェックインと修正の後は、その場で読み直す |
 | 書き出し | API が作る UTF-8 の BOM つきの CSV。参加者の CSV は reception、困りごとの CSV は survey（どちらも主催者だけ）。作り方（BOM・CRLF・式として読まれない守り）は `packages/` の CSV の包み、画面のダウンロードは `apps/web/src/lib/download.ts` の1つずつ（AD-18。core-004 でまとめる） |
-| ログ | pino の JSON を標準出力へ（Cloud Logging が拾う）。困りごとの本文・IDトークン・クッキー・利用者の API キー・OAuth のトークン・AI に送ったプロンプトと答えはログに書かない |
-| 設定 | 環境の違いは環境変数で持つ（`LINE_CHANNEL_IDS`・`ORGANIZER_LINE_USER_ID`・`OPEN_CHAT_URL`・`DATABASE_URL` など。読むのは `kernel/config.ts`）。例外は組み立てのときに埋める `VITE_LIFF_ID`。秘密の値は Secret Manager から Cloud Run に渡す。アプリの公開の状態と売り方は設定にせず、suite の表に持つ（AD-16） |
+| ログ | pino の JSON を標準出力へ（Cloud Logging が拾う）。困りごとの本文・IDトークン・クッキー・利用者の API キー・OAuth のトークン・AI に送ったプロンプトと答え・メールアドレス・LINE 公式アカウントの鍵・知らせの本文と札はログに書かない |
+| 設定 | 環境の違いは環境変数で持つ（`LINE_CHANNEL_IDS`・`ORGANIZER_LINE_USER_ID`・`OPEN_CHAT_URL`・`DATABASE_URL`・`NOTIFY_MODE`・`NOTIFY_ALLOWLIST`〈AD-24〉など。読むのは `kernel/config.ts`）。例外は組み立てのときに埋める `VITE_LIFF_ID`。秘密の値は Secret Manager から Cloud Run に渡す。アプリの公開の状態と売り方は設定にせず、suite の表に持つ（AD-16） |
 | 1行に1つの一覧 | 領域やアプリを足すたびに1行足すファイルは `merge=union`（[並行開発の決まり](../../docs/rules/parallel-development.md) 3-1）：API の領域・画面の領域・アプリの一覧（AD-15）・MCP のツールの一覧（AD-21）・`docs/decisions.md`（AD-18） |
 
 ## Stack
@@ -420,6 +462,7 @@ apps/api/src/platform/mcp/     # /api/mcp とツールの一覧（AD-21。MCP �
 | バックログ A 5〜7 使える権利・公開の ON/OFF・売り方 | suite | AD-16・AD-19 |
 | バックログ A 8 AIエージェントネイティブ（3つの段階・MCP） | 持ち主の領域の contracts・`kernel/ai`・`platform/mcp`・account | AD-20・AD-21 |
 | PRD 組織と Threads のチーム運用（組織・人と役割・招待・契約の持ち主／Threads の組織に入れる・関わりの判定・担当・承認を任せる・運用状況） | suite（組織・契約の持ち主）・threads（組織に入れる・担当・判定・運用状況） | AD-16・AD-19・AD-22 |
+| PRD 受付アプリの予約（交流会の持ち主と組織・部員／使い方・名簿・自前の申込み・定員とキャンセル待ち・知らせ） | event（持ち主・組織に入れる・判定）・booking（予約のすべて・知らせの業務）・`platform/notify`（送る道具）・reception（チェックインした人を出す） | AD-5・AD-19・AD-23・AD-24 |
 
 ## Open Questions
 
@@ -435,16 +478,21 @@ apps/api/src/platform/mcp/     # /api/mcp とツールの一覧（AD-21。MCP �
 
 6. MCP を作るときに試すこと：LINE ログインの Web 用のチャネルで、MCP の接続する側（Claude・ChatGPT など）からの流れ（ブラウザでのログイン → kanaeru の認可）が通るか。チャネルを「公開」にする（開発中は Admin と Tester しかログインできない）。CIMD だけでつながるか、DCR も残すか（ChatGPT は CIMD を優先しつつ DCR も使う）。LINE の規約がこの使い方を止めていないか。
 
+予約（AD-23・AD-24。2026-11-20 足した）で作る前・作りながら確かめること：
+
+7. LINE の公式アカウントの Webhook（友だち追加）→ あいさつのリンク → ミニアプリでの LINE ログイン、の流れで紐づけが通るか（各組織のプロバイダーと kanaeru のプロバイダーが違う前提）。通らなければ、紐づけは「友だち追加のあとに届く札を、申込みの画面で入れる」形にする。
+8. メールの送信のサービス（無料枠・日本の宛先への届きやすさ）と、kanaeru のドメイン（まだない。取ってから SPF・DKIM・DMARC を入れる）。決まるまで、メールは偽の送り手で作る。
+
 ## Deferred
 
 - **ステージングの環境**：交流会のあとに足す（2つ目の DB を同じ Cloud SQL の台に作る形を第一候補にする）。足したら AD-11 を直し、`develop` のマージでステージングに出す。
-- **独自のドメイン**：最初は Cloud Run の既定の URL。QR はミニアプリの URL なので（AD-14）、あとで変えても印刷した QR は使える。ただし OAuth の `issuer`・LINE ログインの戻り先・利用者が登録する MCP の URL は源に結びつくので、**MCP を作る前に**決める。
+- **独自のドメイン**〈2026-11-20 直した：予約のメール〈AD-24〉で要るので、メールを本番で送る前に取る。Open Questions 8〉：最初は Cloud Run の既定の URL。QR はミニアプリの URL なので（AD-14）、あとで変えても印刷した QR は使える。ただし OAuth の `issuer`・LINE ログインの戻り先・利用者が登録する MCP の URL は源に結びつくので、**MCP を作る前に**決める。
 - **監視と知らせ**：この版は Cloud Run の既定の指標と請求の予算の知らせ（AD-9）だけ。エラーの知らせは交流会のあとに決める。
 - **Cloudflare など、ほかの置き場所への乗り換え**：運用費が問題になったら考える（DB は PostgreSQL のまま）。
 - **マイクロサービスへの分け方**：分ける理由（特定のアプリだけ負荷が大きい・別の人が持つ）が出たら考える。分けるのは領域の単位で、`index.ts` の呼び出しがネットワーク越しになる。DB の台は共有して DB（名前）を分ける（原則 V）。分けやすさは AD-3・AD-18 と「領域をまたぐトランザクションを作らない」で守る。
 - **スイートの画面の切り替え（アプリの一覧・ナビ）**：決まりは AD-15（一覧と `canUseApp` から並べる）。見た目は2つ目のアプリの UX で決める。
 - **支払いの会社と料金の形**：売り始めるときに決める（AD-16 の `entitlement` の中身。持ち主の形〈アカウントか組織〉は AD-22 で決めてある。組織の契約で人数〈席〉を数えるかも、そのときに決める）。
-- **受付アプリをほかの主催者に開くこと**：開くと決めたら、`event` に持ち主の `account_id` を足して AD-5 を直す（AD-19 の形にそろえる）。受付係を組織（AD-22）の人から選ぶ形に移すかも、そのときに決める。
+- ~~**受付アプリをほかの主催者に開くこと**~~（2026-11-20 に AD-23 で決めた）。
 - **アプリの中の AI（AI が代わりに動く）のモデルと費用**：kanaeru が費用を持つ AI を入れるときに決める（いまは段階1・2で利用者が持つ。原則 V）。
 - **AI に許す操作の記録と回数の制限**：MCP を作るときに決める（AD-21）。
 - **夜間の停止と MCP・暮らしのアプリ**：0時〜8時は DB が止まるので、MCP と暮らしのアプリも使えない（`503 DB_UNAVAILABLE`）。暮らしのアプリか MCP を出すときに AD-10 を見直す。

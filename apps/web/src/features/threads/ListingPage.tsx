@@ -38,6 +38,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link, getRouteApi, useBlocker } from "@tanstack/react-router";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
+import { Disclosure } from "@workspace/ui/components/disclosure";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { Field, useFieldControl } from "@workspace/ui/components/field";
@@ -261,10 +262,9 @@ function SourcePanel({ promotion }: { promotion: Promotion }) {
             </div>
           ))}
       </dl>
-      <details className="text-s">
-        <summary className="cursor-pointer text-text-sub">宣伝したい内容</summary>
-        <p className="mt-x3s break-words whitespace-pre-wrap">{promotion.content}</p>
-      </details>
+      <Disclosure summary="宣伝したい内容" className="text-s">
+        <p className="break-words whitespace-pre-wrap">{promotion.content}</p>
+      </Disclosure>
     </aside>
   );
 }
@@ -566,16 +566,18 @@ function ListingEditor({ accountId, detail }: { accountId: string; detail: Listi
             </section>
           ) : null}
           {detail.listing.fixes.length > 0 ? (
-            <details>
-              <summary className="cursor-pointer text-m font-bold">{`自動で直した内容（${detail.listing.fixes.length}件）`}</summary>
-              <ul className="mt-xxs flex flex-col gap-x3s text-s">
+            <Disclosure
+              summary={`自動で直した内容（${detail.listing.fixes.length}件）`}
+              variant="heading"
+            >
+              <ul className="flex flex-col gap-x3s text-s">
                 {detail.listing.fixes.map((fix, index) => (
                   <li
                     key={`${fix.field}-${index.toString()}`}
                   >{`「${fix.excerpt}」を外しました（${fix.reason}）`}</li>
                 ))}
               </ul>
-            </details>
+            </Disclosure>
           ) : null}
           <section aria-labelledby="threads-listing-ai" className="flex flex-col gap-xs">
             <h2 id="threads-listing-ai" className="text-l font-bold">

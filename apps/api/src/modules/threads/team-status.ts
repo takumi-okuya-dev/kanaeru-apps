@@ -226,3 +226,101 @@ export async function getTeamStatus(
     accounts: accounts.map(strip),
   };
 }
+
+/**
+ * チームごとの止まっている数だけを、まとめて数える（チームの一覧の要約。threads-020）。
+ * getTeamStatus を範囲「そのチーム」で数えたときの stoppedCount と同じ数になる（伸びや並びは数えない）。
+ * 問い合わせは、運用アカウントの最後の投稿と、人の最後の動きの2つだけ（チームの数によらない）。
+ * @param db DB
+ * @param organizationId 組織の ID
+ * @param teams 数えるチーム（ID と、チームの人の ID）
+ * @param now 今
+ * @returns チームの ID → 止まっている人と運用アカウントの数
+ */
+export async function countStoppedByTeam(
+  db: Executor,
+  organizationId: string,
+  teams: readonly { id: string; memberIds: readonly string[] }[],
+  now: Date = new Date(),
+): Promise<Map<string, number>> {
+  const result = new Map(teams.map((row) => [row.id, 0]));
+  if (teams.length === 0) return result;
+  const stoppedBefore = now.getTime() - TEAM_STATUS_STOPPED_DAYS * DAY_MS;
+  const teamIds = teams.map((row) => row.id);
+
+  // 運用アカウント：組織に入れた日のあとの最後の投稿（なければ入れた日）が7日より前なら止まっている
+  const placed = await db
+    .select({
+      teamId: threadsOrganizationAccount.teamId,
+      ownerId: threadsAccount.accountId,
+      placedAt: threadsOrganizationAccount.placedAt,
+      lastPostedAt: sql<
+        Date | string | null
+      >`max(${threadsPostDraft.publishedAt}) FILTER (WHERE ${threadsPostDraft.status} = 'published' AND ${threadsPostDraft.publishedAt} >= ${threadsOrganizationAccount.placedAt})`,
+    })
+    .from(threadsOrganizationAccount)
+    .innerJoin(threadsAccount, eq(threadsAccount.id, threadsOrganizationAccount.threadsAccountId))
+    .leftJoin(threadsPostDraft, eq(threadsPostDraft.threadsAccountId, threadsAccount.id))
+    .where(
+      and(
+        eq(threadsOrganizationAccount.organizationId, organizationId),
+        inArray(threadsOrganizationAccount.teamId, teamIds),
+      ),
+    )
+    .groupBy(
+      threadsOrganizationAccount.teamId,
+      threadsAccount.id,
+      threadsAccount.accountId,
+      threadsOrganizationAccount.placedAt,
+    );
+  for (const row of placed) {
+    const last = row.lastPostedAt ? new Date(row.lastPostedAt).getTime() : 0;
+    if (Math.max(last, row.placedAt.getTime()) < stoppedBefore) {
+      result.set(row.teamId, (result.get(row.teamId) ?? 0) + 1);
+    }
+  }
+
+  // 人：チームの人と、チームの運用アカウントの持ち主。そのチームの運用アカウントで、入れたあとの動きだけを数える
+  const activity = await db
+    .select({
+      teamId: threadsOrganizationAccount.teamId,
+      actorId: threadsActivityLog.actorAccountId,
+      lastActiveAt: sql<Date | string | null>`max(${threadsActivityLog.createdAt})`,
+    })
+    .from(threadsActivityLog)
+    .innerJoin(
+      threadsOrganizationAccount,
+      eq(threadsOrganizationAccount.threadsAccountId, threadsActivityLog.threadsAccountId),
+    )
+    .where(
+      and(
+        eq(threadsOrganizationAccount.organizationId, organizationId),
+        inArray(threadsOrganizationAccount.teamId, teamIds),
+        sql`${threadsActivityLog.createdAt} >= ${threadsOrganizationAccount.placedAt}`,
+        sql`${threadsActivityLog.action} IN (${sqlList(TEAM_STATUS_ACTIVITY_ACTIONS)})`,
+      ),
+    )
+    .groupBy(threadsOrganizationAccount.teamId, threadsActivityLog.actorAccountId);
+  const lastActive = new Map(
+    activity.map((row) => [
+      `${row.teamId}:${row.actorId ?? ""}`,
+      row.lastActiveAt ? new Date(row.lastActiveAt).getTime() : 0,
+    ]),
+  );
+  const members = await listMembers(db, organizationId);
+  for (const team of teams) {
+    const ids = new Set([
+      ...team.memberIds,
+      ...placed.filter((row) => row.teamId === team.id).map((row) => row.ownerId),
+    ]);
+    for (const member of members) {
+      if (!ids.has(member.accountId)) continue;
+      const last = lastActive.get(`${team.id}:${member.accountId}`) ?? 0;
+      // 一度も動いていない人は、入った日から数える（getTeamStatus と同じ）
+      if (Math.max(last, member.joinedAt.getTime()) < stoppedBefore) {
+        result.set(team.id, (result.get(team.id) ?? 0) + 1);
+      }
+    }
+  }
+  return result;
+}
