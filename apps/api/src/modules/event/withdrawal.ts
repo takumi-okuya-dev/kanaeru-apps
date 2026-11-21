@@ -47,7 +47,9 @@ async function deletePersonalEvents(tx: Executor, accountId: string): Promise<vo
     .select({ id: event.id })
     .from(event)
     .leftJoin(eventOrganization, eq(eventOrganization.eventId, event.id))
-    .where(and(eq(event.ownerAccountId, accountId), isNull(eventOrganization.eventId)));
+    .where(and(eq(event.ownerAccountId, accountId), isNull(eventOrganization.eventId)))
+    // 消すまでの間に、ほかの要求がこの交流会を組織に入れたり直したりしないよう押さえる（外側の結合の側は押さえられないので event だけ）
+    .for("update", { of: event });
   const ids = rows.map((row) => row.id);
   if (ids.length === 0) return;
   await tx.delete(eventStaff).where(inArray(eventStaff.eventId, ids));
