@@ -26,6 +26,12 @@ export const ORGANIZATION_MEMBER_LIMIT = 50;
 /** 1つの組織の編集者の数の上限（PRD O1 の仮決め）。 */
 export const ORGANIZATION_EDITOR_LIMIT = 10;
 
+/** チームの名前の長さの上限（前後の空白を除いて。suite-003 の仮決め）。 */
+export const TEAM_NAME_MAX = 30;
+
+/** 1つの組織のチームの数の上限（suite-003 の仮決め）。 */
+export const TEAM_LIMIT = 20;
+
 /** 招待の札の形（base64url の43文字。32バイトの乱数）。 */
 export const ORGANIZATION_INVITE_TOKEN_FORMAT = /^[A-Za-z0-9_-]{43}$/;
 
@@ -86,6 +92,30 @@ export const ORGANIZATION_ERRORS = {
     code: "ORGANIZATION_MEMBER_NOT_FOUND",
     status: 404,
     message: "その人は、この組織にいません。読みこみ直してください。",
+  },
+  /** チームがない（消えた・別の組織のチーム） */
+  TEAM_NOT_FOUND: {
+    code: "TEAM_NOT_FOUND",
+    status: 404,
+    message: "チームが見つかりません。消された可能性があります。読みこみ直してください。",
+  },
+  /** チームの数の上限 */
+  TEAM_LIMIT: {
+    code: "TEAM_LIMIT",
+    status: 409,
+    message: `チームは1つの組織に${TEAM_LIMIT}まで作れます。使わないチームを消してから作ってください。`,
+  },
+  /** 同じ組織に同じ名前のチームがある */
+  TEAM_NAME_TAKEN: {
+    code: "TEAM_NAME_TAKEN",
+    status: 409,
+    message: "同じ名前のチームがあります。別の名前にしてください。",
+  },
+  /** 相手がチームの人でない（足すときは組織の人でない） */
+  TEAM_MEMBER_NOT_FOUND: {
+    code: "TEAM_MEMBER_NOT_FOUND",
+    status: 404,
+    message: "その人は、この組織かチームにいません。読みこみ直してください。",
   },
 } as const;
 

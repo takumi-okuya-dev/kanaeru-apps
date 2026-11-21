@@ -1,6 +1,7 @@
 // 設定 › 組織 › 組織の画面（/settings/organizations/{id}。suite-001・PRD 組織 4.1〜4.4・FR-O52〜FR-O55）。
 // - 組織の人（表示名・役割・入った日）は組織の人の全員に出す。見ている人に「あなた」、管理者には前に見てから入った人に「新しい人」
 // - 管理者だけ：役割の切り替え（メンバー⇔編集者）・外す・招待のリンクと QR・管理者を引き継ぐ・名前を直す・組織を消す
+// - チーム（suite-003）：OrganizationTeams.tsx。名前・人・リーダーは全員に、作る・分ける・消すは管理者だけ
 // - 抜ける：編集者・メンバーはいつでも。管理者は引き継ぐ人を選んでから（選ぶまで押せない）。ほかに誰もいなければ、組織を消すよう案内する
 // - アプリが足す入口（lib/organization.ts）は、見えるアプリの分だけ出す
 // 判定の正は API（suite の requireOrganizationRole）。ここは出し分けるだけ。結果は押したボタンのそば、画面が変わるときだけ知らせの帯。
@@ -24,6 +25,7 @@ import { visibleOrganizationExtensions } from "../../lib/organization.ts";
 import { Page } from "../../lib/page.tsx";
 import { SessionGate } from "../account/index.ts";
 import { OrganizationQr } from "./OrganizationQr.tsx";
+import { TeamsSection } from "./OrganizationTeams.tsx";
 import {
   deleteOrganization,
   leaveOrganization,
@@ -264,7 +266,7 @@ function MembersSection({ organization }: { organization: OrganizationDetail }) 
         onConfirm={() => void remove()}
       >
         <p>
-          外すと、その人のアプリの中の担当と、その人が組織に入れていた記録の「組織に入れる」が消えます。記録とそのデータは、その人の個人のものとして残ります。
+          外すと、その人のチームと、アプリの中の担当と、その人がチームに入れていた記録の「チームに入れる」が消えます。記録とそのデータは、その人の個人のものとして残ります。
         </p>
       </ConfirmDialog>
     </Section>
@@ -607,7 +609,7 @@ function LeaveSection({ organization }: { organization: OrganizationDetail }) {
   return (
     <Section id="organization-leave-heading" title="組織を抜ける">
       <p className="text-s text-text-sub">
-        抜けると、あなたが組織に入れていた記録は組織から外れ、あなたの個人のものに戻ります。あなたのアプリの中の担当も消えます。
+        抜けると、あなたがチームに入れていた記録はチームから外れ、あなたの個人のものに戻ります。あなたのチームとアプリの中の担当も消えます。
       </p>
       {isAdmin ? (
         <>
@@ -688,7 +690,7 @@ function DeleteSection({ organization }: { organization: OrganizationDetail }) {
   return (
     <Section id="organization-delete-heading" title="組織を消す">
       <p className="text-s text-text-sub">
-        組織の人・招待のリンク・アプリの中の担当と「組織に入れる」がすべて消えます。アプリの記録とそのデータは、持ち主の個人のものとして残ります。
+        組織の人・チーム・招待のリンク・アプリの中の担当と「チームに入れる」がすべて消えます。アプリの記録とそのデータは、持ち主の個人のものとして残ります。
       </p>
       <div>
         <Button
@@ -713,7 +715,7 @@ function DeleteSection({ organization }: { organization: OrganizationDetail }) {
       >
         <p>
           組織の人{organization.members.length}
-          人・招待のリンク・アプリの中の担当と「組織に入れる」が消えます。アプリの記録は、持ち主の個人のものとして残ります。元に戻せません。
+          人・チーム・招待のリンク・アプリの中の担当と「チームに入れる」が消えます。アプリの記録は、持ち主の個人のものとして残ります。元に戻せません。
         </p>
       </ConfirmDialog>
     </Section>
@@ -796,6 +798,7 @@ function OrganizationContent({ organizationId }: { organizationId: string }) {
       </div>
       <AppLinksSection organization={organization} />
       <MembersSection organization={organization} />
+      <TeamsSection organization={organization} />
       {isAdmin ? <InviteSection organization={organization} /> : null}
       <TransferSection organization={organization} />
       {isAdmin ? <RenameSection key={organization.name} organization={organization} /> : null}

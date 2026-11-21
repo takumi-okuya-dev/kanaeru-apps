@@ -45,9 +45,10 @@ describe("伸び（直近30日 ÷ その前の30日の中央値）", () => {
 });
 
 describe("チーム運用の入力", () => {
-  it("組織に入れるは組織の ID か null（外す）", () => {
-    expect(ThreadsPlacementInput.safeParse({ organizationId: null }).success).toBe(true);
-    expect(ThreadsPlacementInput.safeParse({ organizationId: "x" }).success).toBe(false);
+  it("チームに入れるはチームの ID か null（外す）。組織の ID では受け取らない", () => {
+    expect(ThreadsPlacementInput.safeParse({ teamId: null }).success).toBe(true);
+    expect(ThreadsPlacementInput.safeParse({ teamId: "x" }).success).toBe(false);
+    expect(ThreadsPlacementInput.safeParse({ organizationId: null }).success).toBe(false);
     expect(ThreadsPlacementInput.safeParse({}).success).toBe(false);
   });
 

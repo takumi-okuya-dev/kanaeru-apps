@@ -14,7 +14,7 @@
 
 **Primary Dependencies**: Hono・@hono/zod-openapi・zod 4・Drizzle 0.45・React 19・TanStack Router/Query・`@workspace/secret-box`（新しい依存なし。LINE の SDK は入れず、3つの窓口を `fetch` で呼ぶ）
 
-**Storage**: PostgreSQL（表を5つ足す DB の変更を1つ：`0016_booking_notify.sql`）
+**Storage**: PostgreSQL（表を5つ足す DB の変更を1つ：`0017_booking_notify.sql`）
 
 **Testing**: Vitest（`platform/notify` の単体・booking の API の結合〈本物の PostgreSQL〉・約束と画面の単体）・Playwright（`e2e/tests/booking-notify.spec.ts`。axe・1440px と 375px）
 
@@ -94,7 +94,7 @@ apps/api/src/modules/booking/
 ├── routes-webhook.ts   # Webhook
 ├── routes.ts           # 上の2つをつなぐ
 └── withdrawal.ts       # 個人の設定を確かめの中身に足す
-apps/api/drizzle/0016_booking_notify.sql
+apps/api/drizzle/0017_booking_notify.sql
 apps/web/src/features/booking/
 ├── notify-api.ts・notify-queries.ts
 ├── NotifySettingsPage.tsx  # A4（個人・組織）
@@ -106,7 +106,7 @@ docs/apps/booking.md・docs/architecture.md（platform/notify の1行）・_bmad
 
 ## PR の分け方
 
-1. `feature/booking-002-notify`（DB の変更の PR）：仕様のフォルダ・`packages/contracts/src/booking/notify-options.ts`（CHECK の値）・`apps/api/src/modules/booking/schema.ts` の5つの表・`0016_booking_notify.sql`・選択肢の値と制約の結合のテスト。
+1. `feature/booking-002-notify`（DB の変更の PR）：仕様のフォルダ・`packages/contracts/src/booking/notify-options.ts`（CHECK の値）・`apps/api/src/modules/booking/schema.ts` の5つの表・`0017_booking_notify.sql`・選択肢の値と制約の結合のテスト。
 2. `feature/booking-002-pr2-notify`（1の上）：共通（`kernel/config.ts`・`kernel/notifier.ts`・`kernel/http.ts`・`platform/notify`・`app.ts`・`participant-paths.ts`・`.env.example`）を1つ目のコミットに分け、そのあと booking の窓口・Webhook・紐づけ・画面・E2E・文書。共通の変更は、並行開発の決まり 3-3 では小さな共通の PR に分けて先に入れる形なので、PR を出すときにユーザーに分けるかを確かめる（コミットを分けておく）。
 
 ## Complexity Tracking
