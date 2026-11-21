@@ -13,7 +13,7 @@ import { useVisibleSettingsSections } from "./settings-sections.ts";
 export function SettingsIndexPage() {
   const sections = useVisibleSettingsSections();
   return (
-    <Page title="設定" lead="どのアプリでも共通の設定と、アプリごとの設定です。">
+    <Page title="全体の設定" lead="どのアプリでも共通の設定と、アプリごとの設定です。">
       {SETTINGS_GROUPS.map((group) => {
         const items = sections.filter((section) => section.group === group);
         if (items.length === 0) return null;
