@@ -1,8 +1,9 @@
 // 戦略の進み（threads-012。めぐるの components/strategy/ProgressCard.tsx・SectionChips.tsx）。
-// 十分に書けた項目の数・短めの数・活動の目的の n/5問・進みの棒・「次におすすめ」と、区分へ移るチップ（区分ごとの十分の数）。
+// 十分に書けた項目の数・短めの数・活動の目的の n/5問・進みの棒・「次におすすめ」。区分のタブ（上に固定。区分ごとの十分の数）は StrategySectionTabs。
 // 進みの棒は16の目盛りで描く（見た目の値は tokens.css の名前だけ。幅の値を直に書かない）。
 import { STRATEGY_SECTIONS, STRATEGY_TOTAL, strategyFieldOf } from "@workspace/contracts/threads";
 import type { StrategyCheck, StrategySectionId } from "@workspace/contracts/threads";
+import type * as React from "react";
 import { jstDateTime } from "@workspace/contracts/core";
 import { Button } from "@workspace/ui/components/button";
 import { cn } from "@workspace/ui/lib/cn";
@@ -26,25 +27,12 @@ export function strategyFieldElementId(key: string): string {
 }
 
 /**
- * 閉じている区分（「詳しく」の開け閉め）の中にあれば、外側から開く（threads-017）。
- * @param element 移る先の要素
- */
-export function openAncestors(element: HTMLElement): void {
-  let details = element.closest("details");
-  while (details) {
-    details.open = true;
-    details = details.parentElement?.closest("details") ?? null;
-  }
-}
-
-/**
  * 項目へ移り、入力の欄にフォーカスを置く。
  * @param key 項目のキー
  */
 export function goToStrategyField(key: string): void {
   const element = document.getElementById(strategyFieldElementId(key));
   if (!element) return;
-  openAncestors(element);
   element.scrollIntoView?.({ behavior: "smooth", block: "center" });
   element.querySelector<HTMLElement>("textarea, input")?.focus({ preventScroll: true });
 }
@@ -55,6 +43,10 @@ export type StrategyProgressProps = {
   check: StrategyCheck;
   /** 最後に保存した日時（まだなら null） */
   updatedAt: string | null;
+  /** 項目へ移る（その項目の区分を見せてから移る） */
+  onGoToField: (key: string) => void;
+  /** カードの下に足すもの（全体を AI と見直す） */
+  children?: React.ReactNode;
 };
 
 /**
@@ -62,7 +54,12 @@ export type StrategyProgressProps = {
  * @param props 自動チェック（check）・最後に保存した日時（updatedAt）
  * @returns 要素
  */
-export function StrategyProgress({ check, updatedAt }: StrategyProgressProps) {
+export function StrategyProgress({
+  check,
+  updatedAt,
+  onGoToField,
+  children,
+}: StrategyProgressProps) {
   const next = check.next ? strategyFieldOf(check.next) : null;
   return (
     <section
@@ -112,7 +109,7 @@ export function StrategyProgress({ check, updatedAt }: StrategyProgressProps) {
             size="small"
             variant="secondary"
             aria-label={`次におすすめ：${next.label}`}
-            onClick={() => goToStrategyField(next.key)}
+            onClick={() => onGoToField(next.key)}
           >
             {`次におすすめ：${next.label}`}
           </Button>
@@ -123,30 +120,74 @@ export function StrategyProgress({ check, updatedAt }: StrategyProgressProps) {
           {updatedAt ? `最後に保存：${jstDateTime(updatedAt)}` : "まだ保存していません"}
         </p>
       </div>
-      <nav aria-label="区分へ移る" className="flex flex-wrap gap-xxs">
+      {children}
+    </section>
+  );
+}
+
+/** StrategySectionTabs が受け取るもの。 */
+export type StrategySectionTabsProps = {
+  /** 自動チェック */
+  check: StrategyCheck;
+  /** 今の区分 */
+  current: StrategySectionId;
+  /** 区分を選ぶ */
+  onSelect: (id: StrategySectionId) => void;
+  /** 右の操作（保存） */
+  actions?: React.ReactNode;
+};
+
+/**
+ * 区分のタブ（画面の上に固定する。完了の数・区分ごとの「十分」の数・今の区分。めぐるの SectionChips の形。threads-017）。
+ * 狭い画面では、タブの並びだけが横に送れる（画面は横に動かない）。重なりの値は付けない（ダイアログが上に来る。DESIGN.md zIndex）。
+ * @param props 自動チェック・今の区分・選ぶ・右の操作
+ * @returns 要素
+ */
+export function StrategySectionTabs({
+  check,
+  current,
+  onSelect,
+  actions,
+}: StrategySectionTabsProps) {
+  return (
+    <div className="sticky top-0 -mx-xs flex flex-col gap-x3s border-b border-border bg-background px-xs py-xxs">
+      <div className="flex items-center gap-xxs">
+        <p className="shrink-0 text-s tabular-nums">{`完了 ${check.done}/${STRATEGY_TOTAL}`}</p>
+        <div className="flex-1" />
+        {actions}
+      </div>
+      <nav aria-label="区分" className="flex gap-xxs overflow-x-auto pb-x3s">
         {STRATEGY_SECTIONS.map((section) => {
           const counts = check.sections[section.id];
           const complete = counts !== null && counts.done === counts.total;
-          const mark =
-            counts === null ? "" : complete ? "（済み）" : `（${counts.done}/${counts.total}）`;
+          const on = current === section.id;
           return (
-            <Button
+            <button
               key={section.id}
-              size="small"
-              variant="secondary"
-              onClick={() => {
-                const target = document.getElementById(strategySectionElementId(section.id));
-                if (!target) return;
-                openAncestors(target);
-                if (target instanceof HTMLDetailsElement) target.open = true;
-                target.scrollIntoView?.({ behavior: "smooth", block: "start" });
-              }}
+              type="button"
+              aria-current={on ? "true" : undefined}
+              onClick={() => onSelect(section.id)}
+              className={cn(
+                "inline-flex min-h-l shrink-0 items-center gap-x3s rounded-full border px-xs text-s whitespace-nowrap",
+                on
+                  ? "border-primary bg-primary font-bold text-on-primary"
+                  : "border-border-input bg-surface text-text hover:bg-surface-over",
+              )}
             >
-              {`${section.chip}${mark}`}
-            </Button>
+              {section.chip}
+              {counts ? (
+                <>
+                  {" "}
+                  <span className="tabular-nums">
+                    {complete ? "✓" : `${counts.done}/${counts.total}`}
+                  </span>
+                </>
+              ) : null}
+              {complete ? <span className="sr-only">（済み）</span> : null}
+            </button>
           );
         })}
       </nav>
-    </section>
+    </div>
   );
 }
