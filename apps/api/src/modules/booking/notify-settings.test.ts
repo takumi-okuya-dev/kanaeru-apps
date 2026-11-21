@@ -181,6 +181,47 @@ describe("公式アカウントとメールの設定", () => {
     expect(switched.line?.linkedCount).toBe(0);
   });
 
+  it("シークレットだけの保存は、書くときに押さえた行のボット情報を残す（同時にトークンを入れ替えても古い値で上書きしない）", async () => {
+    await saveLine(app, admin.cookie, organizationId);
+    // シークレットだけの保存が読んだあと・書く前に、ほかの管理者がトークンを別の公式アカウントのものに入れ替えたとする
+    let interleave: (() => Promise<unknown>) | undefined = () =>
+      database.pool.query("UPDATE booking_line_channel SET basic_id = '@fake2', bot_user_id = $1", [
+        `U${"e".repeat(32)}`,
+      ]);
+    const racing = {
+      ...database,
+      db: new Proxy(database.db, {
+        get(target, property, receiver) {
+          const value: unknown = Reflect.get(target, property, receiver);
+          if (property !== "transaction" || !interleave || typeof value !== "function") {
+            return value;
+          }
+          const run = interleave;
+          interleave = undefined;
+          return async (...args: unknown[]) => {
+            await run();
+            return (value as (...inner: unknown[]) => unknown).apply(target, args);
+          };
+        },
+      }),
+    };
+    const racingApp = buildApp(racing, notifyConfig(), { logger: log.logger });
+    const response = await call(
+      racingApp,
+      admin.cookie,
+      `${notifyBase(organizationId)}/line`,
+      "PUT",
+      {
+        channelSecret: "d".repeat(32),
+      },
+    );
+    expect(response.status).toBe(200);
+    const bot = await database.pool.query<{ basic_id: string; bot_user_id: string }>(
+      "SELECT basic_id, bot_user_id FROM booking_line_channel",
+    );
+    expect(bot.rows).toEqual([{ basic_id: "@fake2", bot_user_id: `U${"e".repeat(32)}` }]);
+  });
+
   it("同じチャネル ID は、ほかの持ち主の設定に入れられない（409）", async () => {
     await saveLine(app, admin.cookie, organizationId);
     const taken = await call(

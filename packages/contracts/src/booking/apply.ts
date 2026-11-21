@@ -176,6 +176,11 @@ export const EntryTokenView = z.object({
     .nullable(),
   /** 確認の前なら、確定できるか（受付中か） */
   confirmable: z.boolean(),
+  /**
+   * このリンクは使い終わったか（打診の知らせの返事の札で答えた。返事の札は打診を閉じると使えなくなる。
+   * 見る・取り消すは申込みのときのメールのリンクから。booking-004 R8）
+   */
+  linkSpent: z.boolean(),
   calendar: CalendarLinks,
 });
 

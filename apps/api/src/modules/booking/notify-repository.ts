@@ -1,6 +1,6 @@
 // 予約の知らせの表の読み書き（公式アカウントの設定・紐づけ・札・連絡のメールアドレス・知らせの記録。booking-002）。
 // 表は booking の領域だけが読み書きする（AD-3）。鍵・札・宛先はログに出さない。
-import { and, count, eq, gte, isNull, or } from "drizzle-orm";
+import { and, count, eq, gt, gte, isNull, or } from "drizzle-orm";
 import type {
   EntryStatus,
   NoticeKind,
@@ -345,6 +345,44 @@ export async function lockTokensOfLineUser(
       ),
     )
     .for("update");
+}
+
+/**
+ * その LINE の友だちが、もう紐づいているか、使える（使っていない・期限の前の）札を持っているか
+ * （友だち追加の送り直しで、あいさつを送り直すかを決める。booking-002 research R4）。
+ * @param db DB
+ * @param channelId 設定の行の ID
+ * @param lineUserId LINE のユーザー ID
+ * @param now 今の時刻
+ * @returns 紐づいているか、使える札があれば true
+ */
+export async function hasLinkOrUsableToken(
+  db: Executor,
+  channelId: string,
+  lineUserId: string,
+  now: Date,
+): Promise<boolean> {
+  const [link] = await db
+    .select({ id: bookingLineLink.id })
+    .from(bookingLineLink)
+    .where(
+      and(eq(bookingLineLink.channelId, channelId), eq(bookingLineLink.lineUserId, lineUserId)),
+    )
+    .limit(1);
+  if (link) return true;
+  const [token] = await db
+    .select({ id: bookingLineLinkToken.id })
+    .from(bookingLineLinkToken)
+    .where(
+      and(
+        eq(bookingLineLinkToken.channelId, channelId),
+        eq(bookingLineLinkToken.lineUserId, lineUserId),
+        isNull(bookingLineLinkToken.usedAt),
+        gt(bookingLineLinkToken.expiresAt, now),
+      ),
+    )
+    .limit(1);
+  return token !== undefined;
 }
 
 /**

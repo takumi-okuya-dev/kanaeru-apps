@@ -42,6 +42,8 @@ import {
 import { findMembership, listMemberships } from "../suite/index.ts";
 import {
   cancelEntryRow,
+  clearOfferTokens,
+  consumeRequestsOf,
   countRecentRequests,
   deleteConsent,
   deleteExpiredRequests,
@@ -753,7 +755,7 @@ export async function requestEmailApply(
       throw new AppError(BOOKING_ERRORS.EMAIL_REQUEST_LIMIT);
     }
     const latest = await findLatestRequestAt(tx, eventId, input.email);
-    // 同じアドレスは10分に1通（送らずに同じ答え。S6・S7）
+    // 同じアドレスは10分に1通（送らずに同じ答え。S6・S7）。確定した待ちも残っているので、確定の直後でも縛りは効く
     if (latest && now.getTime() - latest.getTime() < EMAIL_REQUEST_RESEND_MINUTES * MINUTE_MS) {
       return null;
     }
@@ -837,10 +839,16 @@ async function tokenOwner(
  * @param deps 道具
  * @param entry 申込み
  * @param now 今の時刻
+ * @param linkSpent このリンクを使い終わったか（返事の札で答えた）
  * @returns 札のページ
  * @throws {AppError} 交流会が消えたとき（404 BOOKING_ENTRY_TOKEN_INVALID）
  */
-async function entryView(deps: ApplyDeps, entry: SelfEntry, now: Date): Promise<EntryTokenView> {
+async function entryView(
+  deps: ApplyDeps,
+  entry: SelfEntry,
+  now: Date,
+  linkSpent = false,
+): Promise<EntryTokenView> {
   const found = await eventLookup(deps)(entry.eventId);
   if (!found) throw new AppError(BOOKING_ERRORS.ENTRY_TOKEN_INVALID);
   const { event, hostName } = found;
@@ -852,10 +860,12 @@ async function entryView(deps: ApplyDeps, entry: SelfEntry, now: Date): Promise<
     name: entry.name,
     entry: {
       status: entry.status,
-      cancellable: isCancellable(entry.status, startsOf(event), now),
+      // 使い終わった返事の札では取り消せないので、取り消す入口を出さない
+      cancellable: !linkSpent && isCancellable(entry.status, startsOf(event), now),
       ...standingOf(seats, entry.id, startsOf(event), now),
     },
     confirmable: false,
+    linkSpent,
     calendar: calendarLinks(deps, event, hostName),
   };
 }
@@ -866,7 +876,7 @@ async function entryView(deps: ApplyDeps, entry: SelfEntry, now: Date): Promise<
  * @param token 札
  * @param now 今の時刻
  * @returns 札のページ
- * @throws {AppError} 知らない札（404）・期限切れの確認の札（410）のとき
+ * @throws {AppError} 知らない札（404）・期限切れの確認の札（410）・確認の前の札で部員だけの会（403）のとき
  */
 export async function readEntryToken(
   deps: ApplyDeps,
@@ -884,6 +894,9 @@ export async function readEntryToken(
   const found = await eventLookup(deps)(request.eventId);
   if (!found) throw new AppError(BOOKING_ERRORS.ENTRY_TOKEN_INVALID);
   const setting = await findPageSetting(deps.db, request.eventId);
+  // 確認の前の札は、まだ申込みではない。誰でもの会のときに頼んだ札でも、主催者が部員だけにしたあとは、
+  // 会の中身（日時・場所・会費・カレンダー）を返さない（部員だけの決まりの抜け道にしない。research R8）
+  if (setting.visibility !== "public") throw new AppError(BOOKING_ERRORS.PAGE_MEMBERS_ONLY);
   return {
     state: "pending",
     event: applyEventOf(found.event),
@@ -894,6 +907,7 @@ export async function readEntryToken(
       setting.mode === "self_page" &&
       setting.visibility === "public" &&
       pageStateOf(setting, startsOf(found.event), now) === "open",
+    linkSpent: false,
     calendar: calendarLinks(deps, found.event, found.hostName),
   };
 }
@@ -934,6 +948,10 @@ export async function confirmEntryToken(
     if (!context) throw new AppError(BOOKING_ERRORS.ENTRY_TOKEN_INVALID);
     const startsAt = startsOf(context.event);
     assertEmailOpen(await findPageSetting(tx, request.eventId, true), context.event, now);
+    // もう申込みがあれば、片付けの前に前の打診の返事の札を空にする（新しい札に替えると前のリンクは使えない。booking-003 R10）。
+    // 片付けのあとに空にすると、片付けで今送ろうとしている新しい打診の返事の札まで消してしまう
+    const prior = await findEntryByContactEmail(tx, request.eventId, request.email);
+    if (prior && prior.status !== "cancelled") await clearOfferTokens(tx, prior.id);
     // 片付け（期限切れ・打診）のあとに、そのアドレスの申込みを読む（期限の切れた打診中を見ないように。booking-004 R9）
     await settleEvent(deps, tx, request.eventId, startsAt, now, queue);
     const existing = await findEntryByContactEmail(tx, request.eventId, request.email, true);
@@ -972,7 +990,8 @@ export async function confirmEntryToken(
         changed = true;
       }
     }
-    await deleteRequestsOf(tx, request.eventId, request.email);
+    // 待ちは消さずに札で引けない形にする（回数の縛りの記録を残す。research R11）
+    await consumeRequestsOf(tx, request.eventId, request.email);
     if (changed) {
       const link = entryTokenUrl(deps, request.eventId, token);
       await queueApplied(deps, tx, context, { ...entry, accountId: null }, link, now, queue);
@@ -1039,5 +1058,6 @@ export async function respondEntryToken(
   );
   const after = await findSelfEntry(deps.db, own.id);
   if (!after) throw new AppError(BOOKING_ERRORS.ENTRY_TOKEN_INVALID);
-  return entryView(deps, after, now);
+  // 返事の札で答えたら、打診が閉じて札は使えなくなる（この答えが、その札で読める最後の答え）
+  return entryView(deps, after, now, found.viaOffer && after.status !== "offered");
 }

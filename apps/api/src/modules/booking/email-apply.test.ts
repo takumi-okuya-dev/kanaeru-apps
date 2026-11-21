@@ -138,8 +138,11 @@ describe("メールで申し込む", () => {
       (await anonymous(app, `/api/v1/booking/entry-tokens/${token}/confirm`, "POST")).status,
     ).toBe(200);
     expect((await readRoster(app, owner.cookie, eventId)).entries).toHaveLength(1);
-    const requests = await database.pool.query("SELECT 1 FROM booking_email_request");
-    expect(requests.rowCount).toBe(0);
+    // 確定した待ちは、札で引けない形で残る（回数の縛りの記録。research R11）
+    const requests = await database.pool.query<{ token_hash: string }>(
+      "SELECT token_hash FROM booking_email_request",
+    );
+    expect(requests.rows.map((row) => row.token_hash.startsWith("consumed:"))).toEqual([true]);
   });
 
   it("同じ札で取り消せる。始まりを過ぎたら 409", async () => {
@@ -180,6 +183,8 @@ describe("メールで申し込む", () => {
       "SELECT contact_email FROM booking_entry",
     );
     expect(stored.rows).toEqual([{ contact_email: null }]);
+    // 回数の縛りのために残していた確認の待ちも消える
+    expect((await database.pool.query("SELECT 1 FROM booking_email_request")).rowCount).toBe(0);
     // 札のページでは取り消しのまま見られる
     expect(
       await (await anonymous(app, `/api/v1/booking/entry-tokens/${token}`)).json(),
@@ -243,6 +248,21 @@ describe("メールで申し込む", () => {
     expect((await readRoster(app, owner.cookie, eventId)).entries).toHaveLength(0);
   });
 
+  it("確認の前の札は、部員だけに変わった会の中身を返さない（403）。誰でもに戻せば読める", async () => {
+    const token = await requestToken();
+    const read = () => anonymous(app, `/api/v1/booking/entry-tokens/${token}`);
+    const organizationId = await setUpOrganization(app, owner.cookie, []);
+    await placeEvent(app, owner.cookie, eventId, organizationId);
+    await openSelfPage(app, owner.cookie, eventId, { visibility: "members" });
+    const hidden = await read();
+    expect(hidden.status).toBe(403);
+    const body = await hidden.text();
+    expect(body).toContain("BOOKING_PAGE_MEMBERS_ONLY");
+    expect(body).not.toContain("土曜の練習");
+    await openSelfPage(app, owner.cookie, eventId);
+    expect((await read()).status).toBe(200);
+  });
+
   it("同じ札で同時に2回確定しても、申込みは1行", async () => {
     const token = await requestToken();
     const path = `/api/v1/booking/entry-tokens/${token}/confirm`;
@@ -282,6 +302,22 @@ describe("メールで申し込む", () => {
     expect(second).not.toBe(first);
     expect(await mails()).toHaveLength(2);
     expect((await anonymous(app, `/api/v1/booking/entry-tokens/${first}`)).status).toBe(404);
+  });
+
+  it("確定の直後にもう一度頼んでも、10分のうちは送らない（確定で待ちが消えても縛りは残る）", async () => {
+    const first = await requestToken();
+    await anonymous(app, `/api/v1/booking/entry-tokens/${first}/confirm`, "POST");
+    const before = (await mails()).length;
+    const again = await requestMail();
+    expect(again.status).toBe(202);
+    expect(await again.json()).toEqual({ accepted: true });
+    expect(await mails()).toHaveLength(before);
+    expect((await anonymous(app, `/api/v1/booking/entry-tokens/${first}`)).status).toBe(200);
+    // 確定した待ちは札で引けない形で残り、直近1時間の上限にも数える
+    const kept = await database.pool.query<{ token_hash: string }>(
+      "SELECT token_hash FROM booking_email_request",
+    );
+    expect(kept.rows.map((row) => row.token_hash.startsWith("consumed:"))).toEqual([true]);
   });
 
   it("すでに確定したアドレスも同じ答えで、新しい札で確定すると行は増えず前の札は使えない", async () => {

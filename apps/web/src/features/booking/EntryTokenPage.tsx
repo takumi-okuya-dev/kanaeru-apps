@@ -58,9 +58,11 @@ export function EntryTokenPage({ eventId, entryToken }: { eventId: string; entry
     queryKey: key,
     queryFn: () => fetchEntryToken(entryToken),
     retry: (count, error) =>
-      !(error instanceof ApiError && (error.status === 404 || error.status === 410)) && count < 2,
+      !(error instanceof ApiError && [403, 404, 410].includes(error.status)) && count < 2,
   });
   const [justConfirmed, setJustConfirmed] = useState(false);
+  // 返事の札で答えた答え（札は使い終わったので、読み直すと「使えない」になる。この答えを出し続ける。booking-004 R8）
+  const [spent, setSpent] = useState<EntryTokenView>();
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   /**
    * 答えを問い合わせに入れる。
@@ -84,14 +86,14 @@ export function EntryTokenPage({ eventId, entryToken }: { eventId: string; entry
     },
   });
 
-  if (query.isPending) {
+  if (query.isPending && !spent) {
     return (
       <p aria-busy="true" className="text-m text-text-sub">
         読みこんでいます…
       </p>
     );
   }
-  if (query.isError) {
+  if (query.isError && !spent) {
     const error = query.error;
     if (error instanceof ApiError && error.status === 410) {
       return (
@@ -103,6 +105,9 @@ export function EntryTokenPage({ eventId, entryToken }: { eventId: string; entry
     if (error instanceof ApiError && error.status === 404) {
       return <Page title="このリンクは使えません" lead={error.message} />;
     }
+    if (error instanceof ApiError && error.status === 403) {
+      return <Page title="この会は見られません" lead={error.message} />;
+    }
     return (
       <Page title="読みこめませんでした" lead={errorMessage(error)}>
         <div>
@@ -113,7 +118,8 @@ export function EntryTokenPage({ eventId, entryToken }: { eventId: string; entry
       </Page>
     );
   }
-  const view = query.data;
+  const view = spent ?? query.data;
+  if (!view) return null;
   // 道の交流会と札の交流会が違えば、使えないリンクとして扱う
   if (view.event.id !== eventId) return <Page title="このリンクは使えません" />;
 
@@ -185,7 +191,9 @@ export function EntryTokenPage({ eventId, entryToken }: { eventId: string; entry
         ) : (
           <p className="text-m">
             {confirmed
-              ? "当日は受付でお名前を伝えてください。このリンクから、申込みを見る・取り消すことができます。"
+              ? view.linkSpent
+                ? "当日は受付でお名前を伝えてください。申込みを見る・取り消すときは、申し込んだときに届いたメールのリンクを開いてください。"
+                : "当日は受付でお名前を伝えてください。このリンクから、申込みを見る・取り消すことができます。"
               : "この申込みは取り消しています。申し込み直すときは、申込みページから申し込んでください。"}
           </p>
         )}
@@ -194,7 +202,11 @@ export function EntryTokenPage({ eventId, entryToken }: { eventId: string; entry
             status={entry.status}
             standing={entry}
             primary
-            respond={async (answer) => store(await respondEntryToken(entryToken, answer))}
+            respond={async (answer) => {
+              const next = await respondEntryToken(entryToken, answer);
+              if (next.linkSpent) setSpent(next);
+              store(next);
+            }}
             onDone={() => setJustConfirmed(false)}
           />
         ) : null}
