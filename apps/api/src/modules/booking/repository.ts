@@ -1,4 +1,5 @@
 // 予約の表の読み書き（表は booking の領域だけが読み書きする。AD-3）。名前はログに出さない。
+import { createHash } from "node:crypto";
 import { and, asc, count, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { BookingMode, EntryKind, EntryStatus } from "@workspace/contracts/booking";
 import type { ApplicationSource } from "@workspace/contracts/reception";
@@ -305,6 +306,15 @@ export function listImportMappings(
 }
 
 /**
+ * 見出しの並びの SHA-256（16進。一意の索引に使う。DB の変更 0020 の埋め方〈UTF-8 の SHA-256〉と同じ）。
+ * @param headerKey 見出しの並び（JSON の文字）
+ * @returns SHA-256
+ */
+export function headerDigestOf(headerKey: string): string {
+  return createHash("sha256").update(headerKey, "utf8").digest("hex");
+}
+
+/**
  * 持ち主の CSV の列の対応を覚える（同じ見出しの並びは上書き）。
  * @param db DB
  * @param values 持ち主・見出しの並び・名前の列・媒体
@@ -324,9 +334,9 @@ export async function saveImportMapping(
 ): Promise<void> {
   await db
     .insert(bookingImportMapping)
-    .values(values)
+    .values({ ...values, headerDigest: headerDigestOf(values.headerKey) })
     .onConflictDoUpdate({
-      target: [bookingImportMapping.ownerAccountId, bookingImportMapping.headerKey],
+      target: [bookingImportMapping.ownerAccountId, bookingImportMapping.headerDigest],
       set: {
         nameColumn: values.nameColumn,
         applicationSource: values.applicationSource,

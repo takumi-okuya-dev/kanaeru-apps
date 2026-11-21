@@ -1,5 +1,5 @@
 // Threads のチームの画面（/threads/teams/{teamId}。threads-016。threads-013 の組織の画面・運用状況を、チームごとの1つの画面にまとめた）。
-// - 上のタブ（SectionTabs。threads-018）で「運用アカウント」「担当を決める」（組織の管理者とリーダーだけ）「運用状況」（管理者・リーダー・このチームで担当がある編集者だけ）を切り替える
+// - 上のタブ（SectionTabs。threads-018）で「運用アカウント」「担当を決める」（組織の管理者とリーダーだけ）「運用状況」（管理者・リーダー・このチームで担当がある編集者だけ）を切り替える。管理者とリーダーは「運用状況」を先頭に置いて、そこから開く（threads-020）
 // - 運用アカウント：名前・持ち主・接続・見せる状態。開き方は API が決める（自分のもの・担当・見せてもらう〈読むだけ〉・開けない）。
 //   自分の運用アカウントは、ここから「チームに見せる」を変えられる
 // - 担当を決める：チームの編集者と管理者ごとに、そのチームの運用アカウントをチェック（スマホでも横にスクロールしないよう、人ごとのまとまり）
@@ -402,7 +402,7 @@ function TeamStatusSection({ view }: { view: ThreadsTeamView }) {
  */
 function Team({ teamId }: { teamId: string }) {
   const query = useTeamPage(teamId);
-  const [tab, setTab] = useState<TeamTab>("accounts");
+  const [tab, setTab] = useState<TeamTab | null>(null);
   if (query.isPending) return <Loading />;
   if (query.isError) {
     return (
@@ -414,12 +414,19 @@ function Team({ teamId }: { teamId: string }) {
     );
   }
   const view = query.data;
+  // 組織の管理者とリーダーは運用状況から開き、タブも先頭に置く（少ないタップで見る。threads-020）。ほかは運用アカウントから
+  const statusFirst = view.canSeeStatus && (view.leader || view.myRole === "admin");
+  const statusTab: SectionTab<TeamTab>[] = view.canSeeStatus
+    ? [{ id: "status", label: "運用状況" }]
+    : [];
   const tabs: SectionTab<TeamTab>[] = [
+    ...(statusFirst ? statusTab : []),
     { id: "accounts", label: "運用アカウント", badge: String(view.accounts.length) },
     ...(view.canAssign ? [{ id: "assignments" as const, label: "担当を決める" }] : []),
-    ...(view.canSeeStatus ? [{ id: "status" as const, label: "運用状況" }] : []),
+    ...(statusFirst ? [] : statusTab),
   ];
-  const current = tabs.some((row) => row.id === tab) ? tab : "accounts";
+  const first: TeamTab = statusFirst ? "status" : "accounts";
+  const current = tab !== null && tabs.some((row) => row.id === tab) ? tab : first;
   return (
     <ThreadsPage
       title={view.name}

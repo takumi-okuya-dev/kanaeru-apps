@@ -192,8 +192,13 @@ export const bookingImportMapping = pgTable(
     ownerAccountId: uuid("owner_account_id")
       .notNull()
       .references(() => accountTable.id, { onDelete: "cascade" }),
-    /** 見出しの並び（JSON.stringify(headers)） */
+    /** 見出しの並び（JSON.stringify(headers)。読むときに見出しへ戻す） */
     headerKey: text("header_key").notNull(),
+    /**
+     * 見出しの並びの SHA-256（16進の64文字）。同じ並びを1つにする一意の索引は、こちらに付ける
+     * （見出しの並びは最大で数 KB になり、B-tree の索引の1行の上限〈約 2.7KB〉を超えうるため。0020）
+     */
+    headerDigest: text("header_digest").notNull(),
     /** 名前の列の見出し */
     nameColumn: text("name_column").notNull(),
     /** 選んだ媒体 */
@@ -201,9 +206,9 @@ export const bookingImportMapping = pgTable(
     ...timestamps(),
   },
   (table) => [
-    uniqueIndex("booking_import_mapping_owner_account_id_header_key_unique").on(
+    uniqueIndex("booking_import_mapping_owner_account_id_header_digest_unique").on(
       table.ownerAccountId,
-      table.headerKey,
+      table.headerDigest,
     ),
     check(
       "booking_import_mapping_application_source_check",

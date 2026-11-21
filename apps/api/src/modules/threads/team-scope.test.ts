@@ -21,6 +21,8 @@ import {
   setUpTeam,
 } from "../../../test/helpers/organization.ts";
 import { showThreadsApp } from "../../../test/helpers/threads.ts";
+import { listTeams } from "../suite/index.ts";
+import { countStoppedByTeam, getTeamStatus } from "./team-status.ts";
 import {
   THREADS_BASE,
   THREADS_ORG_BASE,
@@ -328,13 +330,49 @@ describe("チームの単位（threads-016）", () => {
       ["店舗B", false, 0],
     ]);
     expect(forAdmin.adminOrganizations).toEqual([{ id: scene.organizationId, name: "飲食チーム" }]);
+    // 運用状況の要約（threads-020）：管理者は数、運用状況を見られない人は null
+    // まとめて数えた数は、チームの運用状況の stoppedCount と同じ
+    for (const row of forAdmin.teams) {
+      const status = (await (
+        await call(scene.app, scene.admin.cookie, `/api/v1/threads/teams/${row.id}/status`)
+      ).json()) as { stoppedCount: number };
+      expect(row.stoppedCount).toBe(status.stoppedCount);
+    }
     const forOther = await list(other);
     expect(forOther.teams.map((row) => [row.name, row.member, row.leader])).toEqual([
       ["店舗B", true, false],
     ]);
     expect(forOther).toMatchObject({ organizationCount: 1, adminOrganizations: [] });
+    expect(forOther.teams[0]?.stoppedCount).toBeNull();
     const forOutsider = await list(scene.outsider);
     expect(forOutsider).toEqual({ teams: [], organizationCount: 0, adminOrganizations: [] });
+  });
+
+  it("一覧の要約の止まっている数は、チームごとの運用状況の数と同じ（日が経って止まったあとも。threads-020）", async () => {
+    const later = new Date(Date.now() + 30 * 86_400_000);
+    const teams = await listTeams(database.db, scene.organizationId);
+    const counted = await countStoppedByTeam(
+      database.db,
+      scene.organizationId,
+      teams.map((row) => ({
+        id: row.id,
+        memberIds: row.members.map((member) => member.accountId),
+      })),
+      later,
+    );
+    let total = 0;
+    for (const row of teams) {
+      const status = await getTeamStatus(
+        database.db,
+        scene.organizationId,
+        scene.admin.id,
+        { kind: "team", teamIds: [row.id], accountIds: [] },
+        later,
+      );
+      expect(counted.get(row.id)).toBe(status.stoppedCount);
+      total += status.stoppedCount;
+    }
+    expect(total).toBeGreaterThan(0);
   });
 
   it("チームの画面は管理者とチームの人だけ。運用状況はリーダー・管理者・担当の人だけ", async () => {

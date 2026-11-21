@@ -8,6 +8,7 @@ import type {
   RosterImportPreview,
   RosterImportResult,
 } from "@workspace/contracts/booking";
+import { IMPORT_HEADERS_MAX, IMPORT_HEADER_MAX } from "@workspace/contracts/booking";
 import { beforeEach, describe, expect, it } from "vitest";
 import { buildApp, testConfig } from "../../../test/helpers/app.ts";
 import type { TestApp } from "../../../test/helpers/app.ts";
@@ -170,6 +171,28 @@ describe("予約の名簿の窓口", () => {
         `${bookingBase(strangerEvent)}/import-mappings`,
       );
       expect(((await none.json()) as ImportMappingList).mappings).toEqual([]);
+    });
+
+    it("いちばん大きい見出しの並び（50列 × 100文字・縮まない文字）も覚え、同じ並びは上書きする", async () => {
+      // 縮みにくい見出し（列ごとに違う文字の並び）。JSON は 15KB ほどになり、B-tree の索引の1行の上限を超える
+      const headers = Array.from({ length: IMPORT_HEADERS_MAX }, (_, column) =>
+        Array.from({ length: IMPORT_HEADER_MAX }, (_, index) =>
+          String.fromCodePoint(0x4e00 + ((column * 7919 + index * 104729) % 20000)),
+        ).join(""),
+      );
+      const nameColumn = headers[3] ?? "";
+      const save = (applicationSource: string) =>
+        call(app, owner.cookie, `${base}/entries/import`, "POST", {
+          applicationSource,
+          rows: [{ line: 2, name: "山田 花子" }],
+          mapping: { headers, nameColumn },
+        });
+      expect((await save("other")).status).toBe(200);
+      expect((await save("peatix")).status).toBe(200);
+      const listed = await call(app, owner.cookie, `${base}/import-mappings`);
+      expect((await listed.json()) as ImportMappingList).toEqual({
+        mappings: [{ headers, nameColumn, applicationSource: "peatix" }],
+      });
     });
 
     it("行の数・名前の長さ・名前の列を確かめる（400）", async () => {
