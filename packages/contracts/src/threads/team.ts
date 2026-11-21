@@ -237,6 +237,8 @@ export const ThreadsTeamSummary = z.object({
   memberCount: z.number().int(),
   /** チームに入っている運用アカウントの数 */
   accountCount: z.number().int(),
+  /** 運用状況で止まっている人と運用アカウントの数（組織の管理者とチームのリーダーだけ。ほかは null。一覧の要約。threads-020） */
+  stoppedCount: z.number().int().nullable(),
 });
 
 /** 見られるチームの型。 */

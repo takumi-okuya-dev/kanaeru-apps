@@ -1,5 +1,5 @@
 // 見られるチーム（/threads/teams。threads-016。ナビの「チーム」）。入っているチーム（管理者は組織のすべてのチーム）を組織ごとに並べ、
-// チームの画面へ移る。チームが1つだけで、チームを作る人（管理者）でなければ、一覧を飛ばしてそのチームの画面を開く。
+// チームの画面へ移る。運用状況を見られる人には、止まっている数を要約で出す（threads-020。押すとチームの画面の運用状況が開く）。チームが1つだけで、チームを作る人（管理者）でなければ、一覧を飛ばしてそのチームの画面を開く。
 // どこにも入っていなければ、チームで運用できることと始め方を出す（組織とチームを作るのは設定 › 組織。suite）。
 import type { ThreadsTeamList } from "@workspace/contracts/threads";
 import { TEAM_ROLE_LABELS } from "@workspace/contracts/threads";
@@ -132,6 +132,14 @@ function Teams() {
                       <span className="text-s text-text-sub">
                         運用アカウント {team.accountCount}・人 {team.memberCount}
                       </span>
+                      {team.stoppedCount === null ? null : team.stoppedCount > 0 ? (
+                        <span className="flex flex-wrap items-center gap-xxs text-s">
+                          <Badge variant="danger">止まっている {team.stoppedCount}</Badge>
+                          運用状況を見る
+                        </span>
+                      ) : (
+                        <span className="text-s">運用状況：止まっていません</span>
+                      )}
                     </Link>
                   </li>
                 ))}
