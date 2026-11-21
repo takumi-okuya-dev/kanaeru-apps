@@ -223,7 +223,7 @@ describe("外枠のアプリの切り替え（core-005）", () => {
   it("見えるアプリが1つなら切り替えを出さず、設定の入口だけを出す。今のアプリを覚える", async () => {
     await renderShell("/admin/events", ITEMS, appsView());
     expect(screen.queryByRole("button", { name: /切り替える）$/ })).toBeNull();
-    expect(screen.getByRole("link", { name: "設定" })).toHaveAttribute("href", "/settings");
+    expect(screen.getByRole("link", { name: "全体の設定" })).toHaveAttribute("href", "/settings");
     expect(screen.getAllByRole("navigation", { name: "メイン" })).toHaveLength(2);
     expect(window.localStorage.getItem(LAST_APP_STORAGE_KEY)).toBe("reception");
   });
@@ -260,7 +260,7 @@ describe("外枠のアプリの切り替え（core-005）", () => {
       "受付交流会の受付・アンケート",
       "見本運営者だけ見本のアプリ",
       "すべてのアプリ",
-      "設定",
+      "全体の設定",
     ]);
   });
 
@@ -308,7 +308,10 @@ describe("外枠のアプリの切り替え（core-005）", () => {
       "aria-current",
       "page",
     );
-    expect(screen.getByRole("link", { name: "設定" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "全体の設定" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
     expect(screen.getByRole("link", { name: "設定の一覧へ" })).toHaveAttribute("href", "/settings");
   });
 

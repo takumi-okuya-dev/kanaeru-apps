@@ -85,7 +85,7 @@ test("見えるアプリが1つなら切り替えを出さず、設定の入口�
   await page.goto("/admin/events");
   await expect(page.getByRole("heading", { level: 1, name: "交流会の一覧" })).toBeVisible();
   await expect(switcher(page)).toHaveCount(0);
-  await expect(page.getByRole("banner").getByRole("link", { name: "設定" })).toBeVisible();
+  await expect(page.getByRole("banner").getByRole("link", { name: "全体の設定" })).toBeVisible();
   await expectNoA11yViolations(page, "見えるアプリが1つの外枠");
   expect(await violations()).toEqual([]);
 });
@@ -137,7 +137,7 @@ test("運営者が台帳で見本のアプリを「運営者だけ」にする�
       "運営者だけ",
     );
     await expect(panel.getByRole(itemRole, { name: "すべてのアプリ" })).toBeVisible();
-    if (mobile) await expect(panel.getByRole("link", { name: "設定" })).toBeVisible();
+    if (mobile) await expect(panel.getByRole("link", { name: "全体の設定" })).toBeVisible();
     await expectNoA11yViolations(page, "アプリの切り替えを開いたところ");
 
     // すべてのアプリ：カード・運営者だけの札・台帳への入口（運営者だけ）
@@ -196,8 +196,8 @@ test("設定 › アカウント：ログインしている人を出し、ログ
   const violations = await collectCspViolations(page);
   await login(page.request, uniqueLineUserId("ac1"), "E2E の利用者（設定）");
   await page.goto("/admin/events");
-  await page.getByRole("banner").getByRole("link", { name: "設定" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "設定" })).toBeVisible();
+  await page.getByRole("banner").getByRole("link", { name: "全体の設定" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "全体の設定" })).toBeVisible();
   // 利用者には、運営のまとまりを出さない
   await expect(page.getByRole("heading", { name: "運営（運営者だけ）" })).toHaveCount(0);
   await expectNoA11yViolations(page, "設定の一覧");
