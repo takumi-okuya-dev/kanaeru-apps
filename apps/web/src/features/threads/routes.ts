@@ -122,31 +122,18 @@ export const threadsTokenGuideRoute = createRoute({
   component: lazyRouteComponent(() => import("./TokenGuidePage.tsx"), "TokenGuideRoute"),
 });
 
-/** 入っている組織（threads-013）。 */
-export const threadsOrganizationsRoute = createRoute({
+/** 見られるチーム（threads-016。ナビの「チーム」）。 */
+export const threadsTeamsRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: THREADS_ROUTE_PATTERNS.organizations,
-  component: lazyRouteComponent(
-    () => import("./TeamOrganizationsPage.tsx"),
-    "TeamOrganizationsPage",
-  ),
+  path: THREADS_ROUTE_PATTERNS.teams,
+  component: lazyRouteComponent(() => import("./TeamsPage.tsx"), "TeamsPage"),
 });
 
-/** Threads の組織の画面（運用アカウント・担当を決める。threads-013）。 */
-export const threadsOrganizationRoute = createRoute({
+/** Threads のチームの画面（運用アカウント・担当を決める・運用状況。threads-016）。 */
+export const threadsTeamRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: THREADS_ROUTE_PATTERNS.organization,
-  component: lazyRouteComponent(
-    () => import("./TeamOrganizationPage.tsx"),
-    "TeamOrganizationRoute",
-  ),
-});
-
-/** 運用状況（数と日付だけ。threads-013）。 */
-export const threadsOrganizationStatusRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: THREADS_ROUTE_PATTERNS.organizationStatus,
-  component: lazyRouteComponent(() => import("./TeamStatusPage.tsx"), "TeamStatusRoute"),
+  path: THREADS_ROUTE_PATTERNS.team,
+  component: lazyRouteComponent(() => import("./TeamPage.tsx"), "TeamRoute"),
 });
 
 /** 見せてもらっている運用アカウント（投稿の案と戦略を読むだけ。threads-013）。 */

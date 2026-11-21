@@ -10,6 +10,7 @@ import {
   ORGANIZATION_EDITOR_LIMIT,
   ORGANIZATION_ERRORS,
   ORGANIZATION_MEMBER_LIMIT,
+  TEAM_LIMIT,
 } from "@workspace/contracts/suite";
 import type { Executor } from "../../kernel/db.ts";
 import { AppError, domainErrorResponse } from "../../kernel/errors.ts";
@@ -36,6 +37,14 @@ import {
   transferAdmin,
 } from "./organizations.ts";
 import type { OrganizationMembership } from "./organizations.ts";
+import {
+  createTeam,
+  deleteTeam,
+  listTeams,
+  removeTeamMember,
+  renameTeam,
+  setTeamMember,
+} from "./teams.ts";
 
 /** 道の頭。 */
 const BASE = "/api/v1/suite/organizations";
@@ -51,6 +60,19 @@ const OrganizationParams = z.object({
 /** 道の organizationId と accountId。 */
 const MemberParams = z.object({
   organizationId: uuidParam("organizationId", "組織の ID"),
+  accountId: uuidParam("accountId", "組織の人の account の ID"),
+});
+
+/** 道の organizationId と teamId。 */
+const TeamParams = z.object({
+  organizationId: uuidParam("organizationId", "組織の ID"),
+  teamId: uuidParam("teamId", "チームの ID"),
+});
+
+/** 道の organizationId・teamId・accountId。 */
+const TeamMemberParams = z.object({
+  organizationId: uuidParam("organizationId", "組織の ID"),
+  teamId: uuidParam("teamId", "チームの ID"),
   accountId: uuidParam("accountId", "組織の人の account の ID"),
 });
 
@@ -344,6 +366,86 @@ export function organizationRoutes(deps: DomainRouteDeps) {
     },
   });
 
+  // ---- チーム（suite-003。操作は管理者だけ。読むのは組織の画面〈detailRoute〉）----
+  const createTeamRoute = createRoute({
+    method: "post",
+    path: `${BASE}/{organizationId}/teams`,
+    tags: TAGS,
+    operationId: "suiteCreateTeam",
+    summary: "組織の中にチームを作る（管理者だけ。1つの組織に20まで）",
+    middleware: [requireSession(deps)] as const,
+    request: {
+      params: OrganizationParams,
+      body: body(contract.TeamNameInput.openapi("SuiteTeamNameInput")),
+    },
+    responses: {
+      201: json(z.object({ id: z.guid() }).openapi("SuiteTeamCreated"), "作った"),
+      400: invalidInputResponse,
+      403: adminOnly,
+      ...COMMON,
+      409: domainErrorResponse(ORGANIZATION_ERRORS.TEAM_LIMIT, "上限・同じ名前（TEAM_NAME_TAKEN）"),
+    },
+  });
+
+  const renameTeamRoute = createRoute({
+    method: "patch",
+    path: `${BASE}/{organizationId}/teams/{teamId}`,
+    tags: TAGS,
+    operationId: "suiteRenameTeam",
+    summary: "チームの名前を直す（管理者だけ）",
+    middleware: [requireSession(deps)] as const,
+    request: { params: TeamParams, body: body(contract.TeamNameInput) },
+    responses: {
+      204: { description: "直した" },
+      400: invalidInputResponse,
+      403: adminOnly,
+      ...COMMON,
+      409: domainErrorResponse(ORGANIZATION_ERRORS.TEAM_NAME_TAKEN, "同じ名前"),
+    },
+  });
+
+  const deleteTeamRoute = createRoute({
+    method: "delete",
+    path: `${BASE}/{organizationId}/teams/{teamId}`,
+    tags: TAGS,
+    operationId: "suiteDeleteTeam",
+    summary:
+      "チームを消す（管理者だけ。アプリがチームに入れた記録は外れ、記録そのものは持ち主に残る）",
+    middleware: [requireSession(deps)] as const,
+    request: { params: TeamParams },
+    responses: { 204: { description: "消した" }, 403: adminOnly, ...COMMON },
+  });
+
+  const setTeamMemberRoute = createRoute({
+    method: "put",
+    path: `${BASE}/{organizationId}/teams/{teamId}/members/{accountId}`,
+    tags: TAGS,
+    operationId: "suiteSetTeamMember",
+    summary: "組織の人をチームに足す・リーダーを切り替える（管理者だけ）",
+    middleware: [requireSession(deps)] as const,
+    request: {
+      params: TeamMemberParams,
+      body: body(contract.TeamMemberInput.openapi("SuiteTeamMemberInput")),
+    },
+    responses: {
+      204: { description: "足した・切り替えた" },
+      400: invalidInputResponse,
+      403: adminOnly,
+      ...COMMON,
+    },
+  });
+
+  const removeTeamMemberRoute = createRoute({
+    method: "delete",
+    path: `${BASE}/{organizationId}/teams/{teamId}/members/{accountId}`,
+    tags: TAGS,
+    operationId: "suiteRemoveTeamMember",
+    summary: "チームから人を外す（管理者だけ。その人のこのチームでのアプリの担当も外れる）",
+    middleware: [requireSession(deps)] as const,
+    request: { params: TeamMemberParams },
+    responses: { 204: { description: "外した" }, 403: adminOnly, ...COMMON },
+  });
+
   return new OpenAPIHono<ApiEnv>()
     .openapi(listRoute, async (c) => {
       const me = currentAccount(c).accountId;
@@ -384,6 +486,7 @@ export function organizationRoutes(deps: DomainRouteDeps) {
       const members = await listMembers(db, organizationId);
       const seenAt = found.adminSeenAt ?? found.createdAt;
       const isAdmin = mine.role === "admin";
+      const teams = await listTeams(db, organizationId);
       if (isAdmin) await markAdminSeen(db, organizationId);
       return c.json(
         {
@@ -400,6 +503,19 @@ export function organizationRoutes(deps: DomainRouteDeps) {
           })),
           memberLimit: ORGANIZATION_MEMBER_LIMIT,
           editorLimit: ORGANIZATION_EDITOR_LIMIT,
+          teams: teams.map((row) => ({
+            id: row.id,
+            name: row.name,
+            members: row.members.map((member) => ({
+              accountId: member.accountId,
+              displayName: member.displayName,
+              role: member.role,
+              leader: member.leader,
+              isMe: member.accountId === me,
+            })),
+            createdAt: row.createdAt.toISOString(),
+          })),
+          teamLimit: TEAM_LIMIT,
           createdAt: found.createdAt.toISOString(),
         },
         200,
@@ -477,5 +593,35 @@ export function organizationRoutes(deps: DomainRouteDeps) {
         currentAccount(c).accountId,
       );
       return c.json(joined, 200);
+    })
+    .openapi(createTeamRoute, async (c) => {
+      const { organizationId } = c.req.valid("param");
+      await requireOrganizationRole(db, organizationId, currentAccount(c).accountId, "admin");
+      const id = await createTeam(db, organizationId, c.req.valid("json").name);
+      return c.json({ id }, 201);
+    })
+    .openapi(renameTeamRoute, async (c) => {
+      const { organizationId, teamId } = c.req.valid("param");
+      await requireOrganizationRole(db, organizationId, currentAccount(c).accountId, "admin");
+      await renameTeam(db, organizationId, teamId, c.req.valid("json").name);
+      return c.body(null, 204);
+    })
+    .openapi(deleteTeamRoute, async (c) => {
+      const { organizationId, teamId } = c.req.valid("param");
+      await requireOrganizationRole(db, organizationId, currentAccount(c).accountId, "admin");
+      await deleteTeam(db, organizationId, teamId);
+      return c.body(null, 204);
+    })
+    .openapi(setTeamMemberRoute, async (c) => {
+      const { organizationId, teamId, accountId } = c.req.valid("param");
+      await requireOrganizationRole(db, organizationId, currentAccount(c).accountId, "admin");
+      await setTeamMember(db, organizationId, teamId, accountId, c.req.valid("json").leader);
+      return c.body(null, 204);
+    })
+    .openapi(removeTeamMemberRoute, async (c) => {
+      const { organizationId, teamId, accountId } = c.req.valid("param");
+      await requireOrganizationRole(db, organizationId, currentAccount(c).accountId, "admin");
+      await removeTeamMember(db, organizationId, teamId, accountId);
+      return c.body(null, 204);
     });
 }

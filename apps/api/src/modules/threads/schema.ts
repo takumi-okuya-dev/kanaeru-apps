@@ -35,7 +35,7 @@ import {
 import type { PromotionEvent } from "@workspace/contracts/threads";
 import { primaryId, timestamps, timestamptz } from "../../kernel/columns.ts";
 import { accountTable } from "../account/index.ts";
-import { organizationMemberTable } from "../suite/index.ts";
+import { organizationMemberTable, teamMemberTable, teamTable } from "../suite/index.ts";
 
 /** バイトの列（包んだトークン。Postgres の bytea）。 */
 const bytea = customType<{ data: Uint8Array; driverData: Buffer }>({
@@ -1211,11 +1211,11 @@ export const threadsRevocation = pgTable(
 );
 
 // ---- チーム運用（threads-013。PRD 組織 5章。めぐるの team_accounts・memberships を、suite の組織の上に写した）----
-// 組織そのもの（人・役割・招待）は suite が持つ。threads が持つのは「組織に入れる」・担当・承認を任せるだけ（AD-22）。
-// どちらも organization_member(organization_id, account_id) を指す複合の外部キーを CASCADE で持つので、
-// 人が抜ける・外れる・組織が消えると、suite がほかの領域を触らずに、その人の分が消える。
+// 組織とチーム（人・役割・招待・リーダー）は suite が持つ。threads が持つのは「チームに入れる」・担当・承認を任せるだけ（AD-22・threads-016）。
+// どちらも organization_member(organization_id, account_id) と team_member(team_id, account_id) を指す複合の外部キーを CASCADE で持つので、
+// 人が組織・チームから抜ける・チームや組織が消えると、suite がほかの領域を触らずに、その人の分が消える。
 
-/** 組織に入れた運用アカウント（1つの運用アカウントは1つの組織にだけ入る）。持ち主は threads_account.account_id のまま。 */
+/** チームに入れた運用アカウント（1つの運用アカウントは組織の中の1つのチームにだけ入る。threads-016）。持ち主は threads_account.account_id のまま。 */
 export const threadsOrganizationAccount = pgTable(
   "threads_organization_account",
   {
@@ -1223,9 +1223,11 @@ export const threadsOrganizationAccount = pgTable(
       .primaryKey()
       .references(() => threadsAccount.id, { onDelete: "cascade" }),
     organizationId: uuid("organization_id").notNull(),
-    /** 入れた持ち主（threads_account.account_id と同じ。持ち主が組織から抜けると、この行が消える） */
+    /** 入れたチーム（threads-016。組織の中のチーム。持ち主はこのチームの人） */
+    teamId: uuid("team_id").notNull(),
+    /** 入れた持ち主（threads_account.account_id と同じ。持ち主が組織・チームから抜けると、この行が消える） */
     ownerAccountId: uuid("owner_account_id").notNull(),
-    /** 組織に見せる（オンのとき、組織の人が投稿の案と戦略を読むだけで見られる。初めはオフ） */
+    /** チームに見せる（オンのとき、チームの人と組織の管理者が投稿の案と戦略を読むだけで見られる。初めはオフ） */
     shared: boolean("shared").notNull().default(false),
     placedAt: timestamptz("placed_at").defaultNow().notNull(),
   },
@@ -1235,7 +1237,24 @@ export const threadsOrganizationAccount = pgTable(
       columns: [table.organizationId, table.ownerAccountId],
       foreignColumns: [organizationMemberTable.organizationId, organizationMemberTable.accountId],
     }).onDelete("cascade"),
+    // チームが消える・持ち主がチームから外れると、この行が消える（threads-016）
+    foreignKey({
+      name: "threads_organization_account_team_fk",
+      columns: [table.teamId, table.organizationId],
+      foreignColumns: [teamTable.id, teamTable.organizationId],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "threads_organization_account_team_member_fk",
+      columns: [table.teamId, table.ownerAccountId],
+      foreignColumns: [teamMemberTable.teamId, teamMemberTable.accountId],
+    }).onDelete("cascade"),
     index("threads_organization_account_organization_id_idx").on(table.organizationId),
+    index("threads_organization_account_team_id_idx").on(table.teamId),
+    // 担当が「同じチームに入れた運用アカウント」を外部キーで指すため
+    uniqueIndex("threads_organization_account_id_team_id_unique").on(
+      table.threadsAccountId,
+      table.teamId,
+    ),
   ],
 );
 
@@ -1243,9 +1262,11 @@ export const threadsOrganizationAccount = pgTable(
 export const threadsAssignment = pgTable(
   "threads_assignment",
   {
-    /** 組織に入れた運用アカウント（組織から外れると、担当も消える。組織は入れた組織と同じものを書く） */
+    /** チームに入れた運用アカウント（チームから外れると、担当も消える。組織は入れた組織と同じものを書く） */
     threadsAccountId: uuid("threads_account_id").notNull(),
     organizationId: uuid("organization_id").notNull(),
+    /** 運用アカウントを入れたチーム（担当の人はこのチームの人。threads-016） */
+    teamId: uuid("team_id").notNull(),
     /** 担当の人 */
     accountId: uuid("account_id").notNull(),
     assignedAt: timestamptz("assigned_at").defaultNow().notNull(),
@@ -1257,10 +1278,20 @@ export const threadsAssignment = pgTable(
   },
   (table) => [
     primaryKey({ columns: [table.threadsAccountId, table.accountId] }),
+    // 運用アカウントがチームから外れる・別のチームに移ると、担当も消える
     foreignKey({
       name: "threads_assignment_organization_account_fk",
-      columns: [table.threadsAccountId],
-      foreignColumns: [threadsOrganizationAccount.threadsAccountId],
+      columns: [table.threadsAccountId, table.teamId],
+      foreignColumns: [
+        threadsOrganizationAccount.threadsAccountId,
+        threadsOrganizationAccount.teamId,
+      ],
+    }).onDelete("cascade"),
+    // 担当の人がチームから外れると、担当も消える（threads-016）
+    foreignKey({
+      name: "threads_assignment_team_member_fk",
+      columns: [table.teamId, table.accountId],
+      foreignColumns: [teamMemberTable.teamId, teamMemberTable.accountId],
     }).onDelete("cascade"),
     // 担当の人が組織から抜けると、担当も消える
     foreignKey({

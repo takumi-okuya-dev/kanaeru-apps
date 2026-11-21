@@ -9,10 +9,10 @@ import {
   teamGrowthOf,
 } from "@workspace/contracts/threads";
 import type { ThreadsTeamStatus } from "@workspace/contracts/threads";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import type { Executor } from "../../kernel/db.ts";
-import { listMembers } from "../suite/index.ts";
+import { listMembers, listTeams } from "../suite/index.ts";
 import {
   threadsAccount,
   threadsActivityLog,
@@ -25,7 +25,10 @@ import {
 const DAY_MS = 86_400_000;
 
 /** 運用状況を見る範囲。 */
-export type TeamStatusScope = { kind: "all" } | { kind: "assigned"; accountIds: string[] };
+export type TeamStatusScope =
+  | { kind: "all" }
+  | { kind: "team"; teamIds: string[]; accountIds: string[] }
+  | { kind: "assigned"; accountIds: string[] };
 
 /**
  * 値の並びを、問い合わせの IN の中身にする（値は引数で渡す）。
@@ -61,7 +64,11 @@ export async function getTeamStatus(
 
   // ---- 運用アカウント（範囲の中だけ）----
   const placed = await db
-    .select({ account: threadsAccount, placedAt: threadsOrganizationAccount.placedAt })
+    .select({
+      account: threadsAccount,
+      teamId: threadsOrganizationAccount.teamId,
+      placedAt: threadsOrganizationAccount.placedAt,
+    })
     .from(threadsOrganizationAccount)
     .innerJoin(threadsAccount, eq(threadsAccount.id, threadsOrganizationAccount.threadsAccountId))
     .where(
@@ -69,15 +76,24 @@ export async function getTeamStatus(
         eq(threadsOrganizationAccount.organizationId, organizationId),
         scope.kind === "assigned"
           ? inArray(threadsOrganizationAccount.threadsAccountId, scope.accountIds)
-          : undefined,
+          : scope.kind === "team"
+            ? or(
+                inArray(threadsOrganizationAccount.teamId, scope.teamIds),
+                scope.accountIds.length > 0
+                  ? inArray(threadsOrganizationAccount.threadsAccountId, scope.accountIds)
+                  : undefined,
+              )
+            : undefined,
       ),
     )
     .orderBy(asc(threadsOrganizationAccount.placedAt), asc(threadsAccount.id));
   const members = await listMembers(db, organizationId);
   const memberById = new Map(members.map((row) => [row.accountId, row]));
+  const teams = await listTeams(db, organizationId);
+  const teamNames = new Map(teams.map((row) => [row.id, row.name]));
 
   const accounts: (ThreadsTeamStatus["accounts"][number] & { origin: number })[] = [];
-  for (const { account, placedAt } of placed) {
+  for (const { account, teamId, placedAt } of placed) {
     // 組織に入れた日より前は数えない（FR-T43）
     const since = placedAt > stoppedBefore ? placedAt : stoppedBefore;
     const [counts] = await db
@@ -120,6 +136,7 @@ export async function getTeamStatus(
     accounts.push({
       threadsAccountId: account.id,
       name: account.name,
+      teamName: teamNames.get(teamId) ?? "",
       ownerName: memberById.get(account.accountId)?.displayName ?? "",
       ownerIsMe: account.accountId === viewerAccountId,
       connectionStatus: account.connectionStatus,
@@ -136,8 +153,20 @@ export async function getTeamStatus(
   // ---- 人（範囲が担当なら、担当の運用アカウントの持ち主だけ。動きは範囲の運用アカウントでの動きだけ数える）----
   const scopeIds = placed.map((row) => row.account.id);
   const owners = new Set(placed.map((row) => row.account.accountId));
+  // リーダーは、リーダーのチームの人と、担当の運用アカウントの持ち主（threads-016）
+  const teamPeople = new Set(
+    scope.kind === "team"
+      ? teams
+          .filter((row) => scope.teamIds.includes(row.id))
+          .flatMap((row) => row.members.map((member) => member.accountId))
+      : [],
+  );
   const peopleRows =
-    scope.kind === "assigned" ? members.filter((row) => owners.has(row.accountId)) : members;
+    scope.kind === "assigned"
+      ? members.filter((row) => owners.has(row.accountId))
+      : scope.kind === "team"
+        ? members.filter((row) => teamPeople.has(row.accountId) || owners.has(row.accountId))
+        : members;
   const people: (ThreadsTeamStatus["people"][number] & { origin: number })[] = [];
   for (const member of peopleRows) {
     const [activity] =

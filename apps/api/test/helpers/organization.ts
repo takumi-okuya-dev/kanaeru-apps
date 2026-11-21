@@ -1,6 +1,9 @@
-// テストの手伝い：組織を作る・招待のリンクで入る・役割を変える（suite-001。suite と threads のテストが使う）。
+// テストの手伝い：組織を作る・招待のリンクで入る・役割を変える・チームを作る（suite-001・suite-003。suite と threads のテストが使う）。
 import type { TestApp } from "./app.ts";
 import { call } from "./event.ts";
+
+/** 組織の道の頭。 */
+const ORG_BASE = "/api/v1/suite/organizations";
 
 /**
  * 組織を作る（作った人が管理者）。
@@ -112,4 +115,89 @@ export async function setUpOrganization(
     }
   }
   return organizationId;
+}
+
+/**
+ * チームを作る（管理者。suite-003）。
+ * @param app 組み立てた API
+ * @param adminCookie 管理者のクッキー
+ * @param organizationId 組織の ID
+ * @param name 名前
+ * @returns 作ったチームの ID
+ * @throws {Error} 作れなかったとき
+ */
+export async function createTeam(
+  app: TestApp,
+  adminCookie: string,
+  organizationId: string,
+  name = "店舗A",
+): Promise<string> {
+  const response = await call(app, adminCookie, `${ORG_BASE}/${organizationId}/teams`, "POST", {
+    name,
+  });
+  if (response.status !== 201) throw new Error(`チームを作れませんでした（${response.status}）。`);
+  return ((await response.json()) as { id: string }).id;
+}
+
+/**
+ * 組織の人をチームに足す・リーダーを切り替える（管理者。suite-003）。
+ * @param app 組み立てた API
+ * @param adminCookie 管理者のクッキー
+ * @param organizationId 組織の ID
+ * @param teamId チームの ID
+ * @param accountId 足す人
+ * @param leader リーダーにするか
+ * @returns 応答
+ */
+export function setTeamMember(
+  app: TestApp,
+  adminCookie: string,
+  organizationId: string,
+  teamId: string,
+  accountId: string,
+  leader = false,
+): Promise<Response> {
+  return call(
+    app,
+    adminCookie,
+    `${ORG_BASE}/${organizationId}/teams/${teamId}/members/${accountId}`,
+    "PUT",
+    { leader },
+  );
+}
+
+/**
+ * チームを作り、人を足す（管理者。リーダーは leaders の人）。
+ * @param app 組み立てた API
+ * @param adminCookie 管理者のクッキー
+ * @param organizationId 組織の ID
+ * @param accountIds 足す人
+ * @param options 名前とリーダー
+ * @param options.name チームの名前
+ * @param options.leaders リーダーにする人
+ * @returns 作ったチームの ID
+ * @throws {Error} 足せなかったとき
+ */
+export async function setUpTeam(
+  app: TestApp,
+  adminCookie: string,
+  organizationId: string,
+  accountIds: readonly string[],
+  options: { name?: string; leaders?: readonly string[] } = {},
+): Promise<string> {
+  const teamId = await createTeam(app, adminCookie, organizationId, options.name);
+  for (const accountId of accountIds) {
+    const response = await setTeamMember(
+      app,
+      adminCookie,
+      organizationId,
+      teamId,
+      accountId,
+      options.leaders?.includes(accountId) ?? false,
+    );
+    if (response.status !== 204) {
+      throw new Error(`チームに足せませんでした（${response.status}）。`);
+    }
+  }
+  return teamId;
 }

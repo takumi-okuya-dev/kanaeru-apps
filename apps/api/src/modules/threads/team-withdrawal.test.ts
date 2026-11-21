@@ -11,6 +11,7 @@ import { ORGANIZER_LINE_USER_ID_FOR_TEST, loginAs } from "../../../test/helpers/
 import { buildApp, testConfig } from "../../../test/helpers/app.ts";
 import { truncateAllTables, useTestDatabase } from "../../../test/helpers/db.ts";
 import { call } from "../../../test/helpers/event.ts";
+import { setTeamMember, setUpTeam } from "../../../test/helpers/organization.ts";
 import { showThreadsApp } from "../../../test/helpers/threads.ts";
 import {
   THREADS_BASE,
@@ -273,9 +274,8 @@ describe("持ち主の退会での引き継ぎ", () => {
   it("持ち主が管理者で、ほかに人がいれば、いちばん長くいる人が管理者になり、その人に引き継ぐ", async () => {
     const { app, admin } = scene;
     const own = await createThreadsAccount(app, admin.cookie, "管理者の店");
-    expect(
-      (await placeThreadsAccount(app, admin.cookie, own.id, scene.organizationId)).status,
-    ).toBe(200);
+    await setTeamMember(app, admin.cookie, scene.organizationId, scene.teamId, admin.id);
+    expect((await placeThreadsAccount(app, admin.cookie, own.id, scene.teamId)).status).toBe(200);
     const preview = (await (
       await call(app, admin.cookie, "/api/v1/accounts/me/withdrawal")
     ).json()) as WithdrawalPreview;
@@ -305,7 +305,8 @@ describe("持ち主の退会での引き継ぎ", () => {
     });
     const { id: alone } = (await orgResponse.json()) as { id: string };
     const own = await createThreadsAccount(app, outsider.cookie, "ひとりの店");
-    await placeThreadsAccount(app, outsider.cookie, own.id, alone);
+    const aloneTeam = await setUpTeam(app, outsider.cookie, alone, [outsider.id]);
+    await placeThreadsAccount(app, outsider.cookie, own.id, aloneTeam);
     const preview = (await (
       await call(app, outsider.cookie, "/api/v1/accounts/me/withdrawal")
     ).json()) as WithdrawalPreview;

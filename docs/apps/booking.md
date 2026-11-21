@@ -101,7 +101,7 @@ booking が読むもの：event の `requireEventRole`・`getEventSummary`・`fi
 |---|---|
 | 約束 | `packages/contracts/src/booking/`（`options.ts`・`roster.ts`・`errors.ts`・`paths.ts`・`index.ts`） |
 | API | `apps/api/src/modules/booking/`（`schema.ts`・`repository.ts`・`importing.ts`・`matching.ts`・`views.ts`・`csv.ts`・`routes.ts`・`withdrawal.ts`・`index.ts`・テスト） |
-| DB の変更 | `apps/api/drizzle/0015_booking.sql` |
+| DB の変更 | `apps/api/drizzle/0016_booking.sql` |
 | 画面 | `apps/web/src/features/booking/`（`api.ts`・`queries.ts`・`nav-items.ts`・`csv-read.ts`・`ModeSection.tsx`・`ReceptionRosterSection.tsx`・`RosterGate.tsx`・`RosterPage.tsx`・`ImportPage.tsx`・`MatchPage.tsx`・`routes.ts`・`index.ts`） |
 | テストの手伝い | `apps/api/test/helpers/booking.ts` |
 | 通しのテスト | `e2e/tests/booking.spec.ts` |
