@@ -14,7 +14,7 @@
 
 **Primary Dependencies**: Hono・@hono/zod-openapi・zod 4・Drizzle 0.45・React 19・TanStack Router/Query・`@workspace/csv`（新しい依存なし。CSV を読む小さな関数は booking の画面の中）
 
-**Storage**: PostgreSQL（表を4つ足す DB の変更を1つ：`0015_booking.sql`）
+**Storage**: PostgreSQL（表を4つ足す DB の変更を1つ：`0016_booking.sql`）
 
 **Testing**: Vitest（API の結合は本物の PostgreSQL・約束と画面の単体）・Playwright（E2E。`e2e/tests/booking.spec.ts`。axe・1440px と 375px）
 
@@ -77,7 +77,7 @@ apps/api/src/modules/booking/
 ├── routes.ts         # 窓口
 ├── withdrawal.ts     # 退会の確かめの中身
 └── index.ts
-apps/api/drizzle/0015_booking.sql
+apps/api/drizzle/0016_booking.sql
 apps/api/src/modules/reception/（manual.ts〈新〉・repository.ts・routes.ts・index.ts：FR-B103 と手でのチェックインの関数）
 apps/web/src/features/booking/
 ├── api.ts・queries.ts
@@ -101,7 +101,7 @@ docs/apps/booking.md（新）・docs/apps/reception.md・docs/apps/event.md・do
 
 ## PR の分け方
 
-1. `feature/booking-001-roster`（DB の変更の PR）：仕様のフォルダ・`packages/contracts/src/booking/options.ts`（CHECK の値）・`apps/api/src/modules/booking/schema.ts`・`0015_booking.sql`・選択肢の値が DB に入る結合のテスト。領域の登録（一覧の行）はしない（窓口がない領域を登録しない）。
+1. `feature/booking-001-roster`（DB の変更の PR）：仕様のフォルダ・`packages/contracts/src/booking/options.ts`（CHECK の値）・`apps/api/src/modules/booking/schema.ts`・`0016_booking.sql`・選択肢の値が DB に入る結合のテスト。領域の登録（一覧の行）はしない（窓口がない領域を登録しない）。
 2. `feature/booking-001-pr2-roster`（1の上）：領域の登録・窓口・当て・reception の index の関数・画面・差しこみの場所・E2E・今の形の文書。
 
 ## Complexity Tracking

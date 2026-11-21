@@ -9,7 +9,7 @@
 - [x] T001 約束の選択肢を先に置く：`packages/contracts/src/booking/options.ts`（`BOOKING_MODES`・`ENTRY_KINDS`・`ENTRY_STATUSES`・`ATTENDANCES` と言葉）・`index.ts`。単体のテスト `options.test.ts`（言葉がそろう）
 - [x] T002 結合のテストを先に書く（`apps/api/src/modules/booking/schema.test.ts`）：選択肢の code はどれも DB に入る・ほかの値は CHECK で止まる・`checkin_id` の一意・交流会を消すと名簿が消える（CASCADE）・チェックインを消すと `checkin_id` が空になる・入れた人を消すと空になる
 - [x] T003 `apps/api/src/modules/booking/schema.ts` に4つの表を書く
-- [x] T004 `pnpm db:generate --name booking` → `apps/api/drizzle/0015_booking.sql` を読む（表を足すだけで、消す・名前を変えるがないこと）→ `pnpm db:migrate`
+- [x] T004 `pnpm db:generate --name booking` → `apps/api/drizzle/0016_booking.sql` を読む（表を足すだけで、消す・名前を変えるがないこと）→ `pnpm db:migrate`
 - [x] T005 `pnpm check` を流し、コミットする
 
 ## Phase 2: 土台（2つ目の PR `feature/booking-001-pr2-roster`）

@@ -70,7 +70,7 @@ apps/api/src/modules/event/
 ├── summary.ts         # EventView に持ち主・組織
 ├── routes.ts          # 作る（だれでも）・一覧・組織の窓口
 └── index.ts           # withdrawal を出す
-apps/api/drizzle/0014_event_owner.sql
+apps/api/drizzle/0015_event_owner.sql
 packages/contracts/src/event/（roles.ts・event.ts・errors.ts・index.ts）
 apps/web/src/features/event/（EventListPage・EventSetupPage・OwnerOrganizationSection〈新〉・EventFormPage・api・queries）
 apps/web/src/features/reception/DataPage.tsx（運営者でない主催者の削除。research R11）
@@ -81,7 +81,7 @@ docs/apps/event.md ほか今の形の文書
 
 ## PR の分け方
 
-1. `feature/event-002-owner-organization`（DB の変更の PR）：仕様のフォルダ・`schema.ts`・`0014_event_owner.sql`・作るときに持ち主を書く・運営者が一覧を開くと持ち主を埋める（権限は前のまま）。
+1. `feature/event-002-owner-organization`（DB の変更の PR）：仕様のフォルダ・`schema.ts`・`0015_event_owner.sql`・作るときに持ち主を書く・運営者が一覧を開くと持ち主を埋める（権限は前のまま）。
 2. `feature/event-002-pr2-roles`（1の上）：判定・窓口・退会の段・画面・今の形の文書。
 
 ## Complexity Tracking
