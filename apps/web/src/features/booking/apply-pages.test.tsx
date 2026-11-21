@@ -8,7 +8,8 @@ import type {
   MyEntryList,
 } from "@workspace/contracts/booking";
 import type { EventView } from "@workspace/contracts/event";
-import { screen } from "@testing-library/react";
+import { focusManager } from "@tanstack/react-query";
+import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { initLiff } from "../../lib/liff.ts";
@@ -210,6 +211,49 @@ describe("申込みページ", () => {
     expect(screen.getByRole("link", { name: "公式 LINE を友だちに追加する" })).toBeInTheDocument();
     expect(await screen.findByLabelText(/メールアドレス/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "自分の申込みを見る" })).toBeInTheDocument();
+  });
+
+  it("申し込んだあとに読み直したら、最新の答え（主催者の取り消し）を出す", async () => {
+    const entry = {
+      id: ENTRY_ID,
+      name: "中村 さき",
+      status: "confirmed" as const,
+      appliedAt: "2026-11-20T00:00:00.000Z",
+      cancellable: true,
+      ...NO_STANDING,
+    };
+    const applied = pageOf({ viewer: { ...SIGNED_IN, myEntry: entry } });
+    let reads = 0;
+    stubApi(
+      {
+        [pagePath]: () => {
+          reads += 1;
+          // 1回目は申し込む前。2回目（読み直し）は主催者が取り消したあと
+          return Response.json(
+            pageOf({
+              viewer:
+                reads === 1
+                  ? SIGNED_IN
+                  : { ...SIGNED_IN, myEntry: { ...entry, status: "cancelled", cancellable: false } },
+            }),
+          );
+        },
+        [`POST /api/v1/booking/events/${EVENT_ID}/apply`]: () =>
+          Response.json({ entry, page: applied }, { status: 201 }),
+        "GET /api/v1/booking/me/contact": () => Response.json({ email: null }),
+      },
+      true,
+    );
+    renderWithRouter(<ApplyPage eventId={EVENT_ID} />);
+    await userEvent.click(await screen.findByRole("button", { name: "申し込む" }));
+    expect(await screen.findByRole("heading", { name: "申し込みました" })).toBeInTheDocument();
+    act(() => {
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+    });
+    expect(await screen.findByRole("button", { name: "申し込む" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "申し込みました" })).not.toBeInTheDocument();
+    focusManager.setFocused(undefined);
   });
 
   it("名前が空なら欄のそばに誤りを出し、送らない。案内に同意していればチェックの代わりに文", async () => {
