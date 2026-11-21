@@ -131,7 +131,7 @@ const summary = await getEventSummary(deps.db, deps.config, eventId); // 参加�
 |---|---|
 | 約束 | `packages/contracts/src/event/`（`event.ts`・`roles.ts`・`admin-paths.ts`・`errors.ts`・`index.ts`） |
 | API | `apps/api/src/modules/event/`（`schema.ts`・`repository.ts`・`discounts.ts`・`access.ts`〈判定の1か所〉・`organization.ts`〈組織に入れる〉・`withdrawal.ts`〈退会の段〉・`summary.ts`・`ids.ts`・`routes.ts`・`index.ts`・テスト） |
-| DB の変更 | `apps/api/drizzle/0003_event.sql`・`0006_event_discount.sql`・`0014_event_owner.sql` |
+| DB の変更 | `apps/api/drizzle/0003_event.sql`・`0006_event_discount.sql`・`0015_event_owner.sql` |
 | 画面 | `apps/web/src/features/event/`（`api.ts`・`queries.ts`・`format.ts`・`links.ts`・`admin-tabs.ts`・`nav-items.ts`・`navigation.tsx`・`EventAccessGate.tsx`・`QrCode.tsx`・`EventListPage.tsx`・`EventFormPage.tsx`・`DiscountFields.tsx`・`EventSetupPage.tsx`・`OwnerOrganizationSection.tsx`・`QrPrintPage.tsx`・`print.css`・`InviteAcceptPage.tsx`・`routes.ts`・`index.ts`） |
 | テストの手伝い | `apps/api/test/helpers/event.ts` |
 | 通しのテスト | `e2e/tests/event.spec.ts` |

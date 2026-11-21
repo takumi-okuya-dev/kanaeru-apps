@@ -1,6 +1,6 @@
-// 見せてもらっている運用アカウント（/threads/organizations/{organizationId}/accounts/{accountId}。threads-013。PRD 組織 FR-T4。
-// めぐるの pages/team-shared-account.tsx）。持ち主が「組織に見せる」にした運用アカウントの、投稿の案（一覧）と戦略を読むだけで出す。
-// 画面の上に「（持ち主）さんの運用アカウントを見ています（読むだけ）・（組織の名前）」と「組織に戻る」。直す・承認・消す・貼り付けの操作は出さない。
+// 見せてもらっている運用アカウント（/threads/teams/{teamId}/accounts/{accountId}。threads-013・threads-016。PRD 組織 FR-T4。
+// めぐるの pages/team-shared-account.tsx）。持ち主が「チームに見せる」にした運用アカウントの、投稿の案（一覧）と戦略を読むだけで出す。
+// 画面の上に「（持ち主）さんの運用アカウントを見ています（読むだけ）・（組織の名前） › （チームの名前）」と「チームに戻る」。直す・承認・消す・貼り付けの操作は出さない。
 // 反応・分析・設定・操作の記録は出さない（API も断る）。見せるをオフにされたら、次に読んだときに開けなくなる（API が 403）。
 import {
   DRAFT_LIST_STATUSES,
@@ -16,12 +16,12 @@ import { useState } from "react";
 import { SessionGate } from "../account/index.ts";
 import { LoadFailure, Loading } from "./AccountGate.tsx";
 import { ThreadsPage } from "./ThreadsPage.tsx";
-import { useDrafts, useStrategy, useTeamOrganization } from "./queries.ts";
+import { useDrafts, useStrategy, useTeamPage } from "./queries.ts";
 
 /** 道の値。 */
 type SharedAccountProps = {
-  /** 組織の ID */
-  organizationId: string;
+  /** チームの ID */
+  teamId: string;
   /** 運用アカウントの ID */
   accountId: string;
 };
@@ -108,36 +108,36 @@ function SharedStrategy({ strategy }: { strategy: Strategy }) {
 
 /**
  * 見せてもらっている運用アカウントの中身（ログインのあと）。
- * @param props 組織の ID（organizationId）・運用アカウントの ID（accountId）
+ * @param props チームの ID（teamId）・運用アカウントの ID（accountId）
  * @returns 画面の要素
  */
-function SharedAccount({ organizationId, accountId }: SharedAccountProps) {
-  const organization = useTeamOrganization(organizationId);
+function SharedAccount({ teamId, accountId }: SharedAccountProps) {
+  const team = useTeamPage(teamId);
   const strategy = useStrategy(accountId);
-  if (organization.isPending) return <Loading />;
-  if (organization.isError) {
+  if (team.isPending) return <Loading />;
+  if (team.isError) {
     return (
       <LoadFailure
-        error={organization.error}
-        retry={() => void organization.refetch()}
-        notFoundTitle="この組織は見つかりません"
+        error={team.error}
+        retry={() => void team.refetch()}
+        notFoundTitle="このチームは見つかりません"
       />
     );
   }
-  const account = organization.data.accounts.find((row) => row.id === accountId);
+  const account = team.data.accounts.find((row) => row.id === accountId);
   if (!account || account.access === "none") {
     return (
       <ThreadsPage
         title="この運用アカウントは見られません"
-        lead="持ち主が見せていないか、組織から外れた可能性があります。"
+        lead="持ち主が見せていないか、チームから外れた可能性があります。"
       >
         <div>
           <Link
-            to="/threads/organizations/$organizationId"
-            params={{ organizationId }}
+            to="/threads/teams/$teamId"
+            params={{ teamId }}
             className={buttonVariants({ variant: "secondary" })}
           >
-            組織に戻る
+            チームに戻る
           </Link>
         </div>
       </ThreadsPage>
@@ -151,15 +151,16 @@ function SharedAccount({ organizationId, accountId }: SharedAccountProps) {
       >
         <p>
           {account.ownerName || "（名前なし）"}
-          さんの運用アカウントを見ています（読むだけ）・{organization.data.name}
+          さんの運用アカウントを見ています（読むだけ）・{team.data.organization.name} ›{" "}
+          {team.data.name}
         </p>
         <div>
           <Link
-            to="/threads/organizations/$organizationId"
-            params={{ organizationId }}
+            to="/threads/teams/$teamId"
+            params={{ teamId }}
             className={buttonVariants({ variant: "secondary", size: "small" })}
           >
-            組織に戻る
+            チームに戻る
           </Link>
         </div>
       </div>
@@ -177,7 +178,7 @@ function SharedAccount({ organizationId, accountId }: SharedAccountProps) {
 
 /**
  * 見せてもらっている運用アカウント（ログインが要る）。
- * @param props 組織の ID（organizationId）・運用アカウントの ID（accountId）
+ * @param props チームの ID（teamId）・運用アカウントの ID（accountId）
  * @returns 画面の要素
  */
 export function SharedAccountPage(props: SharedAccountProps) {
@@ -188,13 +189,13 @@ export function SharedAccountPage(props: SharedAccountProps) {
   );
 }
 
-const sharedRouteApi = getRouteApi("/threads/organizations/$organizationId/accounts/$accountId");
+const sharedRouteApi = getRouteApi("/threads/teams/$teamId/accounts/$accountId");
 
 /**
  * 見せてもらっている運用アカウントの道の画面（道の値を読む）。
  * @returns 画面の要素
  */
 export function SharedAccountRoute() {
-  const { organizationId, accountId } = sharedRouteApi.useParams();
-  return <SharedAccountPage organizationId={organizationId} accountId={accountId} />;
+  const { teamId, accountId } = sharedRouteApi.useParams();
+  return <SharedAccountPage teamId={teamId} accountId={accountId} />;
 }
