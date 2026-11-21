@@ -8,11 +8,18 @@
 #     state に残る（state のバケットは非公開。Cloud Scheduler の見出しは秘密の参照を使えないため）
 #   - THREADS_APP_SECRET：Meta のアプリの秘密の値（threads-010。var.threads_app_id を入れたら入れ物を作る）。鍵の束と同じく
 #     Terraform は入れ物だけを作り、値は手で版を足す（README の 9。state に残さないため）。アプリの ID は秘密でないので変数で渡す
+# - 鍵の束と合言葉は、予約（booking.tf。var.booking_enabled）も使うので、どちらかが入なら作る（local.shared_secrets_enabled）。
+#   資源の名前は Threads のときのまま（名前を変えると作り直しになり、手で足した鍵の版が消えるため）
 # - 定期の仕事：5分おき・日本時間 8時〜23時台（DB の夜間の停止の外。AD-10）に POST /api/v1/threads/jobs/tick を呼ぶ。
 #   Cloud Scheduler の仕事は、夜間の停止の2つと合わせて3つ（無料の枠の中。原則 V）
 
+locals {
+  # Threads と予約が共に使う秘密（鍵の束・合言葉）を作るか
+  shared_secrets_enabled = var.threads_enabled || var.booking_enabled
+}
+
 resource "google_secret_manager_secret" "threads_token_keys" {
-  count     = var.threads_enabled ? 1 : 0
+  count     = local.shared_secrets_enabled ? 1 : 0
   secret_id = "${local.name}-token-encryption-keys"
 
   replication {
@@ -27,13 +34,13 @@ resource "google_secret_manager_secret" "threads_token_keys" {
 }
 
 resource "random_password" "job_trigger" {
-  count   = var.threads_enabled ? 1 : 0
+  count   = local.shared_secrets_enabled ? 1 : 0
   length  = 48
   special = false
 }
 
 resource "google_secret_manager_secret" "job_trigger" {
-  count     = var.threads_enabled ? 1 : 0
+  count     = local.shared_secrets_enabled ? 1 : 0
   secret_id = "${local.name}-job-trigger-secret"
 
   replication {
@@ -48,20 +55,20 @@ resource "google_secret_manager_secret" "job_trigger" {
 }
 
 resource "google_secret_manager_secret_version" "job_trigger" {
-  count       = var.threads_enabled ? 1 : 0
+  count       = local.shared_secrets_enabled ? 1 : 0
   secret      = google_secret_manager_secret.job_trigger[0].id
   secret_data = random_password.job_trigger[0].result
 }
 
 resource "google_secret_manager_secret_iam_member" "runtime_threads_token_keys" {
-  count     = var.threads_enabled ? 1 : 0
+  count     = local.shared_secrets_enabled ? 1 : 0
   secret_id = google_secret_manager_secret.threads_token_keys[0].id
   role      = "roles/secretmanager.secretAccessor"
   member    = google_service_account.runtime.member
 }
 
 resource "google_secret_manager_secret_iam_member" "runtime_job_trigger" {
-  count     = var.threads_enabled ? 1 : 0
+  count     = local.shared_secrets_enabled ? 1 : 0
   secret_id = google_secret_manager_secret.job_trigger[0].id
   role      = "roles/secretmanager.secretAccessor"
   member    = google_service_account.runtime.member

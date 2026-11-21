@@ -21,3 +21,7 @@ open_chat_url          = "https://line.me/ti/g2/xxxxxxxx"
 # budget_amount   = 2000
 # budget_currency = "JPY"
 # db_password_version = 1
+
+# 予約の知らせと定期の仕事（既定は切。入にする手順は README の 10）
+# booking_enabled     = false
+# booking_notify_mode = "off"   # off・allowlist・on
