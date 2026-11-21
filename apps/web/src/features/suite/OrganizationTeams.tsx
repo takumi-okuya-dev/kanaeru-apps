@@ -8,6 +8,7 @@ import { ORGANIZATION_ROLE_LABELS, TeamNameInput } from "@workspace/contracts/su
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
+import { Disclosure } from "@workspace/ui/components/disclosure";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { Field, useFieldControl } from "@workspace/ui/components/field";
 import { Input, inputClassName } from "@workspace/ui/components/input";
@@ -365,8 +366,7 @@ function TeamCard({ organization, team }: { organization: OrganizationDetail; te
       {isAdmin ? (
         <>
           <AddTeamMember organization={organization} team={team} />
-          <details className="flex flex-col gap-xs">
-            <summary className="min-h-l cursor-pointer text-m">名前を直す・消す</summary>
+          <Disclosure summary="名前を直す・消す">
             <div className="flex flex-col gap-xs pt-xxs">
               <TeamNameForm
                 key={team.name}
@@ -392,7 +392,7 @@ function TeamCard({ organization, team }: { organization: OrganizationDetail; te
                 </Button>
               </div>
             </div>
-          </details>
+          </Disclosure>
           <ConfirmDialog
             open={confirming}
             onOpenChange={setConfirming}

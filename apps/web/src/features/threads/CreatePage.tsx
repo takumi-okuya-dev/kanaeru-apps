@@ -177,14 +177,13 @@ function SettingsForm({ accountId, settings }: SettingsFormProps) {
           }
         />
       </Field>
-      <details className="flex flex-col gap-s">
-        <summary className="cursor-pointer text-m font-bold">文字数と長さの割合</summary>
-        <p className="mt-xs text-s text-text-sub" aria-live="polite">
+      <Disclosure summary="文字数と長さの割合" variant="heading">
+        <p className="text-s text-text-sub" aria-live="polite">
           {mix
             ? `${toNumber(values.count)}件の内訳：短文 ${mix[0]}件（${values.shortLength}文字）・中文 ${mix[1]}件（${values.mediumLength}文字）・長文 ${mix[2]}件（${values.longLength}文字）`
             : `割合の合計を100にすると、内訳を出します（今は${ratioSum}）。`}
         </p>
-        <div className="mt-xs grid grid-cols-1 gap-s wide:grid-cols-2">
+        <div className="grid grid-cols-1 gap-s wide:grid-cols-2">
           {LENGTH_FIELDS.map(({ key, label, description }) => (
             <Field
               key={key}
@@ -207,7 +206,7 @@ function SettingsForm({ accountId, settings }: SettingsFormProps) {
         <Button
           type="button"
           size="small"
-          className="mt-xs"
+          className="self-start"
           onClick={() =>
             setValues((current) => ({
               ...current,
@@ -219,7 +218,7 @@ function SettingsForm({ accountId, settings }: SettingsFormProps) {
         >
           文字数と割合をはじめの値に戻す（保存はまだ）
         </Button>
-      </details>
+      </Disclosure>
       <div className="flex flex-col items-start gap-xxs">
         <Button type="submit" aria-disabled={pending || undefined}>
           {pending ? "保存しています…" : "設定を保存"}
@@ -253,11 +252,12 @@ function PromptMaterials({ accountId, prompt }: PromptMaterialsProps) {
   const params = { accountId };
   const linkClass = "text-s text-text-link underline";
   return (
-    <details className="flex flex-col gap-xs rounded-sm border border-border bg-surface p-xs">
-      <summary className="min-h-l cursor-pointer text-m font-bold">
-        プロンプトに入っている情報
-      </summary>
-      <div className="mt-xs grid grid-cols-1 gap-xs wide:grid-cols-2">
+    <Disclosure
+      summary="プロンプトに入っている情報"
+      variant="heading"
+      className="rounded-sm border border-border bg-surface p-xs"
+    >
+      <div className="grid grid-cols-1 gap-xs wide:grid-cols-2">
         <section aria-label="戦略" className="flex flex-col gap-x3s">
           <div className="flex items-center justify-between gap-xxs">
             <h3 className="text-m font-bold">
@@ -335,7 +335,7 @@ function PromptMaterials({ accountId, prompt }: PromptMaterialsProps) {
           <p>1日の投稿の数：{summary.dailyPostCount}件</p>
         </section>
       </div>
-    </details>
+    </Disclosure>
   );
 }
 

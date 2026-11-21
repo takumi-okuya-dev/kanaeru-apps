@@ -1,5 +1,5 @@
 // Threads のチームの画面（/threads/teams/{teamId}。threads-016。threads-013 の組織の画面・運用状況を、チームごとの1つの画面にまとめた）。
-// - 上で「運用アカウント」「担当を決める」（組織の管理者とリーダーだけ）「運用状況」（管理者・リーダー・このチームで担当がある編集者だけ）を切り替える
+// - 上のタブ（SectionTabs。threads-018）で「運用アカウント」「担当を決める」（組織の管理者とリーダーだけ）「運用状況」（管理者・リーダー・このチームで担当がある編集者だけ）を切り替える
 // - 運用アカウント：名前・持ち主・接続・見せる状態。開き方は API が決める（自分のもの・担当・見せてもらう〈読むだけ〉・開けない）。
 //   自分の運用アカウントは、ここから「チームに見せる」を変えられる
 // - 担当を決める：チームの編集者と管理者ごとに、そのチームの運用アカウントをチェック（スマホでも横にスクロールしないよう、人ごとのまとまり）
@@ -17,13 +17,14 @@ import { Link, getRouteApi } from "@tanstack/react-router";
 import { Disclosure } from "@workspace/ui/components/disclosure";
 import { Badge } from "@workspace/ui/components/badge";
 import { buttonVariants } from "@workspace/ui/components/button";
-import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useState } from "react";
 import { errorMessage } from "../../lib/api.ts";
 import { SessionGate } from "../account/index.ts";
 import { LoadFailure, Loading } from "./AccountGate.tsx";
 import { RoleDiagram } from "./RoleDiagram.tsx";
+import { SectionTabs } from "./SectionTabs.tsx";
+import type { SectionTab } from "./SectionTabs.tsx";
 import { ThreadsPage } from "./ThreadsPage.tsx";
 import { setAccountShared, setAssignment } from "./api.ts";
 import { THREADS_QUERY_KEYS, useTeamPage, useTeamStatus } from "./queries.ts";
@@ -413,12 +414,12 @@ function Team({ teamId }: { teamId: string }) {
     );
   }
   const view = query.data;
-  const tabs: { value: TeamTab; label: string }[] = [
-    { value: "accounts", label: `運用アカウント（${view.accounts.length}）` },
-    ...(view.canAssign ? [{ value: "assignments" as const, label: "担当を決める" }] : []),
-    ...(view.canSeeStatus ? [{ value: "status" as const, label: "運用状況" }] : []),
+  const tabs: SectionTab<TeamTab>[] = [
+    { id: "accounts", label: "運用アカウント", badge: String(view.accounts.length) },
+    ...(view.canAssign ? [{ id: "assignments" as const, label: "担当を決める" }] : []),
+    ...(view.canSeeStatus ? [{ id: "status" as const, label: "運用状況" }] : []),
   ];
-  const current = tabs.some((row) => row.value === tab) ? tab : "accounts";
+  const current = tabs.some((row) => row.id === tab) ? tab : "accounts";
   return (
     <ThreadsPage
       title={view.name}
@@ -434,13 +435,7 @@ function Team({ teamId }: { teamId: string }) {
         </Link>
       </div>
       {tabs.length > 1 ? (
-        <ChoiceChips
-          label="見るもの"
-          labelHidden
-          options={tabs}
-          value={current}
-          onValueChange={setTab}
-        />
+        <SectionTabs label="見るもの" tabs={tabs} current={current} onSelect={setTab} />
       ) : null}
       {current === "accounts" ? <TeamAccounts view={view} /> : null}
       {current === "assignments" ? <TeamAssignments view={view} /> : null}

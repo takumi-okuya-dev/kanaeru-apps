@@ -212,7 +212,10 @@ test("組織の中のチームで担当が案を作り、任された承認を�
   await expect(admin.page.getByRole("heading", { level: 3, name: accountName })).toBeVisible();
   await checkPage(admin.page, "チームの画面（管理者）");
   const teamUrl = admin.page.url();
-  await admin.page.getByRole("radio", { name: "担当を決める" }).click();
+  await admin.page
+    .getByRole("navigation", { name: "見るもの" })
+    .getByRole("button", { name: "担当を決める" })
+    .click();
   const editorGroup = admin.page.getByRole("group", {
     name: new RegExp(`^${escapeRegExp(editor.name)}`),
   });
@@ -257,7 +260,10 @@ test("組織の中のチームで担当が案を作り、任された承認を�
 
   // 管理者：運用状況（数と日付だけ。本文は出ない）
   await admin.page.goto(teamUrl);
-  await admin.page.getByRole("radio", { name: "運用状況" }).click();
+  await admin.page
+    .getByRole("navigation", { name: "見るもの" })
+    .getByRole("button", { name: "運用状況" })
+    .click();
   await expect(admin.page.getByRole("heading", { level: 2, name: "運用状況" })).toBeVisible();
   const statusAccounts = admin.page.getByRole("list", { name: "運用アカウントの運用状況" });
   await expect(statusAccounts.getByRole("heading", { name: accountName })).toBeVisible();
