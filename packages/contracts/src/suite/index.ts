@@ -31,6 +31,11 @@ export {
   OrganizationRoleSchema,
   OrganizationSummary,
   OrganizationTransferInput,
+  TeamMemberInput,
+  TeamMemberView,
+  TeamName,
+  TeamNameInput,
+  TeamView,
 } from "./organization.ts";
 export {
   ORGANIZATION_ADMIN_LIMIT,
@@ -41,5 +46,7 @@ export {
   ORGANIZATION_NAME_MAX,
   ORGANIZATION_ROLE_LABELS,
   ORGANIZATION_ROLES,
+  TEAM_LIMIT,
+  TEAM_NAME_MAX,
 } from "./organization-errors.ts";
 export type { OrganizationErrorCode, OrganizationRole } from "./organization-errors.ts";
