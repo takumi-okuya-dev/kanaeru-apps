@@ -11,7 +11,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { buildApp } from "../../../test/helpers/app.ts";
 import type { TestApp } from "../../../test/helpers/app.ts";
 import { loginAs } from "../../../test/helpers/account.ts";
-import { bookingBase } from "../../../test/helpers/booking.ts";
+import { bookingBase, importNames, readRoster } from "../../../test/helpers/booking.ts";
 import {
   anonymous,
   apply,
@@ -514,6 +514,36 @@ describe("キャンセル待ちと繰り上げ", () => {
     const walkIn = await call(app, owner.cookie, `${base}/walk-ins`, "POST", SAMPLE_CHECKIN);
     expect(walkIn.status).toBe(201);
     expect(await released()).not.toBeNull();
+  });
+
+  it("打診で満員になったら印を付け、そのあとに媒体の人が取り消しても、空いた席を次の人に打診する", async () => {
+    await setCapacity(app, owner.cookie, eventId, 3, [
+      { applicationSource: "peatix", seats: 1, manageUrl: null },
+    ]);
+    await join("中村 さき");
+    await join("森 はるか");
+    await importNames(app, owner.cookie, eventId, ["石井 じろう"], "peatix");
+    const third = await join("林 たろう");
+    const fourth = await join("上田 しろう");
+    expect(await statusOf(database, third.entry.id)).toBe("waitlisted");
+    // 定員を増やすと印が消え、増えた1席を打診して満員に戻る
+    await setCapacity(app, owner.cookie, eventId, 4, [
+      { applicationSource: "peatix", seats: 1, manageUrl: null },
+    ]);
+    expect(await statusOf(database, third.entry.id)).toBe("offered");
+    const released = await database.pool.query<{ at: Date | null }>(
+      "SELECT quota_released_at AS at FROM booking_setting WHERE event_id = $1",
+      [eventId],
+    );
+    expect(released.rows[0]?.at).not.toBeNull();
+    // 媒体の人を主催者が取り消すと、空いた席を次の人に打診する（媒体の枠として押さえ直さない）
+    const peatix = (await readRoster(app, owner.cookie, eventId)).entries.find(
+      (entry) => entry.applicationSource === "peatix",
+    );
+    await call(app, owner.cookie, `${base}/entries/${peatix?.id}/status`, "PUT", {
+      status: "cancelled",
+    });
+    expect(await statusOf(database, fourth.entry.id)).toBe("offered");
   });
 
   it("始まりが近いと打診せず当日の空きにし、キャンセル待ちに1回だけ知らせ、先着で確定する", async () => {
