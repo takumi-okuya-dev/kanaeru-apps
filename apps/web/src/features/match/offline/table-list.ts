@@ -1,7 +1,7 @@
-// 試合表の一覧を端末にも置く（電波がないときは、最後に読んだ一覧を出す。match-005）。
+// 試合表の一覧を端末にも置く（電波がない・サーバーが答えないときは、最後に読んだ一覧を出す。match-005）。
 // 一覧に入るのは名前・試合の日・組織の名前だけ（呼び名・名簿は入らない）。
 import type { MatchTableList } from "@workspace/contracts/match";
-import { NetworkError } from "../../../lib/api.ts";
+import { ApiError, NetworkError } from "../../../lib/api.ts";
 import { fetchTables } from "../api.ts";
 import { offlineStore } from "./store.ts";
 
@@ -41,7 +41,9 @@ export async function loadTableList(): Promise<MatchTableList> {
       .catch(() => undefined);
     return list;
   } catch (caught) {
-    if (!(caught instanceof NetworkError)) throw caught;
+    const fallsBack =
+      caught instanceof NetworkError || (caught instanceof ApiError && caught.status >= 500);
+    if (!fallsBack) throw caught;
     const stored = await (
       await offlineStore()
     )

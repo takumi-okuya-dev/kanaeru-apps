@@ -257,6 +257,49 @@ describe("Outbox", () => {
   });
 });
 
+describe("Outbox（置き場所の失敗と競合）", () => {
+  it("置き場所を読めなくても、空の列から始めて送る", async () => {
+    const store: OfflineStore = {
+      ...createMemoryStore(),
+      listChanges: () => Promise.reject(new Error("Connection to Indexed Database server lost")),
+    };
+    const server = fakeServer(1);
+    const { outbox } = makeOutbox({ store, server, online: { value: true } });
+    await outbox.enqueue({ content: contentWith("一"), seed: 1 }, 1);
+    await outbox.settled();
+    expect(server.version).toBe(2);
+    expect(outbox.state()).toEqual({ status: "idle" });
+  });
+
+  it("置き場所に足し終える前に送れても、送った変更を置き場所に残さない", async () => {
+    const memory = createMemoryStore();
+    let release: () => void = () => {};
+    const slow = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const store: OfflineStore = {
+      ...memory,
+      addChange: async (entry) => {
+        await slow;
+        return memory.addChange(entry);
+      },
+    };
+    const server = fakeServer(1);
+    const { outbox } = makeOutbox({ store, server, online: { value: true } });
+    outbox.observe(1);
+    const first = outbox.enqueue({ content: contentWith("一"), seed: 1 }, 1);
+    // 1つ目を置き場所に足している途中に、送りを回す
+    const flushing = outbox.flush();
+    await Promise.resolve();
+    release();
+    await first;
+    await flushing;
+    await outbox.settled();
+    expect(server.version).toBe(2);
+    expect(await memory.listChanges(TABLE_ID)).toEqual([]);
+  });
+});
+
 describe("classifySendError", () => {
   it("誤りを分ける", () => {
     expect(classifySendError(new NetworkError(new TypeError("x")))).toBe("network");

@@ -6,7 +6,10 @@
 // - 新しい版（組み立て直した画面）は、ブラウザが match/sw.js の変わり目に気づいて入れ、待たせる。画面が「新しい版があります」を
 //   出し、運営が「読み直す」を押すと SKIP_WAITING を受けて入れ替わる（AD-27【仮決め】）。入れ替わったら古い版のファイルを消す
 // - 止め方：①機能の印 match.offline を切にする（画面と、この本文が10分おきに確かめ、切なら自分を外してファイルを消す）
-//   ②壊れたときは SELF_UNREGISTER を true にして出す（入った途端に自分を外し、ファイルを消し、開いている画面を読み直す）
+//   ②壊れたときは SELF_UNREGISTER を true にして出す（入った途端に自分を外し、ファイルを消し、開いている画面を読み直す）。
+//     同時に①も切にする（入のままだと、画面が開くたびに入れ直しては外すをくり返す）
+// - 外枠は、つながっているときに裏で取り直す（守りの見出し〈CSP・Permissions-Policy〉を新しくするため）。取り直した外枠が
+//   この版の持つ束だけを指すときだけ差しかえる（画面を組み直したあとの外枠は、新しい版の Service Worker が入れる）
 // import を書かない（ふつうの script として動かす）。
 "use strict";
 
@@ -38,6 +41,33 @@ const CHECK_INTERVAL_MS = 10 * 60 * 1000;
 const PRECACHED = new Set(PRECACHE);
 /** 最後に機能の印を確かめた時刻。 */
 let lastCheck = 0;
+/** 外枠を最後に取り直した時刻。 */
+let lastShellRefresh = 0;
+/** 外枠を取り直す間（ミリ秒）。 */
+const SHELL_REFRESH_MS = 60 * 1000;
+
+/**
+ * つながっていれば外枠を取り直し、この版の持つ束だけを指すなら差しかえる（届かなければ何もしない）。
+ * @returns 終わり
+ */
+async function refreshShell() {
+  const now = Date.now();
+  if (now - lastShellRefresh < SHELL_REFRESH_MS) return;
+  lastShellRefresh = now;
+  try {
+    const response = await fetch(SHELL, { cache: "no-store", credentials: "same-origin" });
+    if (!response.ok) return;
+    const html = await response.clone().text();
+    const assets = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/gu)].map(
+      (match) => match[1],
+    );
+    if (assets.length === 0 || !assets.every((path) => PRECACHED.has(path))) return;
+    const cache = await caches.open(CACHE_NAME);
+    await cache.put(SHELL, response);
+  } catch {
+    // 電波がない・届かないときは、持っている外枠のまま
+  }
+}
 
 /**
  * 自分を外し、置き場所を消し、開いている試合表の画面を読み直す（止めるとき）。
@@ -125,7 +155,7 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname === "/api" || url.pathname.startsWith("/api/")) return;
   if (request.mode === "navigate") {
     if (!url.pathname.startsWith(SCOPE_PATH)) return;
-    event.waitUntil(checkSetting());
+    event.waitUntil(Promise.all([checkSetting(), refreshShell()]));
     event.respondWith(
       (async () => {
         const cached = await caches.match(SHELL, { cacheName: CACHE_NAME });

@@ -355,6 +355,13 @@ function ReadQrDialog({
         });
         return "continue";
       }
+      if (table.updatedAt > Date.now() + 5 * 60_000) {
+        setResult({
+          tone: "danger",
+          text: "この QR の時刻が、この端末の時刻より先になっています。運営の端末の時刻を確かめてください。",
+        });
+        return "continue";
+      }
       const compared = compareHandoffVersion(table.version, currentVersion);
       if (compared !== "newer") {
         setResult({
@@ -364,7 +371,7 @@ function ReadQrDialog({
               ? `もう同じ版（版 ${table.version}）の表が入っています。`
               : `この端末の表のほうが新しいため、取り込みませんでした（QR は版 ${table.version}）。`,
         });
-        return "done";
+        return "continue";
       }
       onImport(viewFromHandoff(table, expiresAt ?? endOfJstDate(table.playDate).toISOString()));
       setResult({ tone: "success", text: `版 ${table.version} の表を取り込みました。` });
@@ -400,7 +407,20 @@ function ReadQrDialog({
 }
 
 /**
- * 新しいほうの表を選ぶ（サーバーから読んだ表と、端末に置いた表〈QR で受け取った表を含む〉）。
+ * QR で受け取った表を、サーバーから読んだ表より先に出すか：版が大きく、かつ中身の時刻もサーバーの最後の保存より新しいときだけ
+ * （運営が送っていない変更を捨てた・いたずらで大きな版の QR を作られたときに、サーバーの表がずっと出なくならないよう、
+ * サーバーで次に保存されたら、サーバーの表に戻る）。
+ * @param qr QR で受け取った表
+ * @param server サーバーから読んだ表
+ * @returns 先に出すなら true
+ */
+function qrIsNewer(qr: MatchView, server: MatchView): boolean {
+  return qr.version > server.version && Date.parse(qr.updatedAt) > Date.parse(server.updatedAt);
+}
+
+/**
+ * 出す表を選ぶ（サーバーから読んだ表と、端末に置いた表〈QR で受け取った表を含む〉）。読めればサーバーの表を出し、
+ * QR で受け取った表は qrIsNewer のときだけ先に出す。
  * @param fromServer サーバーから読んだ表
  * @param saved 端末に置いた表
  * @returns 出す表
@@ -410,7 +430,7 @@ function newerView(
   saved: SavedView | undefined,
 ): SavedView | undefined {
   if (!fromServer) return saved;
-  if (saved && saved.view.version > fromServer.view.version) return saved;
+  if (saved?.source === "qr" && qrIsNewer(saved.view, fromServer.view)) return saved;
   return fromServer;
 }
 
@@ -459,7 +479,7 @@ export function ViewRoute() {
     if (!view.data) return;
     const next: SavedView = { view: view.data, readAt: view.dataUpdatedAt };
     const current = loadSaved(viewToken);
-    if (current && current.view.version > view.data.version) return;
+    if (current?.source === "qr" && qrIsNewer(current.view, view.data)) return;
     save(storageKey(viewToken, "view"), JSON.stringify(next));
     setSaved(next);
   }, [view.data, view.dataUpdatedAt, viewToken]);

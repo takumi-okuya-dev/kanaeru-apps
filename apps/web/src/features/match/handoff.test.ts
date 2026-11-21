@@ -262,6 +262,21 @@ describe("試合表の QR", () => {
     expect(collector.collected()).toEqual([2]);
   });
 
+  it("ありえない値（版0・長すぎる呼び名・1試合の長さ0）の試合表の QR は読まない", () => {
+    const base = typicalTable();
+    expect(() => deserializeTable(serializeTable({ ...base, version: 0 }))).toThrow(
+      HandoffFormatError,
+    );
+    expect(() => deserializeTable(serializeTable({ ...base, minutesPerGame: 0 }))).toThrow(
+      HandoffFormatError,
+    );
+    const long = {
+      ...base,
+      groups: [{ key: "all" as const, games: [{ players: ["あ".repeat(21), "い"], done: false }] }],
+    };
+    expect(() => deserializeTable(serializeTable(long))).toThrow(HandoffFormatError);
+  });
+
   it("試合表の QR でない文字・崩れた中身は読まない", async () => {
     expect(readHandoffPart("https://example.com/match/view/x")).toBeUndefined();
     expect(readHandoffPart("KM1.21.ABCD.ABC")).toBeUndefined();
@@ -292,7 +307,11 @@ describe("受付の QR", () => {
   it("呼び名とレベルが行って戻り、本物の模様で読める（property-based）", async () => {
     fc.assert(
       fc.property(
-        fc.string({ minLength: 1, maxLength: 20 }).filter((name) => name.trim().length > 0),
+        fc
+          .string({ minLength: 1, maxLength: 20 })
+          .filter(
+            (name) => name.trim() === name && name.length > 0 && !/[\p{Cc}\p{Cf}]/u.test(name),
+          ),
         fc.constantFrom(...MATCH_LEVELS),
         fc.stringMatching(/^[0-9a-f]{8}$/u),
         (nickname, level, hint) => {
@@ -319,6 +338,16 @@ describe("受付の QR", () => {
     expect(nonce).toMatch(/^[0-9a-f]{15}$/u);
     expect(joinQrPlayerId(nonce)).toBe(`q${nonce}`);
     expect(joinQrPlayerId(nonce)).toMatch(/^[a-z0-9]{1,16}$/u);
+  });
+
+  it("受付の窓口で通らない呼び名（21文字・制御文字・空白だけ）の QR は読まない（外から作れるため）", () => {
+    const make = (nickname: string) =>
+      encodeJoinHandoff({ hint: "deadbeef", nickname, level: "novice", nonce: newJoinNonce() });
+    expect(decodeJoinHandoff(make("あ".repeat(21)))).toBeUndefined();
+    expect(decodeJoinHandoff(make("石川\u0007"))).toBeUndefined();
+    expect(decodeJoinHandoff(make("石\u202e川"))).toBeUndefined();
+    expect(decodeJoinHandoff(make("   "))).toBeUndefined();
+    expect(decodeJoinHandoff(make(" 石川 "))?.nickname).toBe("石川");
   });
 
   it("形の違う受付の QR は読まない", () => {

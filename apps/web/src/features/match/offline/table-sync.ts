@@ -1,7 +1,7 @@
 // 試合表ごとの、端末の中身と送りの列（AD-28。match-005）。問い合わせ（queries.ts）と直す道具（table-editor.ts）が共に使う。
 // - 読む：サーバーから読めたら、送っていない変更があればその中身を重ねて出し（送りを始める）、端末に置く。
 //   電波がない・届かない・サーバーが答えない（5xx）ときは、端末に置いた最後の中身を出す（ネットなしで開く。AD-27）
-// - 試合表が消された・開けなくなった（403・404）ときは、端末の中身と変更を消す
+// - 試合表が消された（404 MATCH_NOT_FOUND）ときは、端末の中身と変更を消す
 // - 送りの列は Outbox（送っていない変更を IndexedDB に持ち、古い順に送る）
 import type { MatchTable } from "@workspace/contracts/match";
 import { ApiError, NetworkError } from "../../../lib/api.ts";
@@ -135,16 +135,17 @@ export async function loadTable(tableId: string): Promise<MatchTable> {
     if (latest) void sync.outbox.flush();
     return table;
   } catch (caught) {
-    if (caught instanceof ApiError && (caught.status === 403 || caught.status === 404)) {
-      void offlineStore()
-        .then((store) => store.removeTable(tableId))
-        .catch(() => undefined);
+    // 試合表が消された（MATCH_NOT_FOUND）ときだけ、端末の中身と送っていない変更を消す。権限がない（403）・アプリが
+    // 見えない（組み立ての 404）は一時のことがあるので消さない（電波なしの変更を戻せない形で消さないため）
+    if (caught instanceof ApiError && caught.code === "MATCH_NOT_FOUND") {
+      await sync.outbox.discard().catch(() => undefined);
+      await (await offlineStore()).removeTable(tableId).catch(() => undefined);
     }
     if (!fallsBackToDevice(caught)) throw caught;
     const snapshot = await (await offlineStore()).readSnapshot(tableId).catch(() => undefined);
     if (!snapshot) throw caught;
     await sync.outbox.loaded();
-    const latest = sync.outbox.latest();
+    const latest = sync.outbox.isHeld() ? undefined : sync.outbox.latest();
     sync.deviceCopyAt = latest?.createdAt ?? snapshot.savedAt;
     notify(sync);
     return latest

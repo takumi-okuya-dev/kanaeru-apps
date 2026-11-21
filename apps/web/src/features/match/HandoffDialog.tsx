@@ -33,7 +33,7 @@ type HandoffDialogProps = {
  * @returns 枠の要素
  */
 export function HandoffDialog({ open, onOpenChange, table, version }: HandoffDialogProps) {
-  const [madeAt] = useState(() => Date.now());
+  const [madeAt, setMadeAt] = useState(() => Date.now());
   const [texts, setTexts] = useState<string[]>();
   const [error, setError] = useState<string>();
   const [index, setIndex] = useState(0);
@@ -43,8 +43,15 @@ export function HandoffDialog({ open, onOpenChange, table, version }: HandoffDia
   useEffect(() => {
     if (noLink) return;
     let live = true;
-    encodeTableHandoff(handoffOfTable(table, version, madeAt))
-      .then((made) => live && setTexts(made))
+    // 表が変わるたびに、その時刻で作り直す（見るだけのページは、この時刻から今の試合を見込む）
+    const now = Date.now();
+    encodeTableHandoff(handoffOfTable(table, version, now))
+      .then((made) => {
+        if (!live) return;
+        setMadeAt(now);
+        setTexts(made);
+        setIndex(0);
+      })
       .catch((caught: unknown) => {
         if (!live) return;
         setError(
@@ -56,7 +63,7 @@ export function HandoffDialog({ open, onOpenChange, table, version }: HandoffDia
     return () => {
       live = false;
     };
-  }, [madeAt, noLink, table, version]);
+  }, [noLink, table, version]);
 
   const total = texts?.length ?? 0;
   useEffect(() => {

@@ -13,7 +13,14 @@
 // ■ 受付の QR（P3：参加者 → 運営の M7）
 // - 「KJ1.」＋Base45（受付の札の印・レベル・参加者の端末が作る乱数・呼び名）。乱数から名簿の人の ID を決めるので、同じ QR を
 //   2回読んでも1人しか入らない
-import { MATCH_GROUPS, MATCH_GROUP_KEYS, MATCH_LEVELS } from "@workspace/contracts/match";
+import {
+  MATCH_GROUPS,
+  MATCH_GROUP_KEYS,
+  MATCH_LEVELS,
+  MatchJoinInput,
+  NICKNAME_MAX,
+  TABLE_NAME_MAX,
+} from "@workspace/contracts/match";
 import type { MatchGroupKey, MatchLevel, MatchTable, MatchView } from "@workspace/contracts/match";
 
 /** Base45 の文字（RFC 9285）。 */
@@ -28,6 +35,9 @@ const JOIN_PREFIX = "KJ1.";
 export const HANDOFF_CHUNK_CHARS = 1000;
 /** つづきの QR の枚数の上限。 */
 export const HANDOFF_MAX_PARTS = 16;
+
+/** 戻したあとの大きさの上限（バイト。読む端末を重くする QR を止める）。 */
+const MAX_INFLATED_BYTES = 256 * 1024;
 
 /** 中身の形の印（先頭の1バイト）：そのまま。 */
 const FORMAT_RAW = 1;
@@ -291,6 +301,10 @@ async function transform(bytes: Uint8Array, stream: GenericTransformStream): Pro
     if (done) break;
     chunks.push(value);
     length += value.length;
+    if (length > MAX_INFLATED_BYTES) {
+      await reader.cancel().catch(() => undefined);
+      throw new HandoffFormatError();
+    }
   }
   const out = new Uint8Array(length);
   let offset = 0;
@@ -403,15 +417,22 @@ export function serializeTable(table: HandoffTable): Uint8Array {
 export function deserializeTable(bytes: Uint8Array): HandoffTable {
   const reader = new ByteReader(bytes);
   const version = reader.varint();
+  if (!Number.isSafeInteger(version) || version < 1) throw new HandoffFormatError();
   const hint = reader.u8() === 1 ? reader.hex(4) : null;
   const name = reader.text();
+  if (name.length > TABLE_NAME_MAX) throw new HandoffFormatError();
   const date = new Date(DAY_ZERO + reader.varint() * DAY_MS);
   const playDate = date.toISOString().slice(0, 10);
   const minutesPerGame = reader.varint();
+  if (minutesPerGame < 1 || minutesPerGame > 600) throw new HandoffFormatError();
   const updatedAt = reader.varint() * 60_000;
   const nameCount = reader.varint();
   if (nameCount > 1000) throw new HandoffFormatError();
-  const names = Array.from({ length: nameCount }, () => reader.text());
+  const names = Array.from({ length: nameCount }, () => {
+    const value = reader.text();
+    if (value.length > NICKNAME_MAX) throw new HandoffFormatError();
+    return value;
+  });
   const groupCount = reader.varint();
   if (groupCount > MATCH_GROUP_KEYS.length) throw new HandoffFormatError();
   const groups: HandoffTable["groups"] = [];
@@ -668,8 +689,11 @@ export function decodeJoinHandoff(text: string): HandoffJoin | undefined {
     const level = MATCH_LEVELS[reader.u8()];
     const nonce = reader.hex(8).slice(1);
     const nickname = reader.text();
-    if (!level || !reader.done() || nickname.trim().length === 0) return undefined;
-    return { hint, level, nonce, nickname };
+    if (!level || !reader.done()) return undefined;
+    // 受付の窓口と同じ決まり（1〜20文字・制御文字なし）。外から作れる QR なので、名簿に入れる前に確かめる
+    const parsed = MatchJoinInput.safeParse({ nickname, level });
+    if (!parsed.success) return undefined;
+    return { hint, level: parsed.data.level, nonce, nickname: parsed.data.nickname };
   } catch {
     return undefined;
   }

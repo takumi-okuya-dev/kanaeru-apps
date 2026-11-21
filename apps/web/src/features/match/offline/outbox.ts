@@ -83,6 +83,8 @@ export class Outbox {
   private current: OutboxState = { status: "idle" };
   /** 送っている途中の Promise（同時に2つ送らない） */
   private running: Promise<void> | undefined;
+  /** 置き場所に足している途中の変更（足し終えたら番号。送り終えて消すときに待つ） */
+  private readonly storing = new WeakMap<OutboxEntry, Promise<number | undefined>>();
   /** 送っている途中に、もう一度送るよう頼まれたか */
   private again = false;
   /** 置き場所から読み終えたか */
@@ -104,10 +106,14 @@ export class Outbox {
       retryMs: DEFAULT_RETRY_MS,
       ...options,
     };
-    this.ready = options.store.listChanges(options.tableId).then((entries) => {
-      this.entries = [...entries, ...this.entries];
-      if (this.entries.length > 0) this.setState(this.waitingState("offline"));
-    });
+    // 置き場所を読めなければ（iOS の IndexedDB が切れたときなど）、空から始める（画面を開いている間の列で送る）
+    this.ready = options.store
+      .listChanges(options.tableId)
+      .catch(() => [])
+      .then((entries) => {
+        this.entries = [...entries, ...this.entries];
+        if (this.entries.length > 0) this.setState(this.waitingState("offline"));
+      });
   }
 
   /**
@@ -201,11 +207,16 @@ export class Outbox {
       createdAt: this.options.now(),
     };
     this.entries.push(entry);
-    try {
-      entry.seq = await this.options.store.addChange(entry);
-    } catch {
-      // 置けなくても、画面を開いている間は列に残して送る
-    }
+    // 置けなくても、画面を開いている間は列に残して送る
+    const stored = this.options.store.addChange(entry).then(
+      (seq) => {
+        entry.seq = seq;
+        return seq;
+      },
+      () => undefined,
+    );
+    this.storing.set(entry, stored);
+    await stored;
     void this.flush();
     return entry;
   }
@@ -297,9 +308,16 @@ export class Outbox {
         this.fail(caught);
         return;
       }
+      if (typeof (saved as MatchTable | undefined)?.version !== "number") {
+        // 答えの形が違う（届いたが読めない）。もう一度送っても同じ変更の ID なので二重にならない
+        this.fail(new TypeError("保存の答えを読めませんでした。"));
+        return;
+      }
       this.entries.shift();
-      if (head.seq !== undefined) {
-        await this.options.store.removeChange(head.seq).catch(() => undefined);
+      // 置き場所に足し終える前に送れたときは、足し終えるのを待ってから消す（送った変更を残さない）
+      const seq = head.seq ?? (await this.storing.get(head));
+      if (seq !== undefined) {
+        await this.options.store.removeChange(seq).catch(() => undefined);
       }
       this.confirmed = saved.version;
       this.options.onSent?.(saved, this.entries.length);

@@ -173,7 +173,12 @@ function openDatabase(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains("meta")) db.createObjectStore("meta", { keyPath: "key" });
     };
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      const db = request.result;
+      // 新しい版の画面が表の形を変えるときは、閉じて譲る（譲らないと新しい画面が開けない）
+      db.onversionchange = () => db.close();
+      resolve(db);
+    };
     request.onerror = () => reject(request.error ?? new Error("IndexedDB を開けません。"));
     request.onblocked = () => reject(new Error("IndexedDB がほかの画面に止められています。"));
   });

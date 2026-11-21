@@ -34,7 +34,7 @@ export type TableEditor = {
   expectedVersion: number | undefined;
   /**
    * 直す（中身とくじの種を受け取って、新しい中身とくじの種を返す関数を渡す。同じ呼び出しの中で1度だけ呼ぶ）。
-   * 読みこむ前と、送りを止めている（held）間は直さず false を返す
+   * 読みこむ前と、送りを止めている（held）間は直さず false を返す。受け取ったものをそのまま返したら何もしない（true）
    */
   apply: (change: (draft: TableDraft) => TableDraft) => boolean;
   /** この端末を担当の端末にする */
@@ -99,7 +99,12 @@ export function useTableEditor(tableId: string): TableEditor {
     (change: (draft: TableDraft) => TableDraft) => {
       const current = queryClient.getQueryData<MatchTable>(key);
       if (!current || sync.outbox.isHeld()) return false;
-      const next = change({ content: current.content, seed: current.seed });
+      const draft = { content: current.content, seed: current.seed };
+      const next = change(draft);
+      // 何も変えなかった（同じものを返した）ときは、送りの列に足さない（版を無駄に上げない）
+      if (next === draft || (next.content === current.content && next.seed === current.seed)) {
+        return true;
+      }
       const table = { ...current, ...next };
       queryClient.setQueryData<MatchTable>(key, table);
       markSending(sync);
@@ -146,10 +151,13 @@ export function useTableEditor(tableId: string): TableEditor {
     isEditor: query.data?.editorDeviceId === deviceId(),
     save,
     deviceCopyAt,
+    // 送りを止めている間は、画面にサーバーの中身を出すので、渡す版もサーバーの版にする
     expectedVersion:
       query.data === undefined
         ? undefined
-        : Math.max(sync.outbox.expectedVersion() ?? 0, query.data.version),
+        : save.status === "held"
+          ? query.data.version
+          : Math.max(sync.outbox.expectedVersion() ?? 0, query.data.version),
     apply,
     claim,
     discard,
