@@ -179,6 +179,21 @@ test("戦略の進み・活動の軸・変更の守り・上書き（threads-012
   await discard.getByRole("button", { name: "変更を捨てる" }).click();
   await expect(differentiation).toHaveValue("");
 
+  // 保存の誤りの欄へ移ったあとも、ほかの区分へ切り替えられる（threads-017）
+  await differentiation.fill("あ".repeat(2001));
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(differentiation).toBeFocused();
+  await page
+    .getByRole("navigation", { name: "区分" })
+    .getByRole("button", { name: /^目的 / })
+    .click();
+  await expect(page.getByRole("heading", { level: 2, name: "活動の目的・在り方" })).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "区分" })
+    .getByRole("button", { name: /^その他 / })
+    .click();
+  await differentiation.fill("");
+
   // ほかの画面で先に保存された：上書きする
   const current = await page.request.get(`/api/v1/threads/accounts/${accountId}/strategy`);
   const {

@@ -176,14 +176,17 @@ function StrategyForm({ accountId, strategy }: StrategyFormProps) {
     setPendingField(null);
   }, [pendingField]);
 
+  // 保存の誤りの欄へ移るのは、保存1回につき1度だけ（移ったあとは、ほかの区分へ自由に切り替えられる。threads-017）
+  const handledFocusRef = useRef(0);
   useEffect(() => {
-    if (focusRequest === 0) return;
-    // 誤りのある欄の区分を見せてから、その欄へ移る（threads-017）
+    if (focusRequest === 0 || handledFocusRef.current === focusRequest) return;
+    // 誤りのある欄の区分を見せてから、その欄へ移る
     const invalid = STRATEGY_FIELDS.find((field) => errors[field.key]);
     if (invalid && invalid.section !== current) {
       setCurrent(invalid.section);
       return;
     }
+    handledFocusRef.current = focusRequest;
     focusFirstInvalid(formRef.current);
     // errors と current は、誤りの区分へ切り替えたあとにもう一度流すために見る
   }, [focusRequest, errors, current]);
