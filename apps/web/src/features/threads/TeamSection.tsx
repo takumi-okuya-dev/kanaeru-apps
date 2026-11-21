@@ -137,7 +137,7 @@ function OwnerControls({ accountId, team }: { accountId: string; team: ThreadsAc
   const apply = async (next: ThreadsAccountTeam) => {
     queryClient.setQueryData(THREADS_QUERY_KEYS.team(accountId), next);
     await queryClient.invalidateQueries({ queryKey: THREADS_QUERY_KEYS.access(accountId) });
-    await queryClient.invalidateQueries({ queryKey: THREADS_QUERY_KEYS.organizations });
+    await queryClient.invalidateQueries({ queryKey: THREADS_QUERY_KEYS.teams });
   };
 
   /** チームに入れる・外す。 */

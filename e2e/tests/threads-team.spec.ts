@@ -1,7 +1,7 @@
 // Threads のチーム運用（threads-013・threads-016・suite-003。PRD 組織 5章）：組織の中のチームで、持ち主・管理者・編集者の3人で1つの運用アカウントを運用する。
 // 組織を作る・招く・入る・編集者にするのは suite の窓口で用意し（画面は suite-organization.spec.ts が確かめる）、画面で次を通す：
 // 管理者が設定 › 組織でチームを作り、持ち主と編集者を足す → 持ち主が設定の「チーム」で運用アカウントをチームに入れる →
-// 管理者が Threads の組織の画面で編集者を担当にする →
+// 管理者がナビの「チーム」からチームの画面を開き、編集者を担当にする →
 // 編集者が「担当している運用アカウント」から開いて案をためる（承認はできない）→ 持ち主が承認を任せる → 編集者が承認する →
 // 管理者が運用状況を見る（数と日付だけ。本文は出ない）→ 持ち主が退会する（確かめの枠に引き継がれる記録が出る）→
 // 管理者が引き継いだ知らせを見て、運用アカウントは「接続し直しが要る」になっている。
@@ -12,6 +12,7 @@ import type { APIRequest, APIRequestContext, Browser, Page } from "@playwright/t
 import { E2E_FAKE_THREADS_URL, E2E_ORGANIZER_LINE_USER_ID, E2E_WEB_URL } from "../env.ts";
 import { expectNoA11yViolations } from "../helpers/axe.ts";
 import { collectCspViolations } from "../helpers/csp.ts";
+import { clickNavLink } from "../helpers/nav.ts";
 
 /** 書く要求に付ける見出し（画面の源）。 */
 const ORIGIN = { origin: E2E_WEB_URL };
@@ -197,11 +198,20 @@ test("組織の中のチームで担当が案を作り、任された承認を�
   await expect(owner.page.getByRole("heading", { name: "このアカウントのチーム" })).toBeVisible();
   await checkPage(owner.page, "設定のチーム（持ち主）");
 
-  // 管理者：Threads の組織の画面で、編集者を担当にする（持ち主の行は「自分」で選べない）
-  await admin.page.goto(`/threads/organizations/${organizationId}`);
-  await expect(admin.page.getByRole("heading", { level: 1, name: organizationName })).toBeVisible();
-  await expect(admin.page.getByRole("heading", { level: 2, name: teamName })).toBeVisible();
+  // 管理者：ナビの「チーム」→ チームの一覧 → チームの画面。「担当を決める」で編集者を担当にする（持ち主の行は「自分」で選べない）
+  await admin.page.goto("/threads/accounts");
+  await clickNavLink(admin.page, "チーム");
+  await expect(admin.page.getByRole("heading", { level: 1, name: "チーム" })).toBeVisible();
+  await expect(
+    admin.page.getByRole("heading", { level: 2, name: new RegExp(organizationName) }),
+  ).toBeVisible();
+  await checkPage(admin.page, "チームの一覧（管理者）");
+  await admin.page.getByRole("link", { name: new RegExp(`^${teamName}`) }).click();
+  await expect(admin.page.getByRole("heading", { level: 1, name: teamName })).toBeVisible();
   await expect(admin.page.getByRole("heading", { level: 3, name: accountName })).toBeVisible();
+  await checkPage(admin.page, "チームの画面（管理者）");
+  const teamUrl = admin.page.url();
+  await admin.page.getByRole("radio", { name: "担当を決める" }).click();
   const editorGroup = admin.page.getByRole("group", {
     name: new RegExp(`^${escapeRegExp(editor.name)}`),
   });
@@ -210,7 +220,7 @@ test("組織の中のチームで担当が案を作り、任された承認を�
   await expect(
     admin.page.getByText(`${editor.name}さんを「${accountName}」の担当にしました。`),
   ).toBeVisible();
-  await checkPage(admin.page, "Threads の組織の画面（管理者）");
+  await checkPage(admin.page, "チームの画面の担当を決める（管理者）");
 
   // 編集者：一覧の「担当している運用アカウント」に出る（担当が付いた知らせも1回だけ出る）。案をためるが、承認はできない
   await editor.page.goto("/threads/accounts");
@@ -245,9 +255,9 @@ test("組織の中のチームで担当が案を作り、任された承認を�
   await expect(editor.page.getByRole("radio", { name: "承認済み（1）" })).toBeVisible();
 
   // 管理者：運用状況（数と日付だけ。本文は出ない）
-  await admin.page.goto(`/threads/organizations/${organizationId}`);
-  await admin.page.getByRole("link", { name: "運用状況を見る" }).click();
-  await expect(admin.page.getByRole("heading", { level: 1, name: "運用状況" })).toBeVisible();
+  await admin.page.goto(teamUrl);
+  await admin.page.getByRole("radio", { name: "運用状況" }).click();
+  await expect(admin.page.getByRole("heading", { level: 2, name: "運用状況" })).toBeVisible();
   const statusAccounts = admin.page.getByRole("list", { name: "運用アカウントの運用状況" });
   await expect(statusAccounts.getByRole("heading", { name: accountName })).toBeVisible();
   await expect(statusAccounts.getByText("1件").first()).toBeVisible();
@@ -261,11 +271,11 @@ test("組織の中のチームで担当が案を作り、任された承認を�
     headers: ORIGIN,
   });
   expect(shared.status()).toBe(200);
-  await admin.page.goto(`/threads/organizations/${organizationId}`);
+  await admin.page.goto(teamUrl);
   await admin.page.getByRole("link", { name: "読むだけで見る" }).click();
   await expect(
     admin.page.getByText(
-      new RegExp(`さんの運用アカウントを見ています（読むだけ）・${organizationName}`),
+      new RegExp(`さんの運用アカウントを見ています（読むだけ）・${organizationName} › ${teamName}`),
     ),
   ).toBeVisible();
   await expect(admin.page.getByText("新しい焼き菓子、週末から並びます。")).toBeVisible();

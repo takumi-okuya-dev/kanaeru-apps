@@ -18,10 +18,9 @@ import {
   threadsStockRoute,
   threadsStrategyRoute,
   threadsTokenGuideRoute,
-  threadsOrganizationsRoute,
-  threadsOrganizationRoute,
-  threadsOrganizationStatusRoute,
   threadsSharedAccountRoute,
+  threadsTeamRoute,
+  threadsTeamsRoute,
 } from "./routes.ts";
 
 export { THREADS_QUERY_KEYS } from "./queries.ts";
@@ -48,17 +47,14 @@ export const feature = {
     threadsOauthCompleteRoute,
     threadsDataDeletionRoute,
     threadsTokenGuideRoute,
-    threadsOrganizationsRoute,
-    threadsOrganizationRoute,
-    threadsOrganizationStatusRoute,
+    threadsTeamsRoute,
+    threadsTeamRoute,
     threadsSharedAccountRoute,
   ],
   useNavItems: useThreadsNavItems,
   // 組織の画面（suite の設定 › 組織）への入口と、招待の確かめの画面の説明（threads-013。見えないときは suite が出さない）
   organization: {
-    links: (organizationId: string) => [
-      { label: "Threads の組織の画面", to: `/threads/organizations/${organizationId}` },
-    ],
+    links: () => [{ label: "Threads のチーム", to: "/threads/teams" }],
     joinNotes: [
       "運用アカウントは、組織の中のチームに入れて運用します。管理者・チームのリーダー・あなたの運用アカウントの担当の編集者は、運用状況（投稿の数・伸び・最後に動いた日）を見られます。本文と戦略は、あなたがチームに見せたときだけ読めます。",
       "あなたが退会すると、チームに入れた運用アカウントは組織の管理者に引き継がれます（Threads への接続は切れます）。",

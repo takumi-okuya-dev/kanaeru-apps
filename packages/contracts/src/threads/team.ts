@@ -221,6 +221,58 @@ export const ThreadsOrganizationView = z.object({
 /** Threads の組織の画面の型。 */
 export type ThreadsOrganizationView = z.infer<typeof ThreadsOrganizationView>;
 
+/** 見られるチーム（Threads のチームの一覧の1行。入っているチームと、管理者の組織のすべてのチーム。threads-016）。 */
+export const ThreadsTeamSummary = z.object({
+  id: z.guid(),
+  name: z.string(),
+  organizationId: z.guid(),
+  organizationName: z.string(),
+  /** 今の利用者の組織での役割 */
+  myRole: z.enum(TEAM_ORGANIZATION_ROLES),
+  /** 今の利用者がこのチームの人か（管理者はチームの外でも見られる） */
+  member: z.boolean(),
+  /** 今の利用者がこのチームのリーダーか */
+  leader: z.boolean(),
+  /** チームの人の数 */
+  memberCount: z.number().int(),
+  /** チームに入っている運用アカウントの数 */
+  accountCount: z.number().int(),
+});
+
+/** 見られるチームの型。 */
+export type ThreadsTeamSummary = z.infer<typeof ThreadsTeamSummary>;
+
+/** 見られるチームの一覧（組織の入った順 → チームを作った順。どこにも入っていなければ空）。 */
+export const ThreadsTeamList = z.object({
+  teams: z.array(ThreadsTeamSummary),
+  /** 入っている組織の数（チームがなくても組織に入っているかを画面が知るため） */
+  organizationCount: z.number().int(),
+  /** 今の利用者が管理者の組織（チームを作る入口を出すため） */
+  adminOrganizations: z.array(z.object({ id: z.guid(), name: z.string() })),
+});
+
+/** 見られるチームの一覧の型。 */
+export type ThreadsTeamList = z.infer<typeof ThreadsTeamList>;
+
+/** Threads のチームの画面（そのチームの運用アカウント・担当を決める表・運用状況を見られるか）。 */
+export const ThreadsTeamView = z.object({
+  id: z.guid(),
+  name: z.string(),
+  organization: z.object({ id: z.guid(), name: z.string() }),
+  myRole: z.enum(TEAM_ORGANIZATION_ROLES),
+  leader: z.boolean(),
+  /** 担当を決められるか（組織の管理者とリーダー） */
+  canAssign: z.boolean(),
+  /** このチームの運用状況を見られるか（管理者・リーダー・このチームで担当がある編集者） */
+  canSeeStatus: z.boolean(),
+  accounts: z.array(ThreadsOrganizationAccount),
+  /** 担当を決める表（決められるときだけ。ほかは空） */
+  assignments: z.array(ThreadsAssignmentRow),
+});
+
+/** Threads のチームの画面の型。 */
+export type ThreadsTeamView = z.infer<typeof ThreadsTeamView>;
+
 /** 伸び（直近30日の閲覧数の中央値 ÷ その前の30日）。 */
 export const TeamStatusGrowth = z.object({
   state: z.enum(["ok", "poor", "insufficient"]),

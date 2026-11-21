@@ -5,7 +5,9 @@ import "@hono/zod-openapi";
 import type {
   ThreadsOrganizationList,
   ThreadsOrganizationView,
+  ThreadsTeamList,
   ThreadsTeamStatus,
+  ThreadsTeamView,
 } from "@workspace/contracts/threads";
 import { beforeEach, describe, expect, it } from "vitest";
 import { truncateAllTables, useTestDatabase } from "../../../test/helpers/db.ts";
@@ -313,5 +315,59 @@ describe("チームの単位（threads-016）", () => {
       [scene.account.id],
     );
     expect(placed.rows).toEqual([{ team_id: scene.teamId, owner_account_id: scene.admin.id }]);
+  });
+
+  it("チームの一覧は、入っているチーム（管理者は組織のすべてのチーム）を、運用アカウントの数と出す", async () => {
+    const list = async (who: TeamPerson) =>
+      (await (
+        await call(scene.app, who.cookie, "/api/v1/threads/teams")
+      ).json()) as ThreadsTeamList;
+    const forAdmin = await list(scene.admin);
+    expect(forAdmin.teams.map((row) => [row.name, row.member, row.accountCount])).toEqual([
+      ["店舗A", false, 1],
+      ["店舗B", false, 0],
+    ]);
+    expect(forAdmin.adminOrganizations).toEqual([{ id: scene.organizationId, name: "飲食チーム" }]);
+    const forOther = await list(other);
+    expect(forOther.teams.map((row) => [row.name, row.member, row.leader])).toEqual([
+      ["店舗B", true, false],
+    ]);
+    expect(forOther).toMatchObject({ organizationCount: 1, adminOrganizations: [] });
+    const forOutsider = await list(scene.outsider);
+    expect(forOutsider).toEqual({ teams: [], organizationCount: 0, adminOrganizations: [] });
+  });
+
+  it("チームの画面は管理者とチームの人だけ。運用状況はリーダー・管理者・担当の人だけ", async () => {
+    const page = (who: TeamPerson, teamId: string, suffix = "") =>
+      call(scene.app, who.cookie, `/api/v1/threads/teams/${teamId}${suffix}`);
+    const forAssignee = (await (
+      await page(scene.assignee, scene.teamId)
+    ).json()) as ThreadsTeamView;
+    expect(forAssignee).toMatchObject({
+      name: "店舗A",
+      organization: { id: scene.organizationId, name: "飲食チーム" },
+      canAssign: false,
+      canSeeStatus: true,
+      assignments: [],
+    });
+    expect(forAssignee.accounts.map((row) => [row.name, row.access])).toEqual([
+      ["カフェB店", "assigned"],
+    ]);
+    // チームの外の人は 404、管理者はチームの外でも見られる
+    expect((await page(other, scene.teamId)).status).toBe(404);
+    const forAdmin = (await (await page(scene.admin, scene.teamId)).json()) as ThreadsTeamView;
+    expect(forAdmin.canAssign).toBe(true);
+    expect(forAdmin.assignments.map((row) => row.displayName)).toEqual(["佐藤", "山田", "高橋"]);
+    // 運用状況：担当の人は担当の分、メンバーは 403、リーダーはチームの全部
+    const assigneeStatus = (await (
+      await page(scene.assignee, scene.teamId, "/status")
+    ).json()) as ThreadsTeamStatus;
+    expect(assigneeStatus.scope).toBe("assigned");
+    expect((await page(scene.member, scene.teamId, "/status")).status).toBe(403);
+    expect((await page(other, teamB, "/status")).status).toBe(403);
+    await setTeamMember(scene.app, scene.admin.cookie, scene.organizationId, teamB, other.id, true);
+    const leaderStatus = (await (await page(other, teamB, "/status")).json()) as ThreadsTeamStatus;
+    expect(leaderStatus).toMatchObject({ scope: "team", accounts: [] });
+    expect(leaderStatus.people.map((row) => row.displayName)).toEqual(["店舗Bの人"]);
   });
 });

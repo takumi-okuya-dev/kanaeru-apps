@@ -9,9 +9,11 @@ import type {
   PostDraft,
   ThreadsAccountTeam,
   ThreadsOrganizationView,
+  ThreadsTeamList,
   ThreadsTeamNotices,
+  ThreadsTeamView,
 } from "@workspace/contracts/threads";
-import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Db, Executor } from "../../kernel/db.ts";
 import { AppError } from "../../kernel/errors.ts";
 import type { DomainRouteDeps } from "../../kernel/http.ts";
@@ -679,6 +681,149 @@ export async function getOrganizationView(
     })),
     canAssign: viewTeams.some((row) => row.canAssign),
     canSeeStatus: scope !== null,
+  };
+}
+
+/**
+ * 見られるチームの一覧（入っているチームと、管理者の組織のすべてのチーム。Threads のナビの「チーム」。threads-016）。
+ * @param db DB
+ * @param viewerAccountId 今の利用者
+ * @returns チームの一覧
+ */
+export async function listVisibleTeams(
+  db: Executor,
+  viewerAccountId: string,
+): Promise<ThreadsTeamList> {
+  const memberships = await listMemberships(db, viewerAccountId);
+  const teams: ThreadsTeamList["teams"] = [];
+  for (const membership of memberships) {
+    const rows = (await listTeams(db, membership.organizationId)).filter(
+      (row) =>
+        membership.role === "admin" ||
+        row.members.some((member) => member.accountId === viewerAccountId),
+    );
+    if (rows.length === 0) continue;
+    const counts = await db
+      .select({ teamId: threadsOrganizationAccount.teamId, n: count() })
+      .from(threadsOrganizationAccount)
+      .where(
+        inArray(
+          threadsOrganizationAccount.teamId,
+          rows.map((row) => row.id),
+        ),
+      )
+      .groupBy(threadsOrganizationAccount.teamId);
+    const countOf = new Map(counts.map((row) => [row.teamId, Number(row.n)]));
+    for (const row of rows) {
+      const mine = row.members.find((member) => member.accountId === viewerAccountId);
+      teams.push({
+        id: row.id,
+        name: row.name,
+        organizationId: membership.organizationId,
+        organizationName: membership.organizationName,
+        myRole: membership.role,
+        member: mine !== undefined,
+        leader: mine?.leader ?? false,
+        memberCount: row.members.length,
+        accountCount: countOf.get(row.id) ?? 0,
+      });
+    }
+  }
+  return {
+    teams,
+    organizationCount: memberships.length,
+    adminOrganizations: memberships
+      .filter((row) => row.role === "admin")
+      .map((row) => ({ id: row.organizationId, name: row.organizationName })),
+  };
+}
+
+/**
+ * チームの画面を見てよい人の、組織の人の行（組織の管理者か、チームの人。ほかは 404）。
+ * @param db DB
+ * @param teamId チームの ID
+ * @param viewerAccountId 今の利用者
+ * @returns チームと、今の利用者の組織の人の行
+ * @throws {AppError} チームがない・見てよい人でない（THREADS_TEAM_NOT_FOUND）
+ */
+export async function requireTeamViewer(
+  db: Executor,
+  teamId: string,
+  viewerAccountId: string,
+): Promise<{
+  team: { id: string; organizationId: string; name: string };
+  membership: OrganizationMembership;
+}> {
+  const team = await findTeam(db, teamId);
+  const membership = team ? await findMembership(db, team.organizationId, viewerAccountId) : null;
+  if (!team || !membership) throw new AppError(THREADS_ERRORS.THREADS_TEAM_NOT_FOUND);
+  if (membership.role !== "admin" && !(await findTeamMembership(db, teamId, viewerAccountId))) {
+    throw new AppError(THREADS_ERRORS.THREADS_TEAM_NOT_FOUND);
+  }
+  return { team, membership };
+}
+
+/**
+ * チームの運用状況を見られる範囲（管理者とそのチームのリーダーはチームの全部。そのチームで担当がある編集者は担当の分。ほかは null）。
+ * @param db DB
+ * @param teamId チームの ID
+ * @param membership 今の利用者の組織の人の行
+ * @returns 範囲（見られなければ null）
+ */
+export async function teamStatusScopeOf(
+  db: Executor,
+  teamId: string,
+  membership: OrganizationMembership,
+): Promise<
+  | { kind: "team"; teamIds: string[]; accountIds: string[] }
+  | { kind: "assigned"; accountIds: string[] }
+  | null
+> {
+  const own = await findTeamMembership(db, teamId, membership.accountId);
+  if (membership.role === "admin" || own?.leader) {
+    return { kind: "team", teamIds: [teamId], accountIds: [] };
+  }
+  const assigned = await assignedAccountIdsOf(db, membership.organizationId, membership);
+  if (assigned.length === 0) return null;
+  const inTeam = await db
+    .select({ id: threadsOrganizationAccount.threadsAccountId })
+    .from(threadsOrganizationAccount)
+    .where(
+      and(
+        eq(threadsOrganizationAccount.teamId, teamId),
+        inArray(threadsOrganizationAccount.threadsAccountId, assigned),
+      ),
+    );
+  return inTeam.length > 0 ? { kind: "assigned", accountIds: inTeam.map((row) => row.id) } : null;
+}
+
+/**
+ * Threads のチームの画面の中身（組織の画面の中身から、そのチームの分を取り出す）。
+ * @param db DB
+ * @param teamId チームの ID
+ * @param viewerAccountId 今の利用者
+ * @returns チームの画面
+ * @throws {AppError} チームがない・見てよい人でない（THREADS_TEAM_NOT_FOUND）
+ */
+export async function getTeamView(
+  db: Executor,
+  teamId: string,
+  viewerAccountId: string,
+): Promise<ThreadsTeamView> {
+  const { team, membership } = await requireTeamViewer(db, teamId, viewerAccountId);
+  const view = await getOrganizationView(db, team.organizationId, membership);
+  const found = view.teams.find((row) => row.id === teamId);
+  if (!found) throw new AppError(THREADS_ERRORS.THREADS_TEAM_NOT_FOUND);
+  return {
+    id: found.id,
+    name: found.name,
+    organization: { id: view.id, name: view.name },
+    myRole: view.myRole,
+    leader: found.leader,
+    canAssign: found.canAssign,
+    canSeeStatus: (await teamStatusScopeOf(db, teamId, membership)) !== null,
+    accounts: view.accounts.filter((row) => row.teamId === teamId),
+    assignments: found.assignments,
   };
 }
 
