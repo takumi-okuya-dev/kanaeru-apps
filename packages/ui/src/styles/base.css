@@ -22,6 +22,22 @@
   }
 
   /*
+   * 752px 以上でマウスなど細かく指せる端末だけ、本文と説明の文字を一段小さくする（DESIGN.md typography.sizeFinePointer。core-010）。
+   * 触って使う端末は 16px のまま（入力欄を押したときに拡大されないように）。
+   */
+  @media (min-width: 752px) and (pointer: fine) {
+    :root {
+      --text-s: 13px;
+      --text-m: 15px;
+    }
+  }
+
+  /* 「詳しく」の開け閉め（Disclosure）の三角の印は、部品の印に替える（Safari の印も消す） */
+  summary::-webkit-details-marker {
+    display: none;
+  }
+
+  /*
    * フォーカスの輪（DESIGN.md shadow.focus。四辺とも見える）。キーボードで動かしたときだけ出す。
    * 色を消す設定（Windows のハイコントラスト）でも見えるよう、透明の outline を残す。
    */

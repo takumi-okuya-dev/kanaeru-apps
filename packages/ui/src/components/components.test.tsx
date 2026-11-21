@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { expectNoAxeViolations } from "../testing/axe.ts";
 import { Button } from "./button.tsx";
 import { ConfirmDialog } from "./confirm-dialog.tsx";
+import { Disclosure } from "./disclosure.tsx";
 import { Field } from "./field.tsx";
 import { Input } from "./input.tsx";
 import { ResponseMessage } from "./response-message.tsx";
@@ -113,5 +114,31 @@ describe("確かめの枠", () => {
       "aria-busy",
       "true",
     );
+  });
+});
+
+describe("「詳しく」の開け閉め", () => {
+  it("初めは閉じていて、見出しを押すと中身が見え、もう一度押すと隠れる", async () => {
+    const { container } = render(
+      <Disclosure summary="詳しい手順">
+        <p>手順の中身</p>
+      </Disclosure>,
+    );
+    const summary = screen.getByText("詳しい手順");
+    expect(screen.getByText("手順の中身")).not.toBeVisible();
+    await userEvent.click(summary);
+    expect(screen.getByText("手順の中身")).toBeVisible();
+    await userEvent.click(summary);
+    expect(screen.getByText("手順の中身")).not.toBeVisible();
+    await expectNoAxeViolations(container);
+  });
+
+  it("初めから開いておける", () => {
+    render(
+      <Disclosure summary="プロンプト" defaultOpen>
+        <p>プロンプトの中身</p>
+      </Disclosure>,
+    );
+    expect(screen.getByText("プロンプトの中身")).toBeVisible();
   });
 });
