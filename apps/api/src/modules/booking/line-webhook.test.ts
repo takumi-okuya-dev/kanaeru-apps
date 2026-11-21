@@ -161,6 +161,26 @@ describe("LINE の Webhook", () => {
     expect((await call(app, admin.cookie, `/api/v1/booking/line-links/${token}`)).status).toBe(200);
   });
 
+  it("前の知らせを処理できなかった送り直しでは、札を作り、あいさつを push で送る（札が切れていても同じ）", async () => {
+    const redelivered = JSON.parse(lineEvent("follow", lineUser("a"))) as {
+      events: { deliveryContext: { isRedelivery: boolean } }[];
+    };
+    for (const event of redelivered.events) event.deliveryContext.isRedelivery = true;
+    expect((await postWebhook(app, channelId, JSON.stringify(redelivered))).status).toBe(200);
+    expect(await tokenCounts()).toEqual({ unused: 1, all: 1 });
+    const [push] = await readOutbox(app, admin.cookie);
+    expect(push).toMatchObject({ method: "line_push", to: lineUser("a") });
+    const token = linkTokenOf(push?.text ?? "");
+    expect((await call(app, admin.cookie, `/api/v1/booking/line-links/${token}`)).status).toBe(200);
+    // 札の期限が切れていれば、送り直しで作り直す
+    await database.pool.query(
+      "UPDATE booking_line_link_token SET expires_at = now() - interval '1 minute'",
+    );
+    await postWebhook(app, channelId, JSON.stringify(redelivered));
+    expect(await tokenCounts()).toEqual({ unused: 1, all: 1 });
+    expect(await readOutbox(app, admin.cookie)).toHaveLength(2);
+  });
+
   it("本文の送り先（destination）が設定の公式アカウントと違えば、取り違えとして 400 で何もしない", async () => {
     const body = JSON.stringify({
       ...(JSON.parse(lineEvent("follow", lineUser("a"))) as object),

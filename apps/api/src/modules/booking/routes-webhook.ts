@@ -4,7 +4,9 @@
 // 署名が合ったら、設定ごとに回数を数える（60秒に LINE_WEBHOOK_PER_CHANNEL_MAX 回まで。超えたら 429。LINE が送り直す）。
 // 本文の destination（ボットの userId）が設定の bot_user_id と違えば、取り違えとして 400（research R10）。
 // 友だち追加（follow）：送り方が off でなければ、使い切りの札つきのリンクのあいさつを返事（reply）で送る。送り直し
-// （deliveryContext.isRedelivery）では札を作り直さない（前に届いたリンクを使えなくしないため）。
+// （deliveryContext.isRedelivery）では、もう紐づいているか使える札があれば何もしない（前に届いたリンクを使えなくしないため）。
+// どちらもなければ（前の知らせを回数の制限・夜の停止などで処理できなかった）、札を作り、あいさつを push で送る
+// （送り直しの返事の札は使えないことが多いため。push は許可リストの判定を通す）。
 // ブロック（unfollow）：その友だちの札を押さえてから、紐づけと使っていない札を消す。ほかの種類は無視する。
 // 答えの前に処理を済ませる（Cloud Run が答えのあとの処理を止めるため）。
 // 本文・署名・LINE のユーザー ID・札・トークンはログに出さない（設定の ID と数だけ）。
@@ -22,6 +24,7 @@ import {
   deleteLinkOfLineUser,
   deleteUnusedTokens,
   findChannelById,
+  hasLinkOrUsableToken,
   lockTokensOfLineUser,
 } from "./notify-repository.ts";
 import { holderNameOf, holderOfChannel, notifierOf, openLine } from "./notify-settings.ts";
@@ -139,21 +142,22 @@ export function bookingWebhookRoutes(deps: DomainRouteDeps) {
       }
       if (event.type !== "follow" || !event.replyToken) continue;
       follows += 1;
-      // 送り直しでは札を作り直さない（作り直すと、前に届いたリンクが使えなくなる。返事の札も使えないことが多い）
-      if (event.deliveryContext?.isRedelivery === true) {
-        redelivered += 1;
-        continue;
-      }
+      const redelivery = event.deliveryContext?.isRedelivery === true;
+      if (redelivery) redelivered += 1;
       // off では札も作らない（あいさつを送らないので、使われない札を残さない。research R4）
       if (notifier.mode === "off") continue;
+      // 送り直しでは、前の知らせを処理していれば札を作り直さない（作り直すと、前に届いたリンクが使えなくなる）
+      if (redelivery && (await hasLinkOrUsableToken(db, channel.id, userId, now))) continue;
       const token = await issueLinkToken(db, channel.id, userId, now);
       const holderName = await holderNameOf(db, holderOfChannel(channel));
-      const url = `${deps.config.webUrl}${participantPaths.lineLink(token)}`;
-      const { status } = await notifier.replyLine({
-        accessToken: opened.accessToken,
-        replyToken: event.replyToken,
-        text: greetingText(holderName, url),
-      });
+      const text = greetingText(holderName, `${deps.config.webUrl}${participantPaths.lineLink(token)}`);
+      const { status } = redelivery
+        ? await notifier.pushLine({ accessToken: opened.accessToken, to: userId, text })
+        : await notifier.replyLine({
+            accessToken: opened.accessToken,
+            replyToken: event.replyToken,
+            text,
+          });
       if (status === "sent") greeted += 1;
     }
     logger.info(
