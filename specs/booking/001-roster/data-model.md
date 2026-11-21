@@ -29,9 +29,10 @@
 | `memo` | text（空を許す） | メモ（200文字まで） |
 | `account_id` | uuid（空を許す） | 本人のアカウント（自前のページの申込み。この版では空）。`ON DELETE CASCADE` |
 | `checkin_id` | uuid（空を許す） | 手で当てたチェックイン（reception の `checkin.id`）。`ON DELETE SET NULL` |
+| `merged_into_id` | uuid（空を許す） | まとめた先の行（`booking_entry.id`。自分の表を指す）。`ON DELETE SET NULL`。まとめられた行は消さずに残し、名簿・人数・当てから隠す（取り込みの「すでにある」だけは数える。research R7） |
 | `created_at`・`updated_at` | timestamptz | `timestamps()` |
 
-- 索引：`booking_entry_event_id_applied_at_idx`（名簿の並び）・`booking_entry_entered_by_idx`・`booking_entry_account_id_idx`（外部キーを消すとき）。
+- 索引：`booking_entry_event_id_applied_at_idx`（名簿の並び）・`booking_entry_entered_by_idx`・`booking_entry_account_id_idx`・`booking_entry_merged_into_id_idx`（外部キーを消すとき）。
 - 一意：`booking_entry_checkin_id_unique`（`checkin_id`。空でない行だけ）・`booking_entry_event_id_account_id_unique`（`(event_id, account_id) WHERE account_id IS NOT NULL`。1つの交流会に1人1つの申込み。PRD FR-B41。この版では空なので効かない）。
 - CHECK の値は約束（`@workspace/contracts/booking` と `@workspace/contracts/reception`）と同じ並びを文字で書く（受付の `checkin` と同じ形）。食い違いは結合のテスト「選択肢の code はどれも DB に入る」が見張る。
 
@@ -73,5 +74,6 @@
 ```text
 （作る：手で足す・取り込み・飛び入り）→ 確定
 確定 ⇄ 取り消し（主催者）
+確定・取り消し → まとめられた（主催者がまとめる。状態は取り消しにし、merged_into_id を入れる。名簿から隠れる・戻せない）
 確定（当たっていない）→ 当たった（当てる・名簿から選ぶ・自動） → 当たっていない（当てを外す・チェックインの取り消し）
 ```

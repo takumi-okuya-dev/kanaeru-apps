@@ -119,6 +119,34 @@ describe("交流会の持ち主と組織", () => {
       ).toBe(200);
     });
 
+    it("ほかの人の交流会は、運営者でも書く窓口が 403（直す・アンケートの開閉・招待のリンク・受付係を外す・チェックインを消す・CSV）", async () => {
+      const created = await createEvent(app, owner.cookie);
+      const staff = await makeStaff(app, owner.cookie, created.id);
+      const participant = await loginAs(app);
+      const { checkin } = await checkIn(app, participant.cookie, created.id);
+      const base = `/api/v1/events/${created.id}`;
+      const requests: [string, string, unknown?][] = [
+        ["PUT", base, SAMPLE_EVENT],
+        ["PUT", `${base}/survey`, { open: false }],
+        ["GET", `${base}/staff-invite`],
+        ["POST", `${base}/staff-invite`],
+        ["DELETE", `${base}/staff/${staff.account.id}`],
+        ["DELETE", `${base}/checkins/${checkin.id}`],
+        ["GET", `${base}/checkins/export`],
+        ["GET", `${base}/survey-answers/export`],
+      ];
+      for (const person of [operator, await loginAs(app, { displayName: "ほかの人" })]) {
+        for (const [method, path, body] of requests) {
+          const response = await call(app, person.cookie, path, method, body);
+          expect(response.status, `${method} ${path}`).toBe(403);
+        }
+      }
+      // 止めたので、受付係とチェックインは残っている
+      const listed = await call(app, staff.cookie, `${base}/checkins`);
+      expect(listed.status).toBe(200);
+      expect(JSON.stringify(await listed.json())).toContain(checkin.id);
+    });
+
     it("持ち主のない交流会は、運営者が一覧を開くと運営者のものになる。ほかの人が開いても変わらない", async () => {
       const created = await createEvent(app, operator.cookie);
       await database.pool.query("UPDATE event SET owner_account_id = NULL WHERE id = $1", [
@@ -179,6 +207,21 @@ describe("交流会の持ち主と組織", () => {
       expect((await call(app, member.cookie, `${path}/checkins`)).status).toBe(403);
       const memberAccount = { accountId: member.account.id, lineUserId: "" };
       expect(await getEventRole(database.db, config, created.id, memberAccount)).toBe("member");
+      // 部員は reception・survey の主催者だけの窓口も 403
+      const participant = await loginAs(app);
+      const { checkin } = await checkIn(app, participant.cookie, created.id);
+      for (const memberPath of [
+        `${path}/checkins/breakdown`,
+        `${path}/checkins/export`,
+        `${path}/survey-answers`,
+        `${path}/survey-answers/export`,
+        `${path}/survey-answers/checkins/${checkin.id}`,
+      ]) {
+        expect((await call(app, member.cookie, memberPath)).status, memberPath).toBe(403);
+      }
+      expect(
+        (await call(app, member.cookie, `${path}/checkins/${checkin.id}`, "DELETE")).status,
+      ).toBe(403);
 
       expect((await list(editor.cookie)).map((item) => item.id)).toEqual([created.id]);
       expect(await list(member.cookie)).toEqual([]);
