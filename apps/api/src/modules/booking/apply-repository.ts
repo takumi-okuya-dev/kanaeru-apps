@@ -354,13 +354,19 @@ export async function replaceEntryToken(
 }
 
 /**
- * 本人が申込みを取り消す（取り消しにし、メールで申し込んだ人の連絡のメールアドレスを消す。札は残し、札のページで
+ * 本人が申込みを取り消す（取り消しにし、メールで申し込んだ人の連絡のメールアドレスを、確認の待ちのものも含めて消す。札は残し、札のページで
  * 「取り消し」を見せる。Constitution II：本人がアドレスを消せるように。もう一度申し込むと新しい行になる。research R7）。
  * @param db DB
  * @param entryId 行の ID
  * @returns 直した申込み
  */
 export async function cancelEntryRow(db: Executor, entryId: string): Promise<SelfEntry> {
+  // 確定のあとも回数の縛りのために残している確認の待ち（consumeRequestsOf）も、同じアドレスのものを消す
+  const [before] = await db
+    .select({ eventId: bookingEntry.eventId, contactEmail: bookingEntry.contactEmail })
+    .from(bookingEntry)
+    .where(eq(bookingEntry.id, entryId));
+  if (before?.contactEmail) await deleteRequestsOf(db, before.eventId, before.contactEmail);
   const [row] = await db
     .update(bookingEntry)
     .set({ status: "cancelled", contactEmail: null, updatedAt: sql`now()` })
@@ -582,7 +588,7 @@ export async function findLatestRequestAt(
 }
 
 /**
- * 同じ交流会・同じアドレスの待ちを消す（新しい札に替えるとき・確定したとき）。
+ * 同じ交流会・同じアドレスの待ちを消す（新しい札に替えるとき・本人が取り消したとき）。
  * @param db DB
  * @param eventId 交流会の ID
  * @param email メールアドレス（小文字）
@@ -594,6 +600,24 @@ export async function deleteRequestsOf(
 ): Promise<void> {
   await db
     .delete(bookingEmailRequest)
+    .where(and(eq(bookingEmailRequest.eventId, eventId), eq(bookingEmailRequest.email, email)));
+}
+
+/**
+ * 確定した確認の待ちを、札で引けない形にして残す（回数の縛り〈10分に1通・直近1時間の上限〉の記録は、確定しても消さない。
+ * 札の SHA-256 は 16進の64文字なので、`consumed:` で始まる値と重ならない。期限〈24時間〉が来たら、ほかの待ちと同じく消える。research R11）。
+ * @param db DB
+ * @param eventId 交流会の ID
+ * @param email メールアドレス（小文字）
+ */
+export async function consumeRequestsOf(
+  db: Executor,
+  eventId: string,
+  email: string,
+): Promise<void> {
+  await db
+    .update(bookingEmailRequest)
+    .set({ tokenHash: sql`'consumed:' || ${bookingEmailRequest.id}::text` })
     .where(and(eq(bookingEmailRequest.eventId, eventId), eq(bookingEmailRequest.email, email)));
 }
 

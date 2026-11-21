@@ -213,6 +213,7 @@ function defineRoutes(deps: DomainRouteDeps) {
       request: { params: TokenParams },
       responses: {
         200: json(EntryTokenView, "札のページ"),
+        403: membersOnlyResponse,
         404: tokenInvalidResponse,
         410: tokenExpiredResponse,
       },

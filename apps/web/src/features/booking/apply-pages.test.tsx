@@ -310,6 +310,20 @@ describe("札のページ", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "申込みページを開く" })).toBeInTheDocument();
   });
+
+  it("確認の前に部員だけに変わった会は、見られない理由だけを出す（会の中身を出さない）", async () => {
+    stubApi({
+      [tokenPath]: () =>
+        Response.json(
+          { error: { code: "BOOKING_PAGE_MEMBERS_ONLY", message: "部員だけの会です。" } },
+          { status: 403 },
+        ),
+    });
+    renderWithRouter(<EntryTokenPage eventId={EVENT_ID} entryToken={TOKEN} />);
+    expect(await screen.findByRole("heading", { name: "この会は見られません" })).toBeInTheDocument();
+    expect(screen.getByText("部員だけの会です。")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "申込みを確定する" })).not.toBeInTheDocument();
+  });
 });
 
 describe("自分の申込み", () => {

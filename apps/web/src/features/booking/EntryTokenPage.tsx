@@ -58,7 +58,7 @@ export function EntryTokenPage({ eventId, entryToken }: { eventId: string; entry
     queryKey: key,
     queryFn: () => fetchEntryToken(entryToken),
     retry: (count, error) =>
-      !(error instanceof ApiError && (error.status === 404 || error.status === 410)) && count < 2,
+      !(error instanceof ApiError && [403, 404, 410].includes(error.status)) && count < 2,
   });
   const [justConfirmed, setJustConfirmed] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
@@ -102,6 +102,9 @@ export function EntryTokenPage({ eventId, entryToken }: { eventId: string; entry
     }
     if (error instanceof ApiError && error.status === 404) {
       return <Page title="このリンクは使えません" lead={error.message} />;
+    }
+    if (error instanceof ApiError && error.status === 403) {
+      return <Page title="この会は見られません" lead={error.message} />;
     }
     return (
       <Page title="読みこめませんでした" lead={errorMessage(error)}>

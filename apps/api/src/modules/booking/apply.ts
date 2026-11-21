@@ -42,6 +42,7 @@ import {
 import { findMembership, listMemberships } from "../suite/index.ts";
 import {
   cancelEntryRow,
+  consumeRequestsOf,
   countRecentRequests,
   deleteConsent,
   deleteExpiredRequests,
@@ -753,7 +754,7 @@ export async function requestEmailApply(
       throw new AppError(BOOKING_ERRORS.EMAIL_REQUEST_LIMIT);
     }
     const latest = await findLatestRequestAt(tx, eventId, input.email);
-    // 同じアドレスは10分に1通（送らずに同じ答え。S6・S7）
+    // 同じアドレスは10分に1通（送らずに同じ答え。S6・S7）。確定した待ちも残っているので、確定の直後でも縛りは効く
     if (latest && now.getTime() - latest.getTime() < EMAIL_REQUEST_RESEND_MINUTES * MINUTE_MS) {
       return null;
     }
@@ -866,7 +867,7 @@ async function entryView(deps: ApplyDeps, entry: SelfEntry, now: Date): Promise<
  * @param token 札
  * @param now 今の時刻
  * @returns 札のページ
- * @throws {AppError} 知らない札（404）・期限切れの確認の札（410）のとき
+ * @throws {AppError} 知らない札（404）・期限切れの確認の札（410）・確認の前の札で部員だけの会（403）のとき
  */
 export async function readEntryToken(
   deps: ApplyDeps,
@@ -884,6 +885,9 @@ export async function readEntryToken(
   const found = await eventLookup(deps)(request.eventId);
   if (!found) throw new AppError(BOOKING_ERRORS.ENTRY_TOKEN_INVALID);
   const setting = await findPageSetting(deps.db, request.eventId);
+  // 確認の前の札は、まだ申込みではない。誰でもの会のときに頼んだ札でも、主催者が部員だけにしたあとは、
+  // 会の中身（日時・場所・会費・カレンダー）を返さない（部員だけの決まりの抜け道にしない。research R8）
+  if (setting.visibility !== "public") throw new AppError(BOOKING_ERRORS.PAGE_MEMBERS_ONLY);
   return {
     state: "pending",
     event: applyEventOf(found.event),
@@ -972,7 +976,8 @@ export async function confirmEntryToken(
         changed = true;
       }
     }
-    await deleteRequestsOf(tx, request.eventId, request.email);
+    // 待ちは消さずに札で引けない形にする（回数の縛りの記録を残す。research R11）
+    await consumeRequestsOf(tx, request.eventId, request.email);
     if (changed) {
       const link = entryTokenUrl(deps, request.eventId, token);
       await queueApplied(deps, tx, context, { ...entry, accountId: null }, link, now, queue);
