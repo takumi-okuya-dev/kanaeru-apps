@@ -1,10 +1,16 @@
 // 予約（booking）の窓口の入出力の形（API の入力の確かめ・OpenAPI の文書・画面の入力の確かめが、同じ形を使う。booking-001 contracts）。
 // ふつうの zod で書く（OpenAPI の名前は API の側で付ける）。入力の誤りの文は、欄のそばにそのまま出せる日本語にする。
 // 日時は時差つきの ISO 8601 だけ。媒体は受付の申し込みの媒体（AD-23）、名前の上限は受付のチェックインの名前と同じ。
-// 参加者のメールアドレスは返さない（持たない。FR-B26）。
+// 参加者のメールアドレスは返さない（メールで申し込んだ人の連絡のメールも名簿に出さない。FR-B26・booking-003 R14）。
 import { z } from "zod";
 import { ApplicationSourceSchema, CHECKIN_METHODS, CHECKIN_NAME_MAX } from "../reception/index.ts";
-import { ATTENDANCES, BOOKING_MODES, ENTRY_KINDS, ENTRY_STATUSES } from "./options.ts";
+import {
+  ATTENDANCES,
+  BOOKING_MODES,
+  ENTRY_KINDS,
+  ENTRY_STATUSES,
+  VISIBILITIES,
+} from "./options.ts";
 
 /** メモの文字数の上限。 */
 export const ENTRY_MEMO_MAX = 200;
@@ -45,10 +51,8 @@ const isoDateTime = z.iso.datetime({ offset: true });
 /** 使い方の形（選べるものだけ）。 */
 export const BookingModeSchema = z.enum(BOOKING_MODES, { error: "使い方を選んでください。" });
 
-/** 使い方を変える入力（自前で申込みを受けるは、booking-003 の窓口と画面ができるまで選べない）。 */
-export const BookingSettingInput = z.strictObject({
-  mode: z.enum(["reception", "roster"], { error: "使い方を選んでください。" }),
-});
+/** 使い方を変える入力。 */
+export const BookingSettingInput = z.strictObject({ mode: BookingModeSchema });
 
 /** 使い方を変える入力の型。 */
 export type BookingSettingInput = z.infer<typeof BookingSettingInput>;
@@ -59,6 +63,14 @@ export const BookingSetting = z.object({
   mode: BookingModeSchema,
   /** 名簿の行の数（受付だけに戻すときの確かめに使う。隠れている行も数える） */
   entryCount: z.number().int(),
+  /** 申込みページの受付を開いているか（自前のとき。booking-003） */
+  accepting: z.boolean(),
+  /** 申込みページの見せる範囲（booking-003） */
+  visibility: z.enum(VISIBILITIES),
+  /** 交流会の始まりを過ぎたか（過ぎたら受付は閉じたものとして扱う） */
+  started: z.boolean(),
+  /** 交流会を組織に入れているか（部員だけを選べるか） */
+  inOrganization: z.boolean(),
 });
 
 /** 交流会の使い方の型。 */

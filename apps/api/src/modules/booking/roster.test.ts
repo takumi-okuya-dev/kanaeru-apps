@@ -41,7 +41,10 @@ describe("予約の名簿の窓口", () => {
   describe("使い方", () => {
     it("行がなければ受付だけで、名簿の窓口は 409。名簿を使うにすると使える", async () => {
       const before = await call(app, owner.cookie, `${base}/setting`);
-      expect((await before.json()) as BookingSetting).toEqual({ mode: "reception", entryCount: 0 });
+      expect((await before.json()) as BookingSetting).toMatchObject({
+        mode: "reception",
+        entryCount: 0,
+      });
       const off = await call(app, owner.cookie, `${base}/entries`);
       expect(off.status).toBe(409);
       expect(((await off.json()) as ErrorBody).error.code).toBe("BOOKING_ROSTER_OFF");
@@ -56,18 +59,25 @@ describe("予約の名簿の窓口", () => {
       await useRoster(app, owner.cookie, eventId);
       await importNames(app, owner.cookie, eventId, ["山田 花子"]);
       const back = await call(app, owner.cookie, `${base}/setting`, "PUT", { mode: "reception" });
-      expect((await back.json()) as BookingSetting).toEqual({ mode: "reception", entryCount: 1 });
+      expect((await back.json()) as BookingSetting).toMatchObject({
+        mode: "reception",
+        entryCount: 1,
+      });
       expect((await call(app, owner.cookie, `${base}/entries`)).status).toBe(409);
       expect((await call(app, owner.cookie, `${base}/matches`)).status).toBe(409);
       await useRoster(app, owner.cookie, eventId);
       expect((await readRoster(app, owner.cookie, eventId)).entries).toHaveLength(1);
     });
 
-    it("自前で申込みを受けるはまだ選べない（400）。受付係は読めるが変えられない", async () => {
+    it("知らない使い方は 400（自前で申込みを受けるは booking-003 から選べる）。受付係は読めるが変えられない", async () => {
       const invalid = await call(app, owner.cookie, `${base}/setting`, "PUT", {
-        mode: "self_page",
+        mode: "waitlist",
       });
       expect(invalid.status).toBe(400);
+      const selfPage = await call(app, owner.cookie, `${base}/setting`, "PUT", {
+        mode: "self_page",
+      });
+      expect(selfPage.status).toBe(200);
       const staff = await makeStaff(app, owner.cookie, eventId);
       expect((await call(app, staff.cookie, `${base}/setting`)).status).toBe(200);
       const put = await call(app, staff.cookie, `${base}/setting`, "PUT", { mode: "roster" });

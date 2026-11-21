@@ -44,7 +44,7 @@ function Items() {
  */
 async function renderItems(
   start: string,
-  cache: { event: boolean; mode?: "reception" | "roster" },
+  cache: { event: boolean; mode?: "reception" | "roster" | "self_page" },
 ) {
   cleanup();
   const rootRoute = createRootRoute();
@@ -91,6 +91,13 @@ describe("外枠のナビの名簿", () => {
       await renderItems(`/admin/events/${EVENT_ID}/roster/match`, { event: true, mode: "roster" }),
     ).toHaveLength(1);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("自前で申込みを受ける交流会の中でも「名簿」を出す（booking-003）", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    expect(
+      await renderItems(`/admin/events/${EVENT_ID}`, { event: true, mode: "self_page" }),
+    ).toEqual([`名簿 /admin/events/${EVENT_ID}/roster`]);
   });
 
   it("受付だけ・使い方を読む前・交流会を読む前・交流会の外では出さない", async () => {

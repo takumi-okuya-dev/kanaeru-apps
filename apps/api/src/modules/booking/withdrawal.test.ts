@@ -6,6 +6,7 @@ import { buildApp, testConfig } from "../../../test/helpers/app.ts";
 import type { TestApp } from "../../../test/helpers/app.ts";
 import { loginAs } from "../../../test/helpers/account.ts";
 import { bookingBase, importNames, readRoster, useRoster } from "../../../test/helpers/booking.ts";
+import { apply, openSelfPage } from "../../../test/helpers/booking-apply.ts";
 import {
   followAndLink,
   lineUser,
@@ -108,6 +109,29 @@ describe("退会の booking の段", () => {
     const left = await database.pool.query<{ n: string }>(
       `SELECT (SELECT count(*) FROM booking_line_channel) + (SELECT count(*) FROM booking_line_link)
         + (SELECT count(*) FROM booking_contact) AS n`,
+    );
+    expect(Number(left.rows[0]?.n)).toBe(0);
+  });
+
+  it("自分の申込みと案内の同意があれば確かめに件数が出て、退会で消える（booking-003）", async () => {
+    const owner = await loginAs(app, { displayName: "持ち主" });
+    const participant = await loginAs(app, { displayName: "参加者" });
+    const eventId = (await createEvent(app, owner.cookie)).id;
+    await openSelfPage(app, owner.cookie, eventId);
+    expect(
+      (await apply(app, participant.cookie, eventId, { name: "参加者", consent: true })).status,
+    ).toBe(201);
+    const preview = await call(app, participant.cookie, "/api/v1/accounts/me/withdrawal");
+    const { items } = (await preview.json()) as { items: { kind: string; text: string }[] };
+    expect(items).toContainEqual(
+      expect.objectContaining({
+        kind: "delete",
+        text: "あなたの予約の申込み（1件）と案内の同意（1件）も一緒に消えます。",
+      }),
+    );
+    expect((await call(app, participant.cookie, "/api/v1/accounts/me", "DELETE")).status).toBe(204);
+    const left = await database.pool.query<{ n: string }>(
+      "SELECT (SELECT count(*) FROM booking_entry) + (SELECT count(*) FROM booking_consent) AS n",
     );
     expect(Number(left.rows[0]?.n)).toBe(0);
   });

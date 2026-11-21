@@ -252,3 +252,50 @@ export function noticeEmailText(
 export function senderName(holderName: string): string {
   return `${holderName}（kanaeru）`;
 }
+
+/** 確認のメールに入れる中身（booking-003 research R10）。 */
+export type EmailConfirmContext = {
+  /** 主催の名前 */
+  holderName: string;
+  /** 交流会の名前 */
+  eventName: string;
+  /** 始まり */
+  startsAt: Date;
+  /** 会場 */
+  venue: string | null;
+  /** 確認のリンク（札つき。ログに出さない） */
+  url: string;
+  /** 期限（時間） */
+  ttlHours: number;
+};
+
+/**
+ * 確認のメールの題。
+ * @param eventName 交流会の名前
+ * @returns 題
+ */
+export function emailConfirmSubject(eventName: string): string {
+  return `【申込みの確認】${eventName}`.slice(0, 200);
+}
+
+/**
+ * 確認のメールの本文（リンクを押して「申込みを確定する」まで申込みにならないこと・心当たりがなければ何もしなくてよいこと）。
+ * @param context 中身
+ * @returns 本文
+ */
+export function emailConfirmText(context: EmailConfirmContext): string {
+  return [
+    `${context.holderName}の交流会の申込みを受け付けました。まだ申込みは確定していません。`,
+    `次のリンクを開いて「申込みを確定する」を押すと、申込みが確定します（${context.ttlHours}時間のあいだ使えます）。`,
+    context.url,
+    "",
+    `会：${context.eventName}`,
+    `日時：${formatJstDateTime(context.startsAt)}`,
+    `場所：${context.venue ?? "（主催者からの案内を確かめてください）"}`,
+    "",
+    "確定したあとも、同じリンクから申込みを見る・取り消すことができます。リンクはほかの人に教えないでください。",
+    "心当たりがないときは、このメールを消してください。何もしなければ申込みにはなりません。",
+    "",
+    "このメールには返信できません。このメールは、申込みのときに入れられたアドレスに kanaeru から送っています。",
+  ].join("\n");
+}

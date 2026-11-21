@@ -1,9 +1,9 @@
-// 外枠のナビに出す「名簿」（booking-001 research R13）。交流会の中で、使い方が「名簿を使う」で、役目が主催者か受付係のときだけ。
+// 外枠のナビに出す「名簿」（booking-001 research R13）。交流会の中で、使い方が「名簿を使う」か「自前で申込みを受ける」で、役目が主催者か受付係のときだけ。
 // 役目と使い方は、画面が読んだ交流会（event の鍵）と使い方（booking の鍵）から読む。ナビのために問い合わせを始めない
 // （skipToken。読みこむ前・失敗したとき・受付だけのときは何も出さない）。
 import type { EventView } from "@workspace/contracts/event";
 import type { BookingSetting } from "@workspace/contracts/booking";
-import { bookingPaths } from "@workspace/contracts/booking";
+import { bookingPaths, usesRoster } from "@workspace/contracts/booking";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
 import { ADMIN_ROUTE_PATTERNS } from "@workspace/contracts/event";
@@ -44,6 +44,6 @@ export function useBookingNavItems(): readonly NavItem[] {
     queryKey: BOOKING_QUERY_KEYS.setting(eventId ?? ""),
     queryFn: skipToken,
   });
-  if (!eventId || !event || setting?.mode !== "roster") return [];
+  if (!eventId || !event || !setting || !usesRoster(setting.mode)) return [];
   return [{ id: "booking-roster", label: "名簿", to: bookingPaths.roster(eventId), icon: "list" }];
 }

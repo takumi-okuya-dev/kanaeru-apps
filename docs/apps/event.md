@@ -91,6 +91,7 @@ const summary = await getEventSummary(deps.db, deps.config, eventId); // 参加�
 | `withdrawal` | 退会の段（組み立てが suite の段のあとに流す。上の2章） |
 | `findEventOwnerAccountId(db, eventId)` | 交流会の持ち主の account の ID（ない・持ち主のない今の交流会は `null`）。booking が CSV の列の対応を持ち主ごとに覚えるのと、知らせに使う公式アカウントの設定を決めるのに使う |
 | `findEventOrganizationId(db, eventId)` | 交流会を入れた組織の ID（入れていなければ `null`）。booking が知らせに使う公式アカウントの設定（組織のもの）を決めるのに使う（booking-002） |
+| `listOrganizationEvents(db, organizationIds, from)` | 組織の並びに入れた交流会で、始まりが `from` 以後のもの（`{ eventId, organizationId, startsAt }`。始まりの近い順）。booking の「部の予定」が使う（booking-003） |
 | `listPersonalEventIds(db, accountId)` | その人が持ち主の、組織に入れていない交流会の ID（退会で消える交流会）。booking の退会の確かめが使う |
 
 約束（`@workspace/contracts/event`）：`EventSummary`・`EventView`・`EventRole`（答えの `myRole`：主催者・受付係）・`EventAccessRole`（判定：主催者・受付係・部員。`EVENT_ACCESS_ROLE_LABELS`）・`EventOrganizationState`・`EventOrganizationInput`・`EventDiscountInput`・`EventDiscountView`・`EVENT_ERRORS`、管理の画面の道 `ADMIN_ROUTE_PATTERNS`（path の形）と `adminPaths`（値を入れた道）：

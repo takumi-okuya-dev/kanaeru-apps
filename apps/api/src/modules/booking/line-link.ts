@@ -3,7 +3,6 @@
 // 送り先は Webhook の公式アカウントから見える ID だけ（LINE ログインの sub は使わない）。
 // リンクを他人に渡されたときの守り（research S7）：札のページでその札の LINE の友だちの表示名を見せ、「自分で受け取ったリンクで
 // なければ押さない」と書く。紐づけたら、その LINE に「◯◯さんのアカウントと紐づきました。心当たりがなければブロック」を送る（守りを通す）。
-import { createHash, randomBytes } from "node:crypto";
 import { BOOKING_ERRORS, LINE_LINK_TTL_DAYS } from "@workspace/contracts/booking";
 import type { LineLinkPreview } from "@workspace/contracts/booking";
 import type { Executor } from "../../kernel/db.ts";
@@ -22,20 +21,15 @@ import {
 import type { ChannelRecord } from "./notify-repository.ts";
 import { holderNameOf, holderOfChannel, notifierOf, openLine } from "./notify-settings.ts";
 import type { NotifyDeps } from "./notify-settings.ts";
-
-/** 札の長さ（バイト）。 */
-const TOKEN_BYTES = 32;
-
-/** 札の形（base64url）。 */
-const TOKEN_FORMAT = /^[A-Za-z0-9_-]{20,100}$/;
+import { TOKEN_FORMAT, createToken, hashToken } from "./tokens.ts";
 
 /**
- * 札の SHA-256（16進）。
+ * 札の SHA-256（16進。札の作り方は tokens.ts で booking-003 と共に使う）。
  * @param token 札
  * @returns ハッシュ
  */
 export function hashLinkToken(token: string): string {
-  return createHash("sha256").update(token, "utf8").digest("hex");
+  return hashToken(token);
 }
 
 /**
@@ -52,7 +46,7 @@ export async function issueLinkToken(
   lineUserId: string,
   now: Date,
 ): Promise<string> {
-  const token = randomBytes(TOKEN_BYTES).toString("base64url");
+  const token = createToken();
   await deleteUnusedTokens(db, channelId, lineUserId);
   await insertToken(db, {
     channelId,

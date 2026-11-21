@@ -60,16 +60,21 @@ export async function lockMode(tx: Executor, eventId: string): Promise<BookingMo
 }
 
 /**
- * 交流会の使い方を書く（行がなければ作る）。
+ * 交流会の使い方を書く（行がなければ作る）。自前で申込みを受ける以外にしたら、申込みページの受付を閉じる
+ * （あとで自前に戻したとき、知らないうちに受付が開いたままにならないように。booking-003 research R13）。
  * @param db DB
  * @param eventId 交流会の ID
  * @param mode 使い方
  */
 export async function saveMode(db: Executor, eventId: string, mode: BookingMode): Promise<void> {
+  const closing = mode === "self_page" ? {} : { accepting: false };
   await db
     .insert(bookingSetting)
     .values({ eventId, mode })
-    .onConflictDoUpdate({ target: bookingSetting.eventId, set: { mode, updatedAt: sql`now()` } });
+    .onConflictDoUpdate({
+      target: bookingSetting.eventId,
+      set: { mode, ...closing, updatedAt: sql`now()` },
+    });
 }
 
 /**
@@ -205,6 +210,8 @@ export async function updateEntry(
     checkinId: string | null;
     accountId: string | null;
     memo: string | null;
+    contactEmail: string | null;
+    entryTokenHash: string | null;
   }>,
 ): Promise<EntryRecord | null> {
   const [row] = await db
@@ -216,7 +223,7 @@ export async function updateEntry(
 }
 
 /**
- * 名簿の行を「まとめた」にする（消さずに残し、取り消しにして当て・アカウントを外し、まとめた先を入れる。research R7）。
+ * 名簿の行を「まとめた」にする（消さずに残し、取り消しにして当て・アカウント・連絡のメールと札を外し、まとめた先を入れる。research R7）。
  * @param db DB
  * @param eventId 交流会の ID
  * @param entryId まとめる（隠す）行の ID
@@ -234,6 +241,8 @@ export async function markEntryMerged(
       status: "cancelled",
       checkinId: null,
       accountId: null,
+      contactEmail: null,
+      entryTokenHash: null,
       mergedIntoId: keepEntryId,
       updatedAt: sql`now()`,
     })

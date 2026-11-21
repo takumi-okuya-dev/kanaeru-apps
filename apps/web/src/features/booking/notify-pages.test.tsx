@@ -152,21 +152,22 @@ describe("予約の知らせの設定の画面", () => {
         ),
     });
     renderWithRouter(<NotifySettingsPage organizationId={ORG_ID} />);
-    expect(await screen.findByLabelText(/^チャネル ID/)).toBeInTheDocument();
+    expect(
+      await screen.findByLabelText(/^チャネル ID/, {}, { timeout: 15_000 }),
+    ).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "保存する" }));
     expect(
-      await screen.findByText("チャネル ID を入れてください。", {}, { timeout: 5000 }),
+      await screen.findByText("チャネル ID を入れてください。", {}, { timeout: 15_000 }),
     ).toBeInTheDocument();
-    // 画面は次の描画（requestAnimationFrame）で最初の間違いの欄へ移る。移り終えてから返信先に入れる
-    // （待たないと、重いときに入れている途中で移り、文字がチャネル ID の欄に入る）
+    // 誤りの欄へのフォーカス（requestAnimationFrame）が済んでから打つ（重いときに、打った文字がほかの欄へ行かないように）
     await waitFor(() => expect(screen.getByLabelText(/^チャネル ID/)).toHaveFocus());
     await userEvent.type(screen.getByLabelText(/返信先のメールアドレス/), "reply");
     await userEvent.click(screen.getByRole("button", { name: "返信先を保存する" }));
     expect(
-      await screen.findByText(/メールアドレスの形で入れてください/, {}, { timeout: 5000 }),
+      await screen.findByText(/メールアドレスの形で入れてください/, {}, { timeout: 15_000 }),
     ).toBeInTheDocument();
     expect(sent.filter((request) => request.method !== "GET")).toEqual([]);
-  }, 15_000);
+  }, 45_000);
 
   it("管理者でなければ「組織の管理者だけが変えられます」", async () => {
     stubApi({

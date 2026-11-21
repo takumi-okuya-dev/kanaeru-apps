@@ -16,6 +16,9 @@ export { getEventSummary } from "./summary.ts";
 export { findEventOwnerAccountId } from "./repository.ts";
 // 交流会を入れた組織（booking が知らせに使う公式アカウントの設定を決めるため。booking-002）
 export { findEventOrganizationId } from "./repository.ts";
+// 組織に入れた交流会（booking の部の予定のため。booking-003）
+export { listOrganizationEvents } from "./repository.ts";
+export type { OrganizationEventRow } from "./repository.ts";
 export { eventForbiddenResponse, eventNotFoundResponse } from "./routes.ts";
 // 退会の手順（AD-22 の (2)。組み立てが suite の段のあとに流す。event-002）
 export { eventWithdrawal as withdrawal, listPersonalEventIds } from "./withdrawal.ts";
