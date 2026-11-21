@@ -11,7 +11,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { buildApp } from "../../../test/helpers/app.ts";
 import type { TestApp } from "../../../test/helpers/app.ts";
 import { loginAs } from "../../../test/helpers/account.ts";
-import { bookingBase } from "../../../test/helpers/booking.ts";
+import { bookingBase, importNames, readRoster } from "../../../test/helpers/booking.ts";
 import {
   anonymous,
   apply,
@@ -362,12 +362,22 @@ describe("キャンセル待ちと繰り上げ", () => {
       { answer: "accept" },
     );
     expect(accepted.status).toBe(200);
+    // 答えには「このリンクは使い終わった」を入れ、取り消す入口を出させない
+    expect(await accepted.json()).toMatchObject({
+      linkSpent: true,
+      entry: { status: "confirmed", cancellable: false },
+    });
     // 打診を閉じたら、返事の札では見る・取り消す・返事ができない（申込みの札は使える）
     expect((await anonymous(app, `/api/v1/booking/entry-tokens/${offerToken}`)).status).toBe(404);
     expect(
       (await anonymous(app, `/api/v1/booking/entry-tokens/${offerToken}/cancel`, "POST")).status,
     ).toBe(404);
-    expect((await anonymous(app, `/api/v1/booking/entry-tokens/${entryToken}`)).status).toBe(200);
+    const byEntryToken = await anonymous(app, `/api/v1/booking/entry-tokens/${entryToken}`);
+    expect(byEntryToken.status).toBe(200);
+    expect(await byEntryToken.json()).toMatchObject({
+      linkSpent: false,
+      entry: { cancellable: true },
+    });
     const tokens = await database.pool.query(
       "SELECT 1 FROM booking_offer WHERE token_hash IS NOT NULL",
     );
@@ -404,6 +414,48 @@ describe("キャンセル待ちと繰り上げ", () => {
     const accepted = await anonymous(
       app,
       `/api/v1/booking/entry-tokens/${newToken}/respond`,
+      "POST",
+      { answer: "accept" },
+    );
+    expect(accepted.status).toBe(200);
+  });
+
+  it("キャンセル待ちのメールの人が確定し直したときの片付けで打診したら、その知らせの返事の札は使える", async () => {
+    await setCapacity(app, owner.cookie, eventId, 1);
+    const first = await join("中村 さき");
+    const second = await join("森 はるか");
+    await anonymous(app, `${base}/email-requests`, "POST", { name: "小林 はると", email: GUEST });
+    const [mail] = (await readOutbox(app, owner.cookie)).filter((m) => m.method === "email");
+    await anonymous(
+      app,
+      `/api/v1/booking/entry-tokens/${entryTokenOf(mail?.text ?? "")}/confirm`,
+      "POST",
+    );
+    // 1人目が取り消して2人目に打診し、その打診の期限が切れる
+    await call(app, first.cookie, `/api/v1/booking/me/entries/${first.entry.id}/cancel`, "POST");
+    expect(await statusOf(database, second.entry.id)).toBe("offered");
+    await expireOffer(database, second.entry.id);
+    // メールの人が新しい確認の札で確定し直すと、片付けで2人目が取り消しになり、メールの人に打診する
+    await database.pool.query(
+      "UPDATE booking_email_request SET created_at = now() - interval '11 minutes'",
+    );
+    await anonymous(app, `${base}/email-requests`, "POST", { name: "小林 はると", email: GUEST });
+    const [again] = (await readOutbox(app, owner.cookie)).filter((m) => m.method === "email");
+    const newToken = entryTokenOf(again?.text ?? "");
+    const reconfirmed = await anonymous(
+      app,
+      `/api/v1/booking/entry-tokens/${newToken}/confirm`,
+      "POST",
+    );
+    expect(reconfirmed.status).toBe(200);
+    expect(await statusOf(database, second.entry.id)).toBe("cancelled");
+    const [offerMail] = (await readOutbox(app, owner.cookie)).filter((m) => m.method === "email");
+    const offerToken = entryTokenOf(offerMail?.text ?? "");
+    expect(offerToken).not.toBe(newToken);
+    expect((await anonymous(app, `/api/v1/booking/entry-tokens/${offerToken}`)).status).toBe(200);
+    const accepted = await anonymous(
+      app,
+      `/api/v1/booking/entry-tokens/${offerToken}/respond`,
       "POST",
       { answer: "accept" },
     );
@@ -462,6 +514,36 @@ describe("キャンセル待ちと繰り上げ", () => {
     const walkIn = await call(app, owner.cookie, `${base}/walk-ins`, "POST", SAMPLE_CHECKIN);
     expect(walkIn.status).toBe(201);
     expect(await released()).not.toBeNull();
+  });
+
+  it("打診で満員になったら印を付け、そのあとに媒体の人が取り消しても、空いた席を次の人に打診する", async () => {
+    await setCapacity(app, owner.cookie, eventId, 3, [
+      { applicationSource: "peatix", seats: 1, manageUrl: null },
+    ]);
+    await join("中村 さき");
+    await join("森 はるか");
+    await importNames(app, owner.cookie, eventId, ["石井 じろう"], "peatix");
+    const third = await join("林 たろう");
+    const fourth = await join("上田 しろう");
+    expect(await statusOf(database, third.entry.id)).toBe("waitlisted");
+    // 定員を増やすと印が消え、増えた1席を打診して満員に戻る
+    await setCapacity(app, owner.cookie, eventId, 4, [
+      { applicationSource: "peatix", seats: 1, manageUrl: null },
+    ]);
+    expect(await statusOf(database, third.entry.id)).toBe("offered");
+    const released = await database.pool.query<{ at: Date | null }>(
+      "SELECT quota_released_at AS at FROM booking_setting WHERE event_id = $1",
+      [eventId],
+    );
+    expect(released.rows[0]?.at).not.toBeNull();
+    // 媒体の人を主催者が取り消すと、空いた席を次の人に打診する（媒体の枠として押さえ直さない）
+    const peatix = (await readRoster(app, owner.cookie, eventId)).entries.find(
+      (entry) => entry.applicationSource === "peatix",
+    );
+    await call(app, owner.cookie, `${base}/entries/${peatix?.id}/status`, "PUT", {
+      status: "cancelled",
+    });
+    expect(await statusOf(database, fourth.entry.id)).toBe("offered");
   });
 
   it("始まりが近いと打診せず当日の空きにし、キャンセル待ちに1回だけ知らせ、先着で確定する", async () => {

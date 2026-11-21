@@ -1,4 +1,4 @@
-// 戦略の進みのカードと区分のタブ（threads-012・threads-017）：数・「次におすすめ」で項目へ移る・最後に保存した日時・
+// 戦略の進みのカードと区分のタブ（threads-012・threads-017・threads-018）：数・「次におすすめ」で項目へ移る・最後に保存した日時・
 // タブの区分ごとの十分の数と今の区分。
 import { checkStrategy, emptyStrategyValues } from "@workspace/contracts/threads";
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -16,6 +16,7 @@ describe("StrategyProgress", () => {
     );
     expect(screen.getByRole("button", { name: /^次におすすめ：Q1/ })).toBeTruthy();
     expect(screen.getByText("まだ保存していません")).toBeTruthy();
+    expect(screen.getByText("十分 0/16項目・短め 0件・活動の目的 0/5問")).toBeTruthy();
   });
 
   it("「次におすすめ」を押すと、その項目へ移る", () => {
@@ -52,5 +53,6 @@ describe("StrategySectionTabs", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "目的 0/5" }));
     expect(onSelect).toHaveBeenCalledWith("purpose");
+    expect(screen.getByRole("navigation", { name: "区分" })).toBeTruthy();
   });
 });

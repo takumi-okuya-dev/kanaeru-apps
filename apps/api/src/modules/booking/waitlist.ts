@@ -286,6 +286,15 @@ export async function settleEvent(
     result.offered += 1;
     remaining -= 1;
   }
+  // 打診で埋まって満員になったら、ここで印を付ける（次の片付けまで待つと、その前の取り消しで空いた媒体の席を
+  // また押さえてしまい、次の人に打診しない。打診中も席を埋める。research R1）
+  if (
+    !state.config.quotasReleased &&
+    count.capacity !== null &&
+    count.filled + result.offered >= count.capacity
+  ) {
+    await updateWaitlistSetting(tx, eventId, { quotaReleasedAt: now });
+  }
   return result;
 }
 

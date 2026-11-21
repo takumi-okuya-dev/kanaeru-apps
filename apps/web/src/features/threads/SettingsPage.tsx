@@ -1,6 +1,6 @@
 // 運用アカウントの設定：名前・Threads への接続と自動投稿（threads-002。AutoPostSettings.tsx）・投稿のルール（1行に1つ。プロンプトに入る）・
 // 時間差のメンション（threads-007。MentionSettingsSection.tsx）・NG ワード（含む案は承認できない）・組織（threads-013。TeamSection.tsx）・
-// 操作の記録（threads-005。ActivitySection.tsx）・アカウントを消す。担当の人には読むだけの画面を出す（threads-013）。
+// 操作の記録（threads-005。ActivitySection.tsx）・アカウントを消す。上のタブで1区分ずつ見せる（threads-019）。担当の人には読むだけの画面を出す（threads-013）。
 // 入力の誤りは欄のそば、送った結果は押したボタンの近く。消す前は確かめ、消したら一覧へ移って知らせの帯で伝える（EXPERIENCE.md）。
 import {
   CORE_RULES_MAX,
@@ -14,7 +14,7 @@ import {
 } from "@workspace/contracts/threads";
 import type { PostingRules, ThreadsAccount } from "@workspace/contracts/threads";
 import { useQueryClient } from "@tanstack/react-query";
-import { getRouteApi, useNavigate } from "@tanstack/react-router";
+import { getRouteApi, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Disclosure } from "@workspace/ui/components/disclosure";
 import { Button } from "@workspace/ui/components/button";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
@@ -22,11 +22,13 @@ import { Field } from "@workspace/ui/components/field";
 import { Input } from "@workspace/ui/components/input";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { Textarea } from "@workspace/ui/components/textarea";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type * as React from "react";
 import { ApiError, errorMessage } from "../../lib/api.ts";
 import { fieldErrorsFromApi, fieldErrorsFromIssues } from "../../lib/form.ts";
 import { showNotice } from "../../lib/notice.ts";
+import { SectionTabs } from "./SectionTabs.tsx";
+import type { SectionTab } from "./SectionTabs.tsx";
 import { ThreadsPage } from "./ThreadsPage.tsx";
 import { AccountGate, LoadFailure, Loading } from "./AccountGate.tsx";
 import { ActivitySection } from "./ActivitySection.tsx";
@@ -468,36 +470,94 @@ function DeleteSection({ account }: SectionProps) {
   );
 }
 
+/** 設定の区分（threads-019。上のタブで1区分ずつ見せる）。anchors は、ほかの画面のリンクの # で開く区分の見出しの id。 */
+const SETTINGS_TABS = [
+  { id: "connection", label: "接続", anchors: ["threads-connection"] },
+  { id: "schedule", label: "自動投稿", anchors: ["threads-schedule"] },
+  { id: "rules", label: "投稿のルール", anchors: ["threads-core-rules", "threads-ng-words"] },
+  { id: "mention", label: "メンション", anchors: ["threads-mention"] },
+  { id: "team", label: "チーム", anchors: ["threads-team"] },
+  { id: "activity", label: "記録", anchors: ["threads-activity"] },
+  { id: "account", label: "アカウント", anchors: ["threads-name", "threads-delete"] },
+] as const satisfies readonly (SectionTab<string> & { anchors: readonly string[] })[];
+
+/** 設定の区分の ID。 */
+type SettingsTabId = (typeof SETTINGS_TABS)[number]["id"];
+
 /**
- * 設定の画面の中身。
+ * 道の # から、開く区分を決める。
+ * @param hash 道の #（# は付けない）
+ * @returns 区分の ID（当てはまらなければ null）
+ */
+function settingsTabOf(hash: string): SettingsTabId | null {
+  return SETTINGS_TABS.find((tab) => (tab.anchors as readonly string[]).includes(hash))?.id ?? null;
+}
+
+/**
+ * 設定の画面の中身。区分は上のタブで1つずつ見せる（threads-019）。見えない区分も描いたまま隠すので、
+ * 書きかけの入力はタブを切り替えても消えない。ほかの画面のリンクの #（threads-connection など）で、その区分を開く。
  * @param props 運用アカウント（account）
  * @returns 画面の要素
  */
 function SettingsContent({ account }: SectionProps) {
   const rules = usePostingRules(account.id);
   const can = useThreadsCan();
+  const hash = useRouterState({ select: (state) => state.location.hash.replace(/^#/, "") });
+  const [current, setCurrent] = useState<SettingsTabId>(() => settingsTabOf(hash) ?? "connection");
+
+  // 道の # が変わったら（ほかの画面のリンクで開いたとき）、その区分を開いて見出しへ移る
+  useEffect(() => {
+    const tab = settingsTabOf(hash);
+    if (!tab) return;
+    setCurrent(tab);
+    requestAnimationFrame(() => {
+      document.getElementById(hash)?.scrollIntoView?.({ block: "start" });
+    });
+  }, [hash]);
+
   // 担当の人（持ち主でない人）には、変える操作を出さずに読むだけで出す（threads-013。判定の正は API）
   if (!can.manage) return <AssigneeSettings account={account} rulesQuery={rules} />;
+  const panel = (id: SettingsTabId, children: React.ReactNode) => (
+    <div hidden={current !== id} className="flex max-w-form flex-col gap-l">
+      {children}
+    </div>
+  );
   return (
     <ThreadsPage title="設定" lead={account.name}>
-      <div className="flex max-w-form flex-col gap-l">
-        <NameSection account={account} />
-        <ConnectionSection accountId={account.id} />
-        <ScheduleSection accountId={account.id} />
-        <MentionSettingsSection accountId={account.id} />
-        {rules.isPending ? (
-          <Loading />
-        ) : rules.isError ? (
-          <LoadFailure error={rules.error} retry={() => void rules.refetch()} />
-        ) : (
-          <>
-            <CoreRulesSection accountId={account.id} rules={rules.data} />
-            <NgWordsSection accountId={account.id} rules={rules.data} />
-          </>
+      <div className="flex flex-col gap-s">
+        <div className="sticky top-0 -mx-xs border-b border-border bg-background px-xs py-xxs">
+          <SectionTabs
+            label="設定の区分"
+            tabs={SETTINGS_TABS}
+            current={current}
+            onSelect={setCurrent}
+          />
+        </div>
+        {panel("connection", <ConnectionSection accountId={account.id} />)}
+        {panel("schedule", <ScheduleSection accountId={account.id} />)}
+        {panel(
+          "rules",
+          rules.isPending ? (
+            <Loading />
+          ) : rules.isError ? (
+            <LoadFailure error={rules.error} retry={() => void rules.refetch()} />
+          ) : (
+            <>
+              <CoreRulesSection accountId={account.id} rules={rules.data} />
+              <NgWordsSection accountId={account.id} rules={rules.data} />
+            </>
+          ),
         )}
-        <TeamSection accountId={account.id} owner />
-        <ActivitySection accountId={account.id} />
-        <DeleteSection account={account} />
+        {panel("mention", <MentionSettingsSection accountId={account.id} />)}
+        {panel("team", <TeamSection accountId={account.id} owner />)}
+        {panel("activity", <ActivitySection accountId={account.id} />)}
+        {panel(
+          "account",
+          <>
+            <NameSection account={account} />
+            <DeleteSection account={account} />
+          </>,
+        )}
       </div>
     </ThreadsPage>
   );

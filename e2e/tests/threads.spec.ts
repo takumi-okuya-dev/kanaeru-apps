@@ -15,6 +15,7 @@ import {
 } from "../env.ts";
 import { expectNoA11yViolations } from "../helpers/axe.ts";
 import { collectCspViolations } from "../helpers/csp.ts";
+import { openSettingsTab } from "../helpers/threads-settings.ts";
 import { clickNavLink } from "../helpers/nav.ts";
 
 /** 書く要求に付ける見出し（画面の源）。 */
@@ -123,6 +124,7 @@ test("運用アカウントを作り、案をためて承認・却下する", as
   // 設定：NG ワードを足す
   await clickNavLink(page, "設定");
   await expect(page.getByRole("heading", { level: 1, name: "設定" })).toBeVisible();
+  await openSettingsTab(page, "投稿のルール");
   await page.getByRole("textbox", { name: /足すNGワード/ }).fill("必ず儲かる");
   await page.getByRole("button", { name: "NGワードを足す" }).click();
   await expect(page.getByText("「必ず儲かる」を足しました。")).toBeVisible();
@@ -261,6 +263,7 @@ test("Threads につなぎ、自動投稿の時刻を決める（threads-002）"
   await checkPage(page, "設定（接続済み）");
 
   // 自動投稿：夜間の時刻は欄のそばに誤り。昼の時刻でオンにする
+  await openSettingsTab(page, "自動投稿");
   await page.getByRole("checkbox", { name: "自動投稿をオンにする" }).check();
   await page.getByLabel("1つ目の時刻", { exact: true }).fill("07:00");
   await page.getByRole("button", { name: "自動投稿の設定を保存" }).click();
@@ -271,6 +274,7 @@ test("Threads につなぎ、自動投稿の時刻を決める（threads-002）"
   await page.getByRole("button", { name: "自動投稿の設定を保存" }).click();
   await expect(page.getByText("自動投稿をオンにしました（1日2回）。")).toBeVisible();
   // 操作の記録（threads-005）に、接続と自動投稿の設定が残る
+  await openSettingsTab(page, "記録");
   const activity = page.getByRole("list", { name: "操作の記録" });
   await expect(activity.getByText("自動投稿の設定を保存した")).toBeVisible();
   await expect(activity.getByText("Threads につないだ")).toBeVisible();
@@ -450,6 +454,7 @@ test("分析の画面で、テーマと傾向の設定を保存する（threads-
 
   // 操作の記録に残る
   await clickNavLink(page, "設定");
+  await openSettingsTab(page, "記録");
   await expect(
     page.getByRole("list", { name: "操作の記録" }).getByText("分析の設定を保存した"),
   ).toBeVisible();
@@ -469,6 +474,7 @@ test("時間差のメンションの人を足し、案に付けて承認する�
 
   // 設定：ひとことと時間差・メンションする人（形が違えば欄のそばに誤り）
   await clickNavLink(page, "設定");
+  await openSettingsTab(page, "メンション");
   await expect(page.getByRole("heading", { level: 2, name: "時間差のメンション" })).toBeVisible();
   await page.getByRole("textbox", { name: /ひとこと/ }).fill("よければシェアお願いします");
   await page.getByRole("radio", { name: "1時間後" }).click();

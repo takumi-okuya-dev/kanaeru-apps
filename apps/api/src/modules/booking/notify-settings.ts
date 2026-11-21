@@ -204,8 +204,9 @@ export async function saveLineChannel(
       });
     }
   }
-  let basicId = current?.basicId ?? null;
-  let botUserId = current?.botUserId ?? null;
+  // アクセストークンを入れたときだけ、ボット情報を読み直す。入れないときは、書くときに押さえた行の値を残す
+  // （ここで読んだ値を使うと、同時に別の管理者がトークンを入れ替えたときに、古いボット情報で上書きしてしまう）
+  let bot: { basicId: string | null; botUserId: string | null } | null = null;
   if (input.accessToken !== undefined) {
     const info = await notifierOf(deps).getLineBotInfo(input.accessToken);
     if (!info.ok) {
@@ -216,11 +217,10 @@ export async function saveLineChannel(
       }
       throw new AppError(BOOKING_ERRORS.LINE_UNREACHABLE);
     }
-    basicId = info.basicId;
-    botUserId = info.userId;
+    bot = { basicId: info.basicId, botUserId: info.userId };
   }
   try {
-    await writeChannel(deps, box, holder, input, { basicId, botUserId });
+    await writeChannel(deps, box, holder, input, bot);
   } catch (error) {
     // 同じチャネル ID がほかの持ち主の設定に入っている（同時に入れても DB の一意の制約で止まる）
     if (isUniqueViolation(error)) throw new AppError(BOOKING_ERRORS.LINE_CHANNEL_TAKEN);
@@ -252,9 +252,7 @@ function botChanged(
  * @param box 秘密の箱
  * @param holder 持ち主
  * @param input 入れた値
- * @param bot ボット情報（ベーシック ID・userId）
- * @param bot.basicId ベーシック ID
- * @param bot.botUserId ボットの userId
+ * @param bot 読み直したボット情報（ベーシック ID・userId。アクセストークンを入れないときは null で、押さえた行の値を残す）
  * @throws {AppError} 前の値が開けず、足りないとき（400）
  */
 async function writeChannel(
@@ -262,11 +260,12 @@ async function writeChannel(
   box: SecretBox,
   holder: NotifyHolderRef,
   input: LineChannelInput,
-  bot: { basicId: string | null; botUserId: string | null },
+  bot: { basicId: string | null; botUserId: string | null } | null,
 ): Promise<void> {
-  const { basicId, botUserId } = bot;
   await deps.db.transaction(async (tx) => {
     const channel = await ensureChannel(tx, holder);
+    const basicId = bot ? bot.basicId : channel.basicId;
+    const botUserId = bot ? bot.botUserId : channel.botUserId;
     const previous = channel.lineChannelId !== null ? await openLine(box, channel) : null;
     const channelSecret = input.channelSecret ?? previous?.channelSecret;
     const accessToken = input.accessToken ?? previous?.accessToken;
@@ -300,8 +299,7 @@ async function writeChannel(
     };
     if (
       channel.lineChannelId !== null &&
-      (channel.lineChannelId !== lineChannelId ||
-        (input.accessToken !== undefined && botChanged(channel, bot)))
+      (channel.lineChannelId !== lineChannelId || (bot !== null && botChanged(channel, bot)))
     ) {
       // 公式アカウントが替わると LINE のユーザー ID も替わるので、前の紐づけと札は使えない
       // （チャネル ID が同じでも、アクセストークンだけを別の公式アカウントのものに入れ直したときも）

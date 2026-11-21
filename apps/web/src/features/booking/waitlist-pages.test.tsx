@@ -8,7 +8,8 @@ import type {
   MyEntryList,
 } from "@workspace/contracts/booking";
 import type { EventView } from "@workspace/contracts/event";
-import { screen, waitFor } from "@testing-library/react";
+import { focusManager } from "@tanstack/react-query";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { initLiff } from "../../lib/liff.ts";
@@ -368,6 +369,7 @@ describe("札のページの打診", () => {
         canAccept: status === "offered",
       },
       confirmable: false,
+      linkSpent: false,
       calendar: { googleUrl: "https://calendar.google.com/", icsPath: "/x.ics" },
     });
     stubApi({
@@ -380,5 +382,65 @@ describe("札のページの打診", () => {
     await userEvent.click(screen.getByRole("button", { name: "参加する" }));
     expect(await screen.findByText("確定")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "参加する" })).not.toBeInTheDocument();
+  });
+
+  it("返事の札で参加したら、使い終わったリンクとして申込みのメールへ案内し、読み直しても答えを出し続ける", async () => {
+    const offered: EntryTokenView = {
+      state: "entry",
+      event: {
+        id: EVENT_ID,
+        name: "土曜の練習",
+        startsAt: "2026-12-06T04:00:00.000Z",
+        venue: "中央市民体育館",
+        fee: 500,
+      },
+      hostName: "バドミントンの部",
+      name: "小林 はると",
+      entry: {
+        status: "offered",
+        cancellable: true,
+        ...NO_STANDING,
+        offerDeadline: "2026-11-22T00:00:00.000Z",
+        canAccept: true,
+      },
+      confirmable: false,
+      linkSpent: false,
+      calendar: { googleUrl: "https://calendar.google.com/", icsPath: "/x.ics" },
+    };
+    let reads = 0;
+    stubApi({
+      [`GET /api/v1/booking/entry-tokens/${TOKEN}`]: () => {
+        reads += 1;
+        // 答えたあとは札が使えない
+        return reads === 1
+          ? Response.json(offered)
+          : Response.json(
+              { error: { code: "BOOKING_ENTRY_TOKEN_INVALID", message: "使えません。" } },
+              { status: 404 },
+            );
+      },
+      [`POST /api/v1/booking/entry-tokens/${TOKEN}/respond`]: () =>
+        Response.json({
+          ...offered,
+          entry: { ...offered.entry, status: "confirmed", cancellable: false, canAccept: false },
+          linkSpent: true,
+        }),
+    });
+    renderWithRouter(<EntryTokenPage eventId={EVENT_ID} entryToken={TOKEN} />);
+    await userEvent.click(await screen.findByRole("button", { name: "参加する" }));
+    expect(
+      await screen.findByText(/申し込んだときに届いたメールのリンクを開いてください/),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "この申込みを取り消す" })).not.toBeInTheDocument();
+    act(() => {
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+    });
+    await waitFor(() => expect(reads).toBeGreaterThan(1));
+    expect(screen.getByText("確定")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "このリンクは使えません" }),
+    ).not.toBeInTheDocument();
+    focusManager.setFocused(undefined);
   });
 });

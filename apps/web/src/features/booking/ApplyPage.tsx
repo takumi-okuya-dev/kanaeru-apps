@@ -396,7 +396,9 @@ export function ApplyPage({ eventId }: { eventId: string }) {
     retry: (count, error) =>
       !(error instanceof ApiError && (error.status === 403 || error.status === 404)) && count < 2,
   });
-  const [applied, setApplied] = useState<{ entry: MyEntry; page: ApplyPageData }>();
+  // 申し込んだばかりの印（申込みの ID と状態）。中身は問い合わせの答えを正にし、読み直した最新の答えを出す
+  // （主催者の取り消し・日時や場所の変更が、申し込んだあとの画面にも映るように）
+  const [applied, setApplied] = useState<{ id: string; status: MyEntry["status"] }>();
   const [emailMode, setEmailMode] = useState(false);
 
   if (session.status === "loading" || query.isPending) {
@@ -422,14 +424,14 @@ export function ApplyPage({ eventId }: { eventId: string }) {
     await queryClient.invalidateQueries({ queryKey: ["booking"] });
   };
 
-  const page = applied?.page ?? query.data;
-  const myEntry = applied?.entry ?? (page.viewer.signedIn ? page.viewer.myEntry : null);
+  const page = query.data;
+  const myEntry = page.viewer.signedIn ? page.viewer.myEntry : null;
   if (myEntry && (myEntry.status !== "cancelled" || page.state !== "open")) {
     return (
       <AppliedView
         page={page}
         entry={myEntry}
-        justApplied={applied !== undefined}
+        justApplied={applied?.id === myEntry.id && applied.status === myEntry.status}
         onCancelled={reload}
       />
     );
@@ -456,7 +458,11 @@ export function ApplyPage({ eventId }: { eventId: string }) {
         <ApplyForm
           page={page}
           onApplied={(entry, next) => {
-            setApplied({ entry, page: next });
+            queryClient.setQueryData<ApplyPageData>(
+              APPLY_QUERY_KEYS.page(eventId, signedIn),
+              next.viewer.signedIn ? { ...next, viewer: { ...next.viewer, myEntry: entry } } : next,
+            );
+            setApplied({ id: entry.id, status: entry.status });
             void queryClient.invalidateQueries({ queryKey: APPLY_QUERY_KEYS.myEntries });
           }}
         />

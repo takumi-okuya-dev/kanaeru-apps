@@ -4,6 +4,7 @@
 // - 「投稿の案」には承認待ちの数を添える（threads-011。画面が読んだ運用アカウントの数を使い、ナビのために問い合わせを始めない）
 // - 「チーム」はいつも出す（threads-016。チームで運用できることに気づけるように。どこにも入っていなければ、チームの画面が始め方を出す）。
 //   運用アカウントの中では最後に置く（スマホのタブバーには、ホーム・投稿の案など運用の項目を先に出す）
+// - アイコンは項目ごとに違うものにする（core-011。目で探しやすく）
 import type { ThreadsAccount } from "@workspace/contracts/threads";
 import { useQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
@@ -64,7 +65,7 @@ export function useThreadsNavItems(): readonly NavItem[] {
     id: "threads-accounts",
     label: "アカウント",
     to: threadsPaths.accounts(),
-    icon: "people",
+    icon: "at",
   };
   const teams: NavItem = {
     id: "threads-teams",
@@ -75,45 +76,50 @@ export function useThreadsNavItems(): readonly NavItem[] {
   if (!accountId) return [list, teams];
   return [
     list,
-    { id: "threads-home", label: "ホーム", to: threadsPaths.home(accountId), icon: "account" },
+    { id: "threads-home", label: "ホーム", to: threadsPaths.home(accountId), icon: "home" },
     {
       id: "threads-stock",
       label: needsReview ? `投稿の案（${needsReview}）` : "投稿の案",
       to: threadsPaths.stock(accountId),
-      icon: "list",
+      icon: "drafts",
     },
     {
       id: "threads-create",
       label: "案を作る",
       to: threadsPaths.create(accountId),
-      icon: "concerns",
+      icon: "pen",
     },
-    { id: "threads-strategy", label: "戦略", to: threadsPaths.strategy(accountId), icon: "setup" },
+    { id: "threads-strategy", label: "戦略", to: threadsPaths.strategy(accountId), icon: "target" },
     {
       id: "threads-research",
       label: "リサーチ",
       to: threadsPaths.research(accountId),
-      icon: "concerns",
+      icon: "search",
     },
     {
       id: "threads-performance",
       label: "反応",
       to: threadsPaths.performance(accountId),
-      icon: "list",
+      icon: "heart",
     },
     {
       id: "threads-analysis",
       label: "分析",
       to: threadsPaths.analysis(accountId),
-      icon: "list",
+      icon: "chart",
     },
     {
       id: "threads-media",
       label: "外部メディア",
       to: threadsPaths.media(accountId),
-      icon: "list",
+      icon: "globe",
     },
-    { id: "threads-settings", label: "設定", to: threadsPaths.settings(accountId), icon: "setup" },
+    {
+      id: "threads-settings",
+      label: "設定",
+      to: threadsPaths.settings(accountId),
+      icon: "sliders",
+    },
     teams,
   ];
 }
