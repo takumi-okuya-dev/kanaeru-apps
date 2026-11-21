@@ -8,6 +8,7 @@ import {
   ROSTER_IMPORT_FILE_MAX_BYTES,
   ROSTER_IMPORT_ROWS_MAX,
   bookingPaths,
+  importMappingFits,
 } from "@workspace/contracts/booking";
 import { CHECKIN_NAME_MAX } from "@workspace/contracts/reception";
 import type { ApplicationSource } from "@workspace/contracts/reception";
@@ -423,12 +424,14 @@ function CsvPanel({ eventId }: { eventId: string }) {
         }))
       : [];
   const longLine = tooLongLine(rows);
+  // 列が多い・見出しが長い CSV は、列の対応を送らずに名前だけで取り込む（覚えないだけで、取り込みは止めない）
+  const rememberable = file !== undefined && importMappingFits(file.csv.headers, column);
   const request: Request | undefined =
     file && columnIndex >= 0 && source && longLine === undefined
       ? {
           applicationSource: source,
           rows,
-          mapping: { headers: file.csv.headers, nameColumn: column },
+          ...(rememberable ? { mapping: { headers: file.csv.headers, nameColumn: column } } : {}),
         }
       : undefined;
 
@@ -446,9 +449,11 @@ function CsvPanel({ eventId }: { eventId: string }) {
         <Field
           label="2. 名前の列"
           description={
-            remembered
-              ? "前に選んだ列を選んでいます。選んだ列は覚え、次から同じ見出しの CSV で自動で選びます。"
-              : "選んだ列は覚え、次から同じ見出しの CSV で自動で選びます。"
+            !rememberable && column !== ""
+              ? "この CSV は列が多いか見出しが長いので、選んだ列は覚えません（取り込みはできます）。"
+              : remembered
+                ? "前に選んだ列を選んでいます。選んだ列は覚え、次から同じ見出しの CSV で自動で選びます。"
+                : "選んだ列は覚え、次から同じ見出しの CSV で自動で選びます。"
           }
           error={
             longLine === undefined

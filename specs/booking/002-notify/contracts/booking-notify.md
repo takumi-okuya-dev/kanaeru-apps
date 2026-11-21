@@ -57,7 +57,7 @@ type NoticeResult = "sent" | "off" | "not_allowed" | "no_destination" | "failed"
 { result: NoticeResult | "not_linked"; lineUserId?: string /* not_allowed のときだけ。本人の ID */; message: string }
 
 // LineLinkPreview
-{ holderName: string; state: "valid" | "used" | "expired"; linkedToMe: boolean; expiresAt: string }
+{ holderName: string; state: "valid" | "used" | "expired"; linkedToMe: boolean; expiresAt: string; lineDisplayName: string | null /* 使える札で、LINE から読めたときだけ */ }
 
 // LineLinkResult
 { holderName: string }

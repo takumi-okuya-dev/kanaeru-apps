@@ -7,6 +7,7 @@ import { buildApp } from "../../../test/helpers/app.ts";
 import type { TestApp } from "../../../test/helpers/app.ts";
 import { loginAs } from "../../../test/helpers/account.ts";
 import {
+  SAMPLE_LINE_INPUT,
   followAndLink,
   lineUser,
   notifyConfig,
@@ -24,6 +25,9 @@ import { sendNotice } from "./notify.ts";
 import type { NotifyDeps } from "./notify-settings.ts";
 
 const database = useTestDatabase();
+
+/** 個人の公式アカウントの見本の値（同じチャネル ID は1つの設定にしか入らないので、組織とは別の ID）。 */
+const PERSONAL_LINE_INPUT = { ...SAMPLE_LINE_INPUT, lineChannelId: "2234567890" };
 
 /**
  * ログを文字にためる道具を作る。
@@ -161,14 +165,34 @@ describe("予約の知らせを送る（sendNotice）", () => {
       method: "none",
       result: "no_destination",
     });
-    const personalChannelId = (await saveLine(app, owner.cookie)).line?.channelId ?? "";
-    await followAndLink(app, participant.cookie, personalChannelId, lineUser("b"));
+    const personalChannelId = (await saveLine(app, owner.cookie, undefined, PERSONAL_LINE_INPUT))
+      .line?.channelId;
+    await followAndLink(app, participant.cookie, personalChannelId ?? "", lineUser("b"));
     const second = depsOf();
     expect(await sendNotice(second.deps, { entryId, kind: "confirmed" })).toEqual({
       method: "line",
       result: "sent",
     });
     expect(second.notifier.fakeOutbox()?.[0]?.to).toBe(lineUser("b"));
+  });
+
+  it("組織に入れた交流会で組織に LINE の値がなければ、持ち主の個人の公式アカウントと紐づいていても使わない（research R5）", async () => {
+    await call(
+      app,
+      owner.cookie,
+      `/api/v1/booking/notify-settings/organizations/${organizationId}/line`,
+      "DELETE",
+    );
+    const personalChannelId = (await saveLine(app, owner.cookie, undefined, PERSONAL_LINE_INPUT))
+      .line?.channelId;
+    await followAndLink(app, participant.cookie, personalChannelId ?? "", lineUser("b"));
+    const entryId = await insertEntry(orgEventId, participant.account.id);
+    const { deps, notifier } = depsOf();
+    expect(await sendNotice(deps, { entryId, kind: "confirmed" })).toEqual({
+      method: "none",
+      result: "no_destination",
+    });
+    expect(notifier.fakeOutbox()).toEqual([]);
   });
 
   it("紐づいていなければ、本人が入れたメールアドレスに送る（送り主の名前・返信先）", async () => {

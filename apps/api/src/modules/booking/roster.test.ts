@@ -1,5 +1,5 @@
 // 予約の窓口の結合のテスト（本物の PostgreSQL）：使い方・名簿・取り込み（見積もり・2回目は増えない・列の対応）・
-// 1人足す・取り消しと戻す・同じ名前の印とまとめる・書き出し・権限（受付係・部員・ほかの人・ない交流会）。名前はどれも架空のもの。
+// 1人足す・取り消しと戻す・同じ名前の印とまとめる（まとめた行は隠して取り込み直しでも戻さない・2人とも来ていれば止める）・書き出し・権限（受付係・部員・ほかの人・ない交流会）。名前はどれも架空のもの。
 import "@hono/zod-openapi";
 import type {
   BookingSetting,
@@ -17,6 +17,7 @@ import { truncateAllTables, useTestDatabase } from "../../../test/helpers/db.ts"
 import { call, createEvent, makeStaff, placeEvent } from "../../../test/helpers/event.ts";
 import type { ErrorBody } from "../../../test/helpers/event.ts";
 import { setUpOrganization } from "../../../test/helpers/organization.ts";
+import { manualCheckIn } from "../../../test/helpers/reception.ts";
 
 const database = useTestDatabase();
 
@@ -259,6 +260,120 @@ describe("予約の名簿の窓口", () => {
         memo: "手で足した",
       });
       expect((await readRoster(app, owner.cookie, eventId)).entries).toHaveLength(2);
+    });
+
+    it("まとめた行は名簿から隠れるが、同じ CSV を取り込み直しても人は戻らない", async () => {
+      await importNames(app, owner.cookie, eventId, ["佐藤 けん", "田中 りく"], "peatix");
+      await call(app, owner.cookie, `${base}/entries`, "POST", {
+        name: "佐藤けん",
+        applicationSource: "other",
+      });
+      const before = await readRoster(app, owner.cookie, eventId);
+      const imported = before.entries.find((entry) => entry.name === "佐藤 けん");
+      const manual = before.entries.find((entry) => entry.name === "佐藤けん");
+      const merged = await call(app, owner.cookie, `${base}/entries/merge`, "POST", {
+        keepEntryId: manual?.id,
+        removeEntryId: imported?.id,
+      });
+      expect(merged.status).toBe(200);
+      const after = await readRoster(app, owner.cookie, eventId);
+      expect(after.entries.map((entry) => entry.name)).toEqual(["田中 りく", "佐藤けん"]);
+      expect(after.counts).toMatchObject({ confirmed: 2, cancelled: 0 });
+
+      const rows = [
+        { line: 2, name: "佐藤 けん" },
+        { line: 3, name: "田中 りく" },
+      ];
+      const preview = await call(app, owner.cookie, `${base}/entries/import/preview`, "POST", {
+        applicationSource: "peatix",
+        rows,
+      });
+      expect(((await preview.json()) as RosterImportPreview).counts).toEqual({
+        insert: 0,
+        existing: 2,
+        empty: 0,
+      });
+      await importNames(app, owner.cookie, eventId, ["佐藤 けん", "田中 りく"], "peatix");
+      expect((await readRoster(app, owner.cookie, eventId)).entries).toHaveLength(2);
+      // まとめた行は、行の ID で直せない（404）・もう一度まとめられない（404）
+      const status = await call(
+        app,
+        owner.cookie,
+        `${base}/entries/${imported?.id}/status`,
+        "PUT",
+        { status: "confirmed" },
+      );
+      expect(status.status).toBe(404);
+      const again = await call(app, owner.cookie, `${base}/entries/merge`, "POST", {
+        keepEntryId: manual?.id,
+        removeEntryId: imported?.id,
+      });
+      expect(again.status).toBe(404);
+      const setting = await call(app, owner.cookie, `${base}/setting`);
+      expect(((await setting.json()) as BookingSetting).entryCount).toBe(2);
+    });
+
+    it("2つともチェックインに当たっていればまとめず 409、片方だけなら当てが残す行へ移る", async () => {
+      await importNames(app, owner.cookie, eventId, ["佐藤 けん"], "peatix");
+      await call(app, owner.cookie, `${base}/entries`, "POST", {
+        name: "佐藤けん",
+        applicationSource: "other",
+      });
+      const roster = await readRoster(app, owner.cookie, eventId);
+      const [first, second] = roster.entries;
+      const one = await manualCheckIn(app, owner.cookie, eventId, { name: "佐藤 けん" });
+      const two = await manualCheckIn(app, owner.cookie, eventId, { name: "佐藤 けん" });
+      for (const [checkin, entry] of [
+        [one, first],
+        [two, second],
+      ] as const) {
+        const matched = await call(
+          app,
+          owner.cookie,
+          `${base}/checkins/${checkin.id}/match`,
+          "POST",
+          { entryId: entry?.id },
+        );
+        expect(matched.status).toBe(200);
+      }
+      const both = await call(app, owner.cookie, `${base}/entries/merge`, "POST", {
+        keepEntryId: first?.id,
+        removeEntryId: second?.id,
+      });
+      expect(both.status).toBe(409);
+      expect(((await both.json()) as ErrorBody).error.code).toBe("BOOKING_MERGE_BOTH_MATCHED");
+      expect((await readRoster(app, owner.cookie, eventId)).counts.came).toBe(2);
+
+      // 残す行の当てを外すと、まとめる行の当てが残す行へ移る
+      const unmatch = await call(app, owner.cookie, `${base}/entries/${first?.id}/match`, "DELETE");
+      expect(unmatch.status).toBe(200);
+      const merged = await call(app, owner.cookie, `${base}/entries/merge`, "POST", {
+        keepEntryId: first?.id,
+        removeEntryId: second?.id,
+      });
+      expect(merged.status).toBe(200);
+      expect((await merged.json()) as RosterEntry).toMatchObject({
+        id: first?.id,
+        attendance: "came",
+        match: "manual",
+      });
+      const after = await readRoster(app, owner.cookie, eventId);
+      expect(after.entries).toHaveLength(1);
+      expect(after.counts).toMatchObject({ confirmed: 1, came: 1 });
+    });
+
+    it("取り消した行に手の当てが残っていても、来たの人数に入れない", async () => {
+      await importNames(app, owner.cookie, eventId, ["山田 花子"]);
+      const [entry] = (await readRoster(app, owner.cookie, eventId)).entries;
+      const checkin = await manualCheckIn(app, owner.cookie, eventId, { name: "山田 花子" });
+      await call(app, owner.cookie, `${base}/checkins/${checkin.id}/match`, "POST", {
+        entryId: entry?.id,
+      });
+      await call(app, owner.cookie, `${base}/entries/${entry?.id}/status`, "PUT", {
+        status: "cancelled",
+      });
+      const roster = await readRoster(app, owner.cookie, eventId);
+      expect(roster.counts).toMatchObject({ confirmed: 0, cancelled: 1, came: 0 });
     });
 
     it("書き出しは主催者だけで、BOM つき・式として読まれない形", async () => {

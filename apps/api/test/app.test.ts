@@ -299,6 +299,33 @@ describe("組み立て", () => {
     expect(statuses).toEqual([200, 200, 429]);
   });
 
+  it("Webhook の道（/api/v1/<領域>/webhooks/…）は、IP ごとの回数の制限で数えない", async () => {
+    const hook = createRoute({
+      method: "post",
+      path: "/api/v1/sample/webhooks/ping",
+      responses: { 200: { description: "受け取った" } },
+    });
+    const hooks: DomainModule = {
+      routes: () => new OpenAPIHono<AppEnv>().openapi(hook, (c) => c.json({}, 200)),
+    };
+    const config = testConfig({ rateLimit: { enabled: true, windowSeconds: 60, max: 2 } });
+    const app = buildApp(database, config, { extraModules: [hooks, testModule] });
+    const statuses: number[] = [];
+    for (let index = 0; index < 5; index += 1) {
+      const response = await app.request(
+        "/api/v1/sample/webhooks/ping",
+        jsonRequest("POST", { events: [] }),
+      );
+      statuses.push(response.status);
+    }
+    expect(statuses).toEqual([200, 200, 200, 200, 200]);
+    // ほかの書く道は、今までどおり数える
+    const echo = () => app.request("/api/v1/test-only/echo", jsonRequest("POST", { value: "x" }));
+    expect([(await echo()).status, (await echo()).status, (await echo()).status]).toEqual([
+      200, 200, 429,
+    ]);
+  });
+
   it("窓口の文書は OPENAPI_DOC_ENABLED のときだけ出し、すべての道が載る", async () => {
     const enabled = buildApp(database, testConfig({ openApiDocEnabled: true }));
     const response = await enabled.request(OPENAPI_DOC_PATH);

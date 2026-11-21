@@ -1,12 +1,13 @@
 // LINE の Webhook と紐づけの結合のテスト（booking-002 US2・research S1〜S3・S7・S11・S13）。
 import { Writable } from "node:stream";
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
 import { buildApp, testConfig } from "../../../test/helpers/app.ts";
 import type { TestApp } from "../../../test/helpers/app.ts";
 import { loginAs } from "../../../test/helpers/account.ts";
 import {
   SAMPLE_CHANNEL_SECRET,
+  SAMPLE_LINE_INPUT,
   lineEvent,
   lineUser,
   linkTokenOf,
@@ -21,6 +22,7 @@ import { truncateAllTables, useTestDatabase } from "../../../test/helpers/db.ts"
 import { call } from "../../../test/helpers/event.ts";
 import { createOrganization } from "../../../test/helpers/organization.ts";
 import { createLogger } from "../../kernel/logger.ts";
+import { LINE_WEBHOOK_PER_CHANNEL_MAX } from "./routes-webhook.ts";
 
 const database = useTestDatabase();
 
@@ -106,6 +108,79 @@ describe("LINE の Webhook", () => {
     expect(tampered.status).toBe(400);
     expect(await readOutbox(app, admin.cookie)).toEqual([]);
     expect((await tokenCounts()).all).toBe(0);
+  });
+
+  it("署名は届いたままの本文で比べる（空白・鍵の順が違っても通り、JSON にし直した本文の署名では通らない）", async () => {
+    const raw = `{ "events" : [ { "source": { "userId": "${lineUser("a")}", "type": "user" }, "replyToken": "reply-aaaa", "type": "follow" } ], "destination": "${lineUser("f")}" }`;
+    const response = await postWebhook(app, channelId, raw);
+    expect(response.status).toBe(200);
+    expect(await readOutbox(app, admin.cookie)).toHaveLength(1);
+    // JSON.stringify し直した本文の署名を、届いたままの本文に付けると通らない
+    const reserialized = JSON.stringify(JSON.parse(raw));
+    expect(reserialized).not.toBe(raw);
+    const signature = createHmac("sha256", SAMPLE_CHANNEL_SECRET)
+      .update(reserialized)
+      .digest("base64");
+    const mismatched = await app.request(`/api/v1/booking/webhooks/line/${channelId}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-line-signature": signature },
+      body: raw,
+    });
+    expect(mismatched.status).toBe(400);
+  });
+
+  it("ほかの設定（B）のシークレットで署名した本文を、A の道に送ると 400 で何もしない", async () => {
+    const other = await loginAs(app, { displayName: "別の主催者" });
+    const secretB = "f".repeat(32);
+    const channelB = (
+      await saveLine(app, other.cookie, undefined, {
+        ...SAMPLE_LINE_INPUT,
+        lineChannelId: "2234567890",
+        channelSecret: secretB,
+      })
+    ).line?.channelId;
+    const body = lineEvent("follow", lineUser("a"));
+    expect((await postWebhook(app, channelId, body, secretB)).status).toBe(400);
+    expect((await tokenCounts()).all).toBe(0);
+    // B の道なら通る
+    expect((await postWebhook(app, channelB ?? "", body, secretB)).status).toBe(200);
+  });
+
+  it("友だち追加の送り直し（isRedelivery）では、札を作り直さず、あいさつも送らない", async () => {
+    await postWebhook(app, channelId, lineEvent("follow", lineUser("a")));
+    const redelivered = JSON.parse(lineEvent("follow", lineUser("a"))) as {
+      events: { deliveryContext: { isRedelivery: boolean } }[];
+    };
+    for (const event of redelivered.events) event.deliveryContext.isRedelivery = true;
+    expect((await postWebhook(app, channelId, JSON.stringify(redelivered))).status).toBe(200);
+    expect(await tokenCounts()).toEqual({ unused: 1, all: 1 });
+    const outbox = await readOutbox(app, admin.cookie);
+    expect(outbox).toHaveLength(1);
+    // 前に届いたリンクは使えるまま
+    const token = linkTokenOf(outbox[0]?.text ?? "");
+    expect((await call(app, admin.cookie, `/api/v1/booking/line-links/${token}`)).status).toBe(200);
+  });
+
+  it("本文の送り先（destination）が設定の公式アカウントと違えば、取り違えとして 400 で何もしない", async () => {
+    const body = JSON.stringify({
+      ...(JSON.parse(lineEvent("follow", lineUser("a"))) as object),
+      destination: lineUser("e"),
+    });
+    expect((await postWebhook(app, channelId, body)).status).toBe(400);
+    expect((await tokenCounts()).all).toBe(0);
+    expect(log.text()).toContain("送り先が設定の公式アカウントと違います");
+  });
+
+  it(`署名の合う知らせは、設定ごとに60秒に ${LINE_WEBHOOK_PER_CHANNEL_MAX} 回まで。超えたら 429 と Retry-After`, async () => {
+    const body = JSON.stringify({ destination: lineUser("f"), events: [] });
+    for (let index = 0; index < LINE_WEBHOOK_PER_CHANNEL_MAX; index += 1) {
+      expect((await postWebhook(app, channelId, body)).status).toBe(200);
+    }
+    const limited = await postWebhook(app, channelId, body);
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("retry-after")).toBeTruthy();
+    // 署名の合わない知らせは数えずに 400
+    expect((await postWebhook(app, channelId, body, "f".repeat(32))).status).toBe(400);
   });
 
   it("署名が合っても JSON でない・形が違えば 400。大きすぎる本文は署名の前に 400", async () => {
@@ -221,6 +296,7 @@ describe("紐づけ", () => {
       holderName: "飲食チーム",
       state: "valid",
       linkedToMe: false,
+      lineDisplayName: "LINE の友だち",
     });
     const linked = await call(
       app,
@@ -238,7 +314,11 @@ describe("紐づけ", () => {
     );
     expect(again.status).toBe(409);
     const reopened = await call(app, participant.cookie, `/api/v1/booking/line-links/${token}`);
-    expect(await reopened.json()).toMatchObject({ state: "used", linkedToMe: true });
+    expect(await reopened.json()).toMatchObject({
+      state: "used",
+      linkedToMe: true,
+      lineDisplayName: null,
+    });
     const others = await call(app, admin.cookie, `/api/v1/booking/line-links/${token}`);
     expect(await others.json()).toMatchObject({ state: "used", linkedToMe: false });
     const settings = (await (
@@ -257,6 +337,36 @@ describe("紐づけ", () => {
     );
     return result.rows[0]?.id ?? "";
   }
+
+  it("紐づけたら、その LINE に「◯◯さんのアカウントと紐づきました。心当たりがなければブロック」を送る", async () => {
+    const token = await follow(lineUser("a"));
+    await call(app, participant.cookie, `/api/v1/booking/line-links/${token}`, "POST");
+    const [notice] = await readOutbox(app, admin.cookie);
+    expect(notice?.method).toBe("line_push");
+    expect(notice?.to).toBe(lineUser("a"));
+    expect(notice?.text).toContain("kanaeru の参加者さんのアカウントと紐づきました");
+    expect(notice?.text).toContain("心当たりがなければ、このアカウントをブロックしてください");
+    // 送り方が off なら送らない（紐づけはできる）
+    const offApp = buildApp(database, notifyConfig({ mode: "off" }));
+    const second = await follow(lineUser("b"));
+    const linked = await call(offApp, admin.cookie, `/api/v1/booking/line-links/${second}`, "POST");
+    expect(linked.status).toBe(200);
+    expect(await readOutbox(offApp, admin.cookie)).toEqual([]);
+  });
+
+  it("同じ札を同時に2回送っても、紐づけは1つだけ（もう1回は 409）", async () => {
+    const token = await follow(lineUser("a"));
+    const path = `/api/v1/booking/line-links/${token}`;
+    const statuses = (
+      await Promise.all([
+        call(app, participant.cookie, path, "POST"),
+        call(app, admin.cookie, path, "POST"),
+      ])
+    ).map((response) => response.status);
+    expect(statuses.sort()).toEqual([200, 409]);
+    const links = await database.pool.query("SELECT 1 FROM booking_line_link");
+    expect(links.rowCount).toBe(1);
+  });
 
   it("期限切れは 410、知らない札・形の違う札は 404。未ログインは 401", async () => {
     const token = await follow(lineUser("a"));

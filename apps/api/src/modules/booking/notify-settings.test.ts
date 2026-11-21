@@ -107,6 +107,7 @@ describe("公式アカウントとメールの設定", () => {
     const org = await saveLine(app, admin.cookie, organizationId);
     const personal = await saveLine(app, outsider.cookie, undefined, {
       ...SAMPLE_LINE_INPUT,
+      lineChannelId: "2234567890",
       accessToken: `${"other".repeat(8)}abcd`,
     });
     // 組織の暗号文を個人の行に写すと、個人の行の Webhook は開けず 404 になる
@@ -149,6 +150,52 @@ describe("公式アカウントとメールの設定", () => {
     });
     expect(changed.line?.linkedCount).toBe(0);
     expect(changed.line?.channelId).toBe(first.line?.channelId);
+  });
+
+  it("アクセストークンだけを別の公式アカウントのものに入れ直すと、紐づけと札が消える", async () => {
+    const first = await saveLine(app, admin.cookie, organizationId);
+    await followAndLink(app, admin.cookie, first.line?.channelId ?? "", lineUser("a"));
+    const switched = await saveLine(app, admin.cookie, organizationId, {
+      accessToken: `otherbot${"x".repeat(30)}`,
+    });
+    expect(switched.line?.basicId).toBe("@fake2");
+    expect(switched.line?.linkedCount).toBe(0);
+    const bot = await database.pool.query<{ bot_user_id: string | null }>(
+      "SELECT bot_user_id FROM booking_line_channel",
+    );
+    expect(bot.rows).toEqual([{ bot_user_id: `U${"e".repeat(32)}` }]);
+  });
+
+  it("前の版で入れた行（ボットの userId が空）は、ベーシック ID が替わったら紐づけを消し、同じなら残す", async () => {
+    const first = await saveLine(app, admin.cookie, organizationId);
+    await followAndLink(app, admin.cookie, first.line?.channelId ?? "", lineUser("a"));
+    await database.pool.query("UPDATE booking_line_channel SET bot_user_id = NULL");
+    const same = await saveLine(app, admin.cookie, organizationId, {
+      accessToken: `${"rotated".repeat(5)}9876`,
+    });
+    expect(same.line?.linkedCount).toBe(1);
+    await database.pool.query("UPDATE booking_line_channel SET bot_user_id = NULL");
+    const switched = await saveLine(app, admin.cookie, organizationId, {
+      accessToken: `otherbot${"x".repeat(30)}`,
+    });
+    expect(switched.line?.linkedCount).toBe(0);
+  });
+
+  it("同じチャネル ID は、ほかの持ち主の設定に入れられない（409）", async () => {
+    await saveLine(app, admin.cookie, organizationId);
+    const taken = await call(
+      app,
+      outsider.cookie,
+      `${notifyBase()}/line`,
+      "PUT",
+      SAMPLE_LINE_INPUT,
+    );
+    expect(taken.status).toBe(409);
+    expect(((await taken.json()) as { error: { code: string } }).error.code).toBe(
+      "BOOKING_LINE_CHANNEL_TAKEN",
+    );
+    const read = (await (await call(app, outsider.cookie, notifyBase())).json()) as SettingsBody;
+    expect(read.line).toBeNull();
   });
 
   it("初めは3つとも要る。使えないトークンは 400、LINE に届かないと 502。どちらも保存しない", async () => {

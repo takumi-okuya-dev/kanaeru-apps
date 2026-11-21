@@ -1,4 +1,4 @@
-// 当ての決め方（純粋な関数）：手・自動・候補がちょうど1つ・2つなら出ない・ちがう人・取り消しは当てない・来なかった・同じ名前の印。
+// 当ての決め方（純粋な関数）：手・自動・候補がちょうど1つ・2つなら出ない・同じ名前のチェックインが2つなら出ない・ちがう人・取り消しは当てない・来なかった・同じ名前の印。
 import { describe, expect, it } from "vitest";
 import { attendanceOf, resolveMatches, sameNameEntryIds } from "./matching.ts";
 import type { MatchableEntry } from "./matching.ts";
@@ -71,6 +71,30 @@ describe("当ての決め方", () => {
     expect(result.byCheckin.get("c2")).toEqual({ state: "unmatched", entryId: null });
     expect(result.byCheckin.get("c3")).toEqual({ state: "unmatched", entryId: null });
     expect(result.byEntry.size).toBe(0);
+  });
+
+  it("名前がそろう当たっていないチェックインが2つ以上なら、どちらにも候補を出さない", () => {
+    const result = resolveMatches(
+      [entry("e1", "山田 花子")],
+      [
+        { checkinId: "c1", name: "山田花子", accountId: "a1" },
+        { checkinId: "c2", name: "やまだ はなこ", accountId: "a2" },
+        { checkinId: "c3", name: "山田 花子", accountId: null },
+      ],
+      [],
+    );
+    expect(result.byCheckin.get("c1")).toEqual({ state: "unmatched", entryId: null });
+    expect(result.byCheckin.get("c3")).toEqual({ state: "unmatched", entryId: null });
+    // 片方が手で当たれば、残りの1つには候補が出る
+    const after = resolveMatches(
+      [entry("e1", "山田 花子"), entry("e2", "山田 花子", { checkinId: "c3" })],
+      [
+        { checkinId: "c1", name: "山田花子", accountId: "a1" },
+        { checkinId: "c3", name: "山田 花子", accountId: null },
+      ],
+      [],
+    );
+    expect(after.byCheckin.get("c1")).toEqual({ state: "candidate", entryId: "e1" });
   });
 
   it("ちがう人にした組と、取り消し・当たった行は候補にしない", () => {

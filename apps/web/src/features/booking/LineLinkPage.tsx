@@ -1,6 +1,8 @@
 // 紐づけ（/line-link/{linkToken}。参加者が外から開く道。booking-002 US2・AD-14）。公式アカウントを友だち追加したときのあいさつの
 // リンクから開く。LINE でログインし（SessionGate）、公式アカウントの持ち主の名前を確かめて「紐づける」。外枠のナビは出さない。
 // 使えないリンク（知らない・期限切れ・使った）は理由と、友だち追加し直すと新しいリンクが届くことを出す。札はログにも画面の文にも出さない。
+// リンクを他人に渡されたときの守り（research S7）：その札の LINE の友だちの表示名（読めたときだけ）と、「自分で受け取ったリンクで
+// なければ押さない」を出す。
 import { PARTICIPANT_ROUTE_PATTERNS } from "@workspace/contracts/core";
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
@@ -99,9 +101,16 @@ function LineLink({ linkToken }: { linkToken: string }) {
       title="LINE の紐づけ"
       lead={`${preview.holderName}の LINE 公式アカウントと、あなたの kanaeru のアカウントを紐づけます。`}
     >
+      {preview.lineDisplayName ? (
+        <p className="text-m">{`紐づける LINE：${preview.lineDisplayName}さん`}</p>
+      ) : null}
       <p className="text-m">
         紐づけると、{preview.holderName}
         の交流会の申込みの確定・キャンセル待ちの繰り上げ・日時や場所の変更・中止が、この公式アカウントから届きます。公式アカウントをブロックすると、紐づけは外れます。
+      </p>
+      <p className="text-m font-bold">
+        自分の LINE に届いたリンクでなければ、押さないでください（ほかの人の LINE
+        と紐づき、あなたの予約の知らせがその人に届きます）。
       </p>
       <div className="flex flex-col items-start gap-xxs">
         <Button
