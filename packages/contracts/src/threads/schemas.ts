@@ -125,6 +125,17 @@ export const ThreadsAccountList = z.object({
   assigned: z.array(ThreadsAssignedAccount).optional(),
   /** 持てる数の上限 */
   limit: z.number().int(),
+  /** 一覧の運用アカウントが入っているチーム（入っているものだけ。切り替えとホームの印。threads-021） */
+  placements: z
+    .array(
+      z.object({
+        threadsAccountId: z.guid(),
+        teamId: z.guid(),
+        teamName: z.string(),
+        organizationName: z.string(),
+      }),
+    )
+    .optional(),
 });
 
 /** 運用アカウントの一覧の型。 */
