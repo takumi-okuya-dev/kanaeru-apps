@@ -127,3 +127,25 @@ variable "threads_app_id" {
   }
 }
 
+
+variable "booking_enabled" {
+  type        = bool
+  description = "予約（booking-002〜004。AD-24）の秘密と定期の仕事を作るか。true にすると、Threads と同じ鍵の束と合言葉（threads_enabled が false でも作る）・許可リストの入れ物・10分おきの定期の仕事ができ、Cloud Run に NOTIFY_MODE が足される。true にする前に、鍵の束の秘密に版を足す（README の 10）"
+  default     = false
+}
+
+variable "booking_notify_mode" {
+  type        = string
+  description = "予約の知らせの送り方（NOTIFY_MODE。AD-24）。off（送らない）・allowlist（許可リストの人だけ）・on（送る）。allowlist にする前に、許可リストの秘密に版を足す（README の 10）"
+  default     = "off"
+
+  validation {
+    condition     = contains(["off", "allowlist", "on"], var.booking_notify_mode)
+    error_message = "booking_notify_mode は off・allowlist・on のどれかにしてください。"
+  }
+
+  validation {
+    condition     = var.booking_notify_mode == "off" || var.booking_enabled
+    error_message = "booking_notify_mode を off 以外にするときは、booking_enabled も true にしてください。"
+  }
+}
