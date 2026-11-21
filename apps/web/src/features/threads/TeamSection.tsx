@@ -150,6 +150,8 @@ function OwnerControls({ accountId, team }: { accountId: string; team: ThreadsAc
     queryClient.setQueryData(THREADS_QUERY_KEYS.team(accountId), next);
     await queryClient.invalidateQueries({ queryKey: THREADS_QUERY_KEYS.access(accountId) });
     await queryClient.invalidateQueries({ queryKey: THREADS_QUERY_KEYS.teams });
+    // 切り替えとホームのチームの印（threads-021）
+    await queryClient.invalidateQueries({ queryKey: THREADS_QUERY_KEYS.accounts });
   };
 
   /**

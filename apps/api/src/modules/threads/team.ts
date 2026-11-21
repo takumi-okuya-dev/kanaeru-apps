@@ -173,6 +173,47 @@ export async function listAssignedAccounts(
 }
 
 /**
+ * 運用アカウントが入っているチームの名前（切り替えとホームの印。threads-021）。入っていないものは含めない。
+ * チームと組織の名前は suite の読み出しで読む（suite の表は直に読まない。AD-3）。
+ * @param db DB
+ * @param threadsAccountIds 運用アカウントの ID
+ * @returns 運用アカウントごとのチーム
+ */
+export async function listAccountPlacements(
+  db: Executor,
+  threadsAccountIds: readonly string[],
+): Promise<
+  { threadsAccountId: string; teamId: string; teamName: string; organizationName: string }[]
+> {
+  if (threadsAccountIds.length === 0) return [];
+  const rows = await db
+    .select({
+      threadsAccountId: threadsOrganizationAccount.threadsAccountId,
+      teamId: threadsOrganizationAccount.teamId,
+      organizationId: threadsOrganizationAccount.organizationId,
+    })
+    .from(threadsOrganizationAccount)
+    .where(inArray(threadsOrganizationAccount.threadsAccountId, [...threadsAccountIds]));
+  const names = new Map<string, { teams: Map<string, string>; organizationName: string }>();
+  for (const organizationId of new Set(rows.map((row) => row.organizationId))) {
+    const [teams, found] = await Promise.all([
+      listTeams(db, organizationId),
+      findOrganization(db, organizationId),
+    ]);
+    names.set(organizationId, {
+      teams: new Map(teams.map((row) => [row.id, row.name])),
+      organizationName: found?.name ?? "",
+    });
+  }
+  return rows.map((row) => ({
+    threadsAccountId: row.threadsAccountId,
+    teamId: row.teamId,
+    teamName: names.get(row.organizationId)?.teams.get(row.teamId) ?? "",
+    organizationName: names.get(row.organizationId)?.organizationName ?? "",
+  }));
+}
+
+/**
  * 組織の操作を、その運用アカウントの操作の記録に残す（90日。FR-T51）。
  * @param deps 土台が渡す道具
  * @param threadsAccountId 運用アカウントの ID
