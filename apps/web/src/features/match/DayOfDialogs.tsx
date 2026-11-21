@@ -2,7 +2,7 @@
 // - 人を選んで直す：人を選び、「来なかった・来た・帰る」を押すと、その人の組のこれからの試合だけを組み直す（day-of.ts）
 // - 分け方と試合の形を変える：変えると何が変わるか（残す試合・移す試合・組から外す終わった試合・組み直す試合）を先に出し、
 //   押すと終わった試合をできるだけ残して組み直す（regroup.ts）
-// どちらも担当の端末だけが開く（呼ぶ側がボタンを出し分ける）。
+// どちらも担当の端末だけが開く（呼ぶ側がボタンを出し分ける）。呼ぶ側は開いている間だけ描く（開くたびに今の値から始める）。
 import {
   MATCH_FORMATS,
   MATCH_FORMAT_LABELS,
@@ -175,13 +175,7 @@ export function RegroupDialog({ open, onOpenChange, table, onApply }: RegroupDia
   return (
     <Dialog
       open={open}
-      onOpenChange={(value) => {
-        if (value) {
-          setFormat(settings.format);
-          setGrouping(settings.grouping);
-        }
-        onOpenChange(value);
-      }}
+      onOpenChange={onOpenChange}
       title="レベルの分け方と試合の形"
       description="当日に変えても、終わった試合はできるだけ残し、まだの試合だけを組み直します。"
       footer={

@@ -3,13 +3,14 @@
 // - 今の試合は、入る人がみな出られるなら残る
 // - 来なかった人・帰った人は、組み直した試合に入らない
 // - 試合の数の差は、いた間で1以内（ずっといた人どうし・遅れて来た人は来た時の周に入る）
-import { INITIAL_CONTENT, MatchTableContent } from "@workspace/contracts/match";
+import { INITIAL_CONTENT, MATCH_GROUPINGS, MatchTableContent } from "@workspace/contracts/match";
 import type { MatchPlayer, PlayerStatus } from "@workspace/contracts/match";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { actionsFor, describeAttendance, groupOfPlayer, markAttendance } from "./day-of.ts";
 import type { AttendanceAction } from "./day-of.ts";
 import { buildPlan } from "./plan.ts";
+import { changeSettings } from "./regroup.ts";
 
 /**
  * 1つの組（みな上級・4つに分ける）の中身を作る。
@@ -158,6 +159,63 @@ describe("人を選んで直す（markAttendance）", () => {
     );
   });
 
+  it("当日に分け方や試合の形を変えたあと（offset・archive のある中身）でも、終わった試合は変わらず、中身は約束の形", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 8, max: 28 }),
+        fc.constantFrom(...MATCH_GROUPINGS),
+        fc.constantFrom("doubles" as const, "singles" as const),
+        fc.integer({ min: 0, max: 6 }),
+        fc.integer({ min: 0, max: 4 }),
+        fc.nat(),
+        fc.integer(),
+        (size, grouping, format, firstDone, moreDone, pick, seed) => {
+          const levels = ["advanced", "intermediate", "beginner", "novice"] as const;
+          const base = oneGroup(
+            Array.from({ length: size }, (): PlayerStatus => "present"),
+            10,
+          );
+          const content: MatchTableContent = {
+            ...base,
+            players: base.players.map((player, index) => ({
+              ...player,
+              level: levels[index % 4] ?? "advanced",
+            })),
+          };
+          const first = markDone({ ...content, plan: buildPlan(content, seed) }, firstDone);
+          const changed = changeSettings(first, { ...first.settings, grouping, format }).content;
+          const rebuilt = { ...changed, plan: buildPlan(changed, seed) };
+          const planned: MatchTableContent = {
+            ...rebuilt,
+            plan: rebuilt.plan.map((group) => {
+              const start = group.games.findIndex((game) => !game.done);
+              const from = start < 0 ? group.games.length : start;
+              return {
+                ...group,
+                games: group.games.map((game, index) =>
+                  index < from + moreDone ? { ...game, done: true } : game,
+                ),
+              };
+            }),
+          };
+          const player = planned.players[pick % planned.players.length];
+          if (!player) return;
+          const result = markAttendance(planned, seed, player.id, "left");
+          if (!result) throw new Error("名簿にいない人です");
+          expect(MatchTableContent.safeParse(result.content).success).toBe(true);
+          expect(result.content.archive).toEqual(planned.archive);
+          for (const before of planned.plan) {
+            const after = result.content.plan.find((entry) => entry.key === before.key);
+            before.games.forEach((game, index) => {
+              if (game.done) expect(after?.games[index]).toEqual(game);
+            });
+          }
+        },
+      ),
+      { numRuns: 150 },
+    );
+  });
+
   it("今の試合は、入る人がみな出られるなら残る（入る人が帰ると組み直す）", () => {
     const content = oneGroup(Array(9).fill("present"), 8);
     const planned = markDone({ ...content, plan: buildPlan(content, 7) }, 2);
@@ -174,7 +232,7 @@ describe("人を選んで直す（markAttendance）", () => {
     expect(replan?.content.plan[0]?.games[2]?.players).not.toContain(insider.id);
     expect(replan?.report.fromGame).toBe(3);
     expect(describeAttendance(replan!.report)).toBe(
-      `${insider.nickname}：帰る（上級の第3試合から組み直しました）`,
+      `組み直しました。${insider.nickname}：帰る（上級の第3試合から）`,
     );
   });
 
@@ -249,27 +307,30 @@ describe("人を選んで直す（markAttendance）", () => {
             advance,
           );
           const arriving = content.players.filter((player) => player.status === "late");
-          let kept = 0;
+          const keptOf = new Map<string, number>();
           for (const player of arriving) {
             const result = markAttendance(content, seed, player.id, "arrived");
             if (!result) throw new Error("名簿にいない人です");
-            kept = (result.report.fromGame ?? 1) - 1;
+            keptOf.set(player.id, (result.report.fromGame ?? 1) - 1);
             content = result.content;
           }
           const all = content.plan[0]?.games ?? [];
-          const before = countOf(all.slice(0, kept));
-          const after = countOf(all.slice(kept));
-          const top = Math.max(
-            0,
-            ...content.players.slice(0, size).map((player) => before.get(player.id) ?? 0),
-          );
-          // 遅れて来た人は「来た時のいちばん少ない数（最大 − 1）」から数える
-          const adjusted = content.players.map((player, index) =>
-            index < size
-              ? (before.get(player.id) ?? 0) + (after.get(player.id) ?? 0)
-              : Math.max(before.get(player.id) ?? 0, top - 1) + (after.get(player.id) ?? 0),
-          );
+          const total = countOf(all);
+          // 遅れて来た人は、来た時（組み直した最初の試合の前）の「いちばん少ない数（最大 − 1）」から数える
+          const adjusted = content.players.map((player, index) => {
+            if (index < size) return total.get(player.id) ?? 0;
+            const kept = keptOf.get(player.id) ?? 0;
+            const before = countOf(all.slice(0, kept));
+            const top = Math.max(
+              0,
+              ...content.players.slice(0, size).map((entry) => before.get(entry.id) ?? 0),
+            );
+            const own = before.get(player.id) ?? 0;
+            return Math.max(own, top - 1) + (total.get(player.id) ?? 0) - own;
+          });
           expect(Math.max(...adjusted) - Math.min(...adjusted)).toBeLessThanOrEqual(1);
+          const kept = Math.max(0, ...keptOf.values());
+          const after = countOf(all.slice(kept));
           // 来た人は、組み直した試合に入る（試合が残っていれば）
           if (all.length - kept >= size + late) {
             for (const player of arriving) expect(after.get(player.id) ?? 0).toBeGreaterThan(0);
@@ -285,7 +346,9 @@ describe("人を選んで直す（markAttendance）", () => {
     const result = markAttendance(content, 1, "p2", "arrived");
     expect(result?.content.players[2]?.status).toBe("present");
     expect(result?.content.plan).toEqual([]);
-    expect(describeAttendance(result!.report)).toBe("人2：来た（まだ試合表を作っていません）");
+    expect(describeAttendance(result!.report)).toBe(
+      "直しました。人2：来た（まだ試合表を作っていないので、当日の印だけを直しました）",
+    );
   });
 
   it("人が足りなくなったら、その先は組まず、そう知らせる", () => {
@@ -295,6 +358,59 @@ describe("人を選んで直す（markAttendance）", () => {
     expect(result?.content.plan[0]?.games).toHaveLength(2);
     expect(result?.report.short).toBe(true);
     expect(describeAttendance(result!.report)).toContain("先を組めません");
+  });
+
+  it("最後のチェックより前の飛ばした試合に帰った人がいれば、その1試合だけを組み直す（終わった試合の場所は変えない）", () => {
+    const content = oneGroup(
+      Array.from({ length: 9 }, (): PlayerStatus => "present"),
+      8,
+    );
+    const planned = { ...content, plan: buildPlan(content, 21) };
+    const games = planned.plan[0]?.games ?? [];
+    // 第1・第3試合にチェック、第2試合は飛ばした
+    const skipped: MatchTableContent = {
+      ...planned,
+      plan: [
+        {
+          ...planned.plan[0]!,
+          games: games.map((game, index) => ({ ...game, done: index === 0 || index === 2 })),
+        },
+      ],
+    };
+    const leaving = games[1]?.players[0];
+    if (!leaving) throw new Error("見本の名簿が合いません");
+    const result = markAttendance(skipped, 21, leaving, "left");
+    const after = result?.content.plan[0]?.games ?? [];
+    expect(after[0]).toEqual(skipped.plan[0]?.games[0]);
+    expect(after[2]).toEqual(skipped.plan[0]?.games[2]);
+    expect(after[1]?.players).not.toContain(leaving);
+    expect(after[1]?.done).toBe(false);
+    for (const game of after.slice(3)) expect(game.players).not.toContain(leaving);
+  });
+
+  it("人が足りなかった組が当日に組めるようになったら、ほかの組が進んだ分だけ試合を減らす", () => {
+    // 上級4人（3試合終わった）・中級3人（組めない）→ 中級の1人が来る
+    const base = oneGroup(
+      [
+        ...Array.from({ length: 4 }, (): PlayerStatus => "present"),
+        ...Array.from({ length: 3 }, (): PlayerStatus => "present"),
+        "late",
+      ],
+      8,
+    );
+    const content: MatchTableContent = {
+      ...base,
+      players: base.players.map((player, index) =>
+        index >= 4 ? { ...player, level: "intermediate" } : player,
+      ),
+    };
+    const planned = markDone({ ...content, plan: buildPlan(content, 4) }, 3);
+    expect(planned.plan.find((group) => group.key === "intermediate")?.games ?? []).toHaveLength(0);
+    const result = markAttendance(planned, 4, "p7", "arrived");
+    const intermediate = result?.content.plan.find((group) => group.key === "intermediate");
+    expect(intermediate?.games).toHaveLength(8 - 3);
+    expect(intermediate?.offset).toBe(-3);
+    expect(MatchTableContent.safeParse(result?.content).success).toBe(true);
   });
 
   it("選べる直し方は、今の当日の印で決まる", () => {

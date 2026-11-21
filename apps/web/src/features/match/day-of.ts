@@ -3,8 +3,9 @@
 // - 終わった試合（チェックの付いた試合）は決して変えない。今の試合（チェックのない最初の試合）も、入る人がみな出られるなら残す
 // - それまでの試合の数は引き継いで均す（来た人は今の周に入り、来るまでの試合は数えない。帰った人はこれからの試合に入らない）
 // - ほかの組の試合は変えない
+import { PLAYERS_PER_GAME } from "@workspace/contracts/match";
 import type { MatchGroup, MatchTableContent, PlayerStatus } from "@workspace/contracts/match";
-import { groupsOf, replanGroup } from "./plan.ts";
+import { groupsOf, presentPlayersOf, replanGroup } from "./plan.ts";
 import { updatePlayer } from "./roster-edit.ts";
 
 /** 当日の直し方（来なかった・来た・帰る）。 */
@@ -94,28 +95,32 @@ export function markAttendance(
   const report: AttendanceReport = { nickname: player.nickname, action, short: false };
   if (!group) return { content: marked, report };
   report.groupLabel = group.label;
-  const before = marked.plan.find((plan) => plan.key === group.key);
   // まだ組んでいない試合表（どの組も試合がない）は、当日の印だけを直す（「試合表を作る」で組む）
   if (!marked.plan.some((plan) => plan.games.length > 0)) return { content: marked, report };
   const { plan, kept } = replanGroup(marked, seed, group.key);
+  const replanned = { ...marked, plan };
   const after = plan.find((entry) => entry.key === group.key);
-  const total = after?.games.length ?? 0;
   report.fromGame = kept + 1;
-  report.short = total <= kept && (before?.games.length ?? 0) > kept;
-  return { content: { ...marked, plan }, report };
+  // 組み直したあと、この先の試合がなく、組める人が1試合の人数に足りない
+  report.short =
+    (after?.games.length ?? 0) <= kept &&
+    presentPlayersOf(replanned, group).length < PLAYERS_PER_GAME[replanned.settings.format];
+  return { content: replanned, report };
 }
 
 /**
- * 人を直した結果の文（例：「斎藤：来た（初級の第4試合から組み直しました）」）。
+ * 人を直した結果の文（例：「組み直しました。斎藤：来た（初級の第4試合から）」。組み直さなかったときは「直しました。…」）。
  * @param report 人を直した結果
  * @returns 文
  */
 export function describeAttendance(report: AttendanceReport): string {
-  const head = `${report.nickname}：${ATTENDANCE_ACTION_LABELS[report.action]}`;
-  if (!report.groupLabel) return `${head}（レベルがないので、試合には入りません）`;
-  if (report.fromGame === undefined) return `${head}（まだ試合表を作っていません）`;
-  if (report.short) {
-    return `${head}（${report.groupLabel}は人が足りないため、第${report.fromGame}試合から先を組めません。一緒にする分け方にしてください）`;
+  const who = `${report.nickname}：${ATTENDANCE_ACTION_LABELS[report.action]}`;
+  if (!report.groupLabel) return `直しました。${who}（レベルがないので、試合には入りません）`;
+  if (report.fromGame === undefined) {
+    return `直しました。${who}（まだ試合表を作っていないので、当日の印だけを直しました）`;
   }
-  return `${head}（${report.groupLabel}の第${report.fromGame}試合から組み直しました）`;
+  if (report.short) {
+    return `組み直しました。${who}（${report.groupLabel}は人が足りないため、第${report.fromGame}試合から先を組めません。一緒にする分け方にしてください）`;
+  }
+  return `組み直しました。${who}（${report.groupLabel}の第${report.fromGame}試合から）`;
 }

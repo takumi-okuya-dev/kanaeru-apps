@@ -110,7 +110,10 @@ export function keptGames(plan: MatchGroupPlan | undefined): MatchGroupPlan["gam
  * @param plan 組の今の試合（なければ undefined）
  * @returns 行の数
  */
-export function targetGameCount(settings: MatchSettings, plan: MatchGroupPlan | undefined): number {
+export function targetGameCount(
+  settings: MatchSettings,
+  plan: Pick<MatchGroupPlan, "offset"> | undefined,
+): number {
   return Math.max(0, gameCountFor(settings) + (plan?.offset ?? 0));
 }
 
@@ -152,23 +155,57 @@ function planGroup(
 ): MatchGroupPlan {
   const size = PLAYERS_PER_GAME[content.settings.format];
   const before = content.plan.find((plan) => plan.key === group.key);
-  const players = presentPlayersOf(content, group).map((player) => ({
-    id: player.id,
-    level: player.level ? MATCH_LEVELS.indexOf(player.level) : 0,
-  }));
-  const fresh = planGames({
-    players,
+  // 試合のなかった組（人が足りなかった組）を当日に組むときは、ほかの組が進んだ分だけ行を減らす（時間は同じだけ進んでいる）
+  const fresh = !before || (before.games.length === 0 && before.offset === undefined);
+  const offset = before?.offset ?? (fresh && kept.length === 0 ? -tableElapsed(content.plan) : 0);
+  const games = planGames({
+    players: pairingPlayersOf(content, group),
     playersPerGame: size,
-    gameCount: Math.max(0, targetGameCount(content.settings, before) - kept.length),
+    gameCount: Math.max(0, targetGameCount(content.settings, { offset }) - kept.length),
     seed: deriveSeed(seed, `${group.key}:${kept.length}`),
     history: [...archivedHistoryOf(content, group), ...kept.map((game) => game.players)],
     ...(content.settings.grouping === "none" ? { maxLevelSpread: UNGROUPED_MAX_LEVEL_SPREAD } : {}),
   });
   return {
     key: group.key,
-    games: [...kept, ...fresh.map((ids) => ({ players: ids, done: false }))],
-    ...(before?.offset ? { offset: before.offset } : {}),
+    games: [...kept, ...games.map((ids) => ({ players: ids, done: false }))],
+    ...(offset !== 0 ? { offset } : {}),
   };
+}
+
+/**
+ * 組の、組める人（当日の印が「来る」の人）を planGames に渡す形にする。
+ * @param content 試合表の中身
+ * @param group 組
+ * @returns 組む人（ID とレベルの段）
+ */
+function pairingPlayersOf(content: MatchTableContent, group: MatchGroup) {
+  return presentPlayersOf(content, group).map((player) => ({
+    id: player.id,
+    level: player.level ? MATCH_LEVELS.indexOf(player.level) : 0,
+  }));
+}
+
+/**
+ * 組の進んだ試合の数（最後に終わった試合の番号 − offset。0 より下げない）。当日に組を変えたときの行の数に使う。
+ * @param plan 組の試合
+ * @returns 進んだ試合の数
+ */
+export function elapsedOf(plan: MatchGroupPlan): number {
+  let last = -1;
+  plan.games.forEach((game, index) => {
+    if (game.done) last = index;
+  });
+  return Math.max(0, last + 1 - (plan.offset ?? 0));
+}
+
+/**
+ * 試合表の進んだ試合の数（どの組も同じ時間に進むので、いちばん進んだ組の数）。
+ * @param plan 組ごとの試合
+ * @returns 進んだ試合の数
+ */
+export function tableElapsed(plan: readonly MatchGroupPlan[]): number {
+  return Math.max(0, ...plan.map(elapsedOf));
 }
 
 /**
@@ -190,8 +227,9 @@ export function buildPlan(content: MatchTableContent, seed: number): MatchGroupP
 
 /**
  * 1つの組だけを組み直す（当日の「来なかった・来た・帰る」。FR-M14）。ほかの組の試合は変えない。
- * 最後に終わった試合までを残し、続けて今の試合（チェックのない最初の試合。もう始まっているかもしれない）も、入る人が
- * みな出られるなら残す。その先だけを組む【仮決め】research R2。
+ * 最後に終わった試合までを残し、続けて今の試合（最後のチェックの次の試合。もう始まっているかもしれない）も、入る人が
+ * みな出られるなら残す。その先だけを組む【仮決め】research R2。最後のチェックより前のチェックのない試合に出られない人が
+ * いれば、その1試合だけを組み直す。
  * @param content 試合表の中身（当日の印を直したあとのもの）
  * @param seed くじの種
  * @param key 組み直す組の key
@@ -207,8 +245,24 @@ export function replanGroup(
   const size = PLAYERS_PER_GAME[content.settings.format];
   const before = content.plan.find((plan) => plan.key === key);
   const kept = keptGames(before).filter((game) => game.players.length === size);
-  const current = before?.games[kept.length];
   const available = new Set(presentPlayersOf(content, group).map((player) => player.id));
+  // 最後のチェックより前のチェックのない試合（飛ばした試合）に出られない人がいれば、その1試合だけを組み直す
+  // （終わった試合の場所は変えない）
+  kept.forEach((game, index) => {
+    if (game.done || game.players.every((id) => available.has(id))) return;
+    const [replacement] = planGames({
+      players: pairingPlayersOf(content, group),
+      playersPerGame: size,
+      gameCount: 1,
+      seed: deriveSeed(seed, `${key}:gap:${index}`),
+      history: [
+        ...archivedHistoryOf(content, group),
+        ...kept.slice(0, index).map((entry) => entry.players),
+      ],
+    });
+    if (replacement) kept[index] = { players: replacement, done: false };
+  });
+  const current = before?.games[kept.length];
   if (
     current &&
     current.players.length === size &&

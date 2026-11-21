@@ -308,11 +308,12 @@ test("当日：人を選んで直す・分け方を変える・大きく映す�
   await checkPage(page, "人を選んで直す");
   await attendance.getByRole("button", { name: "帰る" }).click();
   await waitSaved(page);
-  await expect(
-    page.getByText(/組み直しました。青木：帰る（上級の第\d試合から組み直しました）/u),
-  ).toBeVisible();
+  await expect(page.getByText(/組み直しました。青木：帰る（上級の第\d試合から）/u)).toBeVisible();
   await expect(advanced.getByRole("checkbox", { name: "第1試合を終えた" })).toBeChecked();
   await expect(page.getByText(/帰った 1人/u)).toBeVisible();
+  // 第3試合から先（今の試合の次から）に、帰った人は入らない
+  const laterRows = await advanced.getByRole("row").allInnerTexts();
+  for (const row of laterRows.slice(2)) expect(row).not.toContain("青木");
 
   // レベルの分け方：初級と入門（2人ずつで組めない）を一緒にする。何が変わるかを先に出す
   await page.getByRole("button", { name: "レベルの分け方" }).click();
@@ -324,6 +325,12 @@ test("当日：人を選んで直す・分け方を変える・大きく映す�
   await waitSaved(page);
   await expect(page.getByRole("tab", { name: /初級＆入門/u })).toBeVisible();
   await expect(advanced.getByRole("checkbox", { name: "第1試合を終えた" })).toBeChecked();
+  // 一緒にした組は、ほかの組が進んだ分（1試合）だけ少ない（8 − 1）
+  await page.getByRole("tab", { name: /初級＆入門/u }).click();
+  await expect(
+    page.getByRole("table", { name: "初級＆入門の試合表" }).getByRole("row"),
+  ).toHaveCount(7);
+  await page.getByRole("tab", { name: /上級/u }).click();
   await checkPage(page, "試合表（当日）");
 
   // M3 大きく映す：上級の今（第2試合）と次（第3試合）
@@ -347,7 +354,8 @@ test("当日：人を選んで直す・分け方を変える・大きく映す�
     const other = await otherContext.newPage();
     await other.goto(`/match/tables/${table.id}/board`);
     await expect(other.getByText("この端末は見るだけです。", { exact: false })).toBeVisible();
-    await expect(other.getByText(/今の担当：端末 .+（この端末は 端末 .+）/u)).toBeVisible();
+    // 担当の端末の短い名前（ID の終わりの4文字。端末A は d-e2e-…-device-a → ICEA）
+    await expect(other.getByText(/今の担当：端末 ICEA（この端末は 端末 .+）/u)).toBeVisible();
     await expect(other.getByRole("button", { name: "人を選んで直す" })).toHaveCount(0);
     await checkPage(other, "試合表（見るだけの端末）");
     await other.getByRole("button", { name: "この端末で直す" }).click();

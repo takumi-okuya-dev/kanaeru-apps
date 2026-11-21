@@ -180,14 +180,12 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
       return { ...draft, content: result.content };
     });
     setAttendanceOpen(false);
-    setChangeNote(
-      applied
-        ? { tone: "info", text: `組み直しました。${text}` }
-        : {
-            tone: "danger",
-            text: "試合表を読み直しています。読み直したあとで、もう一度直してください。",
-          },
-    );
+    if (!applied) {
+      setChangeNote({
+        tone: "danger",
+        text: "試合表を読み直しています。読み直したあとで、もう一度直してください。",
+      });
+    } else if (text) setChangeNote({ tone: "info", text });
   };
 
   /**
@@ -333,18 +331,13 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
           {archive.length > 0 ? <ArchivedGames table={table} /> : null}
         </div>
       )}
-      <AttendanceDialog
-        open={attendanceOpen}
-        onOpenChange={setAttendanceOpen}
-        table={table}
-        onApply={mark}
-      />
-      <RegroupDialog
-        open={regroupOpen}
-        onOpenChange={setRegroupOpen}
-        table={table}
-        onApply={regroup}
-      />
+      {/* 開いている間だけ描く（開き直すたびに、選んだ人・分け方を今の値から始める） */}
+      {attendanceOpen ? (
+        <AttendanceDialog open onOpenChange={setAttendanceOpen} table={table} onApply={mark} />
+      ) : null}
+      {regroupOpen ? (
+        <RegroupDialog open onOpenChange={setRegroupOpen} table={table} onApply={regroup} />
+      ) : null}
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}

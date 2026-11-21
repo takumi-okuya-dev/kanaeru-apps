@@ -18,7 +18,7 @@
 
 **Testing**: Vitest（`day-of.test.ts`・`regroup.test.ts` の property-based と例・約束の `table.test.ts`・窓口の `routes.test.ts`）・Playwright（`e2e/tests/match.spec.ts` に当日の流れ。1440px と 375px・axe・CSP・横のスクロール）
 
-**Constraints**: 試合表の道は LIFF を始めない。共通のファイルは触らない。大きな字は領域の CSS（tokens.css を変えない）。
+**Constraints**: 試合表の道は LIFF を始めない。共通のファイルは触らない。大きな字は SVG で描く（tokens.css を変えない）。
 
 ## Constitution Check
 
@@ -28,6 +28,6 @@
 | III. 気軽さ | 組み直しは端末の中の計算（電波がなくても計算できる形。保存はネットなしの段） |
 | IV. 小さく始める | PRD 7.1 の3番だけ。見るだけ・QR・ネットなしは作らない |
 | V. 運用費ゼロに近く | サーバーの仕事は増えない（大きく映すの読み直しは担当でない端末だけ・30秒おき） |
-| 技術の制約 | 画面は `@workspace/ui` の部品と tokens.css の名前（大きな字の大きさだけ領域の CSS。research R5） |
+| 技術の制約 | 画面は `@workspace/ui` の部品と tokens.css の名前（大きな字は SVG の単位。research R5） |
 
 違反なし。

@@ -6,9 +6,11 @@
 // - 新しい組に入れられない終わった試合（レベルの違う人が入っている・試合の形が変わった）は、組から外して「前の分け方で
 //   終わった試合」（archive）に残す。記録として出し、これからの試合の数を均すときにも数える（plan.ts の archivedHistoryOf）
 // - 新しい組の行の数：時間は前の組と同じだけ進んでいるので、行の数 = 移した終わった試合 + （設定から決まる試合の数 − 進んだ試合の数）。
-//   差を組の offset に持つ（進んだ試合の数は、レベルの重なる前の組の「最後に終わった試合の番号 − その組の offset」のいちばん大きいもの）
+//   差を組の offset に持つ（進んだ試合の数は、前のすべての組の「最後に終わった試合の番号 − その組の offset」のいちばん大きいもの。
+//   どの組も同じ時間に進むため）
 // 【仮決め】research R3。
 import { MATCH_GROUPS, PLAN_GAMES_MAX, PLAYERS_PER_GAME } from "@workspace/contracts/match";
+import { tableElapsed } from "./plan.ts";
 import type {
   MatchArchivedGroup,
   MatchGame,
@@ -64,19 +66,6 @@ const UNCHANGED: Omit<SettingsChangeReport, "carried"> = {
 };
 
 /**
- * 組の進んだ試合の数（最後に終わった試合の番号 − offset。0 より下げない）。
- * @param plan 組の試合
- * @returns 進んだ試合の数
- */
-function elapsedOf(plan: MatchGroupPlan): number {
-  let last = -1;
-  plan.games.forEach((game, index) => {
-    if (game.done) last = index;
-  });
-  return Math.max(0, last + 1 - (plan.offset ?? 0));
-}
-
-/**
  * 前の分け方の試合に足す（同じ key は1つにまとめる）。
  * @param archive 今の前の分け方の試合
  * @param additions 足す試合（key ごと）
@@ -127,8 +116,7 @@ export function changeSettings(
           .map((group) => group.key),
   );
   const sources = content.plan.filter((plan) => !carriedKeys.has(plan.key));
-  const oldGroups: readonly MatchGroup[] = MATCH_GROUPS[before.grouping];
-  const moved = new Map<string, { game: MatchGame; index: number; source: number }[]>();
+  const moved = new Map<string, { game: MatchGame; slot: number; source: number }[]>();
   const archived = new Map<MatchGroupKey, MatchGame[]>();
   let doneTotal = 0;
   let dropped = 0;
@@ -152,7 +140,8 @@ export function changeSettings(
           : undefined;
       if (target) {
         const list = moved.get(target.key) ?? [];
-        list.push({ game, index, source });
+        // 並べる順は時刻の順（行の番号から、その組の行の数の差を引いたもの）
+        list.push({ game, slot: index - (plan.offset ?? 0), source });
         moved.set(target.key, list);
       } else {
         archived.set(plan.key, [...(archived.get(plan.key) ?? []), game]);
@@ -170,7 +159,7 @@ export function changeSettings(
     }
     // 前の組の試合の番号の順に交互に並べる（同じ番号なら前の組の並びの順）
     const entries = (moved.get(group.key) ?? []).sort(
-      (a, b) => a.index - b.index || a.source - b.source,
+      (a, b) => a.slot - b.slot || a.source - b.source,
     );
     const overflow = entries.slice(0, Math.max(0, entries.length - PLAN_GAMES_MAX));
     for (const entry of overflow) {
@@ -179,12 +168,8 @@ export function changeSettings(
     }
     const games = entries.slice(overflow.length).map((entry) => entry.game);
     movedCount += games.length;
-    // 進んだ試合の数：レベルの重なる前の組（もとの分け方の組）のいちばん進んだもの
-    const overlapping = sources.filter((source) => {
-      const levels = oldGroups.find((entry) => entry.key === source.key)?.levels ?? [];
-      return levels.some((level) => group.levels.includes(level));
-    });
-    const elapsed = Math.max(0, ...overlapping.map(elapsedOf));
+    // 進んだ試合の数：どの組も同じ時間に進むので、前のすべての組でいちばん進んだもの
+    const elapsed = tableElapsed(content.plan);
     const offset = Math.max(-PLAN_GAMES_MAX, Math.min(PLAN_GAMES_MAX, games.length - elapsed));
     if (games.length > 0 || offset !== 0) {
       plan.push({ key: group.key, games, ...(offset !== 0 ? { offset } : {}) });

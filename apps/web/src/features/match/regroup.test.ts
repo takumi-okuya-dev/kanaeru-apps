@@ -155,6 +155,27 @@ describe("分け方と試合の形を変える（changeSettings）", () => {
     ]);
   });
 
+  it("人が足りずに試合のなかった組を一緒にしても、ほかの組が進んだ分だけ行を減らす", () => {
+    // 上級4人・中級4人・初級2人・入門2人・8試合。上級は3試合、中級は1試合終わったところで、初級＆入門にする
+    const base = contentOf(12, 8, "four", "doubles");
+    const order = ["advanced", "intermediate", "beginner", "novice"] as const;
+    const initial: MatchTableContent = {
+      ...base,
+      players: base.players.map((player, index) => ({
+        ...player,
+        level: order[index < 4 ? 0 : index < 8 ? 1 : index < 10 ? 2 : 3] ?? "advanced",
+      })),
+    };
+    const planned = markDone({ ...initial, plan: buildPlan(initial, 6) }, (index) =>
+      index === 0 ? 3 : 1,
+    );
+    expect(planned.plan.find((group) => group.key === "beginner")?.games ?? []).toHaveLength(0);
+    const { content } = changeSettings(planned, { ...planned.settings, grouping: "three" });
+    const merged = buildPlan(content, 6).find((group) => group.key === "beginner_novice");
+    expect(merged?.games).toHaveLength(8 - 3);
+    expect(merged?.offset).toBe(-3);
+  });
+
   it("組を分けると、レベルの混ざった終わった試合は「前の分け方で終わった試合」に残し、数を均すときに数える", () => {
     // 8人・分けない・6試合で2試合終わったところで、2つ（上級＆中級・初級＆入門）に分ける
     const initial = contentOf(8, 6, "none", "doubles");
