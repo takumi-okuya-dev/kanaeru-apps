@@ -111,9 +111,10 @@ export function fillServiceWorker(template: string, paths: readonly string[], ve
       throw new Error(`Service Worker の本文に ${mark} をちょうど1つ書いてください。`);
     }
   }
+  // 置きかえる文字の $& などを特別に読まないよう、関数で置きかえる
   return template
-    .replace(PRECACHE_MARK, JSON.stringify(paths))
-    .replace(VERSION_MARK, JSON.stringify(version));
+    .replace(PRECACHE_MARK, () => JSON.stringify(paths))
+    .replace(VERSION_MARK, () => JSON.stringify(version));
 }
 
 /**

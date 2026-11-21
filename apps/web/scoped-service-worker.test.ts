@@ -89,6 +89,12 @@ describe("fillServiceWorker", () => {
     expect(filled).toBe('const P = ["/index.html","/assets/a.js"];\nconst V = "abc";');
   });
 
+  it("道に $ が入っていても、そのまま埋める", () => {
+    expect(
+      fillServiceWorker("P=self.__SW_PRECACHE__;V=self.__SW_VERSION__", ["/a$&b.js"], "v"),
+    ).toBe('P=["/a$&b.js"];V="v"');
+  });
+
   it("印がない・2つあると止める", () => {
     expect(() => fillServiceWorker("const V = self.__SW_VERSION__;", [], "a")).toThrow(
       /__SW_PRECACHE__/u,
