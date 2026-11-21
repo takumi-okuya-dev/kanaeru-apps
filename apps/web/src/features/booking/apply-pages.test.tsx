@@ -23,6 +23,14 @@ const ENTRY_ID = "0193a1b2-0000-7000-8000-0000000000e2";
 const ME = "0193a1b2-0000-7000-8000-0000000000bb";
 const TOKEN = "t".repeat(43);
 
+/** 打診も並びもないときの欄（booking-004）。 */
+const NO_STANDING = {
+  waitlistPosition: null,
+  offerDeadline: null,
+  offerExpired: false,
+  canAccept: false,
+};
+
 /** 送られた要求。 */
 type Sent = { method: string; path: string; body: unknown };
 
@@ -48,6 +56,7 @@ function pageOf(values: Partial<ApplyPageData> = {}): ApplyPageData {
       icsPath: `/api/v1/booking/events/${EVENT_ID}/calendar`,
     },
     lineFriendUrl: null,
+    seats: null,
     viewer: { signedIn: false },
     ...values,
   };
@@ -160,6 +169,7 @@ describe("申込みページ", () => {
           status: "confirmed",
           appliedAt: "2026-11-20T00:00:00.000Z",
           cancellable: true,
+          ...NO_STANDING,
         },
       },
       lineFriendUrl: "https://line.me/R/ti/p/%40abc",
@@ -264,11 +274,17 @@ describe("札のページ", () => {
       [tokenPath]: () => Response.json(viewOf()),
       [`POST /api/v1/booking/entry-tokens/${TOKEN}/confirm`]: () =>
         Response.json(
-          viewOf({ state: "entry", entry: { status: "confirmed", cancellable: true } }),
+          viewOf({
+            state: "entry",
+            entry: { status: "confirmed", cancellable: true, ...NO_STANDING },
+          }),
         ),
       [`POST /api/v1/booking/entry-tokens/${TOKEN}/cancel`]: () =>
         Response.json(
-          viewOf({ state: "entry", entry: { status: "cancelled", cancellable: false } }),
+          viewOf({
+            state: "entry",
+            entry: { status: "cancelled", cancellable: false, ...NO_STANDING },
+          }),
         ),
     });
     renderWithRouter(<EntryTokenPage eventId={EVENT_ID} entryToken={TOKEN} />);
@@ -303,6 +319,7 @@ describe("自分の申込み", () => {
         entryId: ENTRY_ID,
         status: "confirmed",
         cancellable: true,
+        ...NO_STANDING,
         event: {
           id: EVENT_ID,
           name: "土曜の練習",
@@ -383,6 +400,11 @@ describe("申込みページの設定の節", () => {
     visibility: "public",
     started: false,
     inOrganization: false,
+    capacity: null,
+    quotas: [],
+    seats: null,
+    cancelled: false,
+    change: null,
   };
 
   it("閉じているときは「受付を開く」。組織に入れていなければ部員だけを選べない。URL を出す", async () => {

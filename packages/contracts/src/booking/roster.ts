@@ -12,6 +12,7 @@ import {
   SETTABLE_ENTRY_STATUSES,
   VISIBILITIES,
 } from "./options.ts";
+import { QuotaView, ScheduleChange, SeatSummary } from "./waitlist.ts";
 
 /** メモの文字数の上限。 */
 export const ENTRY_MEMO_MAX = 200;
@@ -72,6 +73,16 @@ export const BookingSetting = z.object({
   started: z.boolean(),
   /** 交流会を組織に入れているか（部員だけを選べるか） */
   inOrganization: z.boolean(),
+  /** 定員（空＝定員なし。booking-004） */
+  capacity: z.number().int().nullable(),
+  /** 媒体の枠 */
+  quotas: z.array(QuotaView),
+  /** 席の内訳（定員があるとき） */
+  seats: SeatSummary.nullable(),
+  /** 予約を中止したか */
+  cancelled: z.boolean(),
+  /** 日時や場所の変更（自前で、最後に知らせたものと今が違うとき） */
+  change: ScheduleChange.nullable(),
 });
 
 /** 交流会の使い方の型。 */
@@ -94,6 +105,8 @@ export const RosterEntryInput = z.strictObject({
     .max(ENTRY_MEMO_MAX, { error: `メモは${ENTRY_MEMO_MAX}文字までにしてください。` })
     .nullable()
     .optional(),
+  /** キャンセル待ちに入れるか（自前で定員があるとき。既定は確定〈定員を超えて足す〉。booking-004 research R4） */
+  waitlist: z.boolean({ error: "キャンセル待ちに入れるかを選んでください。" }).optional(),
 });
 
 /** 名簿に1人足す入力の型。 */
@@ -143,6 +156,12 @@ export const RosterEntry = z.object({
   attendance: AttendanceSchema,
   /** どう当たったか（手・同じアカウントで自動。当たっていなければ null） */
   match: z.enum(["manual", "auto"]).nullable(),
+  /** キャンセル待ちの何番目か（booking-004） */
+  waitlistPosition: z.number().int().nullable(),
+  /** 待っている打診（打診中のとき。期限・期限が過ぎたか・手で打診したか） */
+  offer: z.object({ deadline: isoDateTime, expired: z.boolean(), manual: z.boolean() }).nullable(),
+  /** 連絡先があるか（アカウントかメールがある。ないキャンセル待ちには自動で打診しない。宛先そのものは返さない。booking-004 R14） */
+  hasContact: z.boolean(),
 });
 
 /** 名簿の行の型。 */
@@ -158,6 +177,10 @@ export const Roster = z.object({
     confirmed: z.number().int(),
     /** 取り消し */
     cancelled: z.number().int(),
+    /** キャンセル待ち（booking-004） */
+    waitlisted: z.number().int(),
+    /** 打診中（booking-004） */
+    offered: z.number().int(),
     /** 来た（当たった行） */
     came: z.number().int(),
     /** 来なかった（交流会の日が終わってから） */

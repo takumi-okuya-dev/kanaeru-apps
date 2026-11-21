@@ -41,6 +41,11 @@ describe("申込みページの設定（主催者）", () => {
       visibility: "public",
       started: false,
       inOrganization: false,
+      capacity: null,
+      quotas: [],
+      seats: null,
+      cancelled: false,
+      change: null,
     } satisfies BookingSetting);
   });
 

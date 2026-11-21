@@ -1,7 +1,8 @@
 // 自分の申込み（/my-bookings。参加者の画面。外枠のナビなし。booking-003 US3・モックアップ P6・PRD 11章の4）。
 // タブ「自分の申込み」（今後の回・状態・カレンダーに追加・取り消す〈確かめを1つ〉）と「部の予定」（自分の組織の自前の会）。
 // 下の「知らせと案内」で、メールアドレスを入れる・消す、案内を受け取る組織を外す。ほかの人の名前は出さない。
-import type { EntryStatus, MyEntryItem } from "@workspace/contracts/booking";
+// キャンセル待ち（booking-004）：状態の札に何番目か、打診中なら期限と「参加する」「辞退する」、当日の空きなら「参加する」。
+import type { MyEntryItem } from "@workspace/contracts/booking";
 import { PAGE_STATE_LABELS } from "@workspace/contracts/booking";
 import { PARTICIPANT_ROUTE_PATTERNS } from "@workspace/contracts/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -24,19 +25,11 @@ import {
   removeMyConsent,
 } from "./apply-api.ts";
 import { APPLY_QUERY_KEYS, ContactSection, EXTERNAL_LINK } from "./apply-parts.tsx";
+import { respondMyEntry } from "./waitlist-api.ts";
+import { EntryStatusBadge, RespondButtons, StandingNote } from "./waitlist-parts.tsx";
 
 /** タブ。 */
 export type MyBookingsTab = "entries" | "schedule";
-
-/**
- * 状態の札。
- * @param props 状態
- * @param props.status 確定・取り消し
- * @returns 札の要素
- */
-function StatusBadge({ status }: { status: EntryStatus }) {
-  return status === "confirmed" ? <Badge variant="success">確定</Badge> : <Badge>取り消し</Badge>;
-}
 
 /**
  * 自分の申込みのタブ。
@@ -78,7 +71,7 @@ function EntriesTab() {
               className="flex flex-col gap-x3s rounded-md border border-border bg-surface p-xs"
             >
               <div>
-                <StatusBadge status={item.status} />
+                <EntryStatusBadge status={item.status} waitlistPosition={item.waitlistPosition} />
               </div>
               <Link
                 to={PARTICIPANT_ROUTE_PATTERNS.apply}
@@ -92,6 +85,20 @@ function EntriesTab() {
                   .filter(Boolean)
                   .join("・")}
               </p>
+              <StandingNote status={item.status} standing={item} />
+              <RespondButtons
+                status={item.status}
+                standing={item}
+                respond={(answer) => respondMyEntry(item.entryId, answer)}
+                onDone={async (answer) => {
+                  setDone(
+                    answer === "accept"
+                      ? `${item.event.name}に参加することにしました（確定）。`
+                      : `${item.event.name}の打診を辞退しました。`,
+                  );
+                  await queryClient.invalidateQueries({ queryKey: ["booking"] });
+                }}
+              />
               <div className="flex flex-wrap gap-xs">
                 {item.status === "confirmed" ? (
                   <a
@@ -172,7 +179,9 @@ function ScheduleTab() {
           className="flex flex-col gap-x3s rounded-md border border-border bg-surface p-xs"
         >
           <div className="flex flex-wrap gap-xxs">
-            {item.myStatus ? <StatusBadge status={item.myStatus} /> : null}
+            {item.myStatus ? (
+              <EntryStatusBadge status={item.myStatus} waitlistPosition={null} />
+            ) : null}
             <Badge>{PAGE_STATE_LABELS[item.state]}</Badge>
             {item.visibility === "members" ? <Badge>部員だけ</Badge> : null}
           </div>

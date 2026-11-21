@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-20
 
-**Status**: Draft（2026-11-20 手元で作り始めた。push・PR はまだ。【仮決め】は主催者の確かめを待つ）
+**Status**: Draft（2026-11-21 手元で実装と確かめまで済み〈`pnpm check`・E2E〉。push・PR はまだ。Cloud Scheduler の仕事は quickstart のとおり要る。【仮決め】は主催者の確かめを待つ）
 
 **Input**: [PRD 受付アプリの予約](../../../_bmad-output/prd-kanaeru-booking/prd-kanaeru-booking.md) の 4.5（FR-B60〜FR-B68）・4.6（FR-B80・FR-B86・FR-B87）・5 章（特に 5.4 の DB の夜間の停止）・8.1 の7番。ことばは PRD の3章のとおり。作りは [構成の決めごと](../../../_bmad-output/architecture-kanaeru/architecture-kanaeru.md) の AD-3（`booking_quota`・`booking_offer`）・AD-10（DB は0時〜8時に止まる）・AD-14・AD-23（booking → reception → event の一方向）・AD-24（知らせ・定時の処理）。原則は [Constitution](../../../.specify/memory/constitution.md) 1.2.0。画面は [モックアップ](https://claude.ai/artifact/C6CFPodPrEC6f6vm28ifHT) の P1・P3・P6（席の残り・キャンセル待ち・打診への返事）と A1・A2（定員・満員・キャンセル待ちの並び）。
 

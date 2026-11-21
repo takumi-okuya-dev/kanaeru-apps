@@ -20,6 +20,7 @@ import { BOOKING_QUERY_KEYS } from "./queries.ts";
  * @returns 文
  */
 function stateText(setting: BookingSetting): string {
+  if (setting.cancelled) return "予約を中止したので、申込みは受け付けていません。";
   if (setting.started) return "始まりを過ぎたので、受付は自動で閉じました。";
   return setting.accepting
     ? "受付中です。ページから申し込めます。"
@@ -84,7 +85,7 @@ export function SelfPageSection({ event, setting }: { event: EventView; setting:
         申込みページ
       </h3>
       <p className="text-m">{stateText(setting)}</p>
-      {setting.started ? null : (
+      {setting.started || setting.cancelled ? null : (
         <div className="flex flex-col items-start gap-xxs">
           <Button
             className="min-h-xl"
@@ -143,7 +144,7 @@ export function SelfPageSection({ event, setting }: { event: EventView; setting:
         </div>
         <p className="text-s text-text-sub">
           Threads
-          や掲載サイトの本文に貼ります。始まりを過ぎると自動で閉じます。定員とキャンセル待ちは、次の版で使えるようになります。
+          や掲載サイトの本文に貼ります。始まりを過ぎると自動で閉じます。定員は下の「定員とキャンセル待ち」で入れられます。
         </p>
       </div>
       {message ? <ResponseMessage tone="success">{message}</ResponseMessage> : null}

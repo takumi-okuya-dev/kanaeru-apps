@@ -2,11 +2,12 @@
 // booking-003 US5・research R10）。ログインは要らない（この人はアカウントを持たない。札を知る本人だけが開ける）。
 // 確認の前は「申込みを確定する」（主のボタン。開いただけでは確定しない。S5）。確定のあとは状態・カレンダーに追加・取り消す（始まりまで）。
 // 期限切れ・知らない札は理由と、申込みページへの入口。札は画面の文に出さない。
+// キャンセル待ち（booking-004）：状態の札に何番目か、打診中なら期限と「参加する」（主のボタン）「辞退する」、当日の空きなら「参加する」。
+// 打診の知らせの返事の札で開いても、同じ申込みを見る・答える・取り消すことができる。
 import type { EntryTokenView } from "@workspace/contracts/booking";
 import { PARTICIPANT_ROUTE_PATTERNS } from "@workspace/contracts/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, getRouteApi } from "@tanstack/react-router";
-import { Badge } from "@workspace/ui/components/badge";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
@@ -22,6 +23,8 @@ import {
   CalendarSection,
   PRIMARY_ACTION_CLASS,
 } from "./apply-parts.tsx";
+import { respondEntryToken } from "./waitlist-api.ts";
+import { EntryStatusBadge, RespondButtons, StandingNote } from "./waitlist-parts.tsx";
 
 /**
  * 申込みページへの入口。
@@ -163,17 +166,38 @@ export function EntryTokenPage({ eventId, entryToken }: { eventId: string; entry
             tabIndex={-1}
             className="text-xl leading-tight font-bold outline-none"
           >
-            {justConfirmed ? "申し込みました" : view.event.name}
+            {justConfirmed
+              ? entry?.status === "waitlisted"
+                ? "キャンセル待ちに入りました"
+                : "申し込みました"
+              : view.event.name}
           </h1>
         </div>
         {justConfirmed ? <p className="text-m font-bold break-words">{view.event.name}</p> : null}
-        <div>{confirmed ? <Badge variant="success">確定</Badge> : <Badge>取り消し</Badge>}</div>
+        {entry ? (
+          <div>
+            <EntryStatusBadge status={entry.status} waitlistPosition={entry.waitlistPosition} />
+          </div>
+        ) : null}
         <p className="text-m">{`お名前：${view.name}`}</p>
-        <p className="text-m">
-          {confirmed
-            ? "当日は受付でお名前を伝えてください。このリンクから、申込みを見る・取り消すことができます。"
-            : "この申込みは取り消しています。申し込み直すときは、申込みページから申し込んでください。"}
-        </p>
+        {entry && (entry.status === "waitlisted" || entry.status === "offered") ? (
+          <StandingNote status={entry.status} standing={entry} />
+        ) : (
+          <p className="text-m">
+            {confirmed
+              ? "当日は受付でお名前を伝えてください。このリンクから、申込みを見る・取り消すことができます。"
+              : "この申込みは取り消しています。申し込み直すときは、申込みページから申し込んでください。"}
+          </p>
+        )}
+        {entry ? (
+          <RespondButtons
+            status={entry.status}
+            standing={entry}
+            primary
+            respond={async (answer) => store(await respondEntryToken(entryToken, answer))}
+            onDone={() => setJustConfirmed(false)}
+          />
+        ) : null}
       </section>
       <ApplyEventList event={view.event} hostName={view.hostName} />
       {confirmed ? (

@@ -5,10 +5,11 @@
 // 自前で申込みを受ける交流会（booking-003）でも名簿の窓口は使える。申込みページの受付と見せる範囲は self-page で変える。
 // チェックインは reception の index.ts（listEventAttendees・getCheckin・createManualCheckin）でだけ読み書きする（AD-3・AD-23）。
 // 名簿を書く窓口は、交流会の設定の行を押さえたトランザクションの中で決め直す（同時に押しても二重にならない）。名前はログに出さない。
+// 定員とキャンセル待ち（booking-004）：設定の答えに定員・枠・席の内訳・中止・変更を足し、状態を変える・手で足す・取り込みのあとは
+// 片付け（waitlist.ts の settleEvent）で空いた席をキャンセル待ちに回す。定員・手で打診・中止・変更は routes-waitlist.ts。
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import * as contract from "@workspace/contracts/booking";
 import { BOOKING_ERRORS, usesRoster } from "@workspace/contracts/booking";
-import { endOfJstDate } from "@workspace/contracts/core";
 import { EVENT_ERRORS } from "@workspace/contracts/event";
 import * as reception from "@workspace/contracts/reception";
 import { normalizeCheckinName } from "@workspace/contracts/reception";
@@ -23,17 +24,26 @@ import {
   eventNotFoundResponse,
   findEventOrganizationId,
   findEventOwnerAccountId,
-  getEventSummary,
   requireEventRole,
 } from "../event/index.ts";
 import { createManualCheckin, getCheckin, listEventAttendees } from "../reception/index.ts";
 import type { CheckinRecord } from "../reception/index.ts";
 import { findPageSetting, savePageSetting } from "./apply-repository.ts";
+import {
+  eventContext,
+  flushNotices,
+  hasWaitingEntries,
+  markNotified,
+  queueApplied,
+  setStatusByOrganizer,
+  settleEvent,
+} from "./waitlist.ts";
+import type { NoticeQueue } from "./waitlist.ts";
+import { closePendingOffer, findWaitlistSetting } from "./waitlist-repository.ts";
 import { buildRosterCsv } from "./csv.ts";
 import { planImport } from "./importing.ts";
 import { resolveMatches } from "./matching.ts";
 import {
-  countEntries,
   findEntry,
   findMode,
   insertDismissal,
@@ -50,7 +60,8 @@ import {
   updateEntry,
 } from "./repository.ts";
 import type { EntryRecord } from "./repository.ts";
-import { buildMatchBoard, buildRoster } from "./views.ts";
+import { readRosterEntryView, readRosterView, readSettingView } from "./setting-view.ts";
+import { buildMatchBoard } from "./views.ts";
 
 /** 使い方（文書の名前つき）。 */
 const BookingSetting = contract.BookingSetting.openapi("BookingSetting");
@@ -197,6 +208,10 @@ function defineRoutes(deps: DomainRouteDeps) {
         200: json(BookingSetting, "変えた使い方"),
         400: invalidInputResponse,
         ...errors,
+        409: domainErrorResponse(
+          BOOKING_ERRORS.WAITLIST_ACTIVE,
+          "キャンセル待ち・打診中の人がいるのに、自前でない使い方にしようとした",
+        ),
       },
     }),
     putSelfPage: createRoute({
@@ -547,65 +562,52 @@ export function bookingRoutes(deps: DomainRouteDeps) {
   const routes = defineRoutes(deps);
 
   /**
-   * 交流会の日（日本時間）が終わったか。
-   * @param eventId 交流会の ID
-   * @returns 終わっていれば true
-   * @throws {AppError} 交流会がないとき（event の NOT_FOUND）
-   */
-  const eventEnded = async (eventId: string): Promise<boolean> => {
-    const summary = await getEventSummary(db, deps.config, eventId);
-    if (!summary) throw new AppError(EVENT_ERRORS.NOT_FOUND);
-    return endOfJstDate(summary.startsAt).getTime() <= Date.now();
-  };
-
-  /**
-   * 交流会の使い方と申込みページの設定の答え（booking-003 research R13）。
+   * 交流会の使い方と申込みページ・定員の設定の答え（setting-view.ts）。
    * @param eventId 交流会の ID
    * @returns 設定
+   */
+  const readSetting = (eventId: string): Promise<contract.BookingSetting> =>
+    readSettingView(deps, eventId);
+
+  /**
+   * 交流会と主催の名前を読む（片付けと知らせに使う）。
+   * @param executor DB
+   * @param eventId 交流会の ID
+   * @returns 交流会と主催
    * @throws {AppError} 交流会がないとき（event の NOT_FOUND）
    */
-  const readSetting = async (eventId: string): Promise<contract.BookingSetting> => {
-    const page = await findPageSetting(db, eventId);
-    const entryCount = await countEntries(db, eventId);
-    const summary = await getEventSummary(db, deps.config, eventId);
-    if (!summary) throw new AppError(EVENT_ERRORS.NOT_FOUND);
-    return {
-      mode: page.mode,
-      entryCount,
-      accepting: page.accepting,
-      visibility: page.visibility,
-      started: new Date(summary.startsAt).getTime() <= Date.now(),
-      inOrganization: (await findEventOrganizationId(db, eventId)) !== null,
-    };
+  const contextOf = async (executor: Executor, eventId: string) => {
+    const context = await eventContext(deps, executor, eventId);
+    if (!context) throw new AppError(EVENT_ERRORS.NOT_FOUND);
+    return context;
   };
 
   /**
-   * 名簿の答えを読む。
+   * 席が埋まる操作（飛び入り）のあとに片付けを通す（一度満員になったら枠を押さえるのをやめる印を付けるため。booking-004 R3）。
+   * @param tx トランザクション（設定の行を押さえたもの）
+   * @param eventId 交流会の ID
+   * @param queue 知らせ（確定のあとに送る）
+   */
+  const settleAfterSeatTaken = async (tx: Executor, eventId: string, queue: NoticeQueue) => {
+    const context = await contextOf(tx, eventId);
+    await settleEvent(deps, tx, eventId, new Date(context.event.startsAt), new Date(), queue);
+  };
+
+  /**
+   * 名簿の答えを読む（setting-view.ts）。
    * @param eventId 交流会の ID
    * @returns 名簿
    */
-  const readRoster = async (eventId: string): Promise<contract.Roster> => {
-    const [entries, attendees, dismissals, ended] = await Promise.all([
-      listEntries(db, eventId),
-      listEventAttendees(db, eventId),
-      listDismissals(db, eventId),
-      eventEnded(eventId),
-    ]);
-    return buildRoster(db, entries, attendees, dismissals, ended);
-  };
+  const readRoster = (eventId: string): Promise<contract.Roster> => readRosterView(deps, eventId);
 
   /**
-   * 名簿の1行の答えを読む（同じ名前の印と来たかは名簿の全体から決める）。
+   * 名簿の1行の答えを読む（setting-view.ts）。
    * @param eventId 交流会の ID
    * @param entryId 行の ID
    * @returns 名簿の行
-   * @throws {AppError} ないとき（BOOKING_ENTRY_NOT_FOUND）
    */
-  const readEntry = async (eventId: string, entryId: string): Promise<contract.RosterEntry> => {
-    const entry = (await readRoster(eventId)).entries.find((item) => item.id === entryId);
-    if (!entry) throw new AppError(BOOKING_ERRORS.ENTRY_NOT_FOUND);
-    return entry;
-  };
+  const readEntry = (eventId: string, entryId: string): Promise<contract.RosterEntry> =>
+    readRosterEntryView(deps, eventId, entryId);
 
   /**
    * 受付係の画面の答えを読む。
@@ -624,15 +626,27 @@ export function bookingRoutes(deps: DomainRouteDeps) {
     .openapi(routes.putSetting, async (c) => {
       const { eventId } = c.req.valid("param");
       const { mode } = c.req.valid("json");
-      await saveMode(db, eventId, mode);
+      await db.transaction(async (tx) => {
+        const current = await findWaitlistSetting(tx, eventId, true);
+        const wasSelfPage = current?.mode === "self_page";
+        if (wasSelfPage && mode !== "self_page" && (await hasWaitingEntries(tx, eventId))) {
+          // 自前を外すと打診・キャンセル待ちが止まったまま残るので、先に名簿で片付けてもらう（booking-004 R21）
+          throw new AppError(BOOKING_ERRORS.WAITLIST_ACTIVE);
+        }
+        await saveMode(tx, eventId, mode);
+        if (mode === "self_page" && !wasSelfPage) {
+          // 最後に知らせた日時と場所を、使い始め・使い直しの今にそろえる（外していた間の変更を知らせない。booking-004 R10・R21）
+          await markNotified(tx, eventId, (await contextOf(tx, eventId)).event);
+        }
+      });
       return c.json(await readSetting(eventId), 200);
     })
     .openapi(routes.putSelfPage, async (c) => {
       const { eventId } = c.req.valid("param");
       const input = c.req.valid("json");
-      if ((await findMode(db, eventId)) !== "self_page") {
-        throw new AppError(BOOKING_ERRORS.SELF_PAGE_OFF);
-      }
+      const current = await findPageSetting(db, eventId);
+      if (current.mode !== "self_page") throw new AppError(BOOKING_ERRORS.SELF_PAGE_OFF);
+      if (current.cancelledAt) throw new AppError(BOOKING_ERRORS.EVENT_CANCELLED);
       if (input.visibility === "members" && !(await findEventOrganizationId(db, eventId))) {
         throw new AppError(BOOKING_ERRORS.VISIBILITY_NEEDS_ORGANIZATION);
       }
@@ -647,28 +661,52 @@ export function bookingRoutes(deps: DomainRouteDeps) {
     .openapi(routes.addEntry, async (c) => {
       const { eventId } = c.req.valid("param");
       const input = c.req.valid("json");
-      await requireRoster(db, eventId);
-      const entry = await insertEntry(db, {
-        eventId,
-        name: input.name,
-        applicationSource: input.applicationSource,
-        entryKind: "manual",
-        enteredBy: currentAccount(c).accountId,
-        memo: input.memo?.trim() ? input.memo : null,
+      const context = await contextOf(db, eventId);
+      const now = new Date();
+      const queue: NoticeQueue = [];
+      const entry = await db.transaction(async (tx) => {
+        await requireRoster(tx, eventId, true);
+        const setting = await findWaitlistSetting(tx, eventId);
+        // キャンセル待ちに入れるのは、自前で定員があるときだけ（booking-004 R4）
+        if (input.waitlist && (setting?.mode !== "self_page" || setting.capacity === null)) {
+          throw new AppError(BOOKING_ERRORS.WAITLIST_OFF);
+        }
+        const added = await insertEntry(tx, {
+          eventId,
+          name: input.name,
+          applicationSource: input.applicationSource,
+          entryKind: "manual",
+          enteredBy: currentAccount(c).accountId,
+          memo: input.memo?.trim() ? input.memo : null,
+          status: input.waitlist ? "waitlisted" : "confirmed",
+        });
+        if (added.status === "waitlisted") {
+          await queueApplied(deps, tx, context, added, null, now, queue);
+        }
+        await settleEvent(deps, tx, eventId, new Date(context.event.startsAt), now, queue);
+        return added;
       });
+      await flushNotices(deps, queue);
       return c.json(await readEntry(eventId, entry.id), 201);
     })
     .openapi(routes.setStatus, async (c) => {
       const { eventId, entryId } = c.req.valid("param");
       const { status } = c.req.valid("json");
-      await requireRoster(db, eventId);
-      const updated = await updateEntry(db, eventId, entryId, { status });
-      if (!updated) throw new AppError(BOOKING_ERRORS.ENTRY_NOT_FOUND);
+      const context = await contextOf(db, eventId);
+      const queue: NoticeQueue = [];
+      await db.transaction(async (tx) => {
+        await requireRoster(tx, eventId, true);
+        const entry = await findEntry(tx, eventId, entryId, true);
+        if (!entry) throw new AppError(BOOKING_ERRORS.ENTRY_NOT_FOUND);
+        await setStatusByOrganizer(deps, tx, context, entry, status, new Date(), queue);
+      });
+      await flushNotices(deps, queue);
       return c.json(await readEntry(eventId, entryId), 200);
     })
     .openapi(routes.merge, async (c) => {
       const { eventId } = c.req.valid("param");
       const { keepEntryId, removeEntryId } = c.req.valid("json");
+      const queue: NoticeQueue = [];
       await db.transaction(async (tx) => {
         await requireRoster(tx, eventId, true);
         const keep = await findEntry(tx, eventId, keepEntryId, true);
@@ -689,12 +727,24 @@ export function bookingRoutes(deps: DomainRouteDeps) {
         // 取り込み直しても増やさないため。research R7）。先に外してから移す（一意の制約に当たらないように。
         // メールの申込みの連絡と札は、残す行になければ移す。booking-003 research R14）
         const moveContact = !keep.contactEmail && !keep.entryTokenHash;
+        // 状態は確定を優先し、なければ残す行の状態（取り消しなら、まとめる行の状態）。まとめる行の打診は閉じる（行は残すが
+        // 取り消しになるので、打診を待たせたままにしない）ので、残す行が打診中でないのに打診中にはしない（キャンセル待ちにする。booking-004）
+        const merged =
+          keep.status === "confirmed" || remove.status === "confirmed"
+            ? "confirmed"
+            : keep.status !== "cancelled"
+              ? keep.status
+              : remove.status === "offered"
+                ? "waitlisted"
+                : remove.status;
+        const now = new Date();
+        if (remove.status === "offered") await closePendingOffer(tx, remove.id, "withdrawn", now);
+        if (keep.status === "offered" && merged === "confirmed") {
+          await closePendingOffer(tx, keep.id, "withdrawn", now);
+        }
         await markEntryMerged(tx, eventId, remove.id, keep.id);
         await updateEntry(tx, eventId, keep.id, {
-          status:
-            keep.status === "confirmed" || remove.status === "confirmed"
-              ? "confirmed"
-              : "cancelled",
+          status: merged,
           checkinId: keep.checkinId ?? remove.checkinId,
           accountId: keep.accountId ?? remove.accountId,
           memo: keep.memo ?? remove.memo,
@@ -702,7 +752,10 @@ export function bookingRoutes(deps: DomainRouteDeps) {
             ? { contactEmail: remove.contactEmail, entryTokenHash: remove.entryTokenHash }
             : {}),
         });
+        const context = await contextOf(tx, eventId);
+        await settleEvent(deps, tx, eventId, new Date(context.event.startsAt), now, queue);
       });
+      await flushNotices(deps, queue);
       return c.json(await readEntry(eventId, keepEntryId), 200);
     })
     .openapi(routes.previewImport, async (c) => {
@@ -716,6 +769,7 @@ export function bookingRoutes(deps: DomainRouteDeps) {
       const { eventId } = c.req.valid("param");
       const input = c.req.valid("json");
       const me = currentAccount(c).accountId;
+      const queue: NoticeQueue = [];
       const counts = await db.transaction(async (tx) => {
         await requireRoster(tx, eventId, true);
         const plan = planImport(
@@ -744,8 +798,12 @@ export function bookingRoutes(deps: DomainRouteDeps) {
             applicationSource: input.applicationSource,
           });
         }
+        // 取り込みで満員になったら枠を押さえるのをやめる（片付け。超えても取り消さない。booking-004 R2・FR-B63）
+        const context = await contextOf(tx, eventId);
+        await settleEvent(deps, tx, eventId, new Date(context.event.startsAt), new Date(), queue);
         return plan.counts;
       });
+      await flushNotices(deps, queue);
       return c.json({ counts }, 200);
     })
     .openapi(routes.listMappings, async (c) => {
@@ -807,6 +865,7 @@ export function bookingRoutes(deps: DomainRouteDeps) {
     .openapi(routes.walkInFromCheckin, async (c) => {
       const { eventId, checkinId } = c.req.valid("param");
       const me = currentAccount(c).accountId;
+      const queue: NoticeQueue = [];
       await db
         .transaction(async (tx) => {
           await requireRoster(tx, eventId, true);
@@ -820,10 +879,12 @@ export function bookingRoutes(deps: DomainRouteDeps) {
             enteredBy: me,
             checkinId,
           });
+          await settleAfterSeatTaken(tx, eventId, queue);
         })
         .catch((error: unknown) => {
           throw asMatchConflict(error);
         });
+      await flushNotices(deps, queue);
       return c.json(await readBoard(eventId), 201);
     })
     .openapi(routes.unmatch, async (c) => {
@@ -859,6 +920,7 @@ export function bookingRoutes(deps: DomainRouteDeps) {
       const { eventId } = c.req.valid("param");
       const input = c.req.valid("json");
       const me = currentAccount(c).accountId;
+      const queue: NoticeQueue = [];
       await db.transaction(async (tx) => {
         await requireRoster(tx, eventId, true);
         const checkin = await createManualCheckin(tx, deps.config, {
@@ -874,7 +936,9 @@ export function bookingRoutes(deps: DomainRouteDeps) {
           enteredBy: me,
           checkinId: checkin.id,
         });
+        await settleAfterSeatTaken(tx, eventId, queue);
       });
+      await flushNotices(deps, queue);
       return c.json(await readBoard(eventId), 201);
     });
 }

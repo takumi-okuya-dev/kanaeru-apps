@@ -111,6 +111,13 @@ export const QUOTA_SOURCES = ["connpass", "peatix", "other"] as const;
 /** 媒体の枠を置ける媒体。 */
 export type QuotaSource = (typeof QUOTA_SOURCES)[number];
 
+/** 枠を置ける媒体の画面の言葉（受付の申し込みの媒体の言葉と同じ。options.test.ts が見張る）。 */
+export const QUOTA_SOURCE_LABELS = {
+  connpass: "connpass",
+  peatix: "Peatix",
+  other: "その他",
+} as const satisfies Record<QuotaSource, string>;
+
 /** 来たかの code（来た・来なかった・まだ。保存せず、読むときに決める。research R8）。 */
 export const ATTENDANCES = ["came", "no_show", "pending"] as const;
 

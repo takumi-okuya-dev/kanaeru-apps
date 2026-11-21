@@ -10,7 +10,7 @@ import { renderWithRouter } from "../../lib/testing.tsx";
 import { ImportPage } from "./ImportPage.tsx";
 import { MatchPage } from "./MatchPage.tsx";
 import { ModeSection } from "./ModeSection.tsx";
-import { RosterPage } from "./RosterPage.tsx";
+import { RosterPage, statusText } from "./RosterPage.tsx";
 
 /** 試しの交流会の ID。 */
 const EVENT_ID = "0193a1b2-0000-7000-8000-000000000001";
@@ -63,9 +63,25 @@ function entry(id: string, name: string, values: Partial<Roster["entries"][numbe
     sameName: false,
     attendance: "pending" as const,
     match: null,
+    waitlistPosition: null,
+    offer: null,
+    hasContact: false,
     ...values,
   };
 }
+
+/** 設定の答えのほかの欄（定員なし。booking-003・004）。 */
+const SETTING_REST = {
+  accepting: false,
+  visibility: "public",
+  started: false,
+  inOrganization: false,
+  capacity: null,
+  quotas: [],
+  seats: null,
+  cancelled: false,
+  change: null,
+};
 
 /** 試しの名簿。 */
 const ROSTER: Roster = {
@@ -83,6 +99,8 @@ const ROSTER: Roster = {
   counts: {
     confirmed: 3,
     cancelled: 1,
+    waitlisted: 0,
+    offered: 0,
     came: 0,
     noShow: 1,
     walkIn: 0,
@@ -154,10 +172,10 @@ function stubApi(
       case `GET /api/v1/events/${EVENT_ID}`:
         return Promise.resolve(Response.json(eventView(options.role ?? "organizer")));
       case `GET ${base}/setting`:
-        return Promise.resolve(Response.json({ mode, entryCount: 4 }));
+        return Promise.resolve(Response.json({ ...SETTING_REST, mode, entryCount: 4 }));
       case `PUT ${base}/setting`:
         mode = (body as { mode: "reception" | "roster" }).mode;
-        return Promise.resolve(Response.json({ mode, entryCount: 4 }));
+        return Promise.resolve(Response.json({ ...SETTING_REST, mode, entryCount: 4 }));
       case `GET ${base}/entries`:
         return Promise.resolve(Response.json(ROSTER));
       case `GET ${base}/matches`:
@@ -253,6 +271,19 @@ describe("名簿", () => {
     renderWithRouter(<RosterPage eventId={EVENT_ID} />);
     expect(await screen.findByText(/この交流会は名簿を使っていません/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "準備の画面を開く" })).toBeInTheDocument();
+  });
+});
+
+describe("名簿の行の状態の文", () => {
+  it("連絡先のないキャンセル待ちには、自動で打診しないことを出す", () => {
+    expect(
+      statusText(entry("31", "電話の 山田", { status: "waitlisted", waitlistPosition: 2 })),
+    ).toBe("キャンセル待ち（2番目。連絡先がないので自動で打診しません）");
+    expect(
+      statusText(
+        entry("32", "森", { status: "waitlisted", waitlistPosition: 1, hasContact: true }),
+      ),
+    ).toBe("キャンセル待ち（1番目）");
   });
 });
 

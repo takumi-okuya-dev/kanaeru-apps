@@ -2,6 +2,9 @@
 // 選ぶカード（受付だけ・名簿を使う・自前で申込みを受ける〈booking-003〉）と「使い方を変える」。名簿に行がある交流会を「受付だけ」に戻すときは確かめの枠を出す
 // （名簿は消さずに隠す。FR-B13）。保存した使い方は、ナビの「名簿」も読む（同じ問い合わせの鍵）。
 // 今の使い方が自前なら、その下に「申込みページ」の節（受付を開く・閉じる・見せる範囲・URL。SelfPageSection）を出す。
+// 名簿を使う・自前なら「定員とキャンセル待ち」の節（定員・媒体の枠・席の内訳・変更の帯・中止。CapacitySection。booking-004）。
+// CapacitySection は約束の zod の形（CapacityInput）を読むので、開いたときに別に読む（この節は準備の画面と一緒に最初に読まれ、
+// zod の設定〈jitless〉より先に形が作られると CSP の eval の違反になるため。booking-003 research R23）。
 import type { EventView } from "@workspace/contracts/event";
 import {
   BOOKING_MODES,
@@ -14,11 +17,16 @@ import { Button } from "@workspace/ui/components/button";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { cn } from "@workspace/ui/lib/cn";
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { errorMessage } from "../../lib/api.ts";
 import { saveSetting } from "./api.ts";
 import { SelfPageSection } from "./SelfPageSection.tsx";
 import { BOOKING_QUERY_KEYS, useBookingSetting } from "./queries.ts";
+
+/** 定員とキャンセル待ちの節（開いたときに読む）。 */
+const CapacitySection = lazy(async () => ({
+  default: (await import("./CapacitySection.tsx")).CapacitySection,
+}));
 
 /**
  * 「使い方」の節。
@@ -103,9 +111,6 @@ export function ModeSection({ event }: { event: EventView }) {
           })}
         </div>
       </fieldset>
-      <p className="text-s text-text-sub">
-        「自前で申込みを受ける」の定員とキャンセル待ちは、次の版で使えるようになります（今は申し込んだ人がみな確定します）。
-      </p>
       <div className="flex flex-col items-start gap-xxs">
         <Button aria-disabled={mutation.isPending || setting.isPending || undefined} onClick={save}>
           {mutation.isPending ? "変えています…" : "使い方を変える"}
@@ -127,6 +132,11 @@ export function ModeSection({ event }: { event: EventView }) {
       </div>
       {setting.data?.mode === "self_page" ? (
         <SelfPageSection event={event} setting={setting.data} />
+      ) : null}
+      {setting.data && setting.data.mode !== "reception" ? (
+        <Suspense fallback={<p className="text-s text-text-sub">読みこんでいます…</p>}>
+          <CapacitySection key={setting.data.mode} event={event} setting={setting.data} />
+        </Suspense>
       ) : null}
       <ConfirmDialog
         open={confirming}
