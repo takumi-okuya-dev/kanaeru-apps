@@ -130,10 +130,24 @@ describe("偽の送り手（手元とテスト）", () => {
       status: "off",
     });
     expect(notifier.fakeOutbox()).toEqual([]);
-    expect(await notifier.getLineBotInfo(TOKEN)).toEqual({ ok: true, basicId: "@fake" });
+    expect(await notifier.getLineBotInfo(TOKEN)).toEqual({
+      ok: true,
+      basicId: "@fake",
+      userId: `U${"f".repeat(32)}`,
+    });
     expect(await notifier.getLineBotInfo("invalid-token-xxxxxxxxxxxx")).toEqual({
       ok: false,
       reason: "unauthorized",
+    });
+    // otherbot で始まるトークンは別の公式アカウント（アクセストークンだけの入れ直しで替わったときを試す）
+    expect(await notifier.getLineBotInfo("otherbot-token-xxxxxxxxxxx")).toEqual({
+      ok: true,
+      basicId: "@fake2",
+      userId: `U${"e".repeat(32)}`,
+    });
+    expect(await notifier.getLineProfile(TOKEN, LINE_USER)).toEqual({
+      ok: true,
+      displayName: "LINE の友だち",
     });
   });
 
@@ -229,6 +243,7 @@ describe("本物の送り手（staging・production）", () => {
     expect(await build({ mode: "off" }, ok.fetch).notifier.getLineBotInfo(TOKEN)).toEqual({
       ok: true,
       basicId: "@abc1234",
+      userId: "Uxxx",
     });
     expect(ok.calls[0]?.url).toBe("https://api.line.me/v2/bot/info");
     expect(new Headers(ok.calls[0]?.init.headers).get("authorization")).toBe(`Bearer ${TOKEN}`);
@@ -242,6 +257,29 @@ describe("本物の送り手（staging・production）", () => {
       ok: false,
       reason: "unreachable",
     });
+  });
+
+  it("友だちの表示名：200 は表示名、ほか・届かない・形の違う ID は読めない。off でも読み、ログに ID を出さない", async () => {
+    const ok = fakeFetch(() => Response.json({ userId: LINE_USER, displayName: "はなこ" }));
+    const { notifier, log } = build({ mode: "off" }, ok.fetch);
+    expect(await notifier.getLineProfile(TOKEN, LINE_USER)).toEqual({
+      ok: true,
+      displayName: "はなこ",
+    });
+    expect(ok.calls[0]?.url).toBe(`https://api.line.me/v2/bot/profile/${LINE_USER}`);
+    expect(new Headers(ok.calls[0]?.init.headers).get("authorization")).toBe(`Bearer ${TOKEN}`);
+    // 形の違う ID は、外へ出ずに読めない（道に入れない）
+    expect(await notifier.getLineProfile(TOKEN, "../v2/bot/info")).toEqual({ ok: false });
+    expect(ok.calls).toHaveLength(1);
+    const missing = fakeFetch(() => new Response("{}", { status: 404 }));
+    const notFriend = build({}, missing.fetch);
+    expect(await notFriend.notifier.getLineProfile(TOKEN, LINE_USER)).toEqual({ ok: false });
+    expect(notFriend.log.text()).not.toContain(LINE_USER);
+    const broken = fakeFetch(() => Promise.reject(new Error("network")));
+    expect(await build({}, broken.fetch).notifier.getLineProfile(TOKEN, LINE_USER)).toEqual({
+      ok: false,
+    });
+    expect(log.text()).not.toContain(LINE_USER);
   });
 
   it("メールは送り手がなければ unavailable。送り手があれば守りを通して渡す", async () => {

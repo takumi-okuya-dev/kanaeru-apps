@@ -2,7 +2,7 @@
 // 主キーは uuid（uuidv7()）、時刻は timestamptz（docs/rules/coding.md 6-4）。表の名前は booking_ で始める（AD-15）。
 // 消し方（research R11）：名簿は交流会の持ち主のデータ（AD-19）なので、交流会を指す外部キーは CASCADE（event の退会の段が
 // 組織に入れていない交流会を消すと、名簿も消える）。入れた人・ちがう人にした人は SET NULL、行のアカウント（本人の申込み）は
-// CASCADE、当てたチェックインは SET NULL（AD-23）。
+// CASCADE、当てたチェックインは SET NULL（AD-23）、まとめた先の行は SET NULL（research R7）。
 // 選択肢は text と CHECK。CHECK の code は約束（@workspace/contracts/booking の options.ts と、媒体は reception の options.ts）と
 // 同じ並びを文字で書く（DB の変更の SQL に値を埋めるため。sql.raw は使わない）。食い違いは schema.test.ts が見張る。
 // 使い方・入口・状態の値は今使うものだけ。足すときは CHECK を広げる（今の行はどれも通るので1回でよい。research R1・R2）。
@@ -21,6 +21,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import {
   BOOKING_MODES,
   ENTRY_KINDS,
@@ -84,6 +85,13 @@ export const bookingEntry = pgTable(
     accountId: uuid("account_id").references(() => accountTable.id, { onDelete: "cascade" }),
     /** 手で当てたチェックイン（チェックインを取り消すと null。AD-23） */
     checkinId: uuid("checkin_id").references(() => checkinTable.id, { onDelete: "set null" }),
+    /**
+     * まとめた先の行（まとめられた行は消さずに残し、名簿・人数・当てから隠す。取り込みの「すでにある」だけは数える。
+     * research R7。まとめた先の行が消えたら null に戻り、取り消しの行として名簿に出る）
+     */
+    mergedIntoId: uuid("merged_into_id").references((): AnyPgColumn => bookingEntry.id, {
+      onDelete: "set null",
+    }),
     /** メールで申し込んだ人の連絡のメールアドレス（小文字。主催者に見せない・ログに出さない。booking-003 R10） */
     contactEmail: text("contact_email"),
     /** メールで申し込んだ人の札の SHA-256（16進。見る・取り消すのリンク。booking-003 R10） */
@@ -94,6 +102,7 @@ export const bookingEntry = pgTable(
     index("booking_entry_event_id_applied_at_idx").on(table.eventId, table.appliedAt),
     index("booking_entry_entered_by_idx").on(table.enteredBy),
     index("booking_entry_account_id_idx").on(table.accountId),
+    index("booking_entry_merged_into_id_idx").on(table.mergedIntoId),
     uniqueIndex("booking_entry_checkin_id_unique")
       .on(table.checkinId)
       .where(sql`${table.checkinId} is not null`),
@@ -223,6 +232,11 @@ export const bookingLineChannel = pgTable(
     accessTokenTail: text("access_token_tail"),
     /** ボット情報のベーシック ID（友だち追加のリンク。research R10） */
     basicId: text("basic_id"),
+    /**
+     * ボット情報の userId（公式アカウントそのものの ID。Webhook の destination と同じ）。アクセストークンだけを入れ直して
+     * 別の公式アカウントに替わったことを見つける（替われば紐づけを消す）。前の版で入れた行は空（research R10）
+     */
+    botUserId: text("bot_user_id"),
     /** メールの返信先（任意） */
     replyToEmail: text("reply_to_email"),
     ...timestamps(),
@@ -242,6 +256,10 @@ export const bookingLineChannel = pgTable(
     uniqueIndex("booking_line_channel_holder_organization_id_unique")
       .on(table.holderOrganizationId)
       .where(sql`${table.holderOrganizationId} is not null`),
+    // 同じ公式アカウントを2つの設定に入れない（Webhook と紐づけが2つに分かれるため）
+    uniqueIndex("booking_line_channel_line_channel_id_unique")
+      .on(table.lineChannelId)
+      .where(sql`${table.lineChannelId} is not null`),
   ],
 );
 

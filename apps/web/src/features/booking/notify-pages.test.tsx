@@ -212,6 +212,7 @@ describe("紐づけの画面", () => {
           state: "valid",
           linkedToMe: false,
           expiresAt: "2026-11-27T00:00:00.000Z",
+          lineDisplayName: null,
           ...preview,
         }),
       [`POST ${path}`]: () => Response.json({ holderName: "飲食チーム" }),
@@ -226,6 +227,20 @@ describe("紐づけの画面", () => {
       await screen.findByRole("heading", { level: 1, name: "紐づけました" }),
     ).toBeInTheDocument();
     expect(sent.some((request) => request.method === "POST" && request.path === path)).toBe(true);
+  });
+
+  it("その札の LINE の表示名と、自分に届いたリンクでなければ押さないことを出す（表示名がなければ出さない）", async () => {
+    withPreview({ lineDisplayName: "はなこ" });
+    const { unmount } = renderWithRouter(<LineLinkPage linkToken={TOKEN} />);
+    expect(await screen.findByText("紐づける LINE：はなこさん")).toBeInTheDocument();
+    expect(
+      screen.getByText(/自分の LINE に届いたリンクでなければ、押さないでください/),
+    ).toBeInTheDocument();
+    unmount();
+    withPreview({});
+    renderWithRouter(<LineLinkPage linkToken={TOKEN} />);
+    expect(await screen.findByText(/自分の LINE に届いたリンクでなければ/)).toBeInTheDocument();
+    expect(screen.queryByText(/紐づける LINE：/)).not.toBeInTheDocument();
   });
 
   it("使った札は、本人なら「もう紐づいています」、ほかの人なら使い終わり", async () => {

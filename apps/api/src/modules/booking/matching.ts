@@ -1,6 +1,7 @@
 // チェックインと名簿の当てを、読むときに決める（純粋な関数。保存しない。AD-23・booking-001 research R8）。
 // 1. 行の checkin_id（手で当てた・飛び入り） 2. 行のアカウント = チェックインのアカウント（自動）
 // 3. 残りのチェックインに、当たっていない確定の行で、そろえた名前が同じ・ちがう人にしていない行がちょうど1つ → 候補
+//    （当たっていないチェックインの側にも、そろえた名前が同じものがちょうど1つのときだけ）
 // 取り消しの行は、自動でも候補でも当てない。来なかったは、交流会の日が終わってから、確定で来ていない行。
 import type { Attendance, EntryKind, EntryStatus, MatchState } from "@workspace/contracts/booking";
 import { normalizeCheckinName } from "@workspace/contracts/reception";
@@ -85,9 +86,20 @@ export function resolveMatches(
 
   const dismissed = new Set(dismissals.map((pair) => `${pair.checkinId}:${pair.entryId}`));
   const open = entries.filter((entry) => entry.status === "confirmed" && !byEntry.has(entry.id));
+  // 当たっていないチェックインの、そろえた名前ごとの数（同じ名前の人が2人以上来ていれば、どちらにも候補を出さない。FR-B100）
+  const unmatchedNames = new Map<string, number>();
   for (const checkin of checkins) {
     if (byCheckin.has(checkin.checkinId)) continue;
     const key = normalizeCheckinName(checkin.name);
+    unmatchedNames.set(key, (unmatchedNames.get(key) ?? 0) + 1);
+  }
+  for (const checkin of checkins) {
+    if (byCheckin.has(checkin.checkinId)) continue;
+    const key = normalizeCheckinName(checkin.name);
+    if ((unmatchedNames.get(key) ?? 0) > 1) {
+      byCheckin.set(checkin.checkinId, { state: "unmatched", entryId: null });
+      continue;
+    }
     const candidates = open.filter(
       (entry) =>
         normalizeCheckinName(entry.name) === key &&

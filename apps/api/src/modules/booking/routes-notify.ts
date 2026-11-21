@@ -111,6 +111,10 @@ function defineRoutes(deps: DomainRouteDeps) {
   const orgErrors = { ...base, 403: notifyForbiddenResponse, 404: notFoundResponse } as const;
   const saveErrors = {
     400: invalidInputResponse,
+    409: domainErrorResponse(
+      BOOKING_ERRORS.LINE_CHANNEL_TAKEN,
+      "同じチャネル ID が、ほかの持ち主の設定に入っている",
+    ),
     502: domainErrorResponse(BOOKING_ERRORS.LINE_UNREACHABLE, "LINE に確かめられない"),
     503: notifyUnavailableResponse,
   } as const;
@@ -384,13 +388,18 @@ export function bookingNotifyRoutes(deps: DomainRouteDeps) {
       const me = currentAccount(c).accountId;
       c.header("Cache-Control", "no-store");
       return c.json(
-        await previewLinkToken(db, c.req.valid("param").linkToken, me, new Date()),
+        await previewLinkToken(deps, c.req.valid("param").linkToken, me, new Date()),
         200,
       );
     })
     .openapi(routes.postLineLink, async (c) => {
       const me = currentAccount(c).accountId;
-      const holderName = await consumeLinkToken(db, c.req.valid("param").linkToken, me, new Date());
+      const holderName = await consumeLinkToken(
+        deps,
+        c.req.valid("param").linkToken,
+        me,
+        new Date(),
+      );
       return c.json({ holderName }, 200);
     })
     .openapi(routes.getContact, async (c) => {

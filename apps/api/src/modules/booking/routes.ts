@@ -31,7 +31,6 @@ import { planImport } from "./importing.ts";
 import { resolveMatches } from "./matching.ts";
 import {
   countEntries,
-  deleteEntry,
   findEntry,
   findMode,
   insertDismissal,
@@ -39,8 +38,10 @@ import {
   insertEntry,
   listDismissals,
   listEntries,
+  listEntriesForImport,
   listImportMappings,
   lockMode,
+  markEntryMerged,
   saveImportMapping,
   saveMode,
   updateEntry,
@@ -122,6 +123,12 @@ const checkinNotFoundResponse = domainErrorResponse(
 const matchConflictResponse = domainErrorResponse(
   BOOKING_ERRORS.ENTRY_NOT_MATCHABLE,
   "当てられない（取り消しの行・もう当たっている行かチェックイン・手で当てたものでない）か、名簿を使っていない",
+);
+
+/** まとめられない応答。 */
+const mergeConflictResponse = domainErrorResponse(
+  BOOKING_ERRORS.MERGE_BOTH_MATCHED,
+  "2つの行がどちらもチェックインに当たっている（別の人かもしれない）か、名簿を使っていない",
 );
 
 /**
@@ -230,7 +237,7 @@ function defineRoutes(deps: DomainRouteDeps) {
       tags,
       operationId: "bookingMergeEntries",
       summary:
-        "同じ名前の2つの行をまとめる（主催者だけ。消す行の当て・アカウント・メモを残す行へ移す）",
+        "同じ名前の2つの行をまとめる（主催者だけ。まとめる行の当て・アカウント・メモを残す行へ移し、まとめる行は名簿から隠す）",
       middleware: [session, organizerOnly] as const,
       request: { params: EventParams, body: body(RosterMergeInput) },
       responses: {
@@ -238,6 +245,7 @@ function defineRoutes(deps: DomainRouteDeps) {
         400: invalidInputResponse,
         ...rosterErrors,
         404: entryNotFoundResponse,
+        409: mergeConflictResponse,
       },
     }),
     previewImport: createRoute({
@@ -616,8 +624,14 @@ export function bookingRoutes(deps: DomainRouteDeps) {
         ) {
           throw new AppError(BOOKING_ERRORS.MERGE_NAME_MISMATCH);
         }
-        // 消す行の当て・アカウントを先に外してから移す（一意の制約に当たらないように）
-        await updateEntry(tx, eventId, remove.id, { checkinId: null, accountId: null });
+        // 2つともチェックインに当たっている（手でも自動でも）なら、別の人なので止める（当てを1つ失わないように）
+        const { byEntry } = await currentMatches(tx, eventId);
+        if (byEntry.has(keep.id) && byEntry.has(remove.id)) {
+          throw new AppError(BOOKING_ERRORS.MERGE_BOTH_MATCHED);
+        }
+        // まとめる行は消さずに残す（取り消しにし、当て・アカウントを外して、まとめた先を入れる。同じ CSV を取り込み直しても
+        // 増やさないため。research R7）。当て・アカウントは先に外してから移す（一意の制約に当たらないように）
+        await markEntryMerged(tx, eventId, remove.id, keep.id);
         await updateEntry(tx, eventId, keep.id, {
           status:
             keep.status === "confirmed" || remove.status === "confirmed"
@@ -627,7 +641,6 @@ export function bookingRoutes(deps: DomainRouteDeps) {
           accountId: keep.accountId ?? remove.accountId,
           memo: keep.memo ?? remove.memo,
         });
-        await deleteEntry(tx, eventId, remove.id);
       });
       return c.json(await readEntry(eventId, keepEntryId), 200);
     })
@@ -635,7 +648,7 @@ export function bookingRoutes(deps: DomainRouteDeps) {
       const { eventId } = c.req.valid("param");
       const input = c.req.valid("json");
       await requireRoster(db, eventId);
-      const entries = await listEntries(db, eventId);
+      const entries = await listEntriesForImport(db, eventId);
       return c.json(planImport(input.rows, input.applicationSource, entries), 200);
     })
     .openapi(routes.runImport, async (c) => {
@@ -647,7 +660,7 @@ export function bookingRoutes(deps: DomainRouteDeps) {
         const plan = planImport(
           input.rows,
           input.applicationSource,
-          await listEntries(tx, eventId),
+          await listEntriesForImport(tx, eventId),
         );
         await insertEntries(
           tx,

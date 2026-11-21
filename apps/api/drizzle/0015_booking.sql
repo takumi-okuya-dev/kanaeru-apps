@@ -19,6 +19,7 @@ CREATE TABLE "booking_entry" (
 	"memo" text,
 	"account_id" uuid,
 	"checkin_id" uuid,
+	"merged_into_id" uuid,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "booking_entry_application_source_check" CHECK ("booking_entry"."application_source" in ('connpass', 'peatix', 'direct', 'other')),
@@ -53,6 +54,7 @@ ALTER TABLE "booking_entry" ADD CONSTRAINT "booking_entry_event_id_event_id_fk" 
 ALTER TABLE "booking_entry" ADD CONSTRAINT "booking_entry_entered_by_account_id_fk" FOREIGN KEY ("entered_by") REFERENCES "public"."account"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "booking_entry" ADD CONSTRAINT "booking_entry_account_id_account_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."account"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "booking_entry" ADD CONSTRAINT "booking_entry_checkin_id_checkin_id_fk" FOREIGN KEY ("checkin_id") REFERENCES "public"."checkin"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "booking_entry" ADD CONSTRAINT "booking_entry_merged_into_id_booking_entry_id_fk" FOREIGN KEY ("merged_into_id") REFERENCES "public"."booking_entry"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "booking_import_mapping" ADD CONSTRAINT "booking_import_mapping_owner_account_id_account_id_fk" FOREIGN KEY ("owner_account_id") REFERENCES "public"."account"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "booking_setting" ADD CONSTRAINT "booking_setting_event_id_event_id_fk" FOREIGN KEY ("event_id") REFERENCES "public"."event"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "booking_dismissal_checkin_id_entry_id_unique" ON "booking_dismissal" USING btree ("checkin_id","entry_id");--> statement-breakpoint
@@ -62,6 +64,7 @@ CREATE INDEX "booking_dismissal_dismissed_by_idx" ON "booking_dismissal" USING b
 CREATE INDEX "booking_entry_event_id_applied_at_idx" ON "booking_entry" USING btree ("event_id","applied_at");--> statement-breakpoint
 CREATE INDEX "booking_entry_entered_by_idx" ON "booking_entry" USING btree ("entered_by");--> statement-breakpoint
 CREATE INDEX "booking_entry_account_id_idx" ON "booking_entry" USING btree ("account_id");--> statement-breakpoint
+CREATE INDEX "booking_entry_merged_into_id_idx" ON "booking_entry" USING btree ("merged_into_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "booking_entry_checkin_id_unique" ON "booking_entry" USING btree ("checkin_id") WHERE "booking_entry"."checkin_id" is not null;--> statement-breakpoint
 CREATE UNIQUE INDEX "booking_entry_event_id_account_id_unique" ON "booking_entry" USING btree ("event_id","account_id") WHERE "booking_entry"."account_id" is not null;--> statement-breakpoint
 CREATE UNIQUE INDEX "booking_import_mapping_owner_account_id_header_key_unique" ON "booking_import_mapping" USING btree ("owner_account_id","header_key");

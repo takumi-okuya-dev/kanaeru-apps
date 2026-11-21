@@ -81,6 +81,24 @@ export function greetingText(holderName: string, linkUrl: string): string {
 }
 
 /**
+ * 紐づけたことの知らせ（紐づけたその LINE に送る。リンクを他人に渡されて、別の人のアカウントと紐づいたときに気づけるように）。
+ * @param holderName 公式アカウントの持ち主の名前
+ * @param accountName 紐づけた kanaeru のアカウントの表示名
+ * @returns 文
+ */
+export function linkedNoticeText(holderName: string, accountName: string): string {
+  return clamp(
+    [
+      `kanaeru の${accountName || "名前のない"}さんのアカウントと紐づきました。${holderName}の交流会の予約の知らせが、この LINE に届きます。`,
+      "",
+      "心当たりがなければ、このアカウントをブロックしてください（ブロックすると紐づけは外れます）。",
+      "",
+      "（kanaeru）",
+    ].join("\n"),
+  );
+}
+
+/**
  * 設定の画面の確かめのメッセージ。
  * @param holderName 公式アカウントの持ち主の名前
  * @returns 文

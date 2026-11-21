@@ -93,7 +93,7 @@ flowchart TB
 | ファイル | 中身 |
 |---|---|
 | `guard.ts` | 守りの判定 `decideDelivery`（`off` は送らない・`allowlist` は許可リストの宛先だけ〈メールアドレスは大小を見ない〉・`on` は送る） |
-| `line-client.ts` | LINE の Messaging API の push・reply・ボット情報（宛先は `https://api.line.me` だけ・5秒で切る・push に送り直しの鍵）。トークン・宛先・本文をログに出さない |
+| `line-client.ts` | LINE の Messaging API の push・reply・ボット情報（ベーシック ID と userId）・友だちの表示名（プロフィール。ユーザー ID の形を確かめてから道に入れる）（宛先は `https://api.line.me` だけ・5秒で切る・push に送り直しの鍵）。トークン・宛先・本文をログに出さない |
 | `signature.ts` | LINE の Webhook の署名の確かめ `verifyLineSignature`（HMAC-SHA256 の base64 を `timingSafeEqual` で比べる） |
 | `email.ts` | メールの送り手の差しこみ口 `EmailSender`（送信のサービスは決まっていない。決めたら送り手を1つ足し、組み立てで渡す） |
 | `fake.ts` | 偽の送り手（送ったものを新しい順に50件まで覚える。ログには手段と文字数だけ） |
@@ -130,7 +130,7 @@ sequenceDiagram
   Note over B: main.tsx が initLiff() を待ってからルーターを作る
   B->>V: POST /api/v1/…（同じ源）
   V->>A: /api（本番は同じ API の中。手元は Vite が中継）
-  Note over A: 要求の ID → 守りの見出し → 要求ごとのログ1行<br/>→ 源の確かめ（Origin が画面の源と違えば 403）<br/>→ 本文の大きさ（100KB まで）→ 回数の制限（書く操作。IP ごと・IPv6 は /64 ごと）
+  Note over A: 要求の ID → 守りの見出し → 要求ごとのログ1行<br/>→ 源の確かめ（Origin が画面の源と違えば 403）<br/>→ 本文の大きさ（100KB まで）→ 回数の制限（書く操作。IP ごと・IPv6 は /64 ごと。領域の Webhook の道は数えず、領域が署名のあとに設定ごとに数える）
   Note over A: アプリに属する領域の道は、組み立てが付けた suite の requireApp が<br/>app_setting の公開の状態を引く（見えなければ 404。運営者だけのアプリのときだけセッションも引く）
   Note over A: ログインが要る道は account の requireSession が<br/>クッキーの札の SHA-256 で session を引く（なければ 401 UNAUTHENTICATED）
   Note over A: 交流会ごとの権限が要る道は event の requireEventRole が<br/>event と event_staff を引く（ない交流会は 404・役目が合わなければ 403）

@@ -71,6 +71,13 @@ export const BOOKING_ERRORS = {
     message:
       "アクセストークンが合いません。LINE Developers の Messaging API の画面で発行した「チャネルアクセストークン（長期）」を貼り直してください。",
   },
+  /** 同じチャネル ID が、ほかの持ち主の設定に入っている（booking-002 research R10） */
+  LINE_CHANNEL_TAKEN: {
+    code: "BOOKING_LINE_CHANNEL_TAKEN",
+    status: 409,
+    message:
+      "この公式アカウント（チャネル ID）は、ほかの組織か人の設定で使われています。1つの公式アカウントは1つの設定にだけ入れられます。",
+  },
   /** ボット情報を読めなかった（LINE に届かない） */
   LINE_UNREACHABLE: {
     code: "BOOKING_LINE_UNREACHABLE",
@@ -104,6 +111,13 @@ export const BOOKING_ERRORS = {
     status: 409,
     message:
       "このリンクは使い終わっています。紐づけ直すときは、公式アカウントをいったんブロックしてから友だち追加し直してください。",
+  },
+  /** 2つの行がどちらもチェックインに当たっているのに、まとめようとした（research R7） */
+  MERGE_BOTH_MATCHED: {
+    code: "BOOKING_MERGE_BOTH_MATCHED",
+    status: 409,
+    message:
+      "2人とも来ています。別の人ではありませんか。同じ人なら、先に片方の当てを外してからまとめてください。",
   },
 } as const;
 
