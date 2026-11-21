@@ -50,7 +50,7 @@
 
 ## R6. 列の対応を覚える【仮決め】
 
-**決めたこと**：`booking_import_mapping`（`owner_account_id`・`header_key`・`name_column`・`application_source`）。持ち主は**交流会の持ち主**（PRD「持ち主ごとに覚える」。組織の編集者が取り込んでも、交流会の持ち主の対応として覚える）。`header_key` は見出しの並びを JSON の文字にしたもの（`JSON.stringify(headers)`）で、`(owner_account_id, header_key)` で一意。取り込むときに `mapping`（見出しと選んだ列）を一緒に送ると、上書きで覚える。画面は `GET …/import-mappings` で持ち主の対応をまとめて読み、同じ見出しの並びのものを選んでおく。見出しは50列まで・1つ100文字まで。これを超える CSV は、画面が `mapping` を送らずに名前だけで取り込む（覚えないだけで、取り込みは止めない。`importMappingFits`）。
+**決めたこと**：`booking_import_mapping`（`owner_account_id`・`header_key`・`name_column`・`application_source`）。持ち主は**交流会の持ち主**（PRD「持ち主ごとに覚える」。組織の編集者が取り込んでも、交流会の持ち主の対応として覚える）。`header_key` は見出しの並びを JSON の文字にしたもの（`JSON.stringify(headers)`）。一意は `(owner_account_id, header_digest)`（`header_digest` は `header_key` の UTF-8 の SHA-256 の16進。見出しの並びは最大で15KBほどになり、B-tree の索引の1行の上限〈約 2.7KB〉を超えうるため。DB の変更 0020 で `header_key` の索引から移した【Codex のレビューで直した】）。取り込むときに `mapping`（見出しと選んだ列）を一緒に送ると、上書きで覚える。画面は `GET …/import-mappings` で持ち主の対応をまとめて読み、同じ見出しの並びのものを選んでおく。見出しは50列まで・1つ100文字まで。これを超える CSV は、画面が `mapping` を送らずに名前だけで取り込む（覚えないだけで、取り込みは止めない。`importMappingFits`）。
 
 **理由**：見出し（フォームの設問の名前・掲載サイトの列の名前）は参加者の個人の情報ではないので、そのまま持ってよい。ハッシュにすると画面で同じかを比べにくい。
 
