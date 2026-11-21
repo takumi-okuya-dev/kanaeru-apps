@@ -1,8 +1,8 @@
 // LINE の Messaging API の HTTP の呼び方（push・reply・ボット情報）。宛先は決まった https://api.line.me だけで、
-// 利用者の入れた値を URL に入れない（SSRF を起こさない）。外へは渡された fetch で出る（テストでは差しかえ、手元とテストは呼ばない）。
+// 利用者の入れた値を URL に入れない（SSRF を起こさない。プロフィールの道の LINE のユーザー ID は、形を確かめてから入れる）。外へは渡された fetch で出る（テストでは差しかえ、手元とテストは呼ばない）。
 // トークン・宛先・本文をログに出さない（失敗のときも状態の番号だけ）。5秒で切る。
 import { randomUUID } from "node:crypto";
-import type { LineBotInfoResult } from "../../kernel/notifier.ts";
+import type { LineBotInfoResult, LineProfileResult } from "../../kernel/notifier.ts";
 import type { Logger } from "../../kernel/logger.ts";
 
 /** LINE の Messaging API の宛先。 */
@@ -35,7 +35,17 @@ export type LineClient = {
    * @returns 結果
    */
   botInfo(accessToken: string): Promise<LineBotInfoResult>;
+  /**
+   * 友だちの表示名を読む。
+   * @param accessToken チャネルアクセストークン
+   * @param userId LINE のユーザー ID（U と16進の32文字）
+   * @returns 結果
+   */
+  profile(accessToken: string, userId: string): Promise<LineProfileResult>;
 };
+
+/** LINE のユーザー ID の形（公式アカウントから見えるもの）。 */
+const LINE_USER_ID = /^U[0-9a-f]{32}$/;
 
 /**
  * LINE の HTTP の道具を作る。
@@ -104,14 +114,44 @@ export function createLineClient(fetch: typeof globalThis.fetch, logger: Logger)
           logger.warn({ status: response.status }, "LINE のボット情報を読めませんでした");
           return { ok: false, reason: "unreachable" };
         }
-        const info = (await response.json()) as { basicId?: unknown };
-        return { ok: true, basicId: typeof info.basicId === "string" ? info.basicId : null };
+        const info = (await response.json()) as { basicId?: unknown; userId?: unknown };
+        return {
+          ok: true,
+          basicId: typeof info.basicId === "string" ? info.basicId : null,
+          userId: typeof info.userId === "string" ? info.userId : null,
+        };
       } catch (error) {
         logger.warn(
           { errorName: error instanceof Error ? error.name : "unknown" },
           "LINE のボット情報に届きませんでした",
         );
         return { ok: false, reason: "unreachable" };
+      }
+    },
+    async profile(accessToken, userId) {
+      if (!LINE_USER_ID.test(userId)) return { ok: false };
+      try {
+        const response = await fetch(
+          `${LINE_API_BASE_URL}/v2/bot/profile/${encodeURIComponent(userId)}`,
+          {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            signal: AbortSignal.timeout(LINE_TIMEOUT_MS),
+          },
+        );
+        if (!response.ok) {
+          logger.warn({ status: response.status }, "LINE のプロフィールを読めませんでした");
+          return { ok: false };
+        }
+        const profile = (await response.json()) as { displayName?: unknown };
+        return typeof profile.displayName === "string" && profile.displayName !== ""
+          ? { ok: true, displayName: profile.displayName }
+          : { ok: false };
+      } catch (error) {
+        logger.warn(
+          { errorName: error instanceof Error ? error.name : "unknown" },
+          "LINE のプロフィールに届きませんでした",
+        );
+        return { ok: false };
       }
     },
   };

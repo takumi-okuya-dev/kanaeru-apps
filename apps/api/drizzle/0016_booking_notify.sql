@@ -20,6 +20,7 @@ CREATE TABLE "booking_line_channel" (
 	"access_token_key_version" smallint,
 	"access_token_tail" text,
 	"basic_id" text,
+	"bot_user_id" text,
 	"reply_to_email" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -74,6 +75,7 @@ ALTER TABLE "booking_notice" ADD CONSTRAINT "booking_notice_entry_id_booking_ent
 ALTER TABLE "booking_notice" ADD CONSTRAINT "booking_notice_channel_id_booking_line_channel_id_fk" FOREIGN KEY ("channel_id") REFERENCES "public"."booking_line_channel"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "booking_line_channel_holder_account_id_unique" ON "booking_line_channel" USING btree ("holder_account_id") WHERE "booking_line_channel"."holder_account_id" is not null;--> statement-breakpoint
 CREATE UNIQUE INDEX "booking_line_channel_holder_organization_id_unique" ON "booking_line_channel" USING btree ("holder_organization_id") WHERE "booking_line_channel"."holder_organization_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "booking_line_channel_line_channel_id_unique" ON "booking_line_channel" USING btree ("line_channel_id") WHERE "booking_line_channel"."line_channel_id" is not null;--> statement-breakpoint
 CREATE UNIQUE INDEX "booking_line_link_channel_id_account_id_unique" ON "booking_line_link" USING btree ("channel_id","account_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "booking_line_link_channel_id_line_user_id_unique" ON "booking_line_link" USING btree ("channel_id","line_user_id");--> statement-breakpoint
 CREATE INDEX "booking_line_link_account_id_idx" ON "booking_line_link" USING btree ("account_id");--> statement-breakpoint

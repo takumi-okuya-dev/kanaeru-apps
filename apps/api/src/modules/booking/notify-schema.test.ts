@@ -109,6 +109,22 @@ describe("予約の知らせの表", () => {
     ).rejects.toThrow(/booking_line_channel_line_check/);
   });
 
+  it("同じ公式アカウント（チャネル ID）は1つの設定にしか入らない。ボットの userId は空でもよい", async () => {
+    const first = await insertChannel({ organizationId });
+    const second = await insertChannel({ accountId: ownerId });
+    await database.pool.query(SET_LINE_VALUES, [first]);
+    await expect(database.pool.query(SET_LINE_VALUES, [second])).rejects.toThrow(
+      /booking_line_channel_line_channel_id_unique/,
+    );
+    await database.pool.query(
+      `UPDATE booking_line_channel SET bot_user_id = 'U${"f".repeat(32)}' WHERE id = $1`,
+      [first],
+    );
+    // LINE の値のない行どうしは、いくつあってもよい
+    const other = await createOrganization(app, (await loginAs(app)).cookie);
+    await insertChannel({ organizationId: other });
+  });
+
   it("紐づけは設定ごとに、アカウント1つ・LINE の友だち1人に1つ。LINE のユーザー ID の形を確かめる", async () => {
     const channelId = await insertChannel({ organizationId });
     const participant = await loginAs(app);

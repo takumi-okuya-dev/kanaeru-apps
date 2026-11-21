@@ -101,6 +101,7 @@ export {
   IMPORT_HEADERS_MAX,
   IMPORT_HEADER_MAX,
   IMPORT_OUTCOMES,
+  importMappingFits,
   ImportMappingList,
   MATCH_STATES,
   MatchBoard,

@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   BOOKING_ROUTE_PATTERNS,
   BookingSettingInput,
+  IMPORT_HEADERS_MAX,
+  IMPORT_HEADER_MAX,
   ROSTER_IMPORT_ROWS_MAX,
   RosterEntryInput,
   RosterImportInput,
   bookingPaths,
+  importMappingFits,
 } from "./index.ts";
 
 /**
@@ -64,6 +67,27 @@ describe("予約の約束", () => {
         }),
       ),
     ).toEqual([["mapping.nameColumn", "名前の列が、見出しの中にありません。"]]);
+  });
+
+  it("列の対応を覚えられるのは、列の数と見出しの長さが上限の中で、名前の列が見出しにあるときだけ", () => {
+    expect(importMappingFits(["タイムスタンプ", "お名前"], "お名前")).toBe(true);
+    expect(importMappingFits(["タイムスタンプ", "お名前"], "氏名")).toBe(false);
+    const many = Array.from({ length: IMPORT_HEADERS_MAX + 1 }, (_, index) => `列${index}`);
+    expect(importMappingFits(many, "列0")).toBe(false);
+    const long = "あ".repeat(IMPORT_HEADER_MAX + 1);
+    expect(importMappingFits(["お名前", long], "お名前")).toBe(false);
+    // 上限ちょうどは覚えられ、約束の形も通る
+    const edge = Array.from({ length: IMPORT_HEADERS_MAX }, (_, index) =>
+      `${index}`.padEnd(IMPORT_HEADER_MAX, "x"),
+    );
+    expect(importMappingFits(edge, edge[0] ?? "")).toBe(true);
+    expect(
+      RosterImportInput.safeParse({
+        applicationSource: "other",
+        rows: [{ line: 2, name: "山田 花子" }],
+        mapping: { headers: edge, nameColumn: edge[0] },
+      }).success,
+    ).toBe(true);
   });
 
   it("道の形と、値を入れた道がそろう", () => {
