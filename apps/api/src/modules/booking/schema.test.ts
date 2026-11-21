@@ -1,5 +1,6 @@
 // 予約の表の結合のテスト（本物の PostgreSQL）：選択肢の CHECK と約束が食い違わない・当てたチェックインの一意・
-// 消し方（交流会を消すと名簿も消える・チェックインを消すと当てが外れる・入れた人を消すと空・本人を消すと申込みも消える）。
+// 消し方（交流会を消すと名簿も消える・チェックインを消すと当てが外れる・入れた人を消すと空・本人を消すと申込みも消える・
+// まとめた先が消えるとまとめた印が空に戻る）。
 // 窓口はまだないので、表に直に書いて確かめる（booking-001 の1つ目の PR）。
 import "@hono/zod-openapi";
 import { BOOKING_MODES, ENTRY_KINDS, ENTRY_STATUSES } from "@workspace/contracts/booking";
@@ -13,6 +14,14 @@ import { createEvent } from "../../../test/helpers/event.ts";
 import { checkIn } from "../../../test/helpers/reception.ts";
 
 const database = useTestDatabase();
+
+/** 名簿の行の、テストで読む列。 */
+type EntryColumns = {
+  status: string;
+  checkin_id: string | null;
+  entered_by: string | null;
+  merged_into_id: string | null;
+};
 
 describe("予約の表", () => {
   let app: TestApp;
@@ -66,14 +75,11 @@ describe("予約の表", () => {
    * @param id 行の ID
    * @returns 行（なければ undefined）
    */
-  async function readEntry(
-    id: string,
-  ): Promise<{ status: string; checkin_id: string | null; entered_by: string | null } | undefined> {
-    const result = await database.pool.query<{
-      status: string;
-      checkin_id: string | null;
-      entered_by: string | null;
-    }>("SELECT status, checkin_id, entered_by FROM booking_entry WHERE id = $1", [id]);
+  async function readEntry(id: string): Promise<EntryColumns | undefined> {
+    const result = await database.pool.query<EntryColumns>(
+      "SELECT status, checkin_id, entered_by, merged_into_id FROM booking_entry WHERE id = $1",
+      [id],
+    );
     return result.rows[0];
   }
 
@@ -150,6 +156,19 @@ describe("予約の表", () => {
 
     await database.pool.query("DELETE FROM account WHERE id = $1", [staff.account.id]);
     expect((await readEntry(matched))?.entered_by).toBeNull();
+  });
+
+  it("まとめた先の行が消えると、まとめられた行の印は空に戻る（行は残る）", async () => {
+    const participant = await loginAs(app);
+    const keep = await insertEntry({ account_id: participant.account.id });
+    const merged = await insertEntry();
+    await database.pool.query("UPDATE booking_entry SET merged_into_id = $1 WHERE id = $2", [
+      keep,
+      merged,
+    ]);
+    await database.pool.query("DELETE FROM account WHERE id = $1", [participant.account.id]);
+    expect(await readEntry(keep)).toBeUndefined();
+    expect((await readEntry(merged))?.merged_into_id).toBeNull();
   });
 
   it("本人のアカウントを消すと、その人の申込みも消える", async () => {

@@ -105,6 +105,13 @@ export const BOOKING_ERRORS = {
     message:
       "このリンクは使い終わっています。紐づけ直すときは、公式アカウントをいったんブロックしてから友だち追加し直してください。",
   },
+  /** 2つの行がどちらもチェックインに当たっているのに、まとめようとした（research R7） */
+  MERGE_BOTH_MATCHED: {
+    code: "BOOKING_MERGE_BOTH_MATCHED",
+    status: 409,
+    message:
+      "2人とも来ています。別の人ではありませんか。同じ人なら、先に片方の当てを外してからまとめてください。",
+  },
 } as const;
 
 /** 領域のエラーのキー。 */

@@ -1,5 +1,5 @@
 // 取り込み（貼る・CSV）の行ごとの結果を決める（純粋な関数。見積もりと取り込みで同じものを使う。booking-001 research R4）。
-// 「すでにある」：同じ交流会・入口が取り込み・同じ媒体の行（取り消しも数える）を、そろえた名前ごとに数え、その数まで。
+// 「すでにある」：同じ交流会・入口が取り込み・同じ媒体の行（取り消しも、まとめた行も数える）を、そろえた名前ごとに数え、その数まで。
 // 名前が空の行は入れない。入る行には、名簿（取り消しでない行）か同じ取り込みのほかの入る行に同じ名前があれば印を付ける。
 import type { ImportOutcome, RosterImportPreview } from "@workspace/contracts/booking";
 import type { ApplicationSource } from "@workspace/contracts/reception";
