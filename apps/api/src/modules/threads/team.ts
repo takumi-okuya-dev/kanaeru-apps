@@ -32,7 +32,7 @@ import type { OrganizationMembership } from "../suite/index.ts";
 import { allows, assignmentEffective } from "./access.ts";
 import type { AccountAccess } from "./access.ts";
 import { recordActivity } from "./activity-log.ts";
-import { getTeamStatus } from "./team-status.ts";
+import { countStoppedByTeam } from "./team-status.ts";
 import { DELETABLE_STATUSES, countDrafts } from "./repository.ts";
 import type { DraftCountsRecord, PostDraftRecord, ThreadsAccountRecord } from "./repository.ts";
 import {
@@ -715,15 +715,23 @@ export async function listVisibleTeams(
       )
       .groupBy(threadsOrganizationAccount.teamId);
     const countOf = new Map(counts.map((row) => [row.teamId, Number(row.n)]));
+    // 止まっている数は、要約を出すチーム（管理者はすべて・ほかはリーダーのチーム）の分をまとめて数える
+    const stopped = await countStoppedByTeam(
+      db,
+      membership.organizationId,
+      rows
+        .filter(
+          (row) =>
+            membership.role === "admin" ||
+            row.members.some((member) => member.accountId === viewerAccountId && member.leader),
+        )
+        .map((row) => ({ id: row.id, memberIds: row.members.map((member) => member.accountId) })),
+    );
     for (const row of rows) {
       const mine = row.members.find((member) => member.accountId === viewerAccountId);
       // 管理者とリーダー（チームの全部の運用状況を見る人）には、止まっている数を一覧の要約に出す（threads-020。ほかは null）
-      const scope = await teamStatusScopeOf(db, row.id, membership);
       const stoppedCount =
-        scope?.kind === "team"
-          ? (await getTeamStatus(db, membership.organizationId, viewerAccountId, scope))
-              .stoppedCount
-          : null;
+        membership.role === "admin" || mine?.leader ? (stopped.get(row.id) ?? 0) : null;
       teams.push({
         id: row.id,
         name: row.name,

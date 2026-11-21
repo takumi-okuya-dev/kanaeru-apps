@@ -339,7 +339,14 @@ function OwnerControls({ accountId, team }: { accountId: string; team: ThreadsAc
         title="チームを変える"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setChanging(false)}>
+            <Button
+              variant="secondary"
+              aria-disabled={pending || undefined}
+              onClick={() => {
+                // 保存の途中は閉じない（失敗したときの知らせを枠の中に出すため）
+                if (!pending) setChanging(false);
+              }}
+            >
               やめる
             </Button>
             <Button
