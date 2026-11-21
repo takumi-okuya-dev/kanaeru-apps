@@ -300,7 +300,12 @@ function PromptMaterials({ accountId, prompt }: PromptMaterialsProps) {
             <p>
               投稿のルール：{summary.coreRuleCount}行／NGワード：{summary.ngWordCount}個
             </p>
-            <Link to="/threads/accounts/$accountId/settings" params={params} className={linkClass}>
+            <Link
+              to="/threads/accounts/$accountId/settings"
+              params={params}
+              hash="threads-core-rules"
+              className={linkClass}
+            >
               設定で直す
             </Link>
           </div>

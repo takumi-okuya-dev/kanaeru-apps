@@ -46,6 +46,7 @@ export function TeamNotices() {
           <Link
             to="/threads/accounts/$accountId/settings"
             params={{ accountId: notice.threadsAccountId }}
+            hash="threads-connection"
             className="text-text-link underline"
           >
             Threads に接続し直してください
