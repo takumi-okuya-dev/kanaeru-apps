@@ -7,7 +7,7 @@ import { offlineStore } from "./offline/store.ts";
 const STORAGE_KEY = "kanaeru.match.deviceId";
 
 /** IndexedDB の鍵。 */
-const META_KEY = "deviceId";
+export const DEVICE_META_KEY = "deviceId";
 
 /** 端末の ID の形。 */
 const DEVICE_ID_PATTERN = /^d-[a-z0-9-]{8,60}$/u;
@@ -44,14 +44,14 @@ export async function syncDeviceId(): Promise<void> {
   try {
     const store = await offlineStore();
     if (!store.durable) return;
-    const saved = await store.readMeta<string>(META_KEY);
+    const saved = await store.readMeta<string>(DEVICE_META_KEY);
     const current = deviceId();
     if (saved && DEVICE_ID_PATTERN.test(saved) && saved !== current && current === createdNow) {
       window.localStorage.setItem(STORAGE_KEY, saved);
       createdNow = undefined;
       return;
     }
-    if (saved !== current) await store.writeMeta(META_KEY, current);
+    if (saved !== current) await store.writeMeta(DEVICE_META_KEY, current);
   } catch {
     // そろえられなくても、localStorage の ID で動く
   }

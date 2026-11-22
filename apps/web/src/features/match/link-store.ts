@@ -18,6 +18,25 @@ export type StoredLink = {
 /** 読めなかったときの、画面を開いている間だけの置き場所。 */
 const memory = new Map<string, StoredLink>();
 
+/** 置き場所の鍵の頭。 */
+const KEY_PREFIX = "kanaeru.match.link.";
+
+/**
+ * 端末に置いたすべての札を消す（今の利用者が替わったとき。前の人の共有のリンクを残さない）。
+ */
+export function clearAllLinks(): void {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i += 1) {
+      const key = window.localStorage.key(i);
+      if (key?.startsWith(KEY_PREFIX)) keys.push(key);
+    }
+    for (const key of keys) window.localStorage.removeItem(key);
+  } catch {
+    // localStorage が使えない（プライベートの画面など）なら、置いてもいないので何もしない
+  }
+}
+
 /**
  * 置き場所の鍵。
  * @param tableId 試合表の ID
@@ -25,7 +44,7 @@ const memory = new Map<string, StoredLink>();
  * @returns 鍵
  */
 function keyOf(tableId: string, kind: LinkKind): string {
-  return `kanaeru.match.link.${kind}.${tableId}`;
+  return `${KEY_PREFIX}${kind}.${tableId}`;
 }
 
 /**

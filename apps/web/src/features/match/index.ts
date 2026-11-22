@@ -2,6 +2,7 @@
 // routes は型を消さないよう、並びのまま出す（satisfies で形だけ確かめる）。
 import type { WebFeature } from "../../lib/feature.ts";
 import { useMatchNavItems } from "./nav-items.ts";
+import { registerAccountReset } from "./offline/account-reset.ts";
 import {
   matchBigRoute,
   matchBoardRoute,
@@ -14,6 +15,9 @@ import {
   matchViewLinkRoute,
   matchViewRoute,
 } from "./routes.ts";
+
+// 今の利用者が替わったら、端末に置いた前の人の試合表の写しを消す
+registerAccountReset();
 
 /**
  * 試合表の領域が出すもの。決まったナビ（nav）は出さない（はじめの画面〈/〉の行き先にしない）。
