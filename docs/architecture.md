@@ -1,6 +1,6 @@
 # 全体の形（アーキテクチャ）
 
-2026-11-18 作成（TypeScript の骨組み。`typescript` ブランチ）。2026-11-19 直した（core-001：見本の領域を消し、画面を API から返す形・LIFF の始め方・DB の夜間停止の 503・参加者の道と日本時間の関数・プロダクトの見た目の値を足した。account-001：アカウントとセッション・LINE のログイン・今の利用者の受け取り方を足した。event-001：交流会・受付係・招待・交流会ごとの権限・管理の画面の道とナビを足した。reception-001：チェックイン・一覧画面・合計と内訳・参加者の CSV と、選択肢のチップの部品を足した。survey-001：アンケートの回答・困りごとの一覧と CSV と、reception の差しこみの場所への節を足した。reception-002：交流会ごとの割引〈event〉と、チェックインの割引の写し・紹介者の名前〈reception〉を足した）。2026-11-20 直した（core-005：アプリの一覧と suite の台帳・組み立てが付ける `requireApp`・外枠のアプリの切り替えと設定・退会の窓口）。2026-11-20 直した（booking-002：知らせを送る道具 `platform/notify` と設定 `NOTIFY_MODE`・`NOTIFY_ALLOWLIST`）。2026-11-22 直した（core-013：試合表の道は LIFF を始めずに開く）。2026-11-22 直した（core-014：CSV を読む処理を画面の共通に移した）。
+2026-11-18 作成（TypeScript の骨組み。`typescript` ブランチ）。2026-11-19 直した（core-001：見本の領域を消し、画面を API から返す形・LIFF の始め方・DB の夜間停止の 503・参加者の道と日本時間の関数・プロダクトの見た目の値を足した。account-001：アカウントとセッション・LINE のログイン・今の利用者の受け取り方を足した。event-001：交流会・受付係・招待・交流会ごとの権限・管理の画面の道とナビを足した。reception-001：チェックイン・一覧画面・合計と内訳・参加者の CSV と、選択肢のチップの部品を足した。survey-001：アンケートの回答・困りごとの一覧と CSV と、reception の差しこみの場所への節を足した。reception-002：交流会ごとの割引〈event〉と、チェックインの割引の写し・紹介者の名前〈reception〉を足した）。2026-11-20 直した（core-005：アプリの一覧と suite の台帳・組み立てが付ける `requireApp`・外枠のアプリの切り替えと設定・退会の窓口）。2026-11-20 直した（booking-002：知らせを送る道具 `platform/notify` と設定 `NOTIFY_MODE`・`NOTIFY_ALLOWLIST`）。2026-11-22 直した（core-013：試合表の道は LIFF を始めずに開く）。2026-11-22 直した（core-014：CSV を読む処理を画面の共通に移した）。2026-11-22 直した（match-007：Service Worker の組み立てが public のファイルも名指しで持てるようにした）。
 
 今のシステムの形。選んだ技術の候補と目安は [技術選定の候補](./tech-selection.md)、守る決まりは [コードの書き方の決まり](./rules/coding.md) 6章。
 
@@ -141,7 +141,7 @@ sequenceDiagram
 ```
 
 - すべての応答に、要求の ID（`X-Request-Id`）と守りの見出し（HSTS は `WEB_URL` が https のときだけ）がつく。`/api`・`/api/…` は API の CSP（すべてを止める形）と `Cache-Control: no-store`。ほかの道は画面の CSP（自分の源と、LIFF の SDK が使う LINE の源だけ。`platform/web/web.ts` の `WEB_CSP_DIRECTIVES`）で、`/assets/` は長く持たせ、`index.html` は毎回確かめさせる。Permissions-Policy はカメラ・マイク・位置を止め、試合表の道（`/match`・`/match/…`）だけカメラを自分の源に許す（QR を読む。`CAMERA_PATH_PREFIXES`。core-015）。
-- 組み立て（`vite build`）は、試合表の道だけに効く Service Worker を `match/sw.js` に書き出す（`apps/web/scoped-service-worker.ts`。本文は試合表の領域の `features/match/offline/sw.js`、持つファイルは入口と試合表の画面の束だけ。範囲は置いたフォルダの `/match/` まで。AD-27。core-015）。
+- 組み立て（`vite build`）は、試合表の道だけに効く Service Worker を `match/sw.js` に書き出す（`apps/web/scoped-service-worker.ts`。本文は試合表の領域の `features/match/offline/sw.js`、持つファイルは入口と試合表の画面の束と、`publicFiles` で名指しした public のファイル〈試合表のホーム画面の manifest とアイコン `public/match/`。match-007〉だけ。範囲は置いたフォルダの `/match/` まで。AD-27。core-015）。
 - エラーは、どの窓口でも同じ形（`packages/contracts/src/core/errors.ts` の `ErrorBody`）。投げられたものの読みかえは `kernel/errors.ts` の `toAppError` の1か所：DB に届かない（拒否・時間切れ・止まっている。`kernel/pg-errors.ts` の `isDbUnavailable`）ときは、どの窓口でも `503`・`DB_UNAVAILABLE`（「夜間（0時〜8時）は止まっています。…」）。予期しないエラーは中身を出さず `INTERNAL`（ログにはエラーの名前と積み重ねと要求の ID だけ）。
 - `/api` の下の道は、すべて `createRoute` で書かれ、窓口の文書（`GET /api/openapi.json`。設定 `OPENAPI_DOC_ENABLED` のときだけ）に載る。文書に載らない道があると、API は起動しない。
 - 画面は、エラーの本文を `ApiError`（code・文・欄ごとの理由）に、応答がないときを `NetworkError` に読みかえる（`apps/web/src/lib/api.ts`）。401 は `onUnauthenticated` の受け手（account）に知らせ、account がセッションを読み直してログインし直す。

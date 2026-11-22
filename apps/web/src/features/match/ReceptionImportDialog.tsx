@@ -5,6 +5,7 @@
 //    LINE の表示名で姓と名の間に空白がないときは、頭の2字にして「確かめてほしい」の印）
 // 名前はこの画面にだけ出し、試合表には呼び名・レベルと、LINE でチェックイン・申込みした人の account だけを持つ（レベルを覚えるため）。
 // 後ろに足すときは、もう名簿にいる account の人は入れない。
+// 入れた交流会（名前と日時の写し）は中身に置き、名簿と設定・試合表の題の下と一覧に「受付：… から入れた」と出す（match-007）。
 import { ROSTER_MAX } from "@workspace/contracts/match";
 import type { MatchTable } from "@workspace/contracts/match";
 import { jstDate } from "@workspace/contracts/core";
@@ -91,7 +92,7 @@ export function ReceptionImportDialog({
 
   /** 名簿に入れる。 */
   const submit = () => {
-    if (people.length === 0 || !editor.isEditor) return;
+    if (!data || people.length === 0 || !editor.isEditor) return;
     const keep = importMode === "append" ? table.content.players.map((p) => p.nickname) : [];
     const named = assignNicknames(people.map(toReadPerson), keep);
     const base = importMode === "append" ? table.content.players.length : 0;
@@ -100,8 +101,10 @@ export function ReceptionImportDialog({
       return;
     }
     let fullNames = new Map<string, string>();
+    // どの交流会から入れたかを、名前と日時の写しと一緒に中身に置く（送ったときにサーバーが試合表とつなぐ。match-007）
+    const from = { eventId: data.event.id, name: data.event.name, startsAt: data.event.startsAt };
     const applied = editor.apply((draft) => {
-      const imported = importPeople(draft.content, named, importMode);
+      const imported = importPeople(draft.content, named, importMode, from);
       fullNames = imported.fullNames;
       return { ...draft, content: imported.content };
     });

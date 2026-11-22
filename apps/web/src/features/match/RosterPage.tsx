@@ -60,6 +60,7 @@ import type { ImportMode } from "./roster-edit.ts";
 import { assignNicknames, readRoster } from "./roster-read.ts";
 import type { RosterReadResult } from "./roster-read.ts";
 import { ReceptionImportDialog } from "./ReceptionImportDialog.tsx";
+import { ReceptionEventNote } from "./ReceptionEventNote.tsx";
 import { EditorState, TableFrame } from "./TableFrame.tsx";
 import type { TableEditor } from "./table-editor.ts";
 
@@ -803,6 +804,7 @@ function RosterBody({ table, editor }: BodyProps) {
   ).join("・");
   return (
     <Page title={table.name} lead={formatPlayDate(table.playDate)}>
+      <ReceptionEventNote source={table.content.receptionEvent} link={table.receptionEvent} />
       <EditorState editor={editor} />
       <section aria-labelledby="match-roster" className="flex flex-col gap-xs">
         <div className="flex flex-wrap items-center justify-between gap-xxs">

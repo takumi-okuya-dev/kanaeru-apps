@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- kanaeru 試合表のアイコン・maskable（match-007）。icon.svg と同じ絵を 0.86 倍にして、安全な円（直径 80%）の中に収める
+       （地の墨は端まで塗る。端末が丸や角丸に切り抜いても、表は欠けない）。PNG は e2e/scripts/render-match-icons.ts で作る -->
+  <rect width="512" height="512" fill="#3b3833"/>
+  <g transform="translate(256 256) scale(0.86) translate(-256 -256)">
+    <rect x="88" y="108" width="336" height="296" rx="36" fill="#ffffff"/>
+    <g fill="#c1bdb7">
+      <rect x="120" y="154" width="56" height="36" rx="8"/>
+      <rect x="188" y="154" width="56" height="36" rx="8"/>
+      <rect x="268" y="154" width="56" height="36" rx="8"/>
+      <rect x="336" y="154" width="56" height="36" rx="8"/>
+      <rect x="120" y="266" width="56" height="36" rx="8"/>
+      <rect x="188" y="266" width="56" height="36" rx="8"/>
+      <rect x="268" y="266" width="56" height="36" rx="8"/>
+      <rect x="336" y="266" width="56" height="36" rx="8"/>
+      <rect x="120" y="322" width="56" height="36" rx="8"/>
+      <rect x="188" y="322" width="56" height="36" rx="8"/>
+      <rect x="268" y="322" width="56" height="36" rx="8"/>
+      <rect x="336" y="322" width="56" height="36" rx="8"/>
+    </g>
+    <g fill="#3b3833">
+      <rect x="120" y="210" width="56" height="36" rx="8"/>
+      <rect x="188" y="210" width="56" height="36" rx="8"/>
+      <rect x="268" y="210" width="56" height="36" rx="8"/>
+      <rect x="336" y="210" width="56" height="36" rx="8"/>
+    </g>
+  </g>
+</svg>

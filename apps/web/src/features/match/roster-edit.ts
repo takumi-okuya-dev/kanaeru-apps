@@ -2,7 +2,12 @@
 // 氏名は名簿の中身に入れない（呼び名とレベルと当日の印だけ。Constitution II）。氏名は、貼った画面を開いている間だけ
 // ID と結んで見せる（呼び出す側が持つ）。
 import { MATCH_LEVELS, ROSTER_MAX } from "@workspace/contracts/match";
-import type { MatchLevel, MatchPlayer, MatchTableContent } from "@workspace/contracts/match";
+import type {
+  MatchLevel,
+  MatchPlayer,
+  MatchReceptionSource,
+  MatchTableContent,
+} from "@workspace/contracts/match";
 import type { NamedPerson } from "./roster-read.ts";
 
 /**
@@ -32,15 +37,19 @@ export type ImportResult = {
 
 /**
  * 読んだ人を名簿に入れる（置きかえるときは今の名簿と組み合わせを消す。人数の上限を超える人は入れない）。
+ * 名簿を入れた受付の交流会（中身の receptionEvent。match-007）は、受付の交流会から入れたら（置きかえても足しても）その交流会に
+ * 置きかえ、フォームの貼り付け・CSV で置きかえたら外し、貼り付けで足しただけなら残す【仮決め】。
  * @param content 今の中身
  * @param people 呼び名を作った人
  * @param mode 入れ方
+ * @param from 受付の交流会から入れたときの、その交流会（名前と日時の写し）
  * @returns 新しい中身と、入れた人の氏名
  */
 export function importPeople(
   content: MatchTableContent,
   people: readonly NamedPerson[],
   mode: ImportMode,
+  from?: MatchReceptionSource,
 ): ImportResult {
   const base = mode === "replace" ? [] : content.players;
   const taken = new Set(base.map((player) => player.id));
@@ -59,11 +68,14 @@ export function importPeople(
       ...(person.accountId ? { accountId: person.accountId } : {}),
     });
   }
+  const { receptionEvent: before, ...rest } = content;
+  const receptionEvent = from ?? (mode === "replace" ? undefined : before);
   return {
     content: {
-      ...content,
+      ...rest,
       players: [...base, ...added],
       plan: mode === "replace" ? [] : content.plan,
+      ...(receptionEvent ? { receptionEvent } : {}),
     },
     fullNames,
   };

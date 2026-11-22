@@ -5,18 +5,25 @@
 // 直すのは担当の端末だけで、もとの版が今の版と同じときだけ受けて版を1つ上げる。同じ変更の ID の送り直しは前と同じ答えを返す（AD-28）。
 // 中身は約束（MatchTableContent）で確かめて持つだけで、組み合わせを計算し直さない（AD-28・AD-29）。呼び名はログに出さない。
 // 中身を受けたとき、account のある人（受付の交流会から入れた人）のレベルが入った・変わったら覚える（level-memory.ts。match-006）。
+// 中身の写し（receptionEvent）の交流会が変わったら、入れてよい交流会のときだけ match_table.event_id につなぐ（入れてよくなければ
+// 外す。送りは止めない）。一覧と試合表には、名簿を入れた受付の交流会の見せ方を付ける（reception-link.ts。match-007）。
 import { randomInt } from "node:crypto";
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import * as contract from "@workspace/contracts/match";
-import { MATCH_ERRORS } from "@workspace/contracts/match";
+import { MATCH_ERRORS, MatchReceptionSource } from "@workspace/contracts/match";
+import type { Tx } from "../../kernel/db.ts";
 import { AppError, domainErrorResponse } from "../../kernel/errors.ts";
 import { invalidInputResponse, uuidParam } from "../../kernel/http.ts";
 import type { ApiEnv, DomainRouteDeps } from "../../kernel/http.ts";
 import { isForeignKeyViolation } from "../../kernel/pg-errors.ts";
 import { currentAccount, requireSession, unauthenticatedResponse } from "../account/index.ts";
+import type { SessionAccount } from "../account/index.ts";
 import { findMembership, listMemberships } from "../suite/index.ts";
 import { requireTableAccess } from "./access.ts";
+import type { TableAccess } from "./access.ts";
 import { holderOf, levelChanges, rememberLevels } from "./level-memory.ts";
+import { canImportEvent, resolveReceptionLinks } from "./reception-link.ts";
+import type { ReceptionLinkRow } from "./reception-link.ts";
 import {
   deleteExpiredTables,
   deleteTable,
@@ -25,8 +32,10 @@ import {
   readTable,
   readTableState,
   setEditorDevice,
+  setLinkedEvent,
   writeContent,
 } from "./repository.ts";
+import type { WithReceptionLink } from "./repository.ts";
 
 /** 試合表の一覧（文書の名前つき）。 */
 const MatchTableList = contract.MatchTableList.openapi("MatchTableList");
@@ -189,6 +198,20 @@ function defineRoutes(deps: DomainRouteDeps) {
 }
 
 /**
+ * 行から見せ方を決める前の欄（中身の写し・つないだ交流会）を外し、見せ方（receptionEvent）を付ける。
+ * @param row 行
+ * @param receptionEvent 見せ方
+ * @returns 答えの行
+ */
+function withLink<T extends ReceptionLinkRow>(
+  row: T,
+  receptionEvent: contract.MatchReceptionEventLink | null,
+): Omit<T, keyof ReceptionLinkRow> & { receptionEvent: contract.MatchReceptionEventLink | null } {
+  const { source: _source, linkedEventId: _linkedEventId, ...rest } = row;
+  return { ...rest, receptionEvent };
+}
+
+/**
  * 試合表の窓口。戻り値の型は書かない（書くと画面に渡す型が消える）。
  * @param deps 土台が渡す道具
  * @returns 道
@@ -197,11 +220,66 @@ export function matchRoutes(deps: DomainRouteDeps) {
   const { db } = deps;
   const routes = defineRoutes(deps);
 
+  /**
+   * 試合表を読み、名簿を入れた受付の交流会の見せ方を付ける。
+   * @param access 権限を確かめた試合表
+   * @param account 今の利用者
+   * @returns 試合表
+   */
+  const tableFor = async (access: TableAccess, account: SessionAccount) => {
+    const row: WithReceptionLink<contract.MatchTable> = await readTable(
+      db,
+      access,
+      account.accountId,
+    );
+    const [link] = await resolveReceptionLinks(db, deps.config, account, [row]);
+    return withLink(row, link ?? null);
+  };
+
+  /**
+   * 中身の写しの交流会が前の中身の写しと変わったら（入れた・入れ直した・外した）、つなぎ直す（入れてよい交流会のときだけ
+   * つなぎ、ほかは外す。入れてよくなくても送りは止めない。写しは中身に残り、画面は「交流会は見られません」と出す）。
+   * 写しが変わらない送り（ふだんの直し）では確かめない（つなげなかった写しを、あとでほかの人の送りでつながない）。
+   * 確かめてから書くまでに交流会が消えたら、外部キーで止まるので、区切りの中で書いて外す。
+   * @param tx DB（トランザクション）
+   * @param access 権限を確かめた試合表
+   * @param account 今の利用者
+   * @param before 前の中身（形を確かめる前の DB の値）
+   * @param content 受けた中身
+   */
+  const relinkEvent = async (
+    tx: Tx,
+    access: TableAccess,
+    account: SessionAccount,
+    before: unknown,
+    content: contract.MatchTableContent,
+  ) => {
+    const eventId = content.receptionEvent?.eventId ?? null;
+    const previous = MatchReceptionSource.safeParse(
+      typeof before === "object" && before !== null && "receptionEvent" in before
+        ? before.receptionEvent
+        : undefined,
+    );
+    if (eventId === (previous.success ? previous.data.eventId : null)) return;
+    const allowed =
+      eventId !== null && (await canImportEvent(tx, deps.config, account, eventId, access));
+    try {
+      await tx.transaction((savepoint) =>
+        setLinkedEvent(savepoint, access.tableId, allowed ? eventId : null),
+      );
+    } catch (error) {
+      if (!isForeignKeyViolation(error)) throw error;
+      await setLinkedEvent(tx, access.tableId, null);
+    }
+  };
+
   return new OpenAPIHono<ApiEnv>()
     .openapi(routes.list, async (c) => {
-      const { accountId } = currentAccount(c);
-      await deleteExpiredTables(db, accountId);
-      return c.json({ tables: await listTables(db, accountId) }, 200);
+      const account = currentAccount(c);
+      await deleteExpiredTables(db, account.accountId);
+      const rows = await listTables(db, account.accountId);
+      const links = await resolveReceptionLinks(db, deps.config, account, rows);
+      return c.json({ tables: rows.map((row, index) => withLink(row, links[index] ?? null)) }, 200);
     })
     .openapi(routes.create, async (c) => {
       const { accountId } = currentAccount(c);
@@ -228,7 +306,7 @@ export function matchRoutes(deps: DomainRouteDeps) {
           throw error;
         });
       const access = await requireTableAccess(db, tableId, accountId);
-      return c.json(await readTable(db, access, accountId), 201);
+      return c.json(await tableFor(access, currentAccount(c)), 201);
     })
     .openapi(routes.organizations, async (c) => {
       const memberships = await listMemberships(db, currentAccount(c).accountId);
@@ -243,16 +321,16 @@ export function matchRoutes(deps: DomainRouteDeps) {
       );
     })
     .openapi(routes.get, async (c) => {
-      const { accountId } = currentAccount(c);
-      const access = await requireTableAccess(db, c.req.valid("param").tableId, accountId);
-      return c.json(await readTable(db, access, accountId), 200);
+      const account = currentAccount(c);
+      const access = await requireTableAccess(db, c.req.valid("param").tableId, account.accountId);
+      return c.json(await tableFor(access, account), 200);
     })
     .openapi(routes.update, async (c) => {
-      const { accountId } = currentAccount(c);
+      const account = currentAccount(c);
       const { tableId } = c.req.valid("param");
       const input = c.req.valid("json");
       const access = await db.transaction(async (tx) => {
-        const locked = await requireTableAccess(tx, tableId, accountId, true);
+        const locked = await requireTableAccess(tx, tableId, account.accountId, true);
         const state = await readTableState(tx, tableId);
         if (!state) throw new AppError(MATCH_ERRORS.NOT_FOUND);
         // 受けたのに答えが届かなかった送りの送り直し：書かずに今の試合表を返す（AD-28）
@@ -269,16 +347,18 @@ export function matchRoutes(deps: DomainRouteDeps) {
         });
         // account のある人のレベルを入れた・変えたら覚える（同じ運営の次の試合表で使う。AD-25・match-006）
         await rememberLevels(tx, holderOf(locked), levelChanges(state.content, input.content));
+        // 名簿を入れた受付の交流会が変わったら、つなぎ直す（match-007）
+        await relinkEvent(tx, locked, account, state.content, input.content);
         return locked;
       });
-      return c.json(await readTable(db, access, accountId), 200);
+      return c.json(await tableFor(access, account), 200);
     })
     .openapi(routes.takeEditor, async (c) => {
-      const { accountId } = currentAccount(c);
+      const account = currentAccount(c);
       const { tableId } = c.req.valid("param");
-      const access = await requireTableAccess(db, tableId, accountId);
+      const access = await requireTableAccess(db, tableId, account.accountId);
       await setEditorDevice(db, tableId, c.req.valid("json").deviceId);
-      return c.json(await readTable(db, access, accountId), 200);
+      return c.json(await tableFor(access, account), 200);
     })
     .openapi(routes.remove, async (c) => {
       const { accountId } = currentAccount(c);

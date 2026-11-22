@@ -1,5 +1,5 @@
 // 試合表の一覧を端末にも置く（電波がない・サーバーが答えないときは、最後に読んだ一覧を出す。match-005）。
-// 一覧に入るのは名前・試合の日・組織の名前だけ（呼び名・名簿は入らない）。
+// 一覧に入るのは名前・試合の日・組織の名前・名簿を入れた受付の交流会の名前と日時だけ（呼び名・名簿は入らない）。
 import type { MatchTableList } from "@workspace/contracts/match";
 import { ApiError, NetworkError } from "../../../lib/api.ts";
 import { fetchTables } from "../api.ts";

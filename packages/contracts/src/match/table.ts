@@ -149,6 +149,27 @@ export const MatchSettings = z
 /** 設定の型。 */
 export type MatchSettings = z.infer<typeof MatchSettings>;
 
+/** 名簿を入れた受付の交流会の名前の文字数の上限（交流会の名前の上限〈100文字〉より大きくとる。入れたときの写しなので）。 */
+export const RECEPTION_EVENT_NAME_MAX = 200;
+
+/**
+ * 名簿を入れた受付の交流会（入れたときの名前と日時の写し。match-007）。
+ * 受付の交流会から名簿を入れたときに担当の端末が書き、別の交流会から入れ直すと置きかわり、フォームの貼り付けで名簿を
+ * 置きかえると外れる。交流会があとで消えても・見られなくなっても、写しで「どこから入れたか」を運営の画面に出す。
+ * 見るだけのページ・電波なしで渡す QR には出さない（AD-26）。
+ */
+export const MatchReceptionSource = z.strictObject({
+  /** 交流会の ID（サーバーが返す小文字の形だけ。DB の uuid と文字で比べるため） */
+  eventId: z.guid().regex(/^[0-9a-f-]+$/u),
+  /** 入れたときの交流会の名前 */
+  name: z.string().min(1).max(RECEPTION_EVENT_NAME_MAX),
+  /** 入れたときの交流会の始まりの日時 */
+  startsAt: isoDateTime,
+});
+
+/** 名簿を入れた受付の交流会の型。 */
+export type MatchReceptionSource = z.infer<typeof MatchReceptionSource>;
+
 /** 試合表の中身（名簿・組み合わせ・進み具合・設定）。 */
 export const MatchTableContent = z
   .strictObject({
@@ -162,6 +183,8 @@ export const MatchTableContent = z
     plan: z.array(MatchGroupPlan).max(MATCH_GROUP_KEYS.length),
     /** 前の分け方・試合の形で終わった試合（組の key ごとに1つ。なければ持たない。match-003） */
     archive: z.array(MatchArchivedGroup).max(MATCH_GROUP_KEYS.length).optional(),
+    /** 名簿を入れた受付の交流会（入れたときの写し。受付の交流会から入れていなければ持たない。match-007） */
+    receptionEvent: MatchReceptionSource.optional(),
   })
   .superRefine((content, context) => {
     const ids = new Set<string>();
@@ -263,6 +286,27 @@ export const MatchOrganization = z.object({
   name: z.string(),
 });
 
+/**
+ * 名簿を入れた受付の交流会（運営の画面の一覧と題の下に「受付：… から入れた」と出す。match-007）。
+ * 名前と日時は、入れたときの写し（中身の receptionEvent）。交流会があとで消えても・見られなくなっても出す。
+ */
+export const MatchReceptionEventLink = z.object({
+  /** 交流会の ID（中身の写しの ID） */
+  eventId: z.guid(),
+  /** 入れたときの交流会の名前 */
+  name: z.string(),
+  /** 入れたときの交流会の始まりの日時 */
+  startsAt: isoDateTime,
+  /**
+   * 受付アプリで開けるか（試合表につないだ交流会で、交流会があり、今の利用者がその主催者か受付係で、受付アプリが見えるとき。
+   * 消えた・見られない・試合表とつなげなかったときは false で、画面は「交流会は見られません」と出す）
+   */
+  canOpen: z.boolean(),
+});
+
+/** 名簿を入れた受付の交流会の型。 */
+export type MatchReceptionEventLink = z.infer<typeof MatchReceptionEventLink>;
+
 /** 試合表の一覧の1行。 */
 export const MatchTableSummary = z.object({
   /** 試合表の ID */
@@ -275,6 +319,8 @@ export const MatchTableSummary = z.object({
   organization: MatchOrganization.nullable(),
   /** 自分が持ち主か */
   isOwner: z.boolean(),
+  /** 名簿を入れた受付の交流会（受付の交流会から入れていなければ null。match-007） */
+  receptionEvent: MatchReceptionEventLink.nullable(),
   /** 最後に直した時刻 */
   updatedAt: isoDateTime,
 });

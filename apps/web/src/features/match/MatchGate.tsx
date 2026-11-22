@@ -2,11 +2,13 @@
 // 試合表の道は LIFF を始めない（core-013）ので、account の SessionGate（getLiff() を読む）を使わず、窓口の 401 で未ログインを知る。
 // 未ログインのときは、LIFF を始める道（設定 › アカウント）でログインしてもらう（その道へ移ると、組み立てがページを読み直して
 // LIFF を始める。research R4）。
+// 運営の画面を開いている間だけ、見出しにホーム画面のための manifest とアイコンを付ける（use-home-screen.ts。match-007）。
 import { isNightStopWindow } from "@workspace/contracts/core";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
 import type * as React from "react";
 import { ApiError, errorMessage } from "../../lib/api.ts";
 import { Page } from "../../lib/page.tsx";
+import { useHomeScreenLinks } from "./use-home-screen.ts";
 
 /** ログインする道（LIFF を始める道。ログインしたら試合表に戻ってもらう）。 */
 export const MATCH_LOGIN_PATH = "/settings/account";
@@ -25,6 +27,8 @@ export type MatchGateProps<T> = {
  * @returns 中身か、状態の画面
  */
 export function MatchGate<T>({ query, children }: MatchGateProps<T>) {
+  // 運営の画面を開いている間だけ、ホーム画面に置くための manifest とアイコンを付ける（match-007）
+  useHomeScreenLinks();
   if (query.data !== undefined) return <>{children(query.data)}</>;
   if (query.isPending) {
     return (

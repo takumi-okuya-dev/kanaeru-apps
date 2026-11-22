@@ -31,6 +31,7 @@ import { MATCH_ROUTE_PATTERNS } from "./paths.ts";
 import { buildPlan, groupsOf, newSeed, presentPlayersOf } from "./plan.ts";
 import { changeSettings, groupLabelOf } from "./regroup.ts";
 import { countRoster } from "./roster-edit.ts";
+import { ReceptionEventNote } from "./ReceptionEventNote.tsx";
 import { EditorState, TableFrame } from "./TableFrame.tsx";
 import type { TableEditor } from "./table-editor.ts";
 
@@ -279,6 +280,7 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
         ) : null
       }
     >
+      <ReceptionEventNote source={table.content.receptionEvent} link={table.receptionEvent} />
       <EditorState editor={editor} />
       {changeNote ? (
         <div
