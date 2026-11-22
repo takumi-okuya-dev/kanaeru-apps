@@ -4,9 +4,10 @@
 //   外部キー（RESTRICT）で DB が止め、account の退会の窓口が 409 ACCOUNT_OWNS_SHARED_RECORDS を返す（research R2）
 // - どちらも account を消すトランザクションの中（finalize）で行う。409 のときは引き継ぎも元に戻る（research R3）
 // - suite の表には書かない（管理者は suite の index.ts から読むだけ）。reception の表は読まない
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import type { Executor } from "../../kernel/db.ts";
 import type { WithdrawalStep } from "../../kernel/withdrawal.ts";
+import { generateInviteToken } from "./ids.ts";
 import { adminAfterWithdrawal, findOrganization, findOrganizationAdmin } from "../suite/index.ts";
 import {
   event,
@@ -81,6 +82,31 @@ async function deletePersonalEvents(tx: Executor, accountId: string): Promise<vo
   await tx.delete(event).where(inArray(event.id, ids));
 }
 
+/**
+ * 退会する人が主催者として見た今の招待のリンクを作り直す（見た記録はアカウントと一緒に消えるので、
+ * その人が渡したリンクを、退会のあとも使えるままにしないため）。
+ * @param tx account を消すトランザクション
+ * @param accountId 退会する人
+ */
+async function rotateInvitesSeenBy(tx: Executor, accountId: string): Promise<void> {
+  const seen = await tx
+    .select({ eventId: staffInvite.eventId })
+    .from(staffInviteViewer)
+    .innerJoin(staffInvite, eq(staffInvite.eventId, staffInviteViewer.eventId))
+    .where(
+      and(
+        eq(staffInviteViewer.accountId, accountId),
+        gte(staffInviteViewer.viewedAt, staffInvite.createdAt),
+      ),
+    );
+  for (const { eventId } of seen) {
+    await tx
+      .update(staffInvite)
+      .set({ token: generateInviteToken(), createdAt: sql`now()` })
+      .where(eq(staffInvite.eventId, eventId));
+  }
+}
+
 /** event の退会の手順。 */
 export const eventWithdrawal: WithdrawalStep = {
   /**
@@ -94,6 +120,7 @@ export const eventWithdrawal: WithdrawalStep = {
    * @param accountId 退会する人
    */
   finalize: async (tx, accountId) => {
+    await rotateInvitesSeenBy(tx, accountId);
     await handOverPlacedEvents(tx, accountId);
     await deletePersonalEvents(tx, accountId);
   },

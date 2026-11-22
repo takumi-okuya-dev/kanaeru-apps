@@ -551,6 +551,10 @@ export function eventRoutes(deps: DomainRouteDeps) {
     })
     .openapi(routes.getInvite, async (c) => {
       const record = await mustFindEvent(deps, c.req.valid("param").eventId);
+      // もう主催者でない人が見たリンクなら、主催者に渡す前に作り直す（受ける人の確かめの画面で使えないままにしない）
+      if (await inviteSeenByFormerOrganizer(db, record.id)) {
+        await replaceInviteToken(db, record.id, generateInviteToken());
+      }
       const invite = await findInviteByEvent(db, record.id);
       // 主催者として見たことを残す（あとで主催者でなくなったとき、このリンクで受付係になるのを断る）
       if (invite) await recordInviteViewer(db, record.id, currentAccount(c).accountId);
@@ -602,12 +606,18 @@ export function eventRoutes(deps: DomainRouteDeps) {
     })
     .openapi(routes.previewInvite, async (c) => {
       const record = await findInvitedEvent(deps, c.req.valid("param").inviteToken);
-      // 受けるときに断るリンク（もう主催者でない人が見た）は、確かめの画面でも使えないと出す
-      if (await inviteSeenByFormerOrganizer(db, record.id)) {
-        throw new AppError(EVENT_ERRORS.STAFF_INVITE_INVALID);
-      }
       const me = currentAccount(c);
       const role = (await resolveEventAccess(db, config, record.id, me))?.role ?? null;
+      // 受けるときに断るリンク（もう主催者でない人が見た）は、確かめの画面でも使えないと出し、作り直す
+      // （主催者・受付係はそのまま通すので、確かめの画面でも今の役目を出す）
+      if (
+        role !== "organizer" &&
+        role !== "staff" &&
+        (await inviteSeenByFormerOrganizer(db, record.id))
+      ) {
+        await replaceInviteToken(db, record.id, generateInviteToken());
+        throw new AppError(EVENT_ERRORS.STAFF_INVITE_INVALID);
+      }
       // 部員は受付係ではない（受ければ受付係になる）ので、受ける前の役目は「どれでもない」
       const myRole = role === "organizer" || role === "staff" ? role : null;
       const expiresAt = endOfJstDate(record.startsAt);
