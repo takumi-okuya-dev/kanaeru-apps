@@ -71,6 +71,13 @@ export const BOOKING_ERRORS = {
     message:
       "アクセストークンが合いません。LINE Developers の Messaging API の画面で発行した「チャネルアクセストークン（長期）」を貼り直してください。",
   },
+  /** 入れたチャネル ID が、アクセストークンを発行したチャネルと違う（LINE がトークンを確かめて返すチャネルの ID と比べる。セキュリティの全体点検 run-1） */
+  LINE_CHANNEL_MISMATCH: {
+    code: "BOOKING_LINE_CHANNEL_MISMATCH",
+    status: 400,
+    message:
+      "チャネル ID が、アクセストークンを発行したチャネルと合いません。LINE Developers の Messaging API のチャネルの「チャネル ID」を入れ直してください。",
+  },
   /** 同じチャネル ID が、ほかの持ち主の設定に入っている（booking-002 research R10） */
   LINE_CHANNEL_TAKEN: {
     code: "BOOKING_LINE_CHANNEL_TAKEN",

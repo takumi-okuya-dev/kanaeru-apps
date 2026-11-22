@@ -168,10 +168,12 @@ function tailOf(value: string): string {
  * 公式アカウントの設定を入れる・入れ直す（research R10・R21）。
  * 初めは3つとも要る。チャネル ID を変えるときはシークレットとアクセストークンも要り、前の紐づけと札を消す。
  * アクセストークンを入れたときは、ボット情報で確かめてから保存する（ボットの userId が替われば、前の紐づけと札を消す）。
+ * チャネル ID は、LINE がトークンを確かめて返すチャネルの ID と同じでなければ断る（チャネル ID は1つの設定にだけ入れられるので、
+ * ほかの人のチャネル ID を先に入れて、持ち主の設定を止められないようにする。偽の送り手ではチャネルの ID がわからないので比べない）。
  * @param deps 道具
  * @param holder 持ち主
  * @param input 入れた値
- * @throws {AppError} 秘密の箱がない（503）・値が足りない（400）・トークンが合わない（400）・LINE に届かない（502）・
+ * @throws {AppError} 秘密の箱がない（503）・値が足りない（400）・トークンが合わない（400）・チャネル ID がトークンと合わない（400）・LINE に届かない（502）・
  *   同じチャネル ID がほかの設定にある（409）
  */
 export async function saveLineChannel(
@@ -216,6 +218,12 @@ export async function saveLineChannel(
         });
       }
       throw new AppError(BOOKING_ERRORS.LINE_UNREACHABLE);
+    }
+    const channelId = input.lineChannelId ?? current?.lineChannelId ?? null;
+    if (info.channelId !== null && info.channelId !== channelId) {
+      throw new AppError(BOOKING_ERRORS.LINE_CHANNEL_MISMATCH, {
+        fields: [{ path: "lineChannelId", message: BOOKING_ERRORS.LINE_CHANNEL_MISMATCH.message }],
+      });
     }
     bot = { basicId: info.basicId, botUserId: info.userId };
   }
