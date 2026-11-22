@@ -1,8 +1,9 @@
-# GitHub Actions から鍵なしで入る仕組み（Workload Identity Federation。core-002。AD-9・AD-11）。
-# 入れるのは var.github_repository の main のブランチの GitHub Actions だけ（プロバイダの条件で止める）。
+# GitHub Actions から鍵なしで入る仕組み（Workload Identity Federation。core-002・core-018。AD-9・AD-11）。
+# 入れるのは var.github_repository の main（本番）と develop（ステージング）のブランチの GitHub Actions だけ（プロバイダの条件で止める）。
+# どの環境のデプロイの身分になりすませるかは、ブランチで分ける（modules/environment/iam.tf：main は本番だけ・develop はステージングだけ）。
 # リポジトリの名前（owner/repo）は付け直せ、消したあとに別の人が同じ名前を取れるので、
 # 変わらない数字の ID（リポジトリと持ち主）でも絞り、なりすましの権限もリポジトリの ID に付ける。
-# Cloud Run は WIF の直の権限に対応していないため、入ったあとは kanaeru-deployer になりすまして動く
+# Cloud Run は WIF の直の権限に対応していないため、入ったあとは環境ごとのデプロイの身分（<name>-deployer）になりすまして動く
 # （サービスアカウントの鍵は作らない。research.md R-2）。
 # プールは消しても30日は同じIDで作り直せないので、IDを変えない。
 
@@ -16,7 +17,7 @@ resource "google_iam_workload_identity_pool" "github" {
 resource "google_iam_workload_identity_pool_provider" "github" {
   workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
   workload_identity_pool_provider_id = "github"
-  display_name                       = "GitHub（main だけ）"
+  display_name                       = "GitHub（main と develop）"
 
   attribute_mapping = {
     "google.subject"                = "assertion.sub"
@@ -26,22 +27,15 @@ resource "google_iam_workload_identity_pool_provider" "github" {
     "attribute.ref"                 = "assertion.ref"
   }
 
-  # このリポジトリ（名前と、変わらない数字の ID の両方）の main のブランチ（push と、main から手で流したとき）だけを受け入れる
+  # このリポジトリ（名前と、変わらない数字の ID の両方）の main と develop のブランチ（push と、そのブランチから手で流したとき）だけを受け入れる
   attribute_condition = join(" && ", [
     "assertion.repository == \"${var.github_repository}\"",
     "assertion.repository_id == \"${var.github_repository_id}\"",
     "assertion.repository_owner_id == \"${var.github_repository_owner_id}\"",
-    "assertion.ref == \"refs/heads/main\"",
+    "(assertion.ref == \"refs/heads/main\" || assertion.ref == \"refs/heads/develop\")",
   ])
 
   oidc {
     issuer_uri = "https://token.actions.githubusercontent.com"
   }
-}
-
-# このリポジトリから入った GitHub Actions だけが kanaeru-deployer になりすませる（名前ではなく、変わらないリポジトリの ID で指す）
-resource "google_service_account_iam_member" "github_deployer" {
-  service_account_id = google_service_account.deployer.name
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository_id/${var.github_repository_id}"
 }

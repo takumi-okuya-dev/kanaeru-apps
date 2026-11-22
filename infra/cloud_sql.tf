@@ -1,7 +1,9 @@
-# Cloud SQL for PostgreSQL を1つ（core-002。AD-8・AD-9・AD-10）。
+# Cloud SQL for PostgreSQL のサーバーを1つ（core-002・core-018。AD-8・AD-9・AD-10）。本番とステージングが、この中の別の DB を使う
+# （DB と DB の利用者は環境ごとの部品 modules/environment が作る）。
 # - 型：ENTERPRISE・db-f1-micro（共有コア。SLA の対象外）・POSTGRES_18（uuidv7() を使う）。
 #   edition を書かないと PostgreSQL 16 以上は Enterprise Plus になり、db-f1-micro が選べず apply が落ちる。
-# - つなぎ方：公開IPはあるが承認済みネットワークは空。つなぐのは Cloud Run に備わっている接続（Unix ソケット）だけ。
+# - つなぎ方：内部の IP だけ（公開の IP を持たない。network.tf）。Cloud Run は Direct VPC egress で VPC に出て、TCP でつなぐ。
+#   手元から本番の DB を見るときは、一時的に ipv4_enabled を true にして apply し、Cloud SQL Auth Proxy でつなぐ（README の 6）。
 # - 夜間の停止（0時〜8時）は Cloud Scheduler が activation_policy を変える（scheduler.tf）。Terraform はその差を無視する。
 # - 消さない：prevent_destroy（plan で止める）・deletion_protection（プロバイダで止める）・deletion_protection_enabled（GCP で止める）。
 
@@ -27,8 +29,9 @@ resource "google_sql_database_instance" "main" {
     disk_autoresize_limit = 20
 
     ip_configuration {
-      ipv4_enabled = true
-      # 暗号のない直のつなぎを断る（Cloud Run の組み込みの接続はいつも暗号つき）
+      ipv4_enabled    = false
+      private_network = google_compute_network.main.id
+      # 暗号のない直のつなぎを断る（アプリは sslmode=no-verify で暗号をかけてつなぐ。modules/environment/secrets.tf）
       ssl_mode = "ENCRYPTED_ONLY"
     }
 
@@ -57,19 +60,5 @@ resource "google_sql_database_instance" "main" {
     ignore_changes  = [settings[0].activation_policy]
   }
 
-  depends_on = [google_project_service.apis]
-}
-
-resource "google_sql_database" "app" {
-  name     = local.name
-  instance = google_sql_database_instance.main.name
-}
-
-# アプリの DB の利用者。パスワードは、Secret Manager に書いた版を読み直した値を、書くだけの欄で渡す（state に残らない）。
-# 書く順番と、途中で落ちたときに食い違わない理由は secrets.tf の頭
-resource "google_sql_user" "app" {
-  name                = local.name
-  instance            = google_sql_database_instance.main.name
-  password_wo         = local.db_password
-  password_wo_version = var.db_password_version
+  depends_on = [google_project_service.apis, google_service_networking_connection.private_services]
 }

@@ -215,7 +215,7 @@ describe("CI が秘密の値を使わず、外の部品を固定する", () => {
   });
 });
 
-describe("deploy.yml：本番へのデプロイの守り（core-002。docs/rules/development-flow.md 5）", () => {
+describe("deploy.yml：本番とステージングへのデプロイの守り（core-002・core-018。docs/rules/development-flow.md 5）", () => {
   const deploy = workflows.find(({ name }) => name === DEPLOY_WORKFLOW);
   const code = codeLines(deploy?.source ?? "").join("\n");
 
@@ -223,14 +223,32 @@ describe("deploy.yml：本番へのデプロイの守り（core-002。docs/rules
     expect(deploy, `${DEPLOY_WORKFLOW} がありません`).toBeDefined();
   });
 
-  it("push で流れるのは main だけで、paths で出すものが変わるファイルに絞る", () => {
-    expect(code).toMatch(/push:\s*\n\s+branches:\s*\[main\]\s*\n\s+paths:/);
-    expect(code).toMatch(/if:\s*github\.ref == 'refs\/heads\/main'/);
+  it("push で流れるのは main と develop だけで、paths で出すものが変わるファイルに絞る", () => {
+    expect(code).toMatch(/push:\s*\n\s+branches:\s*\[main, develop\]\s*\n\s+paths:/);
+    expect(code).toMatch(
+      /if:\s*github\.ref == 'refs\/heads\/main' \|\| github\.ref == 'refs\/heads\/develop'/,
+    );
   });
 
-  it("デプロイは1つずつで、流れているものを取り消さない（DB の変更の途中で止めない）", () => {
+  it("main は本番（production）、それ以外（develop）はステージング（staging）の GitHub の環境で出す", () => {
     expect(code).toMatch(
-      /concurrency:\s*\n\s+group:\s*deploy-production\s*\n\s+cancel-in-progress:\s*false/,
+      /environment:\s*\$\{\{ github\.ref == 'refs\/heads\/main' && 'production' \|\| 'staging' \}\}/,
+    );
+  });
+
+  it("環境の変数（デプロイの身分・サービス・job・イメージの置き場所）がなければ止め、イメージは環境ごとの置き場所に押し込み digest で出す", () => {
+    expect(code).toMatch(
+      /for name in [^\n]*\bGCP_DEPLOYER_SA\b[^\n]*\bSERVICE\b[^\n]*\bMIGRATE_JOB\b[^\n]*\bIMAGE_REPOSITORY\b[^\n]*\bAPP_NAME\b/,
+    );
+    expect(code).toMatch(/IMAGE:\s*\$\{\{ vars\.IMAGE_REPOSITORY \}\}:\$\{\{ github\.sha \}\}/);
+    expect(code).toMatch(/gcloud run jobs update "\$MIGRATE_JOB" --image="\$IMAGE_DIGEST"/);
+    expect(code).toMatch(/gcloud run services update "\$SERVICE" --image="\$IMAGE_DIGEST"/);
+    expect(code).not.toMatch(/vars\.APP_NAME \|\|/);
+  });
+
+  it("デプロイは環境（ブランチ）ごとに1つずつで、流れているものを取り消さない（DB の変更の途中で止めない）", () => {
+    expect(code).toMatch(
+      /concurrency:\s*\n\s+group:\s*deploy-\$\{\{ github\.ref_name \}\}\s*\n\s+cancel-in-progress:\s*false/,
     );
   });
 

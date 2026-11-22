@@ -121,16 +121,17 @@ flowchart TB
   - 割引（`event_discount`）は消さない。外すと「使うのをやめる」（`archived_at`）だけで、新しいチェックインで選べなくなる。`checkin` の `(event_id, discount_id)` は `event_discount(event_id, id)` を指す複合の外部キーで `RESTRICT`（別の交流会の割引を指せない）。チェックインは名前と額を写しているので、割引を直しても外しても履歴は変わらない（event は reception の表を読めないので、使われたかで消すかを決められない。reception-002）。
   - チェックインの取り消し（FR-8）は行を消す（`DELETE`）。回答も一緒に消える。取り消しの確かめの枠に「アンケートの回答があれば一緒に消えます」と出す。FR-5 の重なりをまとめるときは、LINE のほうを残し、手のほうを消す。
 
-### AD-8 — 置き場所は1つの Cloud Run と1つの Cloud SQL [ADOPTED]
+### AD-8 — 置き場所は環境ごとに1つの Cloud Run と、共にする1つの Cloud SQL [ADOPTED]
 
 - **Binds:** all（運用）
 - **Prevents:** 画面と API が別の源になってクッキーが使えなくなること。費用がかかる部品が知らないうちに増えること。Terraform が既定のエディションで落ちること。会場の回線で受付が止まること
 - **Rule:**
   - 1つのコンテナ（Cloud Run・asia-northeast1）が、画面の組み立てたファイルと `/api` を同じ源で返す（画面に戻さない道の頭〈`/api`・`/.well-known`。AD-21〉のほかは `index.html` に戻す）。`/api` の下は API の CSP、ほかは画面の CSP（LINE の SDK が要る源を足す）。これは組み立て（`app.ts`）を直す共通の PR で入れる。
-  - DB は Cloud SQL for PostgreSQL を1つだけ：`edition = "ENTERPRISE"`・`tier = "db-f1-micro"`・`database_version = "POSTGRES_18"`（共有コアで SLA の対象外）。公開IPに承認済みネットワークを付けず、Cloud Run に備わっている Cloud SQL の接続（Unix ソケット）だけでつなぐ。
-  - Cloud Run の最大の台数は2、最小は0。pg の接続のプールは1台あたり5まで（合計が Cloud SQL の上限を超えない）。
+  - 環境は本番（`kanaeru`）とステージング（`kanaeru-stg`）の2つ（2026-11-22。core-018）。どちらも同じ Terraform の部品（`infra/modules/environment`）で作り、同じプロジェクトに置く（構成 B）。別のプロジェクトに分ける（構成 C）ときは、移した先で共通の資源を作って同じ部品を呼ぶ。
+  - DB は Cloud SQL for PostgreSQL のサーバーを1つだけ：`edition = "ENTERPRISE"`・`tier = "db-f1-micro"`・`database_version = "POSTGRES_18"`（共有コアで SLA の対象外）。本番とステージングは、この中の別の DB を使う。公開の IP を持たず内部の IP だけにし、Cloud Run は Direct VPC egress（VPC に出るのは内部の宛先だけ。サーバー代のかかるコネクタは使わない）で、TCP・暗号つき（`sslmode=no-verify`）でつなぐ。
+  - Cloud Run の最小の台数は0。最大の台数と1台の pg の接続のプールは、本番 2台 × 5・ステージング 1台 × 3（合計と DB の変更を当てる job の分が、Cloud SQL の上限〈25〉を超えない）。
   - 会場では参加者が同じIPに見えるので、本番は `TRUSTED_PROXY_HOPS=1`・`RATE_LIMIT_MAX` を受付の山に見合う値（600）にする。
-  - ロードバランサ・VPC のつなぎ口・最小の台数1・Enterprise Plus は、この文書を直さずに足さない。
+  - ロードバランサ・VPC のコネクタ（Serverless VPC Access）・最小の台数1・Enterprise Plus は、この文書を直さずに足さない。
 
 ### AD-9 — GCP の資源はすべて Terraform で持ち、費用とデータを守る設定を入れる [ADOPTED]
 
@@ -147,16 +148,16 @@ flowchart TB
 - **Binds:** 運用・すべての画面
 - **Prevents:** 夜間の停止中に、画面が開かない・分かりにくいエラーで落ちること。Terraform が停止を毎回戻すこと
 - **Rule:**
-  - Cloud Scheduler が毎日0時に Cloud SQL を止め、8時に動かす（日本時間。Cloud SQL Admin API の `activationPolicy` を直す）。Terraform は Cloud SQL の `activation_policy` と Scheduler の `paused` の変更を無視する（`lifecycle { ignore_changes }`）。
+  - Cloud Scheduler が毎日0時に Cloud SQL を止め、8時に動かす（日本時間。Cloud SQL Admin API の `activationPolicy` を直す。サーバーを共にする本番とステージングの両方が止まる）。Terraform は Cloud SQL の `activation_policy` と Scheduler の `paused` の変更を無視する（`lifecycle { ignore_changes }`）。
   - DB に届かないとき、API は `503` と code `DB_UNAVAILABLE` を返す。この読みかえは土台（`kernel`）のエラーの処理に1か所だけ置く。画面は「夜間（0時〜8時）は止まっています」と出す。
-  - Cloud Run の起動の確かめ（probe）は既定のまま、DB に触る窓口を指さない。DB を定期的に起こす・叩く処理は作らない。
-  - デプロイは8時〜24時に行う。交流会が0時を越えるときは、主催者がその日の停止の仕事を `gcloud scheduler jobs pause` で止める。
+  - Cloud Run の起動の確かめ（probe）は既定のまま、DB に触る窓口を指さない。DB を定期的に起こす・叩く処理は作らない。領域の定期の仕事は、環境ごとの共通の Cloud Scheduler の仕事（`<name>-jobs-tick`）が 8時〜23時台に `POST /api/v1/jobs/tick` を呼んで動かす（core-017。夜間の停止の外）。
+  - デプロイは日本時間の8時15分〜23時に始める（8時に起こした DB が動き出すまでの数分と、0時の停止までの余裕。[docs/rules/development-flow.md](../../docs/rules/development-flow.md) 5章）。交流会が0時を越えるときは、主催者がその日の停止の仕事を `gcloud scheduler jobs pause` で止める。
 
 ### AD-11 — 本番へは main のマージで出す。DB の変更を先に当てる [ADOPTED]
 
 - **Binds:** 運用・すべての領域
 - **Prevents:** 新しいコードが古い表で動くこと。手元から本番の DB を直接直すこと。どのブランチで本番に出るかが人によって違うこと
-- **Rule:** 環境は本番の1つだけ。`main` へのマージで GitHub Actions が、コンテナを作る → 同じコンテナを Cloud Run jobs で `db:migrate` として動かす → 成功したときだけ新しい版を出す。`develop` のマージでは何も出さない（ステージングを足したら出す）。文書・仕様だけの変更では動かさない（`paths` で絞る）。DB の変更は後ろに戻れる形にする。この決まりは [docs/rules/development-flow.md](../../docs/rules/development-flow.md) 5章にも書く。
+- **Rule:** `main` へのマージで本番、`develop` へのマージでステージングに、GitHub Actions が出す（2026-11-22 から。core-018）。コンテナを作る → 同じコンテナを Cloud Run jobs で `db:migrate` として動かす → 成功したときだけ新しい版を出す。どの環境のデプロイの身分になりすませるかはブランチで分ける（`develop` から本番は触れない）。文書・仕様だけの変更では動かさない（`paths` で絞る）。DB の変更は後ろに戻れる形にする。この決まりは [docs/rules/development-flow.md](../../docs/rules/development-flow.md) 5章にも書く。
 
 ### AD-12 — 今の利用者は account の1つの仕組みで受け取る [ADOPTED]
 
@@ -312,7 +313,7 @@ flowchart TB
 〈2026-11-20 足した：主催者が決めた（知らせは各組織・個人が設定する LINE 公式アカウントとメール・ステージングは作らない・前日のリマインドは送らない）。【仮決め】の印は主催者の確かめを待つ〉
 
 - **Binds:** booking・`platform/notify`・設定・Cloud Scheduler・Terraform（`infra/`）
-- **Prevents:** ステージングがないまま、本番で誤って外の人に送ること。LINE のユーザー ID をプロバイダーをまたいで使い、届かない・別人に送ること。鍵・メールアドレスが漏れること。夜中に打診の期限が切れて処理されないこと。送る道具がアプリごとに作られること
+- **Prevents:** 確かめの途中で、本番やステージングから誤って外の人に送ること（ステージングは本番と同じ DB のサーバーを使い、本物の知らせは送らない。送り方は off か allowlist だけ）。LINE のユーザー ID をプロバイダーをまたいで使い、届かない・別人に送ること。鍵・メールアドレスが漏れること。夜中に打診の期限が切れて処理されないこと。送る道具がアプリごとに作られること
 - **Rule:**
   - **送る道具**（LINE の Messaging API の push・メールの送信・本物に送らない偽の送り手・守りの判定）は、技術の道具として `platform/notify` に置く（AD-18）。業務（何をいつ誰に送るか・文面）は booking が持つ。
   - **公式アカウントの設定**：`booking_line_channel`（持ち主は account か organization のどちらか1つ。チャネル ID と、シークレットとアクセストークンの暗号文〈`packages/secret-box`〉。2026-11-20 booking-002：末尾4文字・ベーシック ID・メールの返信先も同じ行に持つ）。送る道具の型は土台（`kernel/notifier.ts`）に置き、組み立てが `DomainRouteDeps.notifier` で渡す（土台は共通を読めないため）。画面には末尾だけを出す。組織のものを変えられるのは組織の管理者だけ、個人のものは本人だけ。メッセージの費用は各組織の LINE の契約で払う（原則 V）。
@@ -335,7 +336,7 @@ flowchart TB
   - **権限**は match の1つの関数で決める（AD-19）。作る・直す・担当の端末を決めるのは、持ち主と、入れた組織の管理者・編集者。
   - **名簿を入れる道**：受付の交流会から入れるときは、reception の `index.ts`（チェックインした人）と booking の `index.ts`（申込みの名簿。AD-23）を読む。選べる交流会は、event の判定で主催者のものだけ。持つのは呼び名とレベルだけで、氏名・メールアドレス・申込みの媒体は写さない（Constitution II）。
   - **前に入れたレベル**：`match_level_memory`（持ち主か組織・account・レベル）。account のある人（LINE でチェックイン・申込みした人）だけ覚える。CSV と手で入れた人は覚えない（氏名を持たないため）【仮決め】。〈2026-11-22 match-006：覚えるために、受付の交流会から入れた人の account を試合表の中身〈名簿の人〉に持つ〈見るだけのページ・QR には出さない〉。覚える相手は試合表を入れた組織か、入れていなければ試合表の持ち主。名簿を入れられるのは、交流会と試合表が同じ組織か、どちらも組織に入れず持ち主が同じときだけ〈AD-23 の組織ごとに閉じる〉【仮決め】。理由は [specs/match/006-reception-import/research.md](../../specs/match/006-reception-import/research.md) R3・R8〉
-  - **消し方**：持ち主の退会では、組織に入れた試合表はその組織の管理者に引き継ぎ、入れていない試合表は消す（AD-19・AD-22 の手順の (2)）。試合表は、試合の日から90日を過ぎたら消す。消すのは、運営が試合表の一覧を開いたときと、試合表を作ったときに、その持ち主の古いものをまとめて消す形にし、定期の仕事は足さない（Cloud Scheduler の無料の枠を使い切らないため。原則 V）【仮決め】。
+  - **消し方**：持ち主の退会では、組織に入れた試合表はその組織の管理者に引き継ぎ、入れていない試合表は消す（AD-19・AD-22 の手順の (2)）。試合表は、試合の日から90日を過ぎたら消す。消すのは、運営が試合表の一覧を開いたときと、試合表を作ったときに、その持ち主の古いものをまとめて消す形にし、定期の仕事は足さない（開いたときにまとめて消せば足り、定期の仕事〈core-017 の scheduledJob〉で毎回 DB を見回す要がないため。原則 V）【仮決め】。
 
 ### AD-26 — 試合表の見るだけのページは、ログインなし・ふつうのブラウザ・その日だけの URL で出す [ADOPTED]
 
@@ -456,14 +457,14 @@ flowchart LR
     sql[("Cloud SQL<br/>PostgreSQL 18・db-f1-micro")]
     sm["Secret Manager"]
     ar["Artifact Registry"]
-    sch["Cloud Scheduler<br/>0時停止・8時起動"]
+    sch["Cloud Scheduler<br/>0時停止・8時起動<br/>環境ごとの共通の定期の仕事"]
     budget["請求の予算<br/>月2,000円"]
   end
-  gh["GitHub Actions<br/>main のマージで出す"]
+  gh["GitHub Actions<br/>main → 本番・develop → ステージング"]
   user -- "QR（ミニアプリのURL）→ https" --> run
   user -- "ログイン" --> line
   run -- "IDトークンの確かめ" --> line
-  run -- "Unix ソケット" --> sql
+  run -- "内部の IP（Direct VPC egress）" --> sql
   job --> sql
   sm -. "秘密の値" .-> run
   gh -- "WIF" --> ar
@@ -572,10 +573,10 @@ apps/api/src/platform/mcp/     # /api/mcp とツールの一覧（AD-21。MCP �
 
 ## Deferred
 
-- **ステージングの環境**：交流会のあとに足す（2つ目の DB を同じ Cloud SQL の台に作る形を第一候補にする）。足したら AD-11 を直し、`develop` のマージでステージングに出す。
+- ~~**ステージングの環境**~~：2026-11-22 に足した（core-018。同じ Cloud SQL の台の中の2つ目の DB。AD-8・AD-11）。別のプロジェクトに分ける（構成 C）のは、利用者が増えてから。
 - **独自のドメイン**〈2026-11-20 直した：予約のメール〈AD-24〉で要るので、メールを本番で送る前に取る。Open Questions 8〉：最初は Cloud Run の既定の URL。試合表の見るだけのページの QR は画面の源を入れるが（AD-26）、試合表ごと・その日だけなので、源を変えても困る紙は残らない。QR はミニアプリの URL なので（AD-14）、あとで変えても印刷した QR は使える。ただし OAuth の `issuer`・LINE ログインの戻り先・利用者が登録する MCP の URL は源に結びつくので、**MCP を作る前に**決める。
-- **監視と知らせ**：この版は Cloud Run の既定の指標と請求の予算の知らせ（AD-9）だけ。エラーの知らせは交流会のあとに決める。
-- **Cloudflare など、ほかの置き場所への乗り換え**：運用費が問題になったら考える（DB は PostgreSQL のまま）。
+- **監視と知らせ**：この版は Cloud Run の既定の指標と請求の予算の知らせ（AD-9）だけ。エラーの知らせは、一般に公開する前に決める。
+- **Cloudflare など、ほかの置き場所への乗り換え**：2026-11-22 に比べて、GCP のままにすると決めた（[置き場所の比べと料金の試算](../../docs/hosting-cost.md)）。一般に公開するときに独自のドメインを取り、Cloudflare の無料プランを前に置いて CDN・WAF・圧縮に使う（[バックログ](../../docs/backlog.md) C1）。運用費が問題になったら、もう一度比べる（DB は PostgreSQL のまま）。
 - **マイクロサービスへの分け方**：分ける理由（特定のアプリだけ負荷が大きい・別の人が持つ）が出たら考える。分けるのは領域の単位で、`index.ts` の呼び出しがネットワーク越しになる。DB の台は共有して DB（名前）を分ける（原則 V）。分けやすさは AD-3・AD-18 と「領域をまたぐトランザクションを作らない」で守る。
 - **スイートの画面の切り替え（アプリの一覧・ナビ）**：決まりは AD-15（一覧と `canUseApp` から並べる）。見た目は2つ目のアプリの UX で決める。
 - **支払いの会社と料金の形**：売り始めるときに決める（AD-16 の `entitlement` の中身。持ち主の形〈アカウントか組織〉は AD-22 で決めてある。組織の契約で人数〈席〉を数えるかも、そのときに決める）。

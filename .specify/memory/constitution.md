@@ -33,7 +33,7 @@
 
 - 言語・フレームワーク：TypeScript 6.x・Node.js 26 LTS・pnpm のワークスペース。API は Hono＋@hono/zod-openapi＋zod 4、画面は Vite＋React 19＋TanStack Router＋TanStack Query＋Tailwind 4＋shadcn/ui（Base UI の形）。API の約束（zod）は `packages/contracts` の1か所に置き、API と画面が同じ形を使う。
 - ホスティング：GCP 東京（asia-northeast1）の Cloud Run を1つ（画面と `/api` を同じ源で返す）。GCP の資源はすべて Terraform（`infra/`）で持つ。
-- データベース：PostgreSQL 18・Drizzle ORM（0.45 の安定版）。本番は Cloud SQL for PostgreSQL（ENTERPRISE・db-f1-micro・東京）を1つで、夜間（0時〜8時）は止める。手元とテストは 18 の容器。DB の変更は SQL を読んでから当て、前の版のアプリでも壊れない形だけにする（[docs/rules/coding.md](../../docs/rules/coding.md) 3）。
+- データベース：PostgreSQL 18・Drizzle ORM（0.45 の安定版）。置き場所の DB は Cloud SQL for PostgreSQL（ENTERPRISE・db-f1-micro・東京）のサーバーを1つで、本番とステージングがその中の別の DB を使い、内部の IP だけでつなぐ。夜間（0時〜8時）は止める。手元とテストは 18 の容器。DB の変更は SQL を読んでから当て、前の版のアプリでも壊れない形だけにする（[docs/rules/coding.md](../../docs/rules/coding.md) 3）。
 - 認証：参加者の画面は未認証の LINEミニアプリ（`@line/liff` 2.31.1 以上）。ログインは LINE のIDトークンを API が確かめ、自前のセッション（DB の表と `HttpOnly; Secure; SameSite=Lax` のクッキー）を出す。Better Auth は使わない（LINE でメールがない人がログインできないため）。例外として、試合表アプリの見るだけのページと受付のページは、ふつうのブラウザでログインなしに開ける。見るだけのページが出すのは呼び名・組み合わせ・進み具合だけ、受付のページで書けるのは参加者が入れる呼び名とレベルだけ。どちらも試合表ごとの推測できない URL を使い、その日の終わりに使えなくし、検索に出さない（AD-26・AD-30）。
 - **運用コストの目標**：本番の運用費は月2,000円以内（請求の予算の知らせを月2,000円に置く）。開発の AI の利用料は別枠。
 - **モジュールの境界**：機能ごと（領域ごと）にフォルダを分け（`apps/api/src/modules/<領域>/`・`apps/web/src/features/<領域>/`・`packages/contracts/src/<領域>/`）、ほかの領域は入口（`index.ts`）からだけ使う。依存は 組み立て → 領域 → 共通 → 土台 の一方向。画面は API の型だけを読む。境界は ESLint の規則（`eslint.config.js`）で自動に守る。領域どうしの表の持ち主・権限・今の利用者の受け取り方は、構成の決めごと（AD-2〜AD-7・AD-12〜AD-14）に、アプリの登録・公開と契約・DB の変更・共通の道具・記録の持ち主・AI と MCP は AD-15〜AD-21 に、スイートの組織と契約の持ち主（個人か組織）は AD-22 に、交流会の持ち主と予約の領域は AD-23 に、知らせ（LINE 公式アカウントとメール）は AD-24 に、試合表アプリ（記録と持ち主・見るだけのページ・ネットなしで開く・端末とサーバーの食い違い・組み合わせの置き場所・受付のページ）は AD-25〜AD-30 に従う。
@@ -42,7 +42,7 @@
 ## 開発ワークフロー
 
 - **構想・計画はBMAD-METHOD、実装はspec-kit**で進める。BMADでプロダクトブリーフ・PRDまでの叩き台を作り（出力は`_bmad-output/`）、機能ごとに spec-kit（`/speckit-specify` → `/speckit-clarify` → `/speckit-plan` → `/speckit-tasks` → `/speckit-analyze` → `/speckit-implement`）で作る。2つを同じ機能で並行して使わない（[docs/ai-skills.md](../../docs/ai-skills.md)）。
-- **ブランチ**：`main`（本番）／`develop`（ステージング。既定のブランチ）／`feature/*`の3段構成。`main`・`develop`への直接のpushは禁止（PR必須）。ステージングを足すまでは、`main` のマージで本番に出し、`develop` のマージでは出さない。詳しくは[docs/rules/development-flow.md](../../docs/rules/development-flow.md)。
+- **ブランチ**：`main`（本番）／`develop`（ステージング。既定のブランチ）／`feature/*`の3段構成。`main`・`develop`への直接のpushは禁止（PR必須）。`develop` のマージでステージング（`kanaeru-stg`）、`main` のマージで本番（`kanaeru`）に出す。詳しくは[docs/rules/development-flow.md](../../docs/rules/development-flow.md)。
 - **仕様のフォルダと番号**：`specs/<領域>/NNN-<短い名前>/`。番号は領域ごとに振る（[docs/rules/specs.md](../../docs/rules/specs.md)）。
 - AIが守る決まりの入口は`CLAUDE.md`。
 
@@ -52,4 +52,4 @@
 - 改定はセマンティックバージョニングに従う：原則の削除・後方非互換な再定義＝MAJOR、原則の追加・実質的な拡張＝MINOR、文言の修正・明確化＝PATCH。
 - 改定するときは`/speckit-constitution`を使い、Sync Impact Reportを残す。
 
-**Version**: 1.3.0 | **Ratified**: 2026-11-19 | **Last Amended**: 2026-11-22
+**Version**: 1.3.1 | **Ratified**: 2026-11-19 | **Last Amended**: 2026-11-22

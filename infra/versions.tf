@@ -1,5 +1,7 @@
 # Terraform とプロバイダの版・state の置き場所・provider の設定（core-002。AD-9）。
-# state は手で作った GCS のバケットに置く。バケットの名前は書かず、init のときに渡す（README の 3）：
+# state は手で作った GCS のバケットに置く。バケットの名前は書かず、init のときに渡す（README の 3）。
+# このプロジェクトの資源（共通の資源と、本番・ステージングの環境）を1つの state に持つ（別のプロジェクトに環境を移すときは、
+# その環境を別の state にする。core-018）：
 #   terraform init -backend-config="bucket=<state のバケット>"
 terraform {
   # 1.11 以上：書くだけの欄（password_wo・secret_data_wo）と、その場だけの値（ephemeral）を使うため
@@ -17,7 +19,7 @@ terraform {
   }
 
   backend "gcs" {
-    prefix = "kanaeru/prod"
+    prefix = "kanaeru/project"
   }
 }
 
