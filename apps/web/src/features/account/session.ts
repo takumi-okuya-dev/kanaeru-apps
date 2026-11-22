@@ -7,10 +7,13 @@
 //   できたら、ほかの読みこみも読み直す。これは RELOGIN_COOLDOWN_MS に1度まで（/me は通るのに、ほかの窓口が
 //   401 を返しつづけるときに、読み直し → 401 → 読み直し をくり返さない）。
 // - LINE の始め方（liff.init()）は lib/liff.ts。ここは getLiff() を使うだけ。
+// - 今の利用者が替わったら（ログインした・ログアウトした・退会した）、lib/account-events.ts で領域に知らせる
+//   （端末に置いた前の人の写しを、受けた領域が消す）。
 import type { CurrentAccountView } from "@workspace/contracts/account";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
+import { notifyAccountChange } from "../../lib/account-events.ts";
 import { ApiError, onUnauthenticated } from "../../lib/api.ts";
 import { getLiff } from "../../lib/liff.ts";
 import { deleteMe, fetchMe, loginWithLine, logout } from "./api.ts";
@@ -54,6 +57,16 @@ function isUnauthenticated(error: unknown): boolean {
 }
 
 /**
+ * ログインした状態を作り、今の利用者を領域に知らせる（前の人の写しを消し終えてから返す）。
+ * @param account 今の利用者
+ * @returns ログインした状態
+ */
+async function authenticated(account: CurrentAccountView): Promise<SessionData> {
+  await notifyAccountChange(account.id);
+  return { status: "authenticated", account };
+}
+
+/**
  * 今の利用者を読む。未ログインで LINE にログイン済みなら、1度だけ ID トークンでログインする。
  * @returns ログインしているか・今の利用者
  * @throws {ApiError} 401 のほかのエラー（夜間の停止・LINE に届かないなど）
@@ -61,7 +74,7 @@ function isUnauthenticated(error: unknown): boolean {
  */
 export async function loadSession(): Promise<SessionData> {
   try {
-    return { status: "authenticated", account: await fetchMe() };
+    return authenticated(await fetchMe());
   } catch (error) {
     if (!isUnauthenticated(error)) throw error;
   }
@@ -72,7 +85,7 @@ export async function loadSession(): Promise<SessionData> {
   try {
     const account = await loginWithLine(idToken);
     autoLoginBlocked = false;
-    return { status: "authenticated", account };
+    return authenticated(account);
   } catch (error) {
     if (isUnauthenticated(error)) return { status: "unauthenticated" };
     // LINE に届かない・夜間の停止などは、また試せるようにして失敗の状態にする
@@ -155,8 +168,7 @@ export async function setAuthenticated(
   queryClient: QueryClient,
   account: CurrentAccountView,
 ): Promise<void> {
-  const data: SessionData = { status: "authenticated", account };
-  queryClient.setQueryData(SESSION_QUERY_KEY, data);
+  queryClient.setQueryData(SESSION_QUERY_KEY, await authenticated(account));
   await queryClient.invalidateQueries({ predicate: isOtherQuery });
 }
 
@@ -170,6 +182,7 @@ export function setSignedOut(queryClient: QueryClient): void {
   queryClient.removeQueries({ predicate: isOtherQuery });
   const data: SessionData = { status: "unauthenticated" };
   queryClient.setQueryData(SESSION_QUERY_KEY, data);
+  void notifyAccountChange(null);
 }
 
 /**
