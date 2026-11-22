@@ -58,7 +58,7 @@ export function createLineClient(fetch: typeof globalThis.fetch, logger: Logger)
   /**
    * トークンを発行したチャネルの ID を、LINE にトークンを確かめさせて読む（セキュリティの全体点検 run-1）。
    * 短期・長期のトークンは POST /v2/oauth/verify、期限を決めたトークン（v2.1）は GET /oauth2/v2.1/verify。
-   * どちらも 400 なら合わないトークン。返る client_id は「トークンを発行したチャネルの ID」（LINE の Messaging API の文書）。
+   * どちらも 4xx（429 のほか）なら合わないトークン。返る client_id は「トークンを発行したチャネルの ID」（LINE の Messaging API の文書）。
    * @param accessToken チャネルアクセストークン
    * @returns チャネルの ID か、合わない・届かない
    */
@@ -84,7 +84,8 @@ export function createLineClient(fetch: typeof globalThis.fetch, logger: Logger)
     try {
       for (const attempt of attempts) {
         const response = await attempt();
-        if (response.status === 400) continue;
+        // 合わないトークン（400 など 4xx。429 は混み合いなので届かないとみなす）は、次の確かめ方を試す
+        if (response.status >= 400 && response.status < 500 && response.status !== 429) continue;
         if (!response.ok) {
           logger.warn({ status: response.status }, "LINE のトークンの確かめに失敗しました");
           return { ok: false, reason: "unreachable" };
