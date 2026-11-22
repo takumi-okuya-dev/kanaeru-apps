@@ -164,7 +164,7 @@ xychart-beta
 ### 定期の仕事の料金
 
 - Threads（5分ごと・8〜24時）と booking（10分ごと・9〜24時）の定期の仕事は、月 約8,500回・CPU 約1.7万秒。Cloud Run の無料の枠（要求 月200万回・CPU 18万秒）の 0.4%・10% ほどで、0円。
-- Cloud Scheduler は無料が3つまで。DB の停止・起動・Threads・booking で4つになり、月0.10ドルかかる。**Threads と booking を1つの仕事にまとめて3つに収める**（core-017）。
+- Cloud Scheduler は無料が3つまで。Threads と booking を1つの共通の仕事にまとめ（core-017）、DB の停止・起動と合わせて3つに収めた。ステージング（core-018）にも共通の仕事が1つ要るので、両方の環境で4つになり、4つ目の月0.10ドルがかかる。
 - 定期の仕事は昼の間 Cloud Run の台を温める役目もする。今の Cloud Run は要求の間だけ課金する設定（`cpu_idle = true`）で、最小の台数として残す台でなければ[待っている台には課金しない](https://cloud.google.com/run/pricing)ので、温まっている間の料金は0円。最小1台にすると、待っている間も課金される（1台で月 約9.7ドル）。
 - 呼ぶ回数を減らす（間隔を延ばす・時刻ちょうどに呼ぶ）と台が0台まで減り、起動の待ちに当たりやすくなる。呼ばれたあと中で早く切り上げるだけなら、起動の待ちは変わらない。利用者が増えたら軽くする（[バックログ](./backlog.md) C）。
 
@@ -206,7 +206,7 @@ xychart-beta
 | [Cloud SQL](https://www.bytebase.com/dbcost/cloudsql-pricing/)（Enterprise・PostgreSQL・東京・24時間の月額） | db-f1-micro 10ドル・db-g1-small 34ドル・db-standard-1 64ドル・db-standard-2 128ドル・db-standard-4 256ドル | なし。止めている間は払わない |
 | Cloud SQL の保存 | SSD 1GB・月 0.22ドル（要確認：[米国](https://cloud.google.com/sql/pricing)の 0.17ドルから東京を見積もった）・バックアップ 1GB・月 0.08ドル | なし |
 | 外への通信（Premium Tier） | 1GB 0.12ドル（要確認：[SKU の一覧](https://github.com/Cyclenerd/google-cloud-pricing-cost-calculator)では東京は 0.085〜0.12ドル。高いほうで計算） | 北米の中だけ 1GB（東京には効かない） |
-| [Cloud Scheduler](https://cloud.google.com/scheduler/pricing) | 1つの仕事 0.10ドル／月 | 3つ（請求先アカウントごと。今は4つなので1つ分払う） |
+| [Cloud Scheduler](https://cloud.google.com/scheduler/pricing) | 1つの仕事 0.10ドル／月 | 3つ（請求先アカウントごと。DB の停止・起動と、本番・ステージングの共通の仕事で4つなので、1つ分払う） |
 | [Secret Manager](https://cloud.google.com/secret-manager/pricing) | 秘密の版 0.06ドル／月 | 6つの版 |
 | [Firebase Hosting](https://firebase.google.com/pricing)（比べただけ） | 保存 1GB 0.026ドル・通信 1GB 0.15ドル | 保存 10GB・通信 1日 360MB |
 
