@@ -13,6 +13,7 @@
 // 退会の手順（AD-22）：各領域の withdrawal を「共通（suite）を先、アプリを一覧の順」に並べて、領域に渡す（account の退会の窓口が使う）。
 // 交流会の招待のリンクを絞る決まり（AD-5・AD-23）：各領域の eventLinkRestriction を集めて、領域に渡す（event の要約の窓口が使う）。
 // ログインなしで読める道（core-016）：各領域の publicReadPaths（道の頭）を集めて、その道の読む要求にも IP ごとの回数の制限をかける。
+// 定期の仕事（core-017）：各領域の scheduledJob を集めて、共通の窓口（POST /api/v1/jobs/tick）に渡す。アプリが「切」の領域は動かさない。
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import type { Hook } from "@hono/zod-openapi";
 import {
@@ -41,10 +42,14 @@ import { createMetaApp } from "./kernel/meta-app.ts";
 import type { Logger } from "./kernel/logger.ts";
 import type { EventLinkRestriction } from "./kernel/event-links.ts";
 import type { RegisteredWithdrawalStep, WithdrawalStep } from "./kernel/withdrawal.ts";
+import { assertScheduledJob } from "./kernel/scheduled-job.ts";
+import type { ScheduledJob } from "./kernel/scheduled-job.ts";
 import { REQUEST_ID_HEADER, requestIdMiddleware } from "./kernel/request-id.ts";
 import * as modules from "./modules.list.ts";
-import { requireApp, requireAppNotOff } from "./modules/suite/index.ts";
+import { appVisibility, requireApp, requireAppNotOff } from "./modules/suite/index.ts";
 import { healthRoutes } from "./platform/health/index.ts";
+import { jobTickRoutes } from "./platform/jobs/index.ts";
+import type { RegisteredScheduledJob } from "./platform/jobs/index.ts";
 import { createNotifier } from "./platform/notify/index.ts";
 import { createRateLimiter } from "./platform/rate-limit/index.ts";
 import {
@@ -94,6 +99,11 @@ export type DomainModule = {
    * 頭は "/api/v1/<自分の領域>/" で始まり "/" で終わる形にする（合わなければ起動を止める）
    */
   publicReadPaths?: readonly string[];
+  /**
+   * 定期の仕事（なければ持たない。組み立てが集めて、共通の窓口 POST /api/v1/jobs/tick がその回に当たるものを動かす。core-017）。
+   * 間隔は 5〜60 の 5 の倍数・時間帯は日本時間の 0〜23（合わなければ起動を止める）
+   */
+  scheduledJob?: ScheduledJob;
 };
 
 /** 領域の名前空間の一覧から、領域ごとの道の型を作る（routes を持たない領域は never）。 */
@@ -196,6 +206,38 @@ export function collectPublicReadPaths(
     );
   }
   return [...new Set(prefixes)];
+}
+
+/**
+ * 領域の定期の仕事を集める（core-017）。形を確かめ、領域に渡す道具を付けて包む。アプリに属する領域は、その回にアプリが
+ * 「切」なら動かさない（機械の道の requireAppNotOff と同じ決まり。運営者だけのアプリは動く）。
+ * @param domains 組み立てる領域
+ * @param routeDeps 領域に渡す道具
+ * @param apps 登録されたアプリ
+ * @returns 共通の窓口に渡す定期の仕事（領域の並びの順）
+ * @throws {Error} 形の合わない定期の仕事があるとき（起動を止める）
+ */
+export function collectScheduledJobs(
+  domains: readonly [name: string, module: DomainModule][],
+  routeDeps: DomainRouteDeps,
+  apps: readonly AppDefinition[],
+): RegisteredScheduledJob[] {
+  return domains.flatMap(([name, module]) => {
+    const job = "scheduledJob" in module ? module.scheduledJob : undefined;
+    if (!job) return [];
+    assertScheduledJob(name, job);
+    const owner = appOfDomain(name, apps);
+    return [
+      {
+        domain: name,
+        schedule: { everyMinutes: job.everyMinutes, hours: job.hours },
+        run: () => job.run(routeDeps),
+        ...(owner
+          ? { isEnabled: async () => (await appVisibility(routeDeps.db, owner.key)) !== "off" }
+          : {}),
+      },
+    ];
+  });
 }
 
 /**
@@ -632,6 +674,16 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
     }
     app.route("/", domainRoutes);
   }
+
+  // 共通の定期の仕事の窓口（Cloud Scheduler はここだけを呼ぶ。core-017）
+  app.route(
+    "/",
+    jobTickRoutes({
+      isJobRequest: routeDeps.isJobRequest,
+      jobs: collectScheduledJobs(domains, routeDeps, apps),
+      logger,
+    }),
+  );
 
   // 窓口の文書は、すべての道を足したあとに1度だけ作る（要求ごとに作り直さない）
   if (config.openApiDocEnabled) {

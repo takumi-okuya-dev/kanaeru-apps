@@ -74,37 +74,8 @@ resource "google_secret_manager_secret_iam_member" "runtime_job_trigger" {
   member    = google_service_account.runtime.member
 }
 
-resource "google_cloud_scheduler_job" "threads_tick" {
-  count       = var.threads_enabled ? 1 : 0
-  name        = "${local.name}-threads-tick"
-  description = "5分おき（8時〜23時台）に Threads の定期の仕事（自動投稿・トークンの延長・反応の取りこみ）を呼ぶ"
-  region      = var.region
-  schedule    = "*/5 8-23 * * *"
-  time_zone   = "Asia/Tokyo"
-
-  # 1回の失敗は次の回が拾う（試みの行で二重にしない）ので、やり直さない
-  retry_config {
-    retry_count = 0
-  }
-
-  attempt_deadline = "120s"
-
-  http_target {
-    http_method = "POST"
-    uri         = "${local.web_url}/api/v1/threads/jobs/tick"
-    headers = {
-      "Content-Type"  = "application/json"
-      "Authorization" = "Bearer ${random_password.job_trigger[0].result}"
-    }
-    body = base64encode("{}")
-  }
-
-  lifecycle {
-    ignore_changes = [paused]
-  }
-
-  depends_on = [google_project_service.apis]
-}
+# 定期の仕事は、共通の Cloud Scheduler の仕事（scheduler.tf の jobs_tick。core-017）が5分ごとに呼ぶ共通の窓口から動く
+# （Threads は modules/threads/index.ts の scheduledJob。threads-022）
 
 # ---- OAuth の接続と Meta の Webhook（threads-010）
 # 秘密の値の入れ物は、Threads を入にしていて Meta のアプリの ID を入れたら作り、OAuth の入・切とは別に残す

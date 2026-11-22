@@ -19,9 +19,9 @@
 | `service_accounts.tf` | 身分（Cloud Run・デプロイ・夜間の停止）と権限 |
 | `wif.tf` | GitHub Actions から鍵なしで入る仕組み（このリポジトリの `main` だけ。名前と数字の ID の両方で絞る） |
 | `cloud_run.tf` | Cloud Run のサービス（画面と `/api`）と、DB の変更を当てる job |
-| `scheduler.tf` | 毎日0時に DB を止め、8時に動かす（日本時間） |
+| `scheduler.tf` | 毎日0時に DB を止め、8時に動かす（日本時間）。Threads か booking が入なら、5分ごとの共通の定期の仕事（`kanaeru-jobs-tick`。core-017） |
 | `budget.tf` | 請求の予算（月2,000円・50%と100%でメール） |
-| `threads.tf` | Threads の運用アプリ（`threads_enabled` が true のときだけ）：トークンを包む鍵の束と定期の仕事の合言葉の秘密・5分おきの定期の仕事。`threads_oauth_enabled` も true なら Meta のアプリの秘密の値の入れ物（9章）。鍵の束と合言葉は、予約（`booking_enabled`）が入でも作る |
+| `threads.tf` | Threads の運用アプリ（`threads_enabled` が true のときだけ）：トークンを包む鍵の束と定期の仕事の合言葉の秘密。`threads_oauth_enabled` も true なら Meta のアプリの秘密の値の入れ物（9章）。鍵の束と合言葉は、予約（`booking_enabled`）が入でも作る |
 | `booking.tf` | 予約（`booking_enabled` が true のときだけ）：知らせの許可リストの入れ物・10分おきの定期の仕事。鍵の束と合言葉は `threads.tf` のものを共に使う（10章） |
 
 Terraform は**手元から**流す（GitHub Actions からは流さない）。GitHub Actions が変えるのはイメージだけで、ほかの設定（台数・環境の値・権限）は Terraform だけが変える。
@@ -133,6 +133,7 @@ GitHub のリポジトリの **Variables**（Settings → Secrets and variables 
   ```
 
 - 初めて作ったあと、一度だけ手で動かして確かめる：`gcloud scheduler jobs run kanaeru-db-start --location=asia-northeast1`。
+- 共通の定期の仕事（`kanaeru-jobs-tick`。Threads か booking が入のときだけ）は、日本時間 8時〜23時台の5分ごとに `POST /api/v1/jobs/tick` を呼び、その回に当たる領域の仕事（各領域の `scheduledJob`）を動かす。DB の夜間の停止の間は動かさない。止めたいときは `gcloud scheduler jobs pause kanaeru-jobs-tick --location=asia-northeast1`（すべての領域の定期の仕事が止まる）。Cloud Scheduler の仕事は、DB の停止・起動と合わせて3つ（請求先アカウントごとの無料の枠）に収める。
 
 ## 8. 消さないための仕組み
 
@@ -152,7 +153,7 @@ Cloud SQL は `prevent_destroy`・`deletion_protection`・`deletion_protection_e
    ```
 
 3. 鍵を替えるとき：今の鍵を残したまま新しい版を足した JSON（`{"1":"<古い鍵>","2":"<新しい鍵>"}`）を新しい版として足し、`threads_token_key_version = 2` にして apply する。古い鍵で包んだトークンも開ける（新しく包むときだけ新しい鍵を使う）。古い鍵は、すべてのトークンが延長で包み直された（最長60日）あとに外す。
-4. 定期の仕事（`kanaeru-threads-tick`）は日本時間 8時〜23時台の5分おき。DB の夜間の停止（7章）の間は動かさない。止めたいときは `gcloud scheduler jobs pause kanaeru-threads-tick --location=asia-northeast1`。
+4. 定期の仕事は、共通の定期の仕事（`kanaeru-jobs-tick`。7章）が日本時間 8時〜23時台の5分ごとに動かす。DB の夜間の停止（7章）の間は動かさない。Threads だけを止めたいときは、アプリの台帳で Threads を「切」にする（共通の仕事を止めると、ほかの領域の定期の仕事も止まる）。
 5. OAuth の接続と Meta の Webhook（threads-010。機能の印 `threads.oauth`）を入にするとき（既定は切。それまでは、トークンを貼り付けてつなぐ）：
    1. Meta の開発者の画面で、Threads の API を使うアプリを作り、審査を通す。アプリの設定に次を登録する（`<WEB_URL>` は本番の画面の源）：
       - リダイレクトの URL：`<WEB_URL>/api/v1/threads/oauth/callback`
