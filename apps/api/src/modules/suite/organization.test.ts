@@ -387,6 +387,37 @@ describe("組織", () => {
       }
     });
 
+    it("外した人は、手元の古いリンクで入り直せない（外すと招待のリンクを作り直す）。招待のリンクを作る前なら作らない", async () => {
+      const token = await rotateInviteToken(app, admin.cookie, organizationId);
+      expect(
+        (await call(app, admin.cookie, `${BASE}/${organizationId}/members/${member.id}`, "DELETE"))
+          .status,
+      ).toBe(204);
+      const again = await joinOrganization(app, member.cookie, token);
+      expect(again.status).toBe(404);
+      expect(((await again.json()) as ErrorBody).error.code).toBe("ORGANIZATION_INVITE_INVALID");
+      const fresh = (await (
+        await call(app, admin.cookie, `${BASE}/${organizationId}/invite`)
+      ).json()) as OrganizationInviteView;
+      expect(fresh.token).not.toBe(token);
+      expect((await joinOrganization(app, member.cookie, fresh.token ?? "")).status).toBe(200);
+
+      const noInvite = await createOrganization(app, admin.cookie, "招待なし");
+      const token2 = await rotateInviteToken(app, admin.cookie, noInvite);
+      expect((await joinOrganization(app, outsider.cookie, token2)).status).toBe(200);
+      await database.pool.query("DELETE FROM organization_invite WHERE organization_id = $1", [
+        noInvite,
+      ]);
+      expect(
+        (await call(app, admin.cookie, `${BASE}/${noInvite}/members/${outsider.id}`, "DELETE"))
+          .status,
+      ).toBe(204);
+      const after = (await (
+        await call(app, admin.cookie, `${BASE}/${noInvite}/invite`)
+      ).json()) as OrganizationInviteView;
+      expect(after).toEqual({ token: null, createdAt: null });
+    });
+
     it("組織を消すと、招待も使えない", async () => {
       const token = await rotateInviteToken(app, admin.cookie, organizationId);
       expect((await call(app, admin.cookie, `${BASE}/${organizationId}`, "DELETE")).status).toBe(
