@@ -4,7 +4,9 @@
 # - main（週ごとのリリース・緊急の直し）：先にステージングに同じ中身を出し、GitHub の環境 production の承認者が承認したら本番に出す。
 # 時間帯：日本時間の8時15分〜23時に始まったときだけ出す（DB は夜間〈0時〜8時〉止まる。AD-10）。
 # 夜に緊急で出すとき：main で手で流し、wake_db を入にする（日本時間の0時〜7時45分だけ）。DB を一時的に起こしてから出し、
-# keep_awake_minutes の分だけ起こしておいたあと（直ったかを画面で確かめるため）、必ず止め直す。承認と本番のデプロイは、その時間の中で済ませる。
+# keep_awake_minutes の分だけ起こしておいたあと（直ったかを画面で確かめるため）、必ず止め直す（取り消しても）。承認と本番のデプロイは、その時間の中で済ませる。
+# DB を起こす・止めるのは、main からだけなりすませる専用の身分（リポジトリの変数 GCP_DB_WAKER_SA）。デプロイの身分は DB の台に触れない。
+# 本番は承認を待つので、時間の確かめは deploy-environment.yml の中（承認のあと）でもう一度する。
 # 1つの環境へのデプロイの中身は deploy-environment.yml。外の部品はコミットの指紋（SHA）で固定し、版の名前を注釈に書く（Dependabot が新しくする）。
 name: deploy
 
@@ -34,9 +36,9 @@ on:
         type: boolean
         default: false
       keep_awake_minutes:
-        description: "wake_db のとき、DB を起こしておく分（10〜60。この中で、ステージングでの確かめ・承認・本番のデプロイを済ませる）"
+        description: "wake_db のとき、DB を起こしておく分（15〜90。この中で、ステージングでの確かめ・承認・本番のデプロイを済ませる）"
         type: number
-        default: 40
+        default: 60
 
 # 同じブランチのデプロイは1つずつ。DB の変更の途中で止めないよう、流れているものは取り消さず、後のものを待たせる
 concurrency:
@@ -49,7 +51,7 @@ permissions:
 jobs:
   # 時間帯の確かめ。DB は夜間（0時〜8時。日本時間）に止まっているので、その間は db:migrate が落ちる。GitHub Actions は時刻で止められないので、ここで早く落とす。
   # 始まる時刻だけを見るので、余裕を持たせる：8時15分から（8時に起こした DB が動き出すまで数分かかる）・23時まで（0時の停止までに終わる）。
-  # wake_db は、DB を止めている0時〜7時45分だけ（8時の起動と重ならないように）。
+  # wake_db は main だけ・DB を止めている0時〜7時45分だけ（8時の起動と重ならないように）。
   prepare:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
@@ -58,22 +60,34 @@ jobs:
       contents: read
     outputs:
       wake: ${{ steps.window.outputs.wake }}
+      keep_minutes: ${{ steps.window.outputs.keep_minutes }}
     steps:
       - name: 時間帯の確かめ（日本時間の8時15分〜23時に始まったときだけ出す）
         id: window
         env:
           WAKE_DB: ${{ inputs.wake_db && 'true' || 'false' }}
           SKIP_HOUR_CHECK: ${{ inputs.skip_hour_check && 'true' || 'false' }}
+          KEEP_AWAKE_MINUTES: ${{ inputs.keep_awake_minutes }}
+          REF: ${{ github.ref }}
         run: |
           now=$(TZ=Asia/Tokyo date +%H:%M)
           minutes=$((10#${now%:*} * 60 + 10#${now#*:}))
           if [ "$WAKE_DB" = "true" ]; then
+            if [ "$REF" != "refs/heads/main" ]; then
+              echo "::error::wake_db（DB を一時的に起こして出す）は main だけで使えます（緊急の直しは main に入れてから出す）。"
+              exit 1
+            fi
             if [ "$minutes" -ge $((7 * 60 + 45)) ]; then
               echo "::error::日本時間の ${now} です。wake_db（DB を一時的に起こして出す）は、DB を止めている0時〜7時45分だけ使えます。昼はふつうに流してください。"
               exit 1
             fi
+            keep="${KEEP_AWAKE_MINUTES:-60}"
+            case "$keep" in ''|*[!0-9]*) keep=60 ;; esac
+            if [ "$keep" -lt 15 ]; then keep=15; fi
+            if [ "$keep" -gt 90 ]; then keep=90; fi
             echo "wake=true" >> "$GITHUB_OUTPUT"
-            echo "日本時間の ${now} です。DB を一時的に起こして出します。"
+            echo "keep_minutes=${keep}" >> "$GITHUB_OUTPUT"
+            echo "日本時間の ${now} です。DB を一時的に起こして出します（${keep}分たったら止め直します）。"
             exit 0
           fi
           echo "wake=false" >> "$GITHUB_OUTPUT"
@@ -82,102 +96,147 @@ jobs:
             exit 0
           fi
           if [ "$minutes" -lt $((8 * 60 + 15)) ] || [ "$minutes" -ge $((23 * 60)) ]; then
-            echo "::error::日本時間の ${now} です。デプロイは8時15分〜23時に始まったときだけ出します（DB は夜間〈0時〜8時〉止まり、8時に起こしてから動き出すまで数分かかるため）。8時15分を過ぎてから、Actions の deploy を同じブランチ（main か develop）で手で流してください（Run workflow）。夜に緊急で出すときは、main で wake_db を入にして流します。"
+            echo "::error::日本時間の ${now} です。デプロイは8時15分〜23時に始まったときだけ出します（DB は夜間〈0時〜8時〉止まり、8時に起こしてから動き出すまで数分かかるため）。8時15分を過ぎてから、Actions の deploy を同じブランチ（main か develop）で手で流してください（Run workflow）。夜に緊急で出すときは、main で wake_db を入にして流します（docs/release-guide.md）。"
             exit 1
           fi
           echo "日本時間の ${now} です。デプロイします。"
 
-  # 夜に緊急で出すとき、DB を起こして動き出すまで待つ（ステージングのデプロイの身分で。本番とステージングは同じ DB のサーバー）
+  # 夜に緊急で出すとき、DB を起こして動き出すまで待つ（main からだけなりすませる kanaeru-db-waker で。本番とステージングは同じ DB のサーバー）。
+  # 前から動いていたとき（交流会で夜間の停止を止めた日など）は起こさず、あとで止め直しもしない（was_stopped）
   wake-db:
     needs: prepare
     if: needs.prepare.outputs.wake == 'true'
     runs-on: ubuntu-latest
-    environment: staging
     timeout-minutes: 15
     permissions:
       contents: read
       id-token: write
+    outputs:
+      was_stopped: ${{ steps.before.outputs.was_stopped }}
+      stop_at: ${{ steps.ready.outputs.stop_at }}
     env:
       SQL_INSTANCE: ${{ vars.SQL_INSTANCE }}
+      KEEP_MINUTES: ${{ needs.prepare.outputs.keep_minutes }}
     steps:
+      - name: リポジトリの変数の確かめ
+        env:
+          GCP_DB_WAKER_SA: ${{ vars.GCP_DB_WAKER_SA }}
+        run: |
+          if [ -z "$SQL_INSTANCE" ] || [ -z "$GCP_DB_WAKER_SA" ]; then
+            echo "::error::リポジトリの変数 SQL_INSTANCE・GCP_DB_WAKER_SA がありません（terraform output github_repository_variables。infra/README.md の 5）"
+            exit 1
+          fi
+
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+          service_account: ${{ vars.GCP_DB_WAKER_SA }}
 
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
-      - name: DB を起こす（動き出すまで待つ）
+      - name: 今の DB の状態を読む
+        id: before
         run: |
-          if [ -z "$SQL_INSTANCE" ]; then echo "::error::リポジトリの変数 SQL_INSTANCE がありません（terraform output github_repository_variables）"; exit 1; fi
-          gcloud sql instances patch "$SQL_INSTANCE" --activation-policy=ALWAYS --quiet
+          policy=$(gcloud sql instances describe "$SQL_INSTANCE" --format='value(settings.activationPolicy)')
+          if [ "$policy" = "NEVER" ]; then
+            echo "was_stopped=true" >> "$GITHUB_OUTPUT"
+            echo "DB は止まっています。起こします。"
+          else
+            echo "was_stopped=false" >> "$GITHUB_OUTPUT"
+            echo "DB は前から動いています（${policy}）。起こさず、あとで止め直しもしません。"
+          fi
+
+      - name: DB を起こす（動き出すまで待つ）
+        id: ready
+        env:
+          WAS_STOPPED: ${{ steps.before.outputs.was_stopped }}
+        run: |
+          if [ "$WAS_STOPPED" = "true" ]; then
+            gcloud sql instances patch "$SQL_INSTANCE" --activation-policy=ALWAYS --quiet
+          fi
+          status=""
           for _ in $(seq 1 60); do
-            state=$(gcloud sql instances describe "$SQL_INSTANCE" --format='value(state)')
-            if [ "$state" = "RUNNABLE" ]; then echo "DB が動いています。"; exit 0; fi
+            status=$(gcloud sql instances describe "$SQL_INSTANCE" --format='value(settings.activationPolicy,state)')
+            if [ "$status" = "$(printf 'ALWAYS\tRUNNABLE')" ]; then
+              echo "stop_at=$(($(date +%s) + KEEP_MINUTES * 60))" >> "$GITHUB_OUTPUT"
+              echo "DB が動いています。"
+              exit 0
+            fi
             sleep 10
           done
-          echo "::error::DB が10分たっても動き出しませんでした（${state}）"
+          echo "::error::DB が10分たっても動き出しませんでした（${status}）"
           exit 1
 
   staging:
     needs: [prepare, wake-db]
-    if: always() && needs.prepare.result == 'success' && (needs.wake-db.result == 'success' || needs.wake-db.result == 'skipped')
+    if: >-
+      !cancelled() && needs.prepare.result == 'success'
+      && (needs.wake-db.result == 'success' || needs.wake-db.result == 'skipped')
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/deploy-environment.yml
     with:
       environment: staging
+      stop_at: ${{ needs.wake-db.outputs.stop_at }}
+      skip_hour_check: ${{ inputs.skip_hour_check == true }}
 
   # main のときだけ。GitHub の環境 production の承認者が、ステージングで確かめてから承認すると始まる
   production:
-    needs: staging
-    if: always() && github.ref == 'refs/heads/main' && needs.staging.result == 'success'
+    needs: [staging, wake-db]
+    if: >-
+      !cancelled() && github.ref == 'refs/heads/main' && needs.staging.result == 'success'
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/deploy-environment.yml
     with:
       environment: production
+      stop_at: ${{ needs.wake-db.outputs.stop_at }}
+      skip_hour_check: ${{ inputs.skip_hour_check == true }}
 
-  # wake_db のとき、決めた分だけ起こしておいてから、必ず DB を止め直す（途中で失敗しても・承認されなくても）。
-  # 8時を過ぎていたら止めない（Cloud Scheduler が8時に起こしたあとの、昼の DB を止めないため）
+  # wake_db で DB を起こしたとき、決めた分だけ起こしておいてから、必ず止め直す（途中で失敗しても・承認されなくても・流れを取り消しても）。
+  # 取り消したときは、待たずにすぐ止める。7時45分を過ぎていたら止めない（Cloud Scheduler が8時に起こすのとぶつからないため）
   stop-db:
     needs: [prepare, wake-db]
-    if: always() && needs.prepare.outputs.wake == 'true'
+    if: always() && needs.wake-db.outputs.was_stopped == 'true'
     runs-on: ubuntu-latest
-    environment: staging
-    timeout-minutes: 75
+    timeout-minutes: 100
     permissions:
       contents: read
       id-token: write
     env:
       SQL_INSTANCE: ${{ vars.SQL_INSTANCE }}
-      KEEP_AWAKE_MINUTES: ${{ inputs.keep_awake_minutes }}
+      STOP_AT: ${{ needs.wake-db.outputs.stop_at }}
     steps:
-      - name: 決めた分だけ待つ
+      - name: 止め直す時刻まで待つ
+        if: ${{ !cancelled() }}
         run: |
-          minutes="${KEEP_AWAKE_MINUTES:-40}"
-          case "$minutes" in ''|*[!0-9]*) minutes=40 ;; esac
-          if [ "$minutes" -lt 10 ]; then minutes=10; fi
-          if [ "$minutes" -gt 60 ]; then minutes=60; fi
-          echo "${minutes}分たったら DB を止め直します。その間に、ステージングでの確かめ・承認・本番のデプロイを済ませてください。"
-          sleep $((minutes * 60))
+          if [ -z "$STOP_AT" ]; then echo "DB が動き出さなかったので、すぐ止め直します。"; exit 0; fi
+          wait_seconds=$((STOP_AT - $(date +%s)))
+          if [ "$wait_seconds" -gt 0 ]; then
+            echo "$((wait_seconds / 60))分たったら DB を止め直します。その間に、ステージングでの確かめ・承認・本番のデプロイを済ませてください。"
+            sleep "$wait_seconds"
+          fi
 
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        if: always()
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+          service_account: ${{ vars.GCP_DB_WAKER_SA }}
 
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+        if: always()
 
-      - name: DB を止め直す（夜のあいだだけ）
+      - name: DB を止め直す（7時45分より前だけ）
+        if: always()
         run: |
           now=$(TZ=Asia/Tokyo date +%H:%M)
-          if [ "$((10#${now%:*}))" -ge 8 ]; then
-            echo "日本時間の ${now} です。8時を過ぎたので、DB は止めません（Cloud Scheduler が8時に起こしています）。"
+          minutes=$((10#${now%:*} * 60 + 10#${now#*:}))
+          if [ "$minutes" -ge $((7 * 60 + 45)) ]; then
+            echo "日本時間の ${now} です。7時45分を過ぎたので、DB は止めません（Cloud Scheduler が8時に起こします）。"
             exit 0
           fi
           gcloud sql instances patch "$SQL_INSTANCE" --activation-policy=NEVER --quiet

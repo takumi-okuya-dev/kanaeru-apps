@@ -246,7 +246,7 @@ describe("deploy.yml・deploy-environment.yml：本番とステージングへ�
     );
     expect(squash(code)).toContain(
       squash(
-        "production: needs: staging if: always() && github.ref == 'refs/heads/main' && needs.staging.result == 'success'",
+        "production: needs: [staging, wake-db] if: >- !cancelled() && github.ref == 'refs/heads/main' && needs.staging.result == 'success'",
       ),
     );
     expect(squash(code)).toContain(
@@ -298,24 +298,51 @@ describe("deploy.yml・deploy-environment.yml：本番とステージングへ�
     expect(squash(code)).toContain(squash("staging: needs: [prepare, wake-db]"));
   });
 
+  it("承認のあと（本番の仕事の中）でも、コンテナを作る前と DB の変更の直前に時間を確かめる（承認が遅れて DB が止まる時刻に重ならないように）", () => {
+    const guards = [...environmentCode.matchAll(/name: 時間の確かめ/g)].map(({ index }) => index);
+    expect(guards, "時間の確かめが2つありません").toHaveLength(2);
+    const [beforeBuild = -1, beforeMigrate = -1] = guards;
+    expect(beforeBuild).toBeLessThan(environmentCode.indexOf("docker build"));
+    expect(beforeMigrate).toBeGreaterThan(environmentCode.indexOf("docker build"));
+    expect(beforeMigrate).toBeLessThan(environmentCode.indexOf("gcloud run jobs execute"));
+    expect(environmentCode).toMatch(/LAST_MINUTE: "1395"/);
+    expect(environmentCode).toMatch(/LAST_MINUTE: "1420"/);
+    expect(environmentCode).toMatch(/STOP_AT: \$\{\{ inputs\.stop_at \}\}/);
+  });
+
   it("始まってよいのは日本時間の8時15分〜23時だけ（8時に起こした DB の起動と、0時の停止までの余裕）", () => {
     expect(code).toMatch(/"\$minutes" -lt \$\(\(8 \* 60 \+ 15\)\)/);
     expect(code).toMatch(/"\$minutes" -ge \$\(\(23 \* 60\)\)/);
     expect(environmentCode).toMatch(/timeout-minutes:\s*30\b/);
   });
 
-  it("夜に DB を起こして出すのは0時〜7時45分だけで、決めた分のあと必ず止め直す（8時を過ぎていたら止めない）", () => {
+  it("夜に DB を起こして出すのは main だけ・0時〜7時45分だけで、起こしたときは取り消しても必ず止め直す（7時45分を過ぎていたら止めない）", () => {
     expect(code).toMatch(/"\$minutes" -ge \$\(\(7 \* 60 \+ 45\)\)/);
+    expect(code).toMatch(/if \[ "\$REF" != "refs\/heads\/main" \]; then/);
     expect(code).toMatch(/--activation-policy=ALWAYS/);
     expect(squash(code)).toContain(
       squash(
-        "stop-db: needs: [prepare, wake-db] if: always() && needs.prepare.outputs.wake == 'true'",
+        "stop-db: needs: [prepare, wake-db] if: always() && needs.wake-db.outputs.was_stopped == 'true'",
       ),
     );
-    const stop = code.indexOf("--activation-policy=NEVER");
-    expect(stop, "DB を止め直していません").toBeGreaterThan(code.indexOf("stop-db:"));
-    expect(code).toMatch(/-ge 8 \]; then/);
-    expect(code).toMatch(/if \[ "\$minutes" -gt 60 \]; then minutes=60; fi/);
+    const stopJob = code.slice(code.indexOf("stop-db:"));
+    expect(stopJob, "DB を止め直していません").toMatch(/--activation-policy=NEVER/);
+    expect(squash(stopJob)).toContain(squash("name: 止め直す時刻まで待つ if: ${{ !cancelled() }}"));
+    expect(squash(stopJob)).toContain(
+      squash("name: DB を止め直す（7時45分より前だけ） if: always()"),
+    );
+    expect(code).toMatch(/if \[ "\$keep" -gt 90 \]; then keep=90; fi/);
+  });
+
+  it("DB を起こす・止めるのは main だけの専用の身分（GCP_DB_WAKER_SA）で、デプロイの身分では触らない", () => {
+    const wakeJobs = code.slice(code.indexOf("wake-db:"), code.indexOf("staging:"));
+    const stopJob = code.slice(code.indexOf("stop-db:"));
+    for (const job of [wakeJobs, stopJob]) {
+      expect(job).toMatch(/service_account: \$\{\{ vars\.GCP_DB_WAKER_SA \}\}/);
+      expect(job).not.toMatch(/GCP_DEPLOYER_SA/);
+      expect(job).not.toMatch(/environment:/);
+    }
+    expect(environmentCode).not.toMatch(/activation-policy/);
   });
 
   it("LIFF_ID が空ならコンテナを作る前に止め（仮の LIFF の画面を出さない）、APP_NAME を組み立てに渡す", () => {

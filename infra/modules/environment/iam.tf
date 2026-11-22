@@ -3,7 +3,7 @@
 # | 身分 | 使う所 | 役割 |
 # |---|---|---|
 # | <name>-run | この環境の Cloud Run のサービスと migrate の job | この環境の秘密を読む（DB へは内部の IP とパスワードでつなぐので、Cloud SQL の役割は要らない） |
-# | <name>-deployer | GitHub Actions（WIF でなりすます。鍵は作らない） | この環境の置き場所にイメージを押し込む・この環境の Cloud Run のサービスと job だけを更新して動かす・<name>-run として動かす・夜に Cloud SQL を一時的に起こして止め直す |
+# | <name>-deployer | GitHub Actions（WIF でなりすます。鍵は作らない） | この環境の置き場所にイメージを押し込む・この環境の Cloud Run のサービスと job だけを更新して動かす・<name>-run として動かす |
 #
 # ステージングのデプロイの身分は、本番の Cloud Run とイメージの置き場所を触れない（サービス・job・置き場所の単位で権限を付ける）。
 # なりすませるのは、この環境のブランチ（github_refs）から入った GitHub Actions だけ（リポジトリは WIF のプロバイダの条件で絞る）。
@@ -102,12 +102,4 @@ resource "google_service_account_iam_member" "github_deployer" {
   service_account_id = google_service_account.deployer.name
   role               = "roles/iam.workloadIdentityUser"
   member             = "principalSet://iam.googleapis.com/${var.workload_identity_pool_name}/attribute.ref/${each.value}"
-}
-
-# 夜（DB を止めている間）に緊急で出すとき、デプロイの流れが Cloud SQL を一時的に起こして止め直す（core-019）。
-# 持つのは止める・動かすの2つの権限だけ（Cloud SQL の役割はプロジェクトの単位でしか付けられない）
-resource "google_project_iam_member" "deployer_sql_activation" {
-  project = var.project_id
-  role    = var.sql_activation_role
-  member  = google_service_account.deployer.member
 }

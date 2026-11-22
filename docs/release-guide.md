@@ -33,14 +33,18 @@ flowchart LR
   stg --> check[ステージングで確かめる<br/>（あなた）]
   check --> approve{承認する？}
   approve -- Approve --> prod[本番に出る<br/>kanaeru]
-  approve -- Reject・何もしない --> stop([本番には出ない])
+  approve -- Reject --> stop([本番には出ない])
 ```
 
 1. GitHub の **Actions** → いちばん上の `deploy` の流れを開く。`staging / deploy` が緑になるのを待つ（5〜10分）。
 2. ステージングの画面で、直したところと、ログインできることを確かめる（3章の一覧）。
 3. 流れの画面の上に出る **Review deployments** → `production` に印を付ける → **Approve and deploy**。
-   - 出したくないときは **Reject**（または何もしない。本番には出ない）。
+   - 出したくないときは、必ず **Reject** を押す。放っておくと、承認を待ったまま最長30日残り、その間、同じブランチの次のデプロイが始まらない（後から2つ目が来ると、待っていた方が取り消される）。
 4. `production / deploy` が緑になったら、本番の画面で同じところを確かめる。
+
+- 承認が遅れて、本番の仕事が始まる時刻が23時15分を過ぎた（夜の緊急デプロイなら、DB を止め直すまで15分を切った）ときは、本番の仕事は何もせずに止まる（DB が止まる時刻に DB の変更が重ならないように）。8時15分を過ぎてから、Actions の `deploy` を `main` で手で流し直す。
+- 承認を待っている間に `develop` へマージすると、ステージングは `develop` の中身に変わる。確かめと承認が済むまで、`develop` へのマージは待つ。
+- 本番のイメージは、ステージングで確かめたのと同じコミットから作り直す（画面に環境ごとの LIFF ID を埋めるため）。中身のコードは同じ。
 
 > 承認のボタンが出ないとき：Settings → Environments → `production` に自分が承認者（Required reviewers）として入っているかを見る（[infra/README.md](../infra/README.md) 5）。
 
@@ -74,17 +78,20 @@ CI が通ったらマージする（`gh pr merge <番号> --merge`）。
 
 夜は DB を止めているので、マージで自動に始まった `deploy` は「時間帯の確かめ」で止まる（これは正しい動き）。手で流し直す：
 
-- 画面から：Actions → `deploy` → **Run workflow** → Branch は `main` → **`wake_db` に印** → `keep_awake_minutes`（DB を起こしておく分。既定40）→ **Run workflow**
+- 画面から：Actions → `deploy` → **Run workflow** → Branch は `main` → **`wake_db` に印** → `keep_awake_minutes`（DB を起こしておく分。既定60）→ **Run workflow**
 - 手元から：
 
   ```bash
-  gh workflow run deploy.yml --ref main -f wake_db=true -f keep_awake_minutes=40
+  gh workflow run deploy.yml --ref main -f wake_db=true -f keep_awake_minutes=60
   ```
 
-流れは「DB を起こす（数分）→ ステージングに出る → 承認を待つ → 本番に出る」と進み、`keep_awake_minutes` たつと、**成功しても失敗しても DB を止め直す**。その時間の中で、2章の確かめと承認を済ませる。
+流れは「DB を起こす（数分）→ ステージングに出る → 承認を待つ → 本番に出る」と進み、DB が動き出してから `keep_awake_minutes` たつと、**成功しても失敗しても DB を止め直す**。流れを取り消したときは、すぐに止め直す。その時間の中で、2章の確かめと承認を済ませる。
 
-- 時間が足りなくなりそうなら、短すぎない値（40〜60）で流す。60分より長くはできない。
-- 決めた時間を過ぎてから承認すると、本番の DB の変更が DB に届かずに止まり、本番には出ない（壊れない）。翌朝8時15分を過ぎてから、`deploy` を `main` でもう一度流す。
+- `keep_awake_minutes` は15〜90分。ステージングに出るまで10分ほどかかり、本番の仕事は止め直すまで15分より短いと始まらないので、60分なら、ステージングでの確かめと承認に使えるのは30分ほど。
+- 止め直す時刻に近すぎてから承認すると、本番の仕事は何もせずに止まり、本番には出ない（壊れない）。もう一度 `wake_db` で流すか、翌朝8時15分を過ぎてから `deploy` を `main` で流し直す。
+- 交流会で夜間の停止を止めていて DB が前から動いているときは、`wake_db` は DB を起こさず、止め直しもしない（そのままにする）。
+- 7時45分を過ぎてから止め直す時刻になったときは、止めない（8時に Cloud Scheduler が起こすため）。
+- 使えるのは `main` だけ。DB を起こす・止めるのは、`main` からだけ使える専用の身分（`kanaeru-db-waker`）。
 - 23時〜0時は使えない（0時の停止と重なるため）。0時を過ぎてから流す。
 
 ### 4-4. 直したあと：`main` を `develop` に戻す
@@ -129,5 +136,5 @@ gh pr create --base main --head develop --title "リリース：$(date +%Y-%m-%d
 |---|---|
 | ステージングで問題が見つかった | 承認しない（Reject）。直して、もう一度 `main` にマージする（①の形で）。ステージングは `main` の中身のままになるので、次の `develop` のマージで develop の中身に戻る |
 | 本番に出したあとで壊れていると分かった | すぐ前の版に戻す：`gcloud run services update-traffic kanaeru --region=asia-northeast1 --to-revisions=<前の版の名前>=100`（版の名前は `gcloud run revisions list --service=kanaeru --region=asia-northeast1`）。DB の変更は戻さない（前の版でも壊れない形にしている）。そのあと①で直す |
-| 夜に起こした DB が止まっていない（`stop-db` が失敗した） | `gcloud sql instances patch kanaeru-db --activation-policy=NEVER`（8時より前のときだけ。8時を過ぎていたらそのままでよい） |
-| 承認を待ったまま止まっている | 承認するか、Reject する。待っている間、同じブランチの次のデプロイは始まらない |
+| 夜に起こした DB が止まっていない（`stop-db` が失敗した・流れを強く取り消した〈Force cancel〉） | `gcloud sql instances patch kanaeru-db --activation-policy=NEVER`（8時より前のときだけ。8時を過ぎていたらそのままでよい） |
+| 承認を待ったまま止まっている | 承認するか、Reject する。待っている間、同じブランチの次のデプロイは始まらない。新しく流し直す前に、待っている方を Reject する |

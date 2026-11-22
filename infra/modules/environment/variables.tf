@@ -27,11 +27,6 @@ variable "github_refs" {
   description = "この環境へデプロイしてよい GitHub のブランチ（本番は refs/heads/main だけ・ステージングは refs/heads/develop と、本番の前に確かめるための refs/heads/main。core-019）"
 }
 
-variable "sql_activation_role" {
-  type        = string
-  description = "Cloud SQL を止める・動かすだけの自前の役割の ID（夜に緊急で出すとき、デプロイの流れが DB を一時的に起こして止め直す。core-019）"
-}
-
 variable "max_instances" {
   type        = number
   description = "Cloud Run の台数の上限。DB の接続は「台数 × db_pool_max」まで増えるので、ほかの環境と合わせて Cloud SQL の上限（db-f1-micro は25）に収める"

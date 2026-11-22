@@ -23,7 +23,6 @@ locals {
     web_dist_dir                = local.web_dist_dir
     placeholder_service_image   = local.placeholder_service_image
     placeholder_job_image       = local.placeholder_job_image
-    sql_activation_role         = google_project_iam_custom_role.sql_activation.id
   }
 }
 
@@ -47,7 +46,6 @@ module "production" {
   web_dist_dir                = local.environment_shared.web_dist_dir
   placeholder_service_image   = local.environment_shared.placeholder_service_image
   placeholder_job_image       = local.environment_shared.placeholder_job_image
-  sql_activation_role         = local.environment_shared.sql_activation_role
 
   deletion_protection       = var.production.deletion_protection
   web_url                   = var.production.web_url
@@ -87,7 +85,6 @@ module "staging" {
   web_dist_dir                = local.environment_shared.web_dist_dir
   placeholder_service_image   = local.environment_shared.placeholder_service_image
   placeholder_job_image       = local.environment_shared.placeholder_job_image
-  sql_activation_role         = local.environment_shared.sql_activation_role
 
   deletion_protection       = var.staging.deletion_protection
   web_url                   = var.staging.web_url
@@ -104,4 +101,16 @@ module "staging" {
   booking_notify_mode       = var.staging.booking_notify_mode
 
   depends_on = [google_project_service.apis]
+}
+
+# core-019 でデプロイの身分のなりすましを、ブランチごとの for_each にした。前の1つの資源を、同じ許可（同じブランチ）の項目に移す
+# （消して作り直すと、同じ許可を消す・足すの順が決まらず、許可が消えたままになることがあるため）
+moved {
+  from = module.production.google_service_account_iam_member.github_deployer
+  to   = module.production.google_service_account_iam_member.github_deployer["refs/heads/main"]
+}
+
+moved {
+  from = module.staging[0].google_service_account_iam_member.github_deployer
+  to   = module.staging[0].google_service_account_iam_member.github_deployer["refs/heads/develop"]
 }
