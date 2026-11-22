@@ -95,7 +95,7 @@
 | `/match/tables/$tableId/big` | 大きく映す（M3）。組のタブと、今の試合と次の試合だけを大きな字（名前は SVG で描き、画面の幅に合わせる）で出す。担当でない端末は、つながっている間30秒おきに読み直す |
 | `/match/tables/$tableId/print` | 印刷（M5・R1）。刷る組・紙（A5〜A2・B5〜B3）と向き・組ごとに1枚の版（SVG。紙1枚にちょうど収まるよう字の大きさを合わせる。`print-layout.ts`・`print.css`）。見るだけのリンクがこの端末にあれば、版の右上に QR（`qr.tsx`）と、入口に貼る1枚（R2。A4 縦）。下に「kanaeru で作った試合表」 |
 
-直すたびに、担当の端末が中身をまるごと、もとの版と変更の ID を付けて端末（IndexedDB）に置き、古い順に送る（`table-editor.ts`・`offline/outbox.ts`。端末の ID は `device.ts` の localStorage で、IndexedDB にも写す）。端末に置いた写し（IndexedDB の試合表の中身・一覧・送っていない変更と、localStorage の `kanaeru.match.` で始まる値〈共有のリンクの札・見るだけのページの写しと選んだ名前〉）は、ログアウト・退会と、写しを置いた人と違う人（わからないときを含む）のログインで消す（`offline/account-reset.ts`。account の知らせ `lib/account-events.ts` を受ける。端末の ID は残す）。電波がない・届かないときは端末に残し、つながったら送る。409 などで送れなければ止めて端末に残し、「捨てる」「上書きする」を選んでもらう（8章）。試合表の画面には「電波なしで渡す」（M4。`HandoffDialog.tsx`）。担当でない端末には、今の担当（端末の ID の終わりの4文字）と「この端末で直す」（つながっているときだけ・確かめてから。`TableFrame.tsx`）を出す。
+直すたびに、担当の端末が中身をまるごと、もとの版と変更の ID を付けて端末（IndexedDB）に置き、古い順に送る（`table-editor.ts`・`offline/outbox.ts`。端末の ID は `device.ts` の localStorage で、IndexedDB にも写す）。端末に置いた写し（IndexedDB の試合表の中身・一覧・送っていない変更と、localStorage の `kanaeru.match.` で始まる値〈共有のリンクの札・見るだけのページの写しと選んだ名前〉）は、ログアウト・退会と、写しを置いた人（localStorage の `kanaeru.match.owner`）と違う人（わからないときを含む）のログインで消す（`offline/account-reset.ts`。account の知らせ `lib/account-events.ts` を受ける。localStorage は IndexedDB を待たずに先に消す。端末の ID は残す）。電波がない・届かないときは端末に残し、つながったら送る。409 などで送れなければ止めて端末に残し、「捨てる」「上書きする」を選んでもらう（8章）。試合表の画面には「電波なしで渡す」（M4。`HandoffDialog.tsx`）。担当でない端末には、今の担当（端末の ID の終わりの4文字）と「この端末で直す」（つながっているときだけ・確かめてから。`TableFrame.tsx`）を出す。
 
 ## 6. 組み方（とネットなしは 8章）
 
