@@ -48,6 +48,7 @@
 | 文書 | 何が書いてあるか | 正本 |
 |---|---|---|
 | [本番に初めて出す手順](./first-release.md) | 2026-11-25 の交流会までに、GCP・LINE・GitHub を準備して本番に出し、本物の LINE で確かめるまでの順番とチェックの一覧。うまくいかないときの直し方 | 初めての本番の順番 |
+| [本番に出す手順](./release-guide.md) | 本番に出す3つのモード（①緊急・②週ごと・③新しいアプリ）のどれを使うか、`main` にマージしたあとの確かめと承認、夜に DB を一時的に起こして出すやり方、`main` を `develop` に戻す、前の版に戻す・うまくいかないとき | 本番に出すやり方 |
 | [置き場所の比べと料金の試算](./hosting-cost.md) | 置き場所を GCP にした理由と外した案、GCP・GCP＋Cloudflare・Cloud Run＋Supabase・Workers＋Supabase・Workers＋PlanetScale・Cloudflare だけ（D1）の6つの構成を1日の利用者の数（100人〜10万人）ごとのひと月の料金で比べた試算、DB が耐えられる負荷の目安、見直す目安、単価と無料の枠、出典 | 置き場所の比べ・料金の試算 |
 | [infra/README.md](../infra/README.md) | 本番の置き場所（GCP）を作る初めての手順（プロジェクト・請求・state・LINE の値・Terraform・GitHub の変数）と、夜間の停止・パスワードの替え方 | 置き場所の手順 |
 

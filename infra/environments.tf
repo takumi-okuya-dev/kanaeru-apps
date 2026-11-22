@@ -2,8 +2,8 @@
 #
 # | 環境 | 名前 | 出る合図 | Cloud Run の台数 × DB の接続 |
 # |---|---|---|---|
-# | 本番 | kanaeru | main のマージ | 2台 × 5本 ＝ 10本 |
-# | ステージング | kanaeru-stg | develop のマージ | 1台 × 3本 ＝ 3本 |
+# | 本番 | kanaeru | main のマージ（ステージングで確かめ、承認のあと） | 2台 × 5本 ＝ 10本 |
+# | ステージング | kanaeru-stg | develop のマージ・main のマージ（本番の前） | 1台 × 3本 ＝ 3本 |
 #
 # DB の接続の合計（13本と、DB の変更を当てる job の分）を、db-f1-micro の上限（25本）に収める。
 # 別のプロジェクトに環境を移すとき（構成 C）は、移した先で共通の資源（network.tf・cloud_sql.tf・wif.tf）を作り、
@@ -31,7 +31,7 @@ module "production" {
 
   name          = local.name
   app_env       = "production"
-  github_ref    = "refs/heads/main"
+  github_refs   = ["refs/heads/main"]
   max_instances = 2
   db_pool_max   = 5
 
@@ -70,7 +70,7 @@ module "staging" {
 
   name          = "${local.name}-stg"
   app_env       = "staging"
-  github_ref    = "refs/heads/develop"
+  github_refs   = ["refs/heads/develop", "refs/heads/main"]
   max_instances = 1
   db_pool_max   = 3
 
@@ -101,4 +101,16 @@ module "staging" {
   booking_notify_mode       = var.staging.booking_notify_mode
 
   depends_on = [google_project_service.apis]
+}
+
+# core-019 でデプロイの身分のなりすましを、ブランチごとの for_each にした。前の1つの資源を、同じ許可（同じブランチ）の項目に移す
+# （消して作り直すと、同じ許可を消す・足すの順が決まらず、許可が消えたままになることがあるため）
+moved {
+  from = module.production.google_service_account_iam_member.github_deployer
+  to   = module.production.google_service_account_iam_member.github_deployer["refs/heads/main"]
+}
+
+moved {
+  from = module.staging[0].google_service_account_iam_member.github_deployer
+  to   = module.staging[0].google_service_account_iam_member.github_deployer["refs/heads/develop"]
 }

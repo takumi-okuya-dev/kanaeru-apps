@@ -22,9 +22,9 @@ variable "app_env" {
   }
 }
 
-variable "github_ref" {
-  type        = string
-  description = "この環境へデプロイしてよい GitHub のブランチ（本番は refs/heads/main・ステージングは refs/heads/develop）"
+variable "github_refs" {
+  type        = list(string)
+  description = "この環境へデプロイしてよい GitHub のブランチ（本番は refs/heads/main だけ・ステージングは refs/heads/develop と、本番の前に確かめるための refs/heads/main。core-019）"
 }
 
 variable "max_instances" {
