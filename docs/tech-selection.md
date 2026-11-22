@@ -84,6 +84,6 @@
 ## 4. 選び直すとき
 
 - 公開のページの SEO が中心になった → React Router 8 の framework mode か Astro を、公開のページだけに足す。
-- 費用をもっと下げたい（個人の情報を扱わない） → 画面を Cloudflare の静的な配信へ、DB を Supabase の無料へ。構成ごとの料金の試算は[置き場所の料金の試算](./hosting-cost.md)。
+- 費用をもっと下げたい（個人の情報を扱わない） → 画面を Cloudflare の静的な配信へ、DB を Supabase の無料へ。構成ごとの比べと料金の試算は[置き場所の比べと料金の試算](./hosting-cost.md)。
 - データ処理・機械学習が中心 → その部分だけ Python のサービスに分ける（API の約束は OpenAPI でつなぐ）。
 - 選び直したら、この文書を直し、[決めたことの記録](./decisions.md)に1行足す。
