@@ -6,10 +6,9 @@
 # - 許可リスト NOTIFY_ALLOWLIST（自分たちの LINE のユーザー ID・メールアドレス）は秘密の値と同じく扱う（AD-24）。
 #   Terraform は入れ物だけを作り、値は手で版を足す（README の 10。state とリポジトリに残さないため）。
 #   Cloud Run が読むのは booking_notify_mode が allowlist のときだけ（on・off では要らない）
-# - 定期の仕事：10分おき・日本時間 9時〜23時台に POST /api/v1/booking/jobs/tick を呼ぶ（期限切れの打診の片付け・繰り上げ・
-#   当日の空き・変更の知らせ。booking-004 research R2）。打診の期限は夜なら翌9時にずらすので、9時から動かす（DB は8時から動く。AD-10）。
-#   止まっても、書く窓口と読む窓口で期限は守られる。Cloud Scheduler の仕事は、夜間の停止の2つ・Threads と合わせて最大4つになり、
-#   無料の枠（3つ）を超えた1つは月に $0.10 ほど（原則 V）
+# - 定期の仕事（期限切れの打診の片付け・繰り上げ・当日の空き・変更の知らせ）は、予約だけの Cloud Scheduler の仕事を持たない。
+#   共通の定期の仕事（scheduler.tf の kanaeru-jobs-tick。core-017）が5分ごとに POST /api/v1/jobs/tick を呼び、booking の
+#   scheduledJob（10分ごと・日本時間 9時〜23時台）をその回に動かす（booking-007）。止まっても、書く窓口と読む窓口で期限は守られる
 
 resource "google_secret_manager_secret" "notify_allowlist" {
   count     = var.booking_enabled ? 1 : 0
@@ -31,36 +30,4 @@ resource "google_secret_manager_secret_iam_member" "runtime_notify_allowlist" {
   secret_id = google_secret_manager_secret.notify_allowlist[0].id
   role      = "roles/secretmanager.secretAccessor"
   member    = google_service_account.runtime.member
-}
-
-resource "google_cloud_scheduler_job" "booking_tick" {
-  count       = var.booking_enabled ? 1 : 0
-  name        = "${local.name}-booking-tick"
-  description = "10分おき（9時〜23時台）に予約の定期の仕事（打診の期限切れ・繰り上げ・当日の空き・変更の知らせ）を呼ぶ"
-  region      = var.region
-  schedule    = "*/10 9-23 * * *"
-  time_zone   = "Asia/Tokyo"
-
-  # 1回の失敗は次の回が拾う（片付けは何度呼んでも同じ結果になる）ので、やり直さない
-  retry_config {
-    retry_count = 0
-  }
-
-  attempt_deadline = "120s"
-
-  http_target {
-    http_method = "POST"
-    uri         = "${local.web_url}/api/v1/booking/jobs/tick"
-    headers = {
-      "Content-Type"  = "application/json"
-      "Authorization" = "Bearer ${random_password.job_trigger[0].result}"
-    }
-    body = base64encode("{}")
-  }
-
-  lifecycle {
-    ignore_changes = [paused]
-  }
-
-  depends_on = [google_project_service.apis]
 }
