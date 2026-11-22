@@ -85,11 +85,11 @@ async function lockThreadsUser(tx: Executor, threadsUserId: string): Promise<voi
 
 /**
  * OAuth の接続を確定してよいかを、接続のトランザクションの中で確かめる（めぐるの connection-service.ts の手順3・4）。
- * - 認可したあとに出た連携の解除の知らせがあれば断る（許可の画面から戻る途中で、連携を解いた）
+ * - 接続を始めたあとに出た連携の解除の知らせがあれば断る（許可の画面から戻る途中で、連携を解いた）
  * - 終わっていないデータの削除の要求か、接続を始めたあとに終わったデータの削除の要求があれば断る
  * @param tx トランザクション（Threads のユーザーの鍵を取ったあと）
  * @param threadsUserId Threads のユーザーの ID
- * @param authorizedAt 認可した時刻（完了を受けた時刻）
+ * @param authorizedAt 認可の下限の時刻（接続を始めた時刻。Meta の連携の解除の知らせの issued_at は解いた時刻なので、完了を受けた時刻と比べると、同意のあと完了の前に解いた知らせを見落とす）
  * @param startedAt 接続を始めた時刻（state を作った時刻）
  * @throws {AppError} 連携が解かれた（THREADS_AUTH_REVOKED）・データの削除の要求がある（THREADS_DATA_DELETION_REQUESTED）
  */
@@ -312,7 +312,8 @@ export async function completeOauth(
     return { redirectTo: `${settings}?oauth=failed`, outcome: null };
   }
   try {
-    // 認可したあとの連携の解除・データの削除の要求があれば、接続を確定しない（threads-012）
+    // 接続を始めたあとの連携の解除・データの削除の要求があれば、接続を確定しない（threads-012）。
+    // 認可した時刻も接続を始めた時刻で残す（あとから届く、始めたあとに出た解除の知らせを、古い知らせとして捨てないため）
     const startedAt = row.createdAt;
     const outcome = await connectWithToken(
       deps,
@@ -320,7 +321,8 @@ export async function completeOauth(
       account,
       token,
       now,
-      (tx, threadsUserId) => assertOauthAllowed(tx, threadsUserId, now, startedAt),
+      (tx, threadsUserId) => assertOauthAllowed(tx, threadsUserId, startedAt, startedAt),
+      startedAt,
     );
     return { redirectTo: `${settings}?oauth=${outcome.kind}`, outcome };
   } catch (error) {

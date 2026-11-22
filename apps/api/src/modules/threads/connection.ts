@@ -362,6 +362,7 @@ export type ConnectGuard = (tx: Executor, threadsUserId: string) => Promise<void
  * @param rawToken 貼った文（前後の空白・引用符は取り除く）
  * @param now 今
  * @param guard 接続を確定する前の確かめ（OAuth の接続だけ。threads-012）
+ * @param authorizedAt 認可した時刻として残す時刻（既定は今。OAuth では接続を始めた時刻。これより前に出た連携の解除の知らせは、この接続に当てない）
  * @returns つないだ結果
  * @throws {AppError} 鍵の設定がない・待たせている間・トークンが合わない・別のアカウント・ほかの運用アカウントがつないでいる・Threads が答えない
  */
@@ -372,13 +373,14 @@ export async function connectWithToken(
   rawToken: string,
   now: Date = new Date(),
   guard?: ConnectGuard,
+  authorizedAt: Date = now,
 ): Promise<ConnectOutcome> {
   const box = deps.secretBox;
   if (!box) throw new AppError(THREADS_ERRORS.THREADS_CONNECTION_UNAVAILABLE);
   const reservation = await reserveCheck(deps.db, ownerId, now);
   let failure: FailureReason | null = null;
   try {
-    return await checkAndConnect(deps, box, account, rawToken, now, guard);
+    return await checkAndConnect(deps, box, account, rawToken, now, guard, authorizedAt);
   } catch (error) {
     if (error instanceof CountedFailure) {
       failure = error.reason;
@@ -415,6 +417,7 @@ export async function connectWithToken(
  * @param rawToken 貼った文
  * @param now 今
  * @param guard 接続を確定する前の確かめ
+ * @param authorizedAt 認可した時刻として残す時刻
  * @returns つないだ結果
  * @throws {CountedFailure} 数える失敗
  * @throws {AppError} 数えない失敗
@@ -425,7 +428,8 @@ async function checkAndConnect(
   account: AccountRow,
   rawToken: string,
   now: Date,
-  guard?: ConnectGuard,
+  guard: ConnectGuard | undefined,
+  authorizedAt: Date,
 ): Promise<ConnectOutcome> {
   const invalid = () => new AppError(THREADS_ERRORS.THREADS_TOKEN_INVALID);
   const token = cleanToken(rawToken);
@@ -503,7 +507,7 @@ async function checkAndConnect(
       scopes,
       expiresAt,
       issuedAt: debug?.issuedAt ?? now,
-      authorizedAt: now,
+      authorizedAt,
       recheckAt,
     };
     await tx
