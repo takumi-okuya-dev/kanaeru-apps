@@ -58,7 +58,7 @@
 | GET | `/api/v1/suite/organizations/{id}` | 組織の画面（人の表示名・役割・入った日・あなた・新しい人〈管理者だけ〉）。組織の人の全員 | 401・404 `ORGANIZATION_NOT_FOUND` |
 | PATCH・DELETE | `/api/v1/suite/organizations/{id}` | 名前を直す・組織を消す（管理者だけ） | 403 `ORGANIZATION_ADMIN_ONLY`・404 |
 | GET・POST | `/api/v1/suite/organizations/{id}/invite` | 招待の札を読む（なければ・出し直せなければ `null`）・作り直す（管理者だけ） | 403・404 |
-| PUT・DELETE | `/api/v1/suite/organizations/{id}/members/{accountId}` | 役割をメンバー⇔編集者に切り替える（編集者は10人まで）・外す（管理者だけ。自分と管理者は不可） | 403・404・409 |
+| PUT・DELETE | `/api/v1/suite/organizations/{id}/members/{accountId}` | 役割をメンバー⇔編集者に切り替える（編集者は10人まで）・外す（管理者だけ。自分と管理者は不可。招待の札があれば同じトランザクションで作り直し、外した人が古いリンクで入り直せないようにする） | 403・404・409 |
 | POST | `/api/v1/suite/organizations/{id}/teams` | チームを作る（管理者だけ。1つの組織に20まで。組織の画面の `teams` に出る） | 403・404・409 `TEAM_LIMIT`・`TEAM_NAME_TAKEN` |
 | PATCH・DELETE | `/api/v1/suite/organizations/{id}/teams/{teamId}` | チームの名前を直す・消す（管理者だけ。消すとアプリの「チームに入れる」・担当が外れる） | 403・404 `TEAM_NOT_FOUND`・409 |
 | PUT・DELETE | `/api/v1/suite/organizations/{id}/teams/{teamId}/members/{accountId}` | 組織の人をチームに足す・リーダーを切り替える（`{ leader }`）・外す（管理者だけ） | 403・404 `TEAM_MEMBER_NOT_FOUND` |

@@ -561,7 +561,7 @@ export function organizationRoutes(deps: DomainRouteDeps) {
       const me = currentAccount(c).accountId;
       await requireOrganizationRole(db, organizationId, me, "admin");
       if (accountId === me) throw new AppError(ORGANIZATION_ERRORS.ORGANIZATION_SELF_NOT_ALLOWED);
-      await removeMember(db, organizationId, accountId);
+      await removeMember(db, deps.secretBox, organizationId, accountId);
       return c.body(null, 204);
     })
     .openapi(transferRoute, async (c) => {
