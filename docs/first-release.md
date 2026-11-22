@@ -1,25 +1,27 @@
-# 本番に初めて出す手順（2026-11-25 の交流会まで）
+# 本番に初めて出す手順
 
 - 作成日：2026-11-19
+- 直した日：2026-11-22（ステージング・本番の前の承認・環境ごとの LINE のチャネル・権限で分かれているかの確かめを足した。交流会の日に合わせる書き方をやめた）
 - 読む人：主催者（GCP・LINE・GitHub の画面を操作する人）
-- 詳しい手順は、各手順のリンク先が正本。ここは**順番と、やり忘れを防ぐチェックの一覧**。値はここに書かない（公開リポジトリのため）。
+- 詳しい手順は、各手順のリンク先が正本。ここは**順番と、やり忘れを防ぐチェックの一覧**。値はここに書かない（公開リポジトリのため）。2回目からの出し方は[本番に出す手順](./release-guide.md)。
 
 ## 0. 全体の流れと時間の目安
 
 ```mermaid
 flowchart LR
-  a["1 道具とアカウント<br/>30分"] --> b["2 GCP の<br/>プロジェクトと請求<br/>20分"]
-  b --> c["3 LINE の<br/>チャネル<br/>30分"]
-  c --> d["4 Terraform で<br/>GCP を作る<br/>30分（昼）"]
-  d --> e["5 LINE に<br/>URL を入れる<br/>10分"]
-  e --> f["6 GitHub の変数と<br/>リリース<br/>20分（昼）"]
-  f --> g["7 本物の LINE で<br/>確かめる<br/>30分"]
-  g --> h["8 交流会の準備"]
+  a["1 道具と<br/>アカウント"] --> b["2 GCP の<br/>プロジェクトと請求"]
+  b --> c["3 LINE の<br/>チャネル（環境ごと）"]
+  c --> d["4 Terraform で<br/>GCP を作る（昼）"]
+  d --> e["5 LINE に<br/>URL を入れる"]
+  e --> f["6 GitHub の<br/>変数と環境"]
+  f --> g["7 初めてのデプロイ<br/>ステージング → 本番（昼）"]
+  g --> h["8 権限で分かれて<br/>いるかの確かめ"]
+  h --> i["9 本物の LINE で<br/>確かめる"]
 ```
 
-- 合わせて**半日ほど**。4 と 6 は DB が動いている昼（日本時間 8時15分〜23時）に行う。
-- **交流会の2〜3日前までに 7 を終える**。7 の結果しだいで直しが要る（9章）。
-- `@line/liff` の古い版（2.31.0 以下）は 2026-11-24 ごろ LINE が使えなくする。kanaeru は 2.32 なので、何もしなくてよい。
+- 合わせて**半日〜1日ほど**。4・7・8 は DB が動いている昼（日本時間 8時15分〜23時）に行う。
+- 交流会で使うなら、**2〜3日前までに 9 を終える**。9 の結果しだいで直しが要る（11章）。
+- **独自ドメイン**：一般に公開するときは独自ドメインを取り、Cloudflare を前に置く（[バックログ](./backlog.md) C1）。LINE や Meta に登録する URL が変わるので、取るなら 5 の前に決める。決めていなければ、`run.app` の URL で進め、取ったときに登録し直す。
 
 ## 1. 道具とアカウント（初めての1回）
 
@@ -35,73 +37,90 @@ flowchart LR
 - [ ] 請求先アカウントにつなぐ。通貨が円か確かめる
 - [ ] 最初の2つの API を有効にする（`serviceusage`・`cloudresourcemanager`）
 - [ ] Terraform の状態を置くバケットを作り、バージョニングを入れる
-- [ ] プロジェクトの**番号**を控える（`gcloud projects describe <プロジェクトID> --format='value(projectNumber)'`）。Cloud Run の URL は `https://kanaeru-<プロジェクトの番号>.asia-northeast1.run.app` になる（5章で使う）
 
-## 3. LINE のチャネル（すべて同じプロバイダーの下に）
+## 3. LINE のチャネル（すべて同じプロバイダーの下に・ミニアプリは環境ごと）
 
-考え方は [LINEの学び](./study/line.md) 1・2章。
+考え方は [LINEの学び](./study/line.md) 1・2章、値の入れ先は [infra/README.md](../infra/README.md) 4章。
 
 - [ ] プロバイダーを1つ作る（ユーザーID はプロバイダーごとに変わるので、kanaeru のチャネルは全部ここに作る。AD-2）
-- [ ] **LINE ミニアプリのチャネル**を作る（未認証のまま。審査は出さない）
-  - チャネルID を控える → Terraform の `line_channel_ids`
-  - LIFF ID を控える → GitHub の変数 `LIFF_ID`（6章）
-  - 「あなたのユーザーID」（`U` で始まる。チャネル基本設定にある。なければ同じプロバイダーの LINE ログインのチャネルで見る）を控える → Terraform の `organizer_line_user_id`
-- [ ] **公式LINE**（Messaging API のチャネル）を同じプロバイダーに作り、ミニアプリの「友だち追加の相手」にする（[LINEの学び](./study/line.md) 4章。FR-6）
-- [ ] コミュニティのオープンチャットの URL を控える → Terraform の `open_chat_url`
+- [ ] **LINE ミニアプリのチャネルを2つ**作る（本番用とステージング用。LIFF の URL は1つの LIFF アプリに1つのため。どちらも未認証のまま。審査は出さない）
+  - それぞれのチャネルID → Terraform の `production`・`staging` の `line_channel_ids`
+  - それぞれの LIFF ID → GitHub の環境 `production`・`staging` の変数 `LIFF_ID`（6章）
+  - 「あなたのユーザーID」（`U` で始まる）→ 両方の環境の `organizer_line_user_id`（同じプロバイダーなら同じ値）
+- [ ] **公式LINE**（Messaging API のチャネル）を同じプロバイダーに作り、本番のミニアプリの「友だち追加の相手」にする（[LINEの学び](./study/line.md) 4章。FR-6）
+- [ ] コミュニティのオープンチャットの URL を控える → 環境ごとの `open_chat_url`
 
 ## 4. Terraform で GCP を作る（昼に）
 
 [infra/README.md](../infra/README.md) 4・5章のとおり。
 
-- [ ] リポジトリの数字の ID と持ち主の数字の ID を控える（`gh api repos/takumi-okuya-dev/kanaeru-apps --jq '.id, .owner.id'`）
-- [ ] `infra/terraform.tfvars` を見本から作り、値を入れる（コミットしない）
+- [ ] リポジトリの数字の ID と持ち主の数字の ID を控える（`gh api repos/<owner>/<repo> --jq '.id, .owner.id'`）
+- [ ] `infra/terraform.tfvars` を見本から作り、`production = { … }`・`staging = { … }` に値を入れる（コミットしない）。Threads と予約は、はじめは切のままでよい（[infra/README.md](../infra/README.md) 9・10章）
 - [ ] `terraform init -backend-config="bucket=<バケット>"` → `terraform plan -out=tfplan`
 - [ ] plan を読む：最後の行の destroy が 0。Cloud SQL に作り直し（`-/+`）がない
 - [ ] `terraform apply tfplan`
-- [ ] `terraform output web_url` が、2章で控えた URL と同じか確かめる
-- [ ] `terraform output github_variables` を控える（6章）
+- [ ] `terraform output github_repository_variables`・`terraform output production`・`terraform output staging` を控える（5・6章）
 
-最初の apply では、Cloud Run は仮のイメージ（hello）で立ち上がる。本物は 6章のリリースで出る。
+最初の apply では、Cloud Run と DB の変更を当てる job は仮のイメージで立ち上がる。本物は 7章のデプロイで出る。
 
 ## 5. LINE に URL を入れる
 
-- [ ] ミニアプリのチャネルの**エンドポイントの URL**に、`web_url` に `/` を付けたもの（`https://kanaeru-<番号>.asia-northeast1.run.app/`）を入れる。ほかの URL にすると、書く操作が源の確かめで 403 になる
+- [ ] 本番のミニアプリのチャネルの**エンドポイントの URL**に、`terraform output production` の `web_url` に `/` を付けたものを入れる。ステージングのチャネルには `terraform output staging` の `web_url` を同じように入れる。ほかの URL にすると、書く操作が源の確かめで 403 になる
 - [ ] 開発用・審査用・公開用の3つに分かれていれば、入れられる所すべてに同じ URL を入れる。参加者が開くのは公開用（[LINEの学び](./study/line.md) 2.3。画面の名前は変わることがある）
-- [ ] 未認証のまま「公開」にする操作があれば行う。開発中のままだと、チャネルの管理者とテスターしか開けない
+- [ ] 本番のチャネルで、未認証のまま「公開」にする操作があれば行う。開発中のままだと、チャネルの管理者とテスターしか開けない（ステージングは開発中のままでよい）
 
-## 6. GitHub の変数とリリース（昼に）
+## 6. GitHub の変数と環境
 
-- [ ] リポジトリの **Variables**（Secrets ではない）に入れる：`GCP_PROJECT_ID`・`GCP_REGION`・`GCP_WIF_PROVIDER`・`GCP_DEPLOYER_SA`（4章の `github_variables`）と `LIFF_ID`（3章）。`APP_NAME` は既定の `kanaeru` なら要らない（[infra/README.md](../infra/README.md) 5章）
-- [ ] `develop` → `main` のリリースの PR を作る（本文に「初めての本番」と書く）。中身の確かめは develop で済んでいる
-- [ ] 日本時間の 8時15分〜23時に、リリースの PR をマージする（`main` のマージで本番に出る。[開発の流れの決まり](./rules/development-flow.md) 5）。時間の外にマージしてしまったら、8時15分を過ぎてから Actions の `deploy` を `main` で手で流す（Run workflow）
-- [ ] GitHub の Actions で `deploy` が最後まで緑になったか確かめる。DB の変更（Cloud Run jobs）→ 新しい版の順に出る
-- [ ] PC のブラウザで `web_url` を開き、画面が出る。`<web_url>/api/v1/health` が答える
+[infra/README.md](../infra/README.md) 5章のとおり。どれも **Variables**（Secrets ではない）。
 
-## 7. 本物の LINE で確かめる（交流会の2〜3日前までに）
+- [ ] リポジトリの変数：`GCP_PROJECT_ID`・`GCP_REGION`・`GCP_WIF_PROVIDER`・`SQL_INSTANCE`・`GCP_DB_WAKER_SA`（`github_repository_variables`）
+- [ ] Settings → Environments で `production` と `staging` を作り、それぞれの変数を入れる：`GCP_DEPLOYER_SA`・`CLOUD_RUN_SERVICE`・`MIGRATE_JOB`・`IMAGE_REPOSITORY`・`APP_NAME`（各環境の `github_environment_variables`）と `LIFF_ID`（3章）
+- [ ] `production`：**Required reviewers** に自分を入れる。**Deployment branches** は `main` だけ
+- [ ] `staging`：**Deployment branches** は `main` と `develop`
 
-自分のスマホと PC で確かめる。結果を、構成の決めごとの Open Questions 1〜3 に書く。
+## 7. 初めてのデプロイ（昼に）
+
+本番もステージングも、初めてのデプロイで DB が権限で分かれる（[infra/README.md](../infra/README.md) 11章）。両方を同じ日に済ませる。
+
+- [ ] **ステージング**：Actions の `deploy` を `develop` で手で流す（Run workflow）。最後まで緑になり、`<ステージングの web_url>/api/v1/health` が答える
+- [ ] **本番**：`develop` → `main` のリリースの PR を作り（タイトルは「リリース：…」・ラベル `run-ci`・本文に「初めての本番」）、CI が通ったらマージする
+- [ ] `deploy` がステージングに出たあと承認を待つので、ステージングを開いて確かめ、**Review deployments → `production` → Approve and deploy** を押す（[本番に出す手順](./release-guide.md) 2章）
+- [ ] `production / deploy` が緑になり、PC のブラウザで本番の `web_url` を開くと画面が出る。`<web_url>/api/v1/health` が答える
+
+## 8. 権限で分かれているかの確かめ（7 のあとに一度）
+
+[infra/README.md](../infra/README.md) 11章の「権限で分かれているかの確かめ」のとおり（core-018 tasks T009）。
+
+- [ ] 手元から一時的に DB につなぎ、ステージングの利用者で本番の DB につなげない・本番の利用者の権限を取れない・本番の利用者のパスワードを変えられないことを確かめる
+- [ ] どれかが通ったら、ステージングを使う前に、直し方を Claude Code に相談する（構成 C に移すなど）
+
+## 9. 本物の LINE で確かめる（交流会の2〜3日前までに）
+
+先にステージングのミニアプリで一通り試し、そのあと本番で同じことを確かめる。結果を、構成の決めごとの Open Questions 1〜3 に書く。
 
 - [ ] 管理の画面で、試しの交流会を作る（主催者として入れるか）
 - [ ] 受付の QR をスマホの LINE で読み、**ミニアプリが開くか**（Open Question 1）
-- [ ] チェックインのあと、**友だち追加の案内が出るか**（Open Question 2）
+- [ ] チェックインのあと、**友だち追加の案内が出るか**（Open Question 2。本番だけ）
 - [ ] アンケートを開いて答え、困りごとの画面に出るか。CSV を書き出せるか
 - [ ] 受付係の招待のリンクを、別の人（家族など）のスマホで受けてもらえるか
 - [ ] **PC のブラウザで管理の画面に LINE でログインできるか**（Open Question 3）
 - [ ] 夜（0時すぎ）に開いて「夜間は止まっています」と出るか、朝8時すぎに戻るか（どちらか一方でもよい）
 - [ ] 試しの交流会のチェックインを取り消す
 
-## 8. 交流会の準備
+## 10. 交流会の準備
 
 - [ ] プライバシーポリシーと利用規約の 〈 〉 を埋めて公開する（[下書き](../_bmad-output/legal/privacy-policy-draft.md)・[利用規約の下書き](../_bmad-output/legal/terms-draft.md)。名前と連絡先はコミットせず、公開するページにだけ入れる）
 - [ ] [台本](../_bmad-output/meetup-script/meetup-script-2026-11-25.md) の「前の日までにすること」と「当日の始まる前」をする（交流会を作る・LINE グループの招待リンク・QR の印刷・紙の名簿の予備）
-- [ ] 交流会が 0時を越えそうなら、その日だけ夜間の停止を止める（`gcloud scheduler jobs pause`。[infra/README.md](../infra/README.md) 6章）
+- [ ] 交流会が 0時を越えそうなら、その日だけ夜間の停止を止める（`gcloud scheduler jobs pause`。[infra/README.md](../infra/README.md) 7章）
 
-## 9. 7 でうまくいかなかったとき
+## 11. うまくいかなかったとき
 
 | うまくいかないこと | 直し方（作業は Claude Code に頼む） |
 |---|---|
 | QR からミニアプリが開かない（Open Question 1） | QR に Cloud Run の画面の URL を入れ、そこからミニアプリを開く形にする（`packages/contracts/src/core` の QR の URL を作る関数の中だけを直す。AD-14） |
 | 友だち追加の案内が出ない（Open Question 2） | チェックインのあとの画面に、公式LINE の友だち追加のリンクを出す |
 | PC で LINE ログインできない（Open Question 3） | 受付係と主催者はスマホで使う（台本に書き足す） |
-| デプロイが「GCP に入れない」で落ちる | 6章の変数と、tfvars のリポジトリの数字の ID を確かめる（[infra/README.md](../infra/README.md) 4章） |
-| 画面で書く操作が 403 になる | 5章のエンドポイントの URL が `web_url` と同じか確かめる |
+| デプロイが「GCP に入れない」で落ちる | 6章の変数（環境ごとの `GCP_DEPLOYER_SA` を含む）と、tfvars のリポジトリの数字の ID を確かめる（[infra/README.md](../infra/README.md) 4章）。`main` のマージでステージングの仕事が落ちるときは、Terraform を apply し直したか（ステージングの身分を `main` から使えるようにする）と、`staging` の Deployment branches に `main` があるかを確かめる |
+| 承認のボタンが出ない | `production` の Required reviewers に自分が入っているか（6章） |
+| 画面で書く操作が 403 になる | 5章のエンドポイントの URL が、その環境の `web_url` と同じか確かめる |
+| ほかのデプロイの困りごと | [本番に出す手順](./release-guide.md) 7章 |

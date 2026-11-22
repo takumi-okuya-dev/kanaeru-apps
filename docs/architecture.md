@@ -47,7 +47,7 @@ flowchart LR
 ![置き場所の構成図：Google Cloud の東京リージョンに、本番とステージングの Cloud Run、VPC、内部の IP だけの Cloud SQL を置く](./images/infra-architecture.svg)
 
 - 本番（`kanaeru`）とステージング（`kanaeru-stg`）の Cloud Run が、同じ Cloud SQL のサーバーの中の別の DB を使う。Cloud Run は Direct VPC egress で VPC に出て、内部の IP の Cloud SQL に TCP でつなぐ（core-018。構成の決めごと AD-8・AD-11）。
-- デプロイは GitHub Actions が Workload Identity Federation で鍵なしで入り、環境ごとのイメージの置き場所に押し込んで、DB の変更 → 新しい版の順に出す（`develop` → ステージング・`main` → 本番。デプロイの身分も置き場所も環境ごとなので、ステージングから本番は触れない）。
+- デプロイは GitHub Actions が Workload Identity Federation で鍵なしで入り、環境ごとのイメージの置き場所に押し込んで、DB の変更 → 新しい版の順に出す（`develop` → ステージング・`main` → ステージングに出たあと承認で本番。デプロイの身分も置き場所も環境ごとなので、ステージングから本番は触れない。core-019。出し方は[本番に出す手順](./release-guide.md)）。
 - 本番とステージングの DB は、DB の変更を当てる job が毎回、その環境の利用者だけがつなげる形にそろえる（同じサーバーを共にするため）。
 - Cloud Scheduler は、夜間（0時〜8時）に Cloud SQL Admin API で DB を止め、8時〜23時台は環境ごとの共通の定期の仕事（`POST /api/v1/jobs/tick`。core-017）を5分ごとに呼ぶ（Threads か予約を入にした環境だけ）。
 - Cloudflare（独自ドメイン・CDN・WAF）は、一般に公開するときに中継として前に置く予定（[バックログ](./backlog.md) C1・C2）。
@@ -65,7 +65,7 @@ flowchart LR
 | `OPEN_CHAT_URL` | コミュニティのオープンチャットの URL（https） | 任意 |
 | `WEB_DIST_DIR` | 組み立てた画面のフォルダ。あれば API が画面を返す | 要る |
 | `TEST_LOGIN_ENABLED` | 試験用のログイン（account の `POST /api/v1/auth/test-login`・画面の `/dev/login`）を使えるか。手元・テスト・E2E は true | true にできない（起動しない） |
-| `VITE_LIFF_ID` | 画面の組み立てのときに埋める LIFF ID（空なら LINE につながない仮の形） | 本番の組み立てで入れる |
+| `VITE_LIFF_ID` | 画面の組み立てのときに埋める LIFF ID（空なら LINE につながない仮の形） | 環境ごとの組み立てで入れる（GitHub の環境 `production`・`staging` の変数 `LIFF_ID`。デプロイの流れは空なら止まる） |
 | `NOTIFY_MODE` | 予約の知らせ（LINE・メール）の送り方：`off`（既定。何も送らない）・`allowlist`（許可リストの宛先だけ）・`on`。`APP_ENV` が `local`・`test` なら、どの値でも偽の送り手だけ（本物を呼ばない） | 既定の `off` のまま出し、確かめるときに `allowlist` |
 | `NOTIFY_ALLOWLIST` | 送ってよい宛先（公式アカウントから見える LINE のユーザー ID とメールアドレス。カンマで並べる。秘密として扱う） | Secret Manager から渡す |
 

@@ -7,6 +7,8 @@
 
 ## 0. 何があるか
 
+構成図は[全体の形](../docs/architecture.md)の「置き場所の構成図（GCP）」（`docs/images/infra-architecture.svg`）。
+
 | ファイル | 中身 |
 |---|---|
 | `versions.tf` | Terraform（1.11 以上）と google プロバイダ（`~> 8.12`）・state の置き場所（GCS）・provider |
@@ -15,8 +17,8 @@
 | `apis.tf` | 使う API の有効化 |
 | `network.tf` | VPC・Cloud Run が出ていくサブネット（Direct VPC egress）・Cloud SQL を内部の IP で置くための道（プライベート サービス アクセス） |
 | `cloud_sql.tf` | Cloud SQL のサーバー（ENTERPRISE・db-f1-micro・PostgreSQL 18・内部の IP だけ）。本番とステージングが、この中の別の DB を使う |
-| `service_accounts.tf` | 共通の身分（夜間の停止）と権限 |
-| `wif.tf` | GitHub Actions から鍵なしで入る仕組み（このリポジトリの `main` と `develop` だけ。名前と数字の ID の両方で絞る） |
+| `service_accounts.tf` | 共通の身分（夜間の停止・夜の緊急デプロイで DB を起こす `kanaeru-db-waker`）と権限 |
+| `wif.tf` | GitHub Actions から鍵なしで入る仕組み（このリポジトリの `main` と `develop` だけ。名前と数字の ID の両方で絞る。どの身分になれるかはブランチで分ける） |
 | `scheduler.tf` | 毎日0時に DB を止め、8時に動かす（日本時間。本番とステージングの両方が止まる） |
 | `budget.tf` | 請求の予算（月2,000円・50%と100%でメール） |
 | `environments.tf` | 本番（`kanaeru`。2台 × DB の接続5本）とステージング（`kanaeru-stg`。1台 × 3本。`staging` が null なら作らない）を、同じ部品で作る |
