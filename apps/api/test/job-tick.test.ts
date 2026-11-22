@@ -12,6 +12,9 @@ const database = useTestDatabase();
 /** テストの合言葉。 */
 const SECRET = "test-job-secret-for-core-017";
 
+/** 見本の領域の名前。 */
+const TEST_DOMAINS = ["demo", "later"];
+
 /** 動いた領域の名前（仕事が呼ばれた順）。 */
 let calls: string[] = [];
 
@@ -66,7 +69,10 @@ async function tickAt(
  * @returns 領域ごとの結果
  */
 async function jobsOf(response: Response): Promise<JobTickResult["jobs"]> {
-  return ((await response.json()) as JobTickResult).jobs;
+  // 登録された本物の領域の定期の仕事も並ぶので、見本の領域だけを見る（領域の数や並びをテストに書かない）
+  return ((await response.json()) as JobTickResult).jobs.filter((job) =>
+    TEST_DOMAINS.includes(job.domain),
+  );
 }
 
 describe("共通の定期の仕事の窓口（core-017）", () => {
@@ -95,12 +101,10 @@ describe("共通の定期の仕事の窓口（core-017）", () => {
 
     const at1005 = await tickAt(app, "10:05:02");
     expect(at1005.status).toBe(200);
-    expect(await at1005.json()).toEqual({
-      jobs: [
-        { domain: "demo", status: "ran", durationMs: expect.any(Number) as number },
-        { domain: "later", status: "skipped", durationMs: 0 },
-      ],
-    });
+    expect(await jobsOf(at1005)).toEqual([
+      { domain: "demo", status: "ran", durationMs: expect.any(Number) as number },
+      { domain: "later", status: "skipped", durationMs: 0 },
+    ]);
     expect(calls).toEqual(["demo"]);
 
     calls = [];
