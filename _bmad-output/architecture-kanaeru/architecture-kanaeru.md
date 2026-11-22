@@ -4,18 +4,18 @@ type: architecture-spine
 purpose: build-substrate
 altitude: product
 paradigm: 'モジュラーモノリス（領域ごとのフォルダ・一方向の依存）'
-scope: 'kanaeru 全体（日常のちょっとした課題を解決するスイートの土台）と、最初の版の受付アプリ。2つ目からのアプリを並行して作るための決めごと（AD-15〜AD-21）。スイートの組織と契約の持ち主（AD-22）。受付アプリの予約とほかの主催者に開くこと（AD-23・AD-24）'
+scope: 'kanaeru 全体（日常のちょっとした課題を解決するスイートの土台）と、最初の版の受付アプリ。2つ目からのアプリを並行して作るための決めごと（AD-15〜AD-21）。スイートの組織と契約の持ち主（AD-22）。受付アプリの予約とほかの主催者に開くこと（AD-23・AD-24）。試合表アプリ（AD-25〜AD-30）'
 status: final
 created: '2026-11-19'
-updated: '2026-11-20'
-binds: ['FR-1〜FR-25（PRD kanaeru 受付アプリ）', 'docs/backlog.md A（スイートとして並行開発できる構成への見直し）', 'FR-O1〜FR-O55・FR-T1〜FR-T66（PRD 組織と Threads のチーム運用）', 'FR-B1〜FR-B103（PRD 受付アプリの予約）']
-sources: ['../prd-kanaeru-reception/prd-kanaeru-reception.md', '../prd-kanaeru-org/prd-kanaeru-org.md', '../prd-kanaeru-booking/prd-kanaeru-booking.md', '../brief-kanaeru-apps/brief-kanaeru-apps.md', '../../docs/architecture.md']
+updated: '2026-11-22'
+binds: ['FR-1〜FR-25（PRD kanaeru 受付アプリ）', 'docs/backlog.md A（スイートとして並行開発できる構成への見直し）', 'FR-O1〜FR-O55・FR-T1〜FR-T66（PRD 組織と Threads のチーム運用）', 'FR-B1〜FR-B103（PRD 受付アプリの予約）', 'FR-M1〜FR-M28（PRD 試合表アプリ）']
+sources: ['../prd-kanaeru-reception/prd-kanaeru-reception.md', '../prd-kanaeru-org/prd-kanaeru-org.md', '../prd-kanaeru-booking/prd-kanaeru-booking.md', '../prd-kanaeru-match/prd-kanaeru-match.md', '../brief-kanaeru-apps/brief-kanaeru-apps.md', '../../docs/architecture.md']
 companions: ['./.memlog.md']
 ---
 
 # 構成の決めごと — kanaeru
 
-作成：2026-11-19（決めた理由は [.memlog.md](./.memlog.md)。いまのコードの形は [docs/architecture.md](../../docs/architecture.md)。点検の記録は [reviews/](./reviews/)）。2026-11-19 直した（reception-002：交流会ごとの割引。AD-3・AD-5・AD-6・AD-7・Capability map。理由は [specs/reception/002-discounts/research.md](../../specs/reception/002-discounts/research.md)）。2026-11-19 直した（スイートとして並行開発できる構成への見直し：AD-15〜AD-21 を足し、AD-1・AD-3・AD-5・AD-9 を直した）。2026-11-19 主催者が確かめた（仮決めをすべて採用。AD-18 は共通にしてよいものを技術の道具に絞り、AD-20 の外の AI は本人の記録だけに決め、B1 はこのリポジトリの中。Constitution 1.1.0）。2026-11-20 直した（core-005：AD-3・AD-16 の売り方の列は売り始めるときに足す〈主催者が決めた〉・AD-15 の予約語に `settings`【仮決め】）。2026-11-20 直した（スイートの組織と契約の持ち主：AD-22 を足し、AD-3・AD-16・AD-19・Capability map・Deferred を直した。主催者が決めた〈組織単位の契約も見越す〉。同じ日に主催者の確かめで、持ち主の退会では組織に入れた記録を組織の管理者に引き継ぐ形と、退会の手順の順番〈suite → アプリ → account〉を AD-19・AD-22 に足した。範囲は [PRD 組織と Threads のチーム運用](../prd-kanaeru-org/prd-kanaeru-org.md)。【仮決め】の印は主催者の確かめを待つ）。2026-11-20 直した（受付アプリの予約と、ほかの主催者に開くこと：AD-23・AD-24 を足し、AD-1・AD-3・AD-5・AD-14・AD-19・Conventions・Capability map・Open Questions・Deferred を直した。主催者が決めた〈SaaS として複数の組織・個人に出す・予約はオプション・各組織の LINE 公式アカウント・メールを使う〈Constitution 1.2.0〉〉。範囲は [PRD 受付アプリの予約](../prd-kanaeru-booking/prd-kanaeru-booking.md)。【仮決め】の印は主催者の確かめを待つ）。2026-11-20 直した（booking-002：AD-14 に紐づけの道、AD-24 に Webhook の道・あいさつと許可リスト・設定の行の中身・送る道具の型の置き場所の注。理由は [specs/booking/002-notify/research.md](../../specs/booking/002-notify/research.md)）
+作成：2026-11-19（決めた理由は [.memlog.md](./.memlog.md)。いまのコードの形は [docs/architecture.md](../../docs/architecture.md)。点検の記録は [reviews/](./reviews/)）。2026-11-19 直した（reception-002：交流会ごとの割引。AD-3・AD-5・AD-6・AD-7・Capability map。理由は [specs/reception/002-discounts/research.md](../../specs/reception/002-discounts/research.md)）。2026-11-19 直した（スイートとして並行開発できる構成への見直し：AD-15〜AD-21 を足し、AD-1・AD-3・AD-5・AD-9 を直した）。2026-11-19 主催者が確かめた（仮決めをすべて採用。AD-18 は共通にしてよいものを技術の道具に絞り、AD-20 の外の AI は本人の記録だけに決め、B1 はこのリポジトリの中。Constitution 1.1.0）。2026-11-20 直した（core-005：AD-3・AD-16 の売り方の列は売り始めるときに足す〈主催者が決めた〉・AD-15 の予約語に `settings`【仮決め】）。2026-11-20 直した（スイートの組織と契約の持ち主：AD-22 を足し、AD-3・AD-16・AD-19・Capability map・Deferred を直した。主催者が決めた〈組織単位の契約も見越す〉。同じ日に主催者の確かめで、持ち主の退会では組織に入れた記録を組織の管理者に引き継ぐ形と、退会の手順の順番〈suite → アプリ → account〉を AD-19・AD-22 に足した。範囲は [PRD 組織と Threads のチーム運用](../prd-kanaeru-org/prd-kanaeru-org.md)。【仮決め】の印は主催者の確かめを待つ）。2026-11-20 直した（受付アプリの予約と、ほかの主催者に開くこと：AD-23・AD-24 を足し、AD-1・AD-3・AD-5・AD-14・AD-19・Conventions・Capability map・Open Questions・Deferred を直した。主催者が決めた〈SaaS として複数の組織・個人に出す・予約はオプション・各組織の LINE 公式アカウント・メールを使う〈Constitution 1.2.0〉〉。範囲は [PRD 受付アプリの予約](../prd-kanaeru-booking/prd-kanaeru-booking.md)。【仮決め】の印は主催者の確かめを待つ）。2026-11-20 直した（booking-002：AD-14 に紐づけの道、AD-24 に Webhook の道・あいさつと許可リスト・設定の行の中身・送る道具の型の置き場所の注。理由は [specs/booking/002-notify/research.md](../../specs/booking/002-notify/research.md)）。2026-11-22 直した（試合表アプリ：AD-25〜AD-30 を足し、AD-3・AD-4・AD-14・AD-23・Consistency Conventions・Capability map・Open Questions・Deferred を直した。主催者が決めた〈見るだけのページはふつうのブラウザ・ログインなし〈Constitution 1.3.0〉・電波のない体育館で作る・組み直す・見せる・受付の交流会から名簿を入れる・組み方〉。範囲は [PRD 試合表アプリ](../prd-kanaeru-match/prd-kanaeru-match.md) 6章。【仮決め】の印は主催者の確かめを待つ）
 
 ## Design Paradigm
 
@@ -70,7 +70,7 @@ flowchart TB
 
 - **Binds:** all
 - **Prevents:** 2つの領域が同じ表を書き、どちらが正しいか分からなくなること
-- **Rule:** 表は、それを作った領域だけが読み書きする。ほかの領域の表が要るときは、その領域の `index.ts` が出す関数（1つ目の引数はいつも `db`）を呼ぶ。外部キーのためだけに、持ち主の `index.ts` から表を出してよい（`.references()` にだけ使い、読み書きに使わない）。表を作る PR は **account → event → reception → survey → booking** の順に develop へ入れる。DB の変更の通し方は AD-17。持ち主は次のとおり（suite・account の AI と認証の表は、その機能を作るときに足す）。
+- **Rule:** 表は、それを作った領域だけが読み書きする。ほかの領域の表が要るときは、その領域の `index.ts` が出す関数（1つ目の引数はいつも `db`）を呼ぶ。外部キーのためだけに、持ち主の `index.ts` から表を出してよい（`.references()` にだけ使い、読み書きに使わない）。表を作る PR は **account → event → reception → survey → booking → match** の順に develop へ入れる（match は 2026-11-22 足した。AD-25）。DB の変更の通し方は AD-17。持ち主は次のとおり（suite・account の AI と認証の表は、その機能を作るときに足す）。
 
 | 領域 | 持つ表 |
 |---|---|
@@ -80,6 +80,7 @@ flowchart TB
 | survey | `survey_answer`（`checkin_id`・困りごと・月いくら・テスター・仕事の立場・職種） |
 | booking〈2026-11-20 足した。AD-23・AD-24〉 | `booking_setting`（交流会ごとの使い方・定員・見せる範囲・受け付けるか。2026-11-21 booking-004 で、枠を押さえるのをやめた時刻・中止の時刻・最後に知らせた日時と場所・変更に気づいた時刻・当日の空きを知らせた時刻を足した）・`booking_quota`（媒体の枠）・`booking_entry`（申込み＝名簿の行：名前・媒体・入口・状態・account か連絡のメール・当てたチェックイン）・`booking_offer`（打診と返事の期限）・`booking_consent`（案内の同意。相手は組織か持ち主）・`booking_contact`（LINE で申し込んだ人の任意のメール）・`booking_line_channel`・`booking_line_link`（公式アカウントの設定と紐づけ）・`booking_notice`（知らせの記録）・`booking_email_request`（メールで申し込む確認の待ち。2026-11-20 booking-003 で足した。申込みになる前の名前・アドレス・札の SHA-256 を24時間だけ持つ）。細かい列は仕様で決める |
 | suite | `app_setting`（アプリの key・公開の状態。売り方の列は売り始めるときに足す〈core-005。主催者が決めた〉）・`organization`・`organization_member`・`organization_invite`（組織。AD-22〈2026-11-20 足した〉）・`entitlement`（契約。持ち主はアカウントか組織のどちらか1つ〈2026-11-20 直した〉。売り始めるとき。AD-16・AD-22） |
+| match〈2026-11-22 足した。AD-25・AD-28〉 | `match_table`（試合表：持ち主・日付・設定〈試合の形・レベルの分け方・1試合の長さ〉・名簿と組み合わせと進み具合〈呼び名とレベルだけ。氏名は持たない〉・版の番号・担当の端末・くじの種・見るだけの札〈SHA-256〉と期限・つないだ交流会〈任意〉）・`match_table_organization`（組織に入れる）・`match_level_memory`（前に入れたレベル。account のある人だけ）【仮決め】 |
 | account（足すとき） | `ai_credential`（利用者の API キーの暗号文。AD-20）・OAuth のクライアントとトークン（AD-21） |
 
 ### AD-4 — ログインは LINE のIDトークンを API が確かめ、自前のセッションを出す [ADOPTED]
@@ -87,6 +88,7 @@ flowchart TB
 - **Binds:** account・すべての画面、FR-3・FR-4・FR-21
 - **Prevents:** 画面が送ったプロフィールを信じてなりすまされること。画面ごとに LINE の始め方・ログインの確かめ方が変わること
 - **Rule:** `liff.init()`・ログイン・IDトークンを送ってセッションを作る処理は、画面の共通（`apps/web/src/lib/liff.ts`）に1つだけ置き、組み立てがルーターより先に呼ぶ。画面は `liff.getIDToken()` の生のIDトークンだけを `POST /api/v1/auth/line` に送る（ログインだけをし、ほかの用事を載せない）。API は LINE の `POST /oauth2/v2.1/verify`（`id_token`・`client_id`）で確かめ、`sub` を LINEのユーザーIDとして account を作るか探し、`session` の行と `HttpOnly; Secure; SameSite=Lax` のクッキーを出す。確かめる `client_id` は設定 `LINE_CHANNEL_IDS`（並び）で持つ。画面から送られた表示名やユーザーIDは使わない。LINEのトークンを長く持たない。セッションの期限は30日。LIFF ID は公開してよい値なので、組み立てのとき（`VITE_LIFF_ID`）に埋める。
+- **例外：LIFF を始めない道**〈2026-11-22 足した：試合表アプリ。主催者が決めた〈電波のない体育館で動く・見るだけのページはふつうのブラウザ〉。AD-26・AD-27〉：組み立ては、試合表の道（`/match/…`）では `liff.init()` を呼ばずにルーターを作る（今は失敗すると始まりのエラーの画面になり、ネットなしで開けない）。運営の端末は、前にログインしたセッションのクッキーをそのまま使い、電波がない間は画面だけで動いて、つながったら送る（API はクッキーで確かめる。期限切れなら LINE ログインをし直してから送る）。試合表の道で LINE ログインが要るときは、LIFF の外のブラウザ向けのログイン（同じチャネル）を使う【仮決め】。組み立て（`apps/web/src/main.tsx`・`lib/liff.ts`）を直すので、試合表の領域の PR より先に、小さな共通の PR で入れる（[並行開発の決まり](../../docs/rules/parallel-development.md) 3-3）。ほかの道は今までどおり。
 
 ### AD-5 — 権限は「主催者」「受付係」「部員」の3つで、交流会ごとに要求のたびに引く [ADOPTED]
 
@@ -172,7 +174,7 @@ flowchart TB
 
 - **Binds:** event・reception・survey・画面、FR-2・FR-21
 - **Prevents:** QR を作る領域と画面を作る領域で URL の形が食い違うこと。置き場所の URL を変えると、印刷した QR が使えなくなること
-- **Rule:** 参加者が外から開く画面の道（`/e/{eventId}/checkin`・`/e/{eventId}/survey`・`/invite/{inviteToken}`。2026-11-20 に予約の申込みのページ `/e/{eventId}` と、メールで申し込んだ人が開く `/e/{eventId}/entry/{entryToken}` を足した【仮決め】。AD-23。2026-11-20 に LINE 公式アカウントとの紐づけ `/line-link/{linkToken}` を足した【仮決め】。booking-002・AD-24。2026-11-20 に自分の申込み `/my-bookings`（部の予定のタブつき）を足し、`/e/{eventId}` と `/e/{eventId}/entry/{entryToken}` を `participantPaths.apply`・`entry` として置いた【仮決め】。booking-003。`-` を含むのでアプリの key とぶつからない。友だち追加のあいさつに入れる URL は、API が LIFF ID を知らないので画面の源＋道）と、それを LINEミニアプリの URL（パーマリンク）にする関数は、`packages/contracts/src/core` に1つだけ置く。reception・survey・event の画面はこの道で作り、event はこの関数で QR と招待のリンクを作る。QR には Cloud Run の URL を直接入れない。
+- **Rule:** 参加者が外から開く画面の道（`/e/{eventId}/checkin`・`/e/{eventId}/survey`・`/invite/{inviteToken}`。2026-11-20 に予約の申込みのページ `/e/{eventId}` と、メールで申し込んだ人が開く `/e/{eventId}/entry/{entryToken}` を足した【仮決め】。AD-23。2026-11-20 に LINE 公式アカウントとの紐づけ `/line-link/{linkToken}` を足した【仮決め】。booking-002・AD-24。2026-11-20 に自分の申込み `/my-bookings`（部の予定のタブつき）を足し、`/e/{eventId}` と `/e/{eventId}/entry/{entryToken}` を `participantPaths.apply`・`entry` として置いた【仮決め】。booking-003。`-` を含むのでアプリの key とぶつからない。友だち追加のあいさつに入れる URL は、API が LIFF ID を知らないので画面の源＋道）と、それを LINEミニアプリの URL（パーマリンク）にする関数は、`packages/contracts/src/core` に1つだけ置く。reception・survey・event の画面はこの道で作り、event はこの関数で QR と招待のリンクを作る。QR には Cloud Run の URL を直接入れない。〈2026-11-22 足した：例外は試合表の見るだけのページ（AD-26）。ふつうのブラウザで開くのでミニアプリの URL にせず、画面の源＋道を入れる。試合表ごと・その日だけの QR なので、源が変わっても困る紙は残らない〉
 
 ### AD-15 — アプリは静的な一覧に1行で登録し、key・道・表の名前を取り合わない [ADOPTED]
 
@@ -302,7 +304,7 @@ flowchart TB
   - **予約の領域 booking**（受付アプリの4つ目の領域）：表は `booking_` で始め、API の道は `/api/v1/booking/…`。交流会ごとの予約の設定・申込み（名簿の行）・打診・案内の同意・連絡のメール・公式アカウントの設定と紐づけ・知らせの記録を持つ（AD-3）。使い方が「受付だけ」の交流会では、booking は何も持たない（設定の行がなければ受付だけ）。
   - **依存は booking → reception → event の一方向**。reception は booking を知らない。チェックインとの当ては booking が持つ：LINE のチェックインは、同じ account の申込みに読むときに当てる（保存しない）。手で当てたものは `booking_entry.checkin_id`（reception の `checkin` を指す外部キー・`ON DELETE SET NULL`）に持つ。飛び入りは、booking が reception の `index.ts` の関数でチェックインを作ってから名簿に足す。受付係の「名簿に当てる」画面は booking の画面。
   - **組織ごとに閉じる**：名簿・申込み・案内の同意・連絡先は、交流会の持ち主（組織に入れていれば組織）の外に出さない。案内の同意の相手は `organization_id` か `owner_account_id` のどちらか1つ（CHECK）。主催者に参加者のメールアドレスを見せない（Constitution II）。
-  - **ほかのアプリ**（試合表など）には、reception の `index.ts` が「その交流会でチェックインした人」を出す。booking は出さない。
+  - **ほかのアプリ**（試合表など）には、reception の `index.ts` が「その交流会でチェックインした人」を出す。〈2026-11-22 直した：試合表アプリで、前もって予約の申込みの名簿を入れるため（PRD 試合表アプリ FR-M4）。前は「booking は出さない」〉申込みの名簿（確定した申込みの名前と、あれば account）は、booking の `index.ts` が出す（reception は booking を読めないので、reception から出し直さない）。出すのは名前と account だけで、メールアドレス・媒体・案内の同意は出さない（Constitution II）。ほかのアプリが読めるのは、一覧の「使ってよいほかのアプリ」に `reception` を書いたアプリだけ（AD-15）【仮決め】。
   - **選択肢**：申込みの媒体は reception の「申し込みの媒体」の選択肢を使う（同じ列挙を contracts から読む）。
 
 ### AD-24 — 知らせは、送る道具を土台に、何をいつ誰に送るかを booking に置き、本番は止めて出す [ADOPTED]
@@ -320,19 +322,97 @@ flowchart TB
   - **定時の処理**：打診の期限切れと次の人への打診は、Cloud Scheduler からジョブの合言葉つきの窓口を呼んで行う（core-006 の形）。DB が動いている時間（8時〜24時）だけ。期限は夜（0時〜9時）に切れない形で決める（PRD FR-B65）。〈2026-11-21 booking-004：窓口は `POST /api/v1/booking/jobs/tick`（threads と同じ `isJobRequest`・合わなければ 404）。Cloud Scheduler は10分おき・9時〜23時台（8時台は DB の起動を待つ）。定期の仕事が止まっても、書く窓口は同じ片付けの関数を先に通し、読む窓口は期限を過ぎた打診を期限切れとして見せる。期限の決め方に「始まりの2時間前が夜に落ちたら0時」を足した【仮決め】。日時や場所の変更と中止の知らせは、event を直さず、booking が持つ「最後に知らせた日時と場所」と event の要約を比べて決め、中止は booking の「予約を中止する」で行う【仮決め】。理由は [specs/booking/004-waitlist/research.md](../../specs/booking/004-waitlist/research.md) R6・R9〜R11〉
   - **記録**：`booking_notice`（相手の申込み・種類・手段・結果・時刻）。本文・メールアドレス・トークン・札はログに出さない。
 
+### AD-25 — 試合表は match の領域が持ち、持ち主の account で持って組織に入れられる [ADOPTED]
+
+〈2026-11-22 足した：主催者が決めた（試合表アプリを作る・受付の交流会から名簿を入れる・レベル別に組んで進める）。範囲は [PRD 試合表アプリ](../prd-kanaeru-match/prd-kanaeru-match.md)。【仮決め】の印は主催者の確かめを待つ〉
+
+- **Binds:** match・suite（読むだけ）・reception と booking（読むだけ）・account、PRD 試合表アプリの全体
+- **Prevents:** 試合表が交流会に結びついて、CSV だけで作るサークルが使えないこと。試合表アプリが自前の人の集まりを作ること。持ち主の退会で試合表が消えて当日の運営が止まること
+- **Rule:**
+  - **アプリと領域**：アプリの key は `match`（AD-15）。領域は `match` の1つ。`uses: ["reception"]`。表は `match_` で始め、API の道は `/api/v1/match/…`、運営の画面は `/match/…` の下に置く。
+  - **記録**：最上位の記録は `match_table`（試合表）で、`owner_account_id` を持つ（AD-19）。交流会には頼らない。受付の交流会から名簿を入れたときだけ、その交流会の ID を持つ（任意。交流会が消えたら null）。
+  - **組織に入れる**：`match_table_organization`（`match_table_id` が主キー・`organization_id`・`owner_account_id`）。`(organization_id, owner_account_id)` は `organization_member` を指す複合の外部キーで `ON DELETE CASCADE`（`event_organization` と同じ。AD-22・AD-23）。チームには入れない（受付アプリの交流会と同じく組織の単位）【仮決め】。
+  - **権限**は match の1つの関数で決める（AD-19）。作る・直す・担当の端末を決めるのは、持ち主と、入れた組織の管理者・編集者。
+  - **名簿を入れる道**：受付の交流会から入れるときは、reception の `index.ts`（チェックインした人）と booking の `index.ts`（申込みの名簿。AD-23）を読む。選べる交流会は、event の判定で主催者のものだけ。持つのは呼び名とレベルだけで、氏名・メールアドレス・申込みの媒体は写さない（Constitution II）。
+  - **前に入れたレベル**：`match_level_memory`（持ち主か組織・account・レベル）。account のある人（LINE でチェックイン・申込みした人）だけ覚える。CSV と手で入れた人は覚えない（氏名を持たないため）【仮決め】。
+  - **消し方**：持ち主の退会では、組織に入れた試合表はその組織の管理者に引き継ぎ、入れていない試合表は消す（AD-19・AD-22 の手順の (2)）。試合表は、試合の日から90日を過ぎたら消す。消すのは、運営が試合表の一覧を開いたときと、試合表を作ったときに、その持ち主の古いものをまとめて消す形にし、定期の仕事は足さない（Cloud Scheduler の無料の枠を使い切らないため。原則 V）【仮決め】。
+
+### AD-26 — 試合表の見るだけのページは、ログインなし・ふつうのブラウザ・その日だけの URL で出す [ADOPTED]
+
+〈2026-11-22 足した：主催者が決めた（見るだけのページはふつうのブラウザ・ログインなし。Constitution 1.3.0 の例外）。AD-14 の例外。【仮決め】の印は主催者の確かめを待つ〉
+
+- **Binds:** match・画面・`packages/contracts/src/core`（道の形）
+- **Prevents:** 参加者の名前がログインなしの公開のページに、いつまでも・誰にでも出ること。検索に載ること。電波の弱い体育館で LINE の往復が要って開けないこと
+- **Rule:**
+  - **道**：`/match/view/{viewToken}`（運営の画面と同じ `/match/` の下にして、ネットなしで開く仕組み〈AD-27〉の範囲を1つにする）。道の形と、画面の源から URL を作る関数は `packages/contracts/src/core` に置く（AD-14 と同じ場所）。QR には、この URL（画面の源＋道）を入れる（ミニアプリの URL にしない）【仮決め】。
+  - **札**：試合表ごとに、推測できない札（128ビット以上の乱数）を作り、DB には SHA-256 だけを持つ。その日の終わり（日本時間）で見られなくする（`404`）。運営は札を作り直せる（前の札は使えなくなる）。
+  - **出すもの**：呼び名・組み合わせ・進み具合・試合表の名前と日付だけ。レベル・氏名・account・つないだ交流会は出さない（レベル別の表なので、どのレベルの表に名前があるかは見える）。
+  - **窓口**：`GET /api/v1/match/views/{viewToken}`。ログインなしで読める（組み立ての、ログインを求める決まりの外）。答えに `Cache-Control: no-store` と `X-Robots-Tag: noindex`、ページに `noindex` を付ける。回数の制限は IP ごとにかける（組み立ての今の制限を使う）。アプリが見えない（AD-16）ときは `404`。
+  - **読み直し**：つながっているときだけ、30秒おきに版の番号を確かめ、変わっていれば読み直す【仮決め】。
+
+### AD-27 — ネットなしで開く仕組みは、試合表の道だけに効かせる [ADOPTED]
+
+〈2026-11-22 足した：主催者が決めた（どの体育館も電波がつながりにくい前提・タブレットやノート PC を使う）。【仮決め】の印は主催者の確かめを待つ〉
+
+- **Binds:** 画面（試合表の領域と組み立て）・match
+- **Prevents:** Service Worker が受付アプリなどほかのアプリの画面まで抱えて、古い画面が出続けること。止める道がなく、壊れた Service Worker を消せないこと
+- **Rule:**
+  - Service Worker の範囲（scope）は `/match/` だけにする。持つのは試合表の画面のファイルだけで、API の答えは持たない（データは端末の IndexedDB に置く。AD-28）。
+  - 新しい画面を出したら、次につながったときに入れ替え、画面に「新しい版があります」を出して読み直してもらう【仮決め】。
+  - **止め方**：設定の機能の印 `match.offline`（`DOMAIN_FEATURES`）を切にすると、画面は Service Worker を入れず、入っているものは外す。壊れたときは、自分を外すだけの Service Worker を出して入れ替える。
+  - 運営の端末は、ふつうのブラウザでホーム画面に置いて使う。iPhone の Safari と Android の Chrome で、ネットなしで開けるかを作る前に確かめる（Open Questions 9）。
+  - Service Worker と property-based のテストは、このリポジトリで初めて使うので、学びの文書（`docs/study/`）を足す。
+
+### AD-28 — 試合表を直せるのは担当の端末1台で、版の番号で食い違いを止める [ADOPTED]
+
+〈2026-11-22 足した：PRD 試合表アプリ FR-M16・FR-M22。【仮決め】の印は主催者の確かめを待つ〉
+
+- **Binds:** match・画面（試合表の領域）
+- **Prevents:** 2台の端末が電波のないところで別々に組み直し、どちらかの変更が黙って消えること。電波が戻ったときの送り直しで、同じ変更が2回入ること。古い画面のままの端末が、新しい表を上書きすること
+- **Rule:**
+  - 試合表の中身（名簿・組み合わせ・進み具合）は、1つのまとまり（JSON）として `match_table` に持ち、`version`（整数）を付ける。
+  - **担当の端末**：端末ごとに乱数の ID を作って IndexedDB に置く。試合表を直せるのは `match_table.editor_device_id` の端末だけ。担当の受け渡しは、受け取る端末がつながっているときだけ、権限のある人（AD-25）が行う。前の担当の端末は、次に送ったときに `409`・code `MATCH_NOT_EDITOR` を受け取り、見るだけになる（送っていない変更は端末に残して知らせる）。
+  - **送る**：担当の端末は、直した中身と、もとにした版の番号と、変更の ID（端末が作る乱数）を送る。サーバーは、担当の端末で、もとの版が今の版と同じときだけ受け、版を1つ上げる。違えば `409`・code `MATCH_VERSION_CONFLICT`。同じ変更の ID がもう一度来たら、前と同じ答えを返す（二重にしない）。
+  - **ネットなしのとき**：担当の端末は IndexedDB に中身と送っていない変更を持ち、つながったら古い順に送る。見る端末は、最後に読んだ中身とその時刻を持つ。電波なしで渡す QR（PRD FR-M23）には、呼び名・組み合わせ・進み具合と版の番号だけを入れ、読んだ端末は今より新しい版のときだけ取り込む。
+  - 組み直しの計算（AD-29）は担当の端末で行い、サーバーは中身の形を zod で確かめて持つだけにする（計算し直さない）。
+
+### AD-29 — 組み合わせの計算は match の画面の側に置き、CSV を読む処理は共通にしてから使う [ADOPTED]
+
+〈2026-11-22 足した：主催者が決めた（組み方：全員が1回ずつ出たら次の周＋顔ぶれを散らす選び方・説明は docstring に書く）。組み方の中身は [PRD 試合表アプリの補足](../prd-kanaeru-match/addendum.md)。【仮決め】の印は主催者の確かめを待つ〉
+
+- **Binds:** match（画面の領域）・`apps/web/src/lib`・booking（画面の領域）
+- **Prevents:** 組み合わせの計算がサーバーにあり、電波がないと組み直せないこと。業務の計算を共通に置いて、領域どうしが結びつくこと（AD-18）。Google フォームの CSV を読む処理が booking と match で二重になり、直し忘れで食い違うこと
+- **Rule:**
+  - **組み合わせの計算**は試合表の業務なので、match の画面の領域（`apps/web/src/features/match/`）に置く。共通には置かない（AD-18）。計算は状態を持たない関数にし、くじの種を引数で受け取る（同じ名簿・同じ種なら同じ表）。組み方の説明（流れ・守る順・くじの種・守れない場合）は、その関数の docstring（TSDoc）に書く（主催者が決めた）。テストは property-based（fast-check）で書く【仮決め】。
+  - **CSV を読む処理**（文字コード・区切り・引用符・見出しの行）は、業務を知らない技術の道具なので、今 booking の画面にある処理（`apps/web/src/features/booking/csv-read.ts`）を、match が使う前に、小さな共通の PR で `apps/web/src/lib/` に移す（AD-18・[並行開発の決まり](../../docs/rules/parallel-development.md) 3-3）。列の意味（氏名・レベルの読み方）は、それぞれの領域が持つ【仮決め】。
+
+### AD-30 — 試合表の受付のページは、ログインなしで呼び名とレベルだけを書ける [ADOPTED]
+
+〈2026-11-22 足した：主催者が決めた（交流会も CSV もないとき、QR やリンクから参加者が名前とレベルを答えて受付する。Constitution 1.3.0 の例外）。AD-14 の例外。【仮決め】の印は主催者の確かめを待つ〉
+
+- **Binds:** match・画面・`packages/contracts/src/core`（道の形）
+- **Prevents:** ログインなしで書ける窓口から、いたずらで名簿が埋まること・関係のない情報が集まること。受付が担当の端末の変更（AD-28）とぶつかって、どちらかが消えること
+- **Rule:**
+  - **道**：`/match/join/{joinToken}`。窓口は `GET /api/v1/match/joins/{joinToken}`（試合表の名前・日付・選べるレベル）と `POST /api/v1/match/joins/{joinToken}`（呼び名とレベル）。どちらもログインなしで使える。
+  - **札**：見るだけの札（AD-26）とは別の札にする。128ビット以上の乱数で、DB には SHA-256 だけを持つ。その日の終わり（日本時間）か、運営が「受付を締める」と使えなくなる（`404`）。運営は札を作り直せる。
+  - **書けるもの**：呼び名（1〜20文字）とレベル（入門・初級・中級・上級）だけ。ほかの欄は受け取らない（zod の strict）。
+  - **守り**：回数の制限は IP ごと（組み立ての今の制限）に加え、試合表ごとに受け付ける人数の上限（100人）を置く【仮決め】。同じ呼び名がもう入っていれば、名簿に「同じ名前」の印を付けて運営に知らせる（受付は止めない）。答えに `Cache-Control: no-store` と `X-Robots-Tag: noindex` を付ける。
+  - **持ち方**：受付は試合表の中身（AD-28 の JSON）に直接書かず、`match_join`（試合表・呼び名・レベル・受け付けた時刻）に1行ずつ足す。担当の端末は、つながったときに受付の行を読んで名簿に足し、版を上げて送る（受付が担当の端末の変更とぶつからない）。運営は受付の行を直せる・消せる。試合表と一緒に消える（AD-25 の90日）。
+  - **電波がないとき**：参加者の画面は、送れなかったら呼び名とレベルを入れた QR を出す。運営の画面はカメラでその QR を読んで名簿に足す（ブラウザの BarcodeDetector、使えないブラウザは QR を読む道具）【仮決め】。受付のページ自体が開けないときは、運営が手で入れる。
+
 ## Consistency Conventions
 
 | Concern | Convention |
 | --- | --- |
 | 名前 | 領域のフォルダは英語の単数（`account`・`event`・`reception`・`survey`）。表は単数の snake_case。画面と文書の言葉は PRD 3章の用語集のまま |
-| 道の頭 | account：`/api/v1/auth/*`・`/api/v1/accounts/*`／event：`/api/v1/events/*`・`/api/v1/staff-invites/*`／reception：`/api/v1/events/{eventId}/checkins/*`／survey：`/api/v1/events/{eventId}/survey-answers/*`／suite：`/api/v1/suite/*` ／booking：`/api/v1/booking/*`（AD-23）／MCP：`/api/mcp`・認可：`/api/oauth/*` と `/.well-known/oauth-*` 。新しい領域は `/api/v1/<領域>/…`（AD-15）。`operationId` は領域の名前で始める。新しいアプリの画面の道は `/<アプリのkey>/…`（AD-15） |
+| 道の頭 | account：`/api/v1/auth/*`・`/api/v1/accounts/*`／event：`/api/v1/events/*`・`/api/v1/staff-invites/*`／reception：`/api/v1/events/{eventId}/checkins/*`／survey：`/api/v1/events/{eventId}/survey-answers/*`／suite：`/api/v1/suite/*` ／booking：`/api/v1/booking/*`（AD-23）／match：`/api/v1/match/*`（AD-25。見るだけの `/api/v1/match/views/{viewToken}` はログインなし。AD-26）／MCP：`/api/mcp`・認可：`/api/oauth/*` と `/.well-known/oauth-*` 。新しい領域は `/api/v1/<領域>/…`（AD-15）。`operationId` は領域の名前で始める。新しいアプリの画面の道は `/<アプリのkey>/…`（AD-15） |
 | ID・時刻 | 主キーは `uuid`（`uuidv7()`。PostgreSQL 18 が要る）。DB は `timestamptz`。API と画面の間の日時は時差つきの ISO 8601 だけ。「日本時間の日付」と「その日の終わり」を出す関数は `packages/contracts/src/core` に1つ置き、サーバーの時刻帯に頼らない |
 | 金額 | 円の整数（`integer`）。小数を使わない |
 | 選択肢 | 値は英語の短い code（例：`paypay`・`cash`・`free`）。文言と並び順は同じ列挙の隣に持つ。持ち主の領域の contracts に置く（申し込みの媒体・知ったきっかけ・支払い方法は reception、月いくら・仕事の立場・職種は survey）。DB は `text` と CHECK の制約 |
 | 同じ名前 | 手とLINEのチェックインの「同じ名前」は reception の API が決めて一覧の行に印を付ける。比べ方（前後の空白を除き、NFKC でそろえ、間の空白を消す）は reception の contracts に1つ |
 | 領域をまたぐ処理 | 領域をまたぐトランザクションは作らない（外部キーと一意の制約で守る） |
 | エラー | テンプレートの形（`{error: {code, message, requestId, fields?}}`）。未ログインは `401 UNAUTHENTICATED`、権限なしは `403`、DB の夜間停止は `503 DB_UNAVAILABLE`。見えないアプリは `404`（AD-16）、AI の答えの形の崩れは `422 AI_RESPONSE_INVALID`、AI の会社のエラーは `502 AI_PROVIDER_ERROR`（AD-20）、ほかの人が書く記録を持つアカウントの削除は `409 ACCOUNT_OWNS_SHARED_RECORDS`（AD-19） |
-| 一覧画面の更新 | TanStack Query の読み直しを5秒おきにする（つなぎっぱなしの仕組みは使わない）。チェックインと修正の後は、その場で読み直す |
+| 一覧画面の更新 | TanStack Query の読み直しを5秒おきにする（つなぎっぱなしの仕組みは使わない）。チェックインと修正の後は、その場で読み直す。試合表の見るだけのページは、つながっているときだけ30秒おきに版の番号を確かめる（AD-26） |
 | 書き出し | API が作る UTF-8 の BOM つきの CSV。参加者の CSV は reception、困りごとの CSV は survey（どちらも主催者だけ）。作り方（BOM・CRLF・式として読まれない守り）は `packages/` の CSV の包み、画面のダウンロードは `apps/web/src/lib/download.ts` の1つずつ（AD-18。core-004 でまとめる） |
 | ログ | pino の JSON を標準出力へ（Cloud Logging が拾う）。困りごとの本文・IDトークン・クッキー・利用者の API キー・OAuth のトークン・AI に送ったプロンプトと答え・メールアドレス・LINE 公式アカウントの鍵・知らせの本文と札はログに書かない |
 | 設定 | 環境の違いは環境変数で持つ（`LINE_CHANNEL_IDS`・`ORGANIZER_LINE_USER_ID`・`OPEN_CHAT_URL`・`DATABASE_URL`・`NOTIFY_MODE`・`NOTIFY_ALLOWLIST`〈AD-24〉など。読むのは `kernel/config.ts`）。例外は組み立てのときに埋める `VITE_LIFF_ID`。秘密の値は Secret Manager から Cloud Run に渡す。アプリの公開の状態と売り方は設定にせず、suite の表に持つ（AD-16） |
@@ -463,6 +543,7 @@ apps/api/src/platform/mcp/     # /api/mcp とツールの一覧（AD-21。MCP �
 | バックログ A 8 AIエージェントネイティブ（3つの段階・MCP） | 持ち主の領域の contracts・`kernel/ai`・`platform/mcp`・account | AD-20・AD-21 |
 | PRD 組織と Threads のチーム運用（組織・人と役割・招待・契約の持ち主／Threads の組織に入れる・関わりの判定・担当・承認を任せる・運用状況） | suite（組織・契約の持ち主）・threads（組織に入れる・担当・判定・運用状況） | AD-16・AD-19・AD-22 |
 | PRD 受付アプリの予約（交流会の持ち主と組織・部員／使い方・名簿・自前の申込み・定員とキャンセル待ち・知らせ） | event（持ち主・組織に入れる・判定）・booking（予約のすべて・知らせの業務）・`platform/notify`（送る道具）・reception（チェックインした人を出す） | AD-5・AD-19・AD-23・AD-24 |
+| PRD 試合表アプリ（名簿の入れ方・組み方・当日の組み直し・見せ方・印刷・ネットなし・使う人を増やす入口） | match（試合表・組織に入れる・判定・見るだけの窓口・受付の窓口）・画面の match（組み合わせの計算・ネットなし・印刷）・`apps/web/src/lib`（CSV を読む）・reception と booking（名簿を出す） | AD-4・AD-19・AD-22・AD-23・AD-25〜AD-30 |
 
 ## Open Questions
 
@@ -483,10 +564,16 @@ apps/api/src/platform/mcp/     # /api/mcp とツールの一覧（AD-21。MCP �
 7. LINE の公式アカウントの Webhook（友だち追加）→ あいさつのリンク → ミニアプリでの LINE ログイン、の流れで紐づけが通るか（各組織のプロバイダーと kanaeru のプロバイダーが違う前提）。通らなければ、紐づけは「友だち追加のあとに届く札を、申込みの画面で入れる」形にする。
 8. メールの送信のサービス（無料枠・日本の宛先への届きやすさ）と、kanaeru のドメイン（まだない。取ってから SPF・DKIM・DMARC を入れる）。決まるまで、メールは偽の送り手で作る。
 
+試合表アプリ（AD-25〜AD-30。2026-11-22 足した）で作る前・作りながら確かめること：
+
+9. iPhone の Safari と Android の Chrome で、ホーム画面に置いた試合表の画面が、ネットなしで開けて IndexedDB が残るか（iPhone は使わない日が続くとデータを消すことがある）。だめなら、運営の端末はノート PC を主にする。
+10. 電波なしで渡す QR に、22人ほど・4つのレベル・各8試合の表が入るか（呼び名を番号に置きかえて縮める形も試す）。入らなければ、レベルごとに QR を分ける。
+11. LIFF を始めない試合表の道で、運営が LINE ログインをし直す流れ（外のブラウザ向けのログイン）が通るか（Open Questions 3 と同じ確かめ）。
+
 ## Deferred
 
 - **ステージングの環境**：交流会のあとに足す（2つ目の DB を同じ Cloud SQL の台に作る形を第一候補にする）。足したら AD-11 を直し、`develop` のマージでステージングに出す。
-- **独自のドメイン**〈2026-11-20 直した：予約のメール〈AD-24〉で要るので、メールを本番で送る前に取る。Open Questions 8〉：最初は Cloud Run の既定の URL。QR はミニアプリの URL なので（AD-14）、あとで変えても印刷した QR は使える。ただし OAuth の `issuer`・LINE ログインの戻り先・利用者が登録する MCP の URL は源に結びつくので、**MCP を作る前に**決める。
+- **独自のドメイン**〈2026-11-20 直した：予約のメール〈AD-24〉で要るので、メールを本番で送る前に取る。Open Questions 8〉：最初は Cloud Run の既定の URL。試合表の見るだけのページの QR は画面の源を入れるが（AD-26）、試合表ごと・その日だけなので、源を変えても困る紙は残らない。QR はミニアプリの URL なので（AD-14）、あとで変えても印刷した QR は使える。ただし OAuth の `issuer`・LINE ログインの戻り先・利用者が登録する MCP の URL は源に結びつくので、**MCP を作る前に**決める。
 - **監視と知らせ**：この版は Cloud Run の既定の指標と請求の予算の知らせ（AD-9）だけ。エラーの知らせは交流会のあとに決める。
 - **Cloudflare など、ほかの置き場所への乗り換え**：運用費が問題になったら考える（DB は PostgreSQL のまま）。
 - **マイクロサービスへの分け方**：分ける理由（特定のアプリだけ負荷が大きい・別の人が持つ）が出たら考える。分けるのは領域の単位で、`index.ts` の呼び出しがネットワーク越しになる。DB の台は共有して DB（名前）を分ける（原則 V）。分けやすさは AD-3・AD-18 と「領域をまたぐトランザクションを作らない」で守る。
@@ -497,4 +584,5 @@ apps/api/src/platform/mcp/     # /api/mcp とツールの一覧（AD-21。MCP �
 - **AI に許す操作の記録と回数の制限**：MCP を作るときに決める（AD-21）。
 - **夜間の停止と MCP・暮らしのアプリ**：0時〜8時は DB が止まるので、MCP と暮らしのアプリも使えない（`503 DB_UNAVAILABLE`）。暮らしのアプリか MCP を出すときに AD-10 を見直す。
 - **アカウントとログインの手段の表を分けること**：LINE 以外のログインの手段を足すときに決める（Web 用の LINE ログインは同じプロバイダーなので、同じ LINE のユーザーID で今の `account` に入れる）。
+- **試合表の空いたコートに次を入れる形・読み上げ・点数**：PRD 試合表アプリ 7.2 のとおり、この版では作らない。作るときに AD-28 の中身の形を広げる。
 - **コールドスタートの対策**：最初は「受付の前に主催者が一度開いて起こす」。足りなければ、交流会の時間だけ最小の台数を1にする（AD-8 を直してから）。
