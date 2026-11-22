@@ -4,10 +4,10 @@
 import { offlineStore } from "./offline/store.ts";
 
 /** 置き場所の鍵。 */
-const STORAGE_KEY = "kanaeru.match.deviceId";
+export const DEVICE_STORAGE_KEY = "kanaeru.match.deviceId";
 
 /** IndexedDB の鍵。 */
-const META_KEY = "deviceId";
+export const DEVICE_META_KEY = "deviceId";
 
 /** 端末の ID の形。 */
 const DEVICE_ID_PATTERN = /^d-[a-z0-9-]{8,60}$/u;
@@ -24,10 +24,10 @@ let createdNow: string | undefined;
  */
 export function deviceId(): string {
   try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
+    const stored = window.localStorage.getItem(DEVICE_STORAGE_KEY);
     if (stored && DEVICE_ID_PATTERN.test(stored)) return stored;
     const created = `d-${crypto.randomUUID()}`;
-    window.localStorage.setItem(STORAGE_KEY, created);
+    window.localStorage.setItem(DEVICE_STORAGE_KEY, created);
     createdNow = created;
     return created;
   } catch {
@@ -44,14 +44,14 @@ export async function syncDeviceId(): Promise<void> {
   try {
     const store = await offlineStore();
     if (!store.durable) return;
-    const saved = await store.readMeta<string>(META_KEY);
+    const saved = await store.readMeta<string>(DEVICE_META_KEY);
     const current = deviceId();
     if (saved && DEVICE_ID_PATTERN.test(saved) && saved !== current && current === createdNow) {
-      window.localStorage.setItem(STORAGE_KEY, saved);
+      window.localStorage.setItem(DEVICE_STORAGE_KEY, saved);
       createdNow = undefined;
       return;
     }
-    if (saved !== current) await store.writeMeta(META_KEY, current);
+    if (saved !== current) await store.writeMeta(DEVICE_META_KEY, current);
   } catch {
     // そろえられなくても、localStorage の ID で動く
   }

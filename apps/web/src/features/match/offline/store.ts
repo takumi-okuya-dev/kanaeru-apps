@@ -88,6 +88,11 @@ export type OfflineStore = {
    * @param value 値
    */
   writeMeta(key: string, value: unknown): Promise<void>;
+  /**
+   * 本人のデータの写し（試合表の中身・送っていない変更・小さな値）をみな消す（今の利用者が替わったとき）。
+   * @param keepMeta 残す小さな値の鍵（端末の ID など、本人のデータでないもの）
+   */
+  clearAccountData(keepMeta: readonly string[]): Promise<void>;
 };
 
 /**
@@ -134,6 +139,12 @@ export function createMemoryStore(): OfflineStore {
     readMeta: <T>(key: string) => Promise.resolve(structuredClone(meta.get(key)) as T | undefined),
     writeMeta: (key, value) => {
       meta.set(key, structuredClone(value));
+      return Promise.resolve();
+    },
+    clearAccountData: (keepMeta) => {
+      snapshots.clear();
+      changes.clear();
+      for (const key of meta.keys()) if (!keepMeta.includes(key)) meta.delete(key);
       return Promise.resolve();
     },
   };
@@ -231,6 +242,15 @@ function createIndexedDbStore(db: IDBDatabase): OfflineStore {
     writeMeta: async (key, value) => {
       await done(store("meta", "readwrite").put({ key, value }));
     },
+    clearAccountData: async (keepMeta) => {
+      await done(store("tables", "readwrite").clear());
+      await done(store("changes", "readwrite").clear());
+      const meta = store("meta", "readwrite");
+      const keys = (await done(meta.getAllKeys())) as string[];
+      await Promise.all(
+        keys.filter((key) => !keepMeta.includes(key)).map((key) => done(meta.delete(key))),
+      );
+    },
   };
 }
 
@@ -271,6 +291,7 @@ export function deferredStore(): OfflineStore {
     clearChanges: async (tableId) => (await offlineStore()).clearChanges(tableId),
     readMeta: async <T>(key: string) => (await offlineStore()).readMeta<T>(key),
     writeMeta: async (key, value) => (await offlineStore()).writeMeta(key, value),
+    clearAccountData: async (keepMeta) => (await offlineStore()).clearAccountData(keepMeta),
   };
 }
 

@@ -18,6 +18,16 @@ export type StoredLink = {
 /** 読めなかったときの、画面を開いている間だけの置き場所。 */
 const memory = new Map<string, StoredLink>();
 
+/** 置き場所の鍵の頭。 */
+const KEY_PREFIX = "kanaeru.match.link.";
+
+/**
+ * 画面を開いている間だけの置き場所の札を消す（今の利用者が替わったとき。localStorage の札は account-reset.ts が消す）。
+ */
+export function clearMemoryLinks(): void {
+  memory.clear();
+}
+
 /**
  * 置き場所の鍵。
  * @param tableId 試合表の ID
@@ -25,7 +35,7 @@ const memory = new Map<string, StoredLink>();
  * @returns 鍵
  */
 function keyOf(tableId: string, kind: LinkKind): string {
-  return `kanaeru.match.link.${kind}.${tableId}`;
+  return `${KEY_PREFIX}${kind}.${tableId}`;
 }
 
 /**
