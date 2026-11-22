@@ -22,7 +22,7 @@
 | `scheduler.tf` | 毎日0時に DB を止め、8時に動かす（日本時間）。Threads か booking が入なら、5分ごとの共通の定期の仕事（`kanaeru-jobs-tick`。core-017） |
 | `budget.tf` | 請求の予算（月2,000円・50%と100%でメール） |
 | `threads.tf` | Threads の運用アプリ（`threads_enabled` が true のときだけ）：トークンを包む鍵の束と定期の仕事の合言葉の秘密・5分おきの定期の仕事。`threads_oauth_enabled` も true なら Meta のアプリの秘密の値の入れ物（9章）。鍵の束と合言葉は、予約（`booking_enabled`）が入でも作る |
-| `booking.tf` | 予約（`booking_enabled` が true のときだけ）：知らせの許可リストの入れ物・10分おきの定期の仕事。鍵の束と合言葉は `threads.tf` のものを共に使う（10章） |
+| `booking.tf` | 予約（`booking_enabled` が true のときだけ）：知らせの許可リストの入れ物。鍵の束と合言葉は `threads.tf` のものを共に使う。定期の仕事は共通の `kanaeru-jobs-tick`（`scheduler.tf`）が動かす（10章） |
 
 Terraform は**手元から**流す（GitHub Actions からは流さない）。GitHub Actions が変えるのはイメージだけで、ほかの設定（台数・環境の値・権限）は Terraform だけが変える。
 
@@ -174,8 +174,8 @@ Cloud SQL は `prevent_destroy`・`deletion_protection`・`deletion_protection_e
 
 予約（booking-002〜004）の知らせは、組織・個人の LINE 公式アカウントから送る（AD-24）。本番は切（`booking_enabled = false`・`booking_notify_mode = "off"`）のまま出す。ステージングがないので、「送らない → 自分たちだけに送る → 送る」の順に広げる。
 
-1. 前に済ませること：予約の PR（#38〜#48）がマージされ、本番に出ていること（窓口がないうちに定期の仕事を作ると、10分ごとに 404 になる）。
-2. `booking_enabled = true` にして apply する（許可リストの入れ物・10分おきの定期の仕事ができ、Cloud Run に `NOTIFY_MODE=off`・`TOKEN_ENCRYPTION_KEY_VERSION`・`TOKEN_ENCRYPTION_KEYS`・`JOB_TRIGGER_SECRET` が足される）。
+1. 前に済ませること：予約の PR（#38〜#48）と、予約の定期の仕事を共通の窓口に移した PR（#80。booking-007）・共通の窓口の PR（#78。core-017）がマージされ、本番に出ていること（共通の窓口がないうちに定期の仕事を作ると5分ごとに 404 になり、#80 がないと予約の定期の仕事は動かない）。
+2. `booking_enabled = true` にして apply する（許可リストの入れ物・共通の定期の仕事 `kanaeru-jobs-tick`〈Threads を入にしていればもうある〉ができ、Cloud Run に `NOTIFY_MODE=off`・`TOKEN_ENCRYPTION_KEY_VERSION`・`TOKEN_ENCRYPTION_KEYS`・`JOB_TRIGGER_SECRET` が足される）。
    - Threads を入にしていない（鍵の束に版がない）ときは、9章の1・2と同じく、入れ物だけ先に作って版を足してから全体を apply する：`terraform apply -target=google_secret_manager_secret.threads_token_keys` → 9章の2 → 全体の apply。秘密の名前は Threads のときのまま（`kanaeru-token-encryption-keys`）。
    - `off` の間は、何も送らない（友だち追加のあいさつも送らない）。LINE 公式アカウントの設定・Webhook・紐づけは使える。
 3. 組織（または個人）の設定で LINE 公式アカウントをつなぐ。保存すると設定の画面に Webhook の URL（`<WEB_URL>/api/v1/booking/webhooks/line/<設定の ID>`）が出るので、LINE Developers のコンソールの Webhook の URL に入れる。
@@ -188,6 +188,6 @@ Cloud SQL は `prevent_destroy`・`deletion_protection`・`deletion_protection_e
 
    - 許可リストを変えたら、版を足したあと `gcloud run services update kanaeru --region=asia-northeast1 --update-labels=rotated=<日付>` で新しい版に切り替える（動いている台は古い値を持っているため。6章のパスワードと同じ）。
 5. 広げる：`booking_notify_mode = "on"` にして apply する。止めたいときは `"off"` に戻して apply する（送るのが止まるだけで、申込み・名簿・紐づけは残る）。
-6. 定期の仕事（`kanaeru-booking-tick`）は日本時間 9時〜23時台の10分おき。止めたいときは `gcloud scheduler jobs pause kanaeru-booking-tick --location=asia-northeast1`（止めても、打診の期限は書く窓口と読む窓口で守られる）。
+6. 予約の定期の仕事は、共通の定期の仕事（`kanaeru-jobs-tick`。7章）が日本時間 9時〜23時台の10分ごとに動かす（予約だけの Cloud Scheduler の仕事はない。booking-007）。予約だけを止めるスイッチはないので、止めたいときは `gcloud scheduler jobs pause kanaeru-jobs-tick --location=asia-northeast1`（Threads の定期の仕事も止まる）。止めても、打診の期限は書く窓口と読む窓口で守られる。
 7. 鍵の束を替えるとき（9章の3）：予約の LINE 公式アカウントのトークンは自動で包み直されない（主催者が設定を保存し直したときだけ）。古い鍵は、予約の設定がすべて新しい版で保存し直されるまで外さない。
 8. メールの知らせ（LINE を使わずに申し込む人への確認・知らせ）は、送る仕組み（メールの送信サービス）をまだつないでいない。`on` にしても、メールは「送れない」として記録され、LINE の知らせだけが届く。

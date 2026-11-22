@@ -130,7 +130,7 @@ variable "threads_app_id" {
 
 variable "booking_enabled" {
   type        = bool
-  description = "予約（booking-002〜004。AD-24）の秘密と定期の仕事を作るか。true にすると、Threads と同じ鍵の束と合言葉（threads_enabled が false でも作る）・許可リストの入れ物・10分おきの定期の仕事ができ、Cloud Run に NOTIFY_MODE が足される。true にする前に、鍵の束の秘密に版を足す（README の 10）"
+  description = "予約（booking-002〜004。AD-24）の秘密と定期の仕事を作るか。true にすると、Threads と同じ鍵の束と合言葉（threads_enabled が false でも作る）・許可リストの入れ物・共通の定期の仕事（scheduler.tf の kanaeru-jobs-tick。threads_enabled と共に1つ）ができ、Cloud Run に NOTIFY_MODE が足される。true にする前に、鍵の束の秘密に版を足す（README の 10）"
   default     = false
 }
 
