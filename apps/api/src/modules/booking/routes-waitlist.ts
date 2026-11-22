@@ -1,8 +1,10 @@
 // 定員・キャンセル待ち・打診の窓口（booking-004 contracts）。道の頭は /api/v1/booking（AD-23）。
 // 主催者の窓口（定員と枠・手で打診・送った知らせ・変更を知らせる・予約を中止する）はログインと event の requireEventRole
 // （主催者だけ。要求のたびに役目を引く。AD-5・S9）。参加者の返事は、LINE の人は本人の行だけ（requireSession）、メールの人は札。
-// 定期の窓口（POST /api/v1/booking/jobs/tick）は Cloud Scheduler が合言葉（Authorization: Bearer）を付けて呼ぶ。合言葉がない・
-// 違うときは、窓口があることを知らせないよう 404（threads-002 と同じ形。S1）。名前・メールアドレス・札はログに出さない。
+// 定期の窓口（POST /api/v1/booking/jobs/tick）は、共通の窓口（POST /api/v1/jobs/tick。core-017）が動かす scheduledJob と同じ
+// 関数を呼ぶ。本番の Cloud Scheduler は共通の窓口だけを呼び、この窓口はテストと手元の確かめに使う（booking-007【仮決め】）。
+// 合言葉（Authorization: Bearer）がない・違うときは、窓口があることを知らせないよう 404（threads-002 と同じ形。S1）。
+// 名前・メールアドレス・札はログに出さない。
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import * as contract from "@workspace/contracts/booking";
 import { BOOKING_ERRORS } from "@workspace/contracts/booking";
@@ -20,9 +22,9 @@ import {
   offerByOrganizer,
   readNoticeLog,
   resolveScheduleChange,
-  runWaitlistJob,
   saveCapacity,
 } from "./waitlist.ts";
+import { bookingScheduledJob } from "./scheduled-job.ts";
 
 /** 使い方（文書の名前つき。routes.ts と同じ形）。 */
 const BookingSetting = contract.BookingSetting.openapi("BookingSettingWithSeats");
@@ -238,8 +240,9 @@ function defineRoutes(deps: DomainRouteDeps) {
       tags,
       operationId: "bookingJobTick",
       summary:
-        "定期の仕事を1回行う（Cloud Scheduler が10分おき・9時〜23時台に呼ぶ。期限切れ・打診・当日の空き・変更の知らせ）",
-      description: "見出し Authorization: Bearer <JOB_TRIGGER_SECRET> が要る。合わなければ 404。",
+        "予約の定期の仕事を1回行う（期限切れ・打診・当日の空き・変更の知らせ。テストと手元の確かめ用。本番は共通の窓口 /api/v1/jobs/tick が10分ごと・9時〜23時台に動かす）",
+      description:
+        "見出し Authorization: Bearer <JOB_TRIGGER_SECRET> が要る。合わなければ 404。時間帯は見ずに、呼べばいつでも1回動かす。",
       middleware: [jobAuth],
       responses: {
         200: json(WaitlistJobSummary, "この回の結果（数だけ）"),
@@ -304,6 +307,6 @@ export function bookingWaitlistRoutes(deps: DomainRouteDeps) {
       return c.json(view, 200);
     })
     .openapi(routes.tick, async (c) => {
-      return c.json(await runWaitlistJob(deps, new Date()), 200);
+      return c.json(await bookingScheduledJob.run(deps), 200);
     });
 }
