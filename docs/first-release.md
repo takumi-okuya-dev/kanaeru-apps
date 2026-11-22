@@ -21,7 +21,7 @@ flowchart LR
 
 - 合わせて**半日〜1日ほど**。4・7・8 は DB が動いている昼（日本時間 8時15分〜23時）に行う。
 - 交流会で使うなら、**2〜3日前までに 9 を終える**。9 の結果しだいで直しが要る（11章）。
-- **独自ドメイン**：一般に公開するときは独自ドメインを取り、Cloudflare を前に置く（[バックログ](./backlog.md) C1）。LINE や Meta に登録する URL が変わるので、取るなら 5 の前に決める。決めていなければ、`run.app` の URL で進め、取ったときに登録し直す。
+- **独自ドメイン**：一般に公開するときは独自ドメインを取り、Cloudflare を前に置く（[バックログ](./backlog.md) C1）。画面の URL は 4 の apply で決まり（tfvars の環境ごとの `web_url`）、5 で LINE に登録するので、取るなら 4 の前に決めて `web_url` に入れる。決めていなければ `run.app` のまま進め、取ったときに `web_url` を入れて apply し直し、LINE・Meta に登録し直す（[infra/README.md](../infra/README.md) 4章）。
 
 ## 1. 道具とアカウント（初めての1回）
 
@@ -45,8 +45,8 @@ flowchart LR
 - [ ] プロバイダーを1つ作る（ユーザーID はプロバイダーごとに変わるので、kanaeru のチャネルは全部ここに作る。AD-2）
 - [ ] **LINE ミニアプリのチャネルを2つ**作る（本番用とステージング用。LIFF の URL は1つの LIFF アプリに1つのため。どちらも未認証のまま。審査は出さない）
   - それぞれのチャネルID → Terraform の `production`・`staging` の `line_channel_ids`
-  - それぞれの LIFF ID → GitHub の環境 `production`・`staging` の変数 `LIFF_ID`（6章）
-  - 「あなたのユーザーID」（`U` で始まる）→ 両方の環境の `organizer_line_user_id`（同じプロバイダーなら同じ値）
+  - それぞれの LIFF ID → GitHub の環境 `production`・`staging` の変数 `LIFF_ID`（6章）。ミニアプリのチャネルの中は開発用・審査用・公開用に分かれ、LIFF ID もそれぞれ違う（[LINEの学び](./study/line.md) 2.3）。**本番は本番のチャネルの公開用（Published）の LIFF ID**にする（開発用だと、チャネルの管理者とテスターしか開けない）。ステージングは開発用でよい
+  - 「あなたのユーザーID」（`U` で始まる。LINEログインのチャネルの「チャネル基本設定」にある）→ 両方の環境の `organizer_line_user_id`（同じプロバイダーなら同じ値）
 - [ ] **公式LINE**（Messaging API のチャネル）を同じプロバイダーに作り、本番のミニアプリの「友だち追加の相手」にする（[LINEの学び](./study/line.md) 4章。FR-6）
 - [ ] コミュニティのオープンチャットの URL を控える → 環境ごとの `open_chat_url`
 
@@ -54,6 +54,7 @@ flowchart LR
 
 [infra/README.md](../infra/README.md) 4・5章のとおり。
 
+- [ ] `develop` の最新を手元に取り、その `infra/` で流す（`main` にはまだ `infra/` がなく、古い手元ではステージングの身分を `main` から使う許可や `kanaeru-db-waker` がない）
 - [ ] リポジトリの数字の ID と持ち主の数字の ID を控える（`gh api repos/<owner>/<repo> --jq '.id, .owner.id'`）
 - [ ] `infra/terraform.tfvars` を見本から作り、`production = { … }`・`staging = { … }` に値を入れる（コミットしない）。Threads と予約は、はじめは切のままでよい（[infra/README.md](../infra/README.md) 9・10章）
 - [ ] `terraform init -backend-config="bucket=<バケット>"` → `terraform plan -out=tfplan`
@@ -63,9 +64,11 @@ flowchart LR
 
 最初の apply では、Cloud Run と DB の変更を当てる job は仮のイメージで立ち上がる。本物は 7章のデプロイで出る。
 
+- [ ] 夜間の停止と朝の起動を一度だけ手で動かして確かめる：`gcloud scheduler jobs run kanaeru-db-start --location=asia-northeast1`（[infra/README.md](../infra/README.md) 7章）
+
 ## 5. LINE に URL を入れる
 
-- [ ] 本番のミニアプリのチャネルの**エンドポイントの URL**に、`terraform output production` の `web_url` に `/` を付けたものを入れる。ステージングのチャネルには `terraform output staging` の `web_url` を同じように入れる。ほかの URL にすると、書く操作が源の確かめで 403 になる
+- [ ] それぞれのミニアプリのチャネルの**エンドポイントの URL**に、その環境の `web_url` に `/` を付けたものを入れる（本番のチャネルには `terraform output production` の `web_url`、ステージングのチャネルには `terraform output staging` の `web_url`）。ほかの URL にすると、書く操作が源の確かめで 403 になる
 - [ ] 開発用・審査用・公開用の3つに分かれていれば、入れられる所すべてに同じ URL を入れる。参加者が開くのは公開用（[LINEの学び](./study/line.md) 2.3。画面の名前は変わることがある）
 - [ ] 本番のチャネルで、未認証のまま「公開」にする操作があれば行う。開発中のままだと、チャネルの管理者とテスターしか開けない（ステージングは開発中のままでよい）
 
@@ -74,16 +77,17 @@ flowchart LR
 [infra/README.md](../infra/README.md) 5章のとおり。どれも **Variables**（Secrets ではない）。
 
 - [ ] リポジトリの変数：`GCP_PROJECT_ID`・`GCP_REGION`・`GCP_WIF_PROVIDER`・`SQL_INSTANCE`・`GCP_DB_WAKER_SA`（`github_repository_variables`）
-- [ ] Settings → Environments で `production` と `staging` を作り、それぞれの変数を入れる：`GCP_DEPLOYER_SA`・`CLOUD_RUN_SERVICE`・`MIGRATE_JOB`・`IMAGE_REPOSITORY`・`APP_NAME`（各環境の `github_environment_variables`）と `LIFF_ID`（3章）
+- [ ] Settings → Environments で `production` を作り、`staging` を開いて（`develop` へのマージで、すでにできていることがある）、それぞれの変数を入れる：`GCP_DEPLOYER_SA`・`CLOUD_RUN_SERVICE`・`MIGRATE_JOB`・`IMAGE_REPOSITORY`・`APP_NAME`（各環境の `github_environment_variables`）と `LIFF_ID`（3章）
 - [ ] `production`：**Required reviewers** に自分を入れる。**Deployment branches** は `main` だけ
 - [ ] `staging`：**Deployment branches** は `main` と `develop`
+- [ ] リポジトリの変数に `GCP_DEPLOYER_SA`・`LIFF_ID`・`APP_NAME`・`CLOUD_RUN_SERVICE`・`MIGRATE_JOB`・`IMAGE_REPOSITORY` が**ない**ことを確かめる（前の手順ではリポジトリに入れていた。環境に値がないとリポジトリの値が使われ、本番の LIFF ID がステージングに入るなど、気づかずに混ざる）
 
 ## 7. 初めてのデプロイ（昼に）
 
 本番もステージングも、初めてのデプロイで DB が権限で分かれる（[infra/README.md](../infra/README.md) 11章）。両方を同じ日に済ませる。
 
 - [ ] **ステージング**：Actions の `deploy` を `develop` で手で流す（Run workflow）。最後まで緑になり、`<ステージングの web_url>/api/v1/health` が答える
-- [ ] **本番**：`develop` → `main` のリリースの PR を作り（タイトルは「リリース：…」・ラベル `run-ci`・本文に「初めての本番」）、CI が通ったらマージする
+- [ ] **本番**：`develop` → `main` のリリースの PR を作り（タイトルは「リリース：…」・ラベル `run-ci`・本文に「初めての本番」）、AI のセキュリティの確かめの結果を PR の説明に貼る（[開発の流れの決まり](./rules/development-flow.md) 2）。CI が通ったら、日本時間の8時15分〜23時にマージする。時間の外にマージしてしまったら、8時15分を過ぎてから Actions の `deploy` を `main` で手で流す（Run workflow）
 - [ ] `deploy` がステージングに出たあと承認を待つので、ステージングを開いて確かめ、**Review deployments → `production` → Approve and deploy** を押す（[本番に出す手順](./release-guide.md) 2章）
 - [ ] `production / deploy` が緑になり、PC のブラウザで本番の `web_url` を開くと画面が出る。`<web_url>/api/v1/health` が答える
 
@@ -91,7 +95,8 @@ flowchart LR
 
 [infra/README.md](../infra/README.md) 11章の「権限で分かれているかの確かめ」のとおり（core-018 tasks T009）。
 
-- [ ] 手元から一時的に DB につなぎ、ステージングの利用者で本番の DB につなげない・本番の利用者の権限を取れない・本番の利用者のパスワードを変えられないことを確かめる
+- [ ] 手元から一時的に DB につなぎ（`ipv4_enabled` を一時的に `true` にして apply し、Cloud SQL Auth Proxy で。`kanaeru_stg` のパスワードは Secret Manager の `kanaeru-stg-database-url` の中。[infra/README.md](../infra/README.md) 6章）、ステージングの利用者で本番の DB につなげない・本番の利用者の権限を取れない・本番の利用者のパスワードを変えられないことを確かめる
+- [ ] 見終わったら `ipv4_enabled` を `false` に戻して apply する（公開の IP の料金と守りのため）
 - [ ] どれかが通ったら、ステージングを使う前に、直し方を Claude Code に相談する（構成 C に移すなど）
 
 ## 9. 本物の LINE で確かめる（交流会の2〜3日前までに）
