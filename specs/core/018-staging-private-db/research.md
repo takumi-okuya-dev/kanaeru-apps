@@ -15,6 +15,7 @@
 - Cloud Run の組み込みの Cloud SQL の接続（Unix ソケット・Cloud SQL Auth Proxy）は公開の IP の道。内部の IP のときは、VPC に出て内部の IP に TCP（5432）でつなぐ（[Cloud SQL：Cloud Run からつなぐ](https://cloud.google.com/sql/docs/postgres/connect-run)）。そのため `cloud_sql_instance` のボリュームと `roles/cloudsql.client` を外した。
 - VPC への出口は Direct VPC egress（`vpc_access.network_interfaces`・`egress = "PRIVATE_RANGES_ONLY"`）。Serverless VPC Access コネクタは裏のサーバーが最低2台動き、東京の e2-micro で月 約15.7ドルかかるので使わない（[Cloud Run と VPC](https://cloud.google.com/run/docs/configuring/connecting-vpc)：Direct VPC egress は通信代だけ）。
 - 注意：Direct VPC egress は、台が立ち上がるとき、つながるまで1分以上かかることがある（[Direct VPC egress の制限](https://cloud.google.com/run/docs/configuring/vpc-direct-vpc)）。DB につながらない間は `503`（`DB_UNAVAILABLE`）で答え、次の要求でつなぎ直す。昼は定期の仕事（5分ごと）が台を温めるので、利用者が当たる場面は少ない。起動の確かめ（probe）で DB を待つ形は、夜に DB を止めると台が立ち上がらなくなるので採らない（AD-10）。
+- DB の変更を当てる job（`apps/api/scripts/migrate.ts`）は、当てる前に DB につながるまで最大3分・5秒おきに確かめ直す（`scripts/lib/wait-until-ready.ts`）。job はやり直さない（`max_retries = 0`）ので、立ち上がりの待ちでデプロイが止まらないようにする（PR #82 の Codex の指摘 P1）。夜間の停止中は3分待って失敗する（デプロイの時間帯の確かめで、その時間には始まらない）。
 - 手元から本番の DB を見るときは、一時的に `ipv4_enabled = true` にして Cloud SQL Auth Proxy でつなぐ（`infra/README.md` 6章）。
 
 ## R3. 暗号：sslmode=no-verify
