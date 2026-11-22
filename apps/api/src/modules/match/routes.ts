@@ -4,6 +4,7 @@
 // 組み立てが付ける suite の requireApp（AD-16）。
 // 直すのは担当の端末だけで、もとの版が今の版と同じときだけ受けて版を1つ上げる。同じ変更の ID の送り直しは前と同じ答えを返す（AD-28）。
 // 中身は約束（MatchTableContent）で確かめて持つだけで、組み合わせを計算し直さない（AD-28・AD-29）。呼び名はログに出さない。
+// 中身を受けたとき、account のある人（受付の交流会から入れた人）のレベルが入った・変わったら覚える（level-memory.ts。match-006）。
 import { randomInt } from "node:crypto";
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import * as contract from "@workspace/contracts/match";
@@ -15,6 +16,7 @@ import { isForeignKeyViolation } from "../../kernel/pg-errors.ts";
 import { currentAccount, requireSession, unauthenticatedResponse } from "../account/index.ts";
 import { findMembership, listMemberships } from "../suite/index.ts";
 import { requireTableAccess } from "./access.ts";
+import { holderOf, levelChanges, rememberLevels } from "./level-memory.ts";
 import {
   deleteExpiredTables,
   deleteTable,
@@ -265,6 +267,8 @@ export function matchRoutes(deps: DomainRouteDeps) {
           changeId: input.changeId,
           version: state.version,
         });
+        // account のある人のレベルを入れた・変えたら覚える（同じ運営の次の試合表で使う。AD-25・match-006）
+        await rememberLevels(tx, holderOf(locked), levelChanges(state.content, input.content));
         return locked;
       });
       return c.json(await readTable(db, access, accountId), 200);

@@ -11,6 +11,8 @@ export type ReadPerson = {
   fullName: string;
   /** レベル（列がない・読めないときは null。名簿で入れる） */
   level: MatchLevel | null;
+  /** 受付の交流会から入れた人の account（LINE でチェックイン・申込みした人だけ。前に入れたレベルを覚えるため。match-006） */
+  accountId?: string;
 };
 
 /** 名簿を読んだ結果。 */

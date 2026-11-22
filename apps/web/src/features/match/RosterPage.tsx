@@ -1,8 +1,9 @@
 // M1 名簿と設定（/match/tables/$tableId）。モックアップの M1。
-// - 名簿の入れ方：フォームの回答をスプレッドシートからコピーして貼り付ける（主な入れ方。FR-M30）・CSV のファイルを読む（FR-M1）・
+// - 名簿の入れ方：受付の交流会から（チェックインした人か申込みの名簿。前に入れたレベルを使う。FR-M4・match-006）・
+//   フォームの回答をスプレッドシートからコピーして貼り付ける（主な入れ方。FR-M30）・CSV のファイルを読む（FR-M1）・
 //   1人足す（FR-M3）。貼った表と CSV は画面の中で読み（lib/csv-read.ts）、氏名・レベル・タイムスタンプだけを使う。メール・ラケット・
 //   きっかけ・要望は読まず、サーバーにも送らない。氏名も送らず、呼び名（姓から作る。FR-M2）とレベルだけを送る（Constitution II）。
-//   氏名は、この画面を開いている間だけ「氏名（貼り付け）」の列に出す
+//   氏名は、この画面を開いている間だけ「氏名（入れたもの）」の列に出す
 // - 1人ずつ：呼び名・レベル・当日の印（来る・遅れて来る・来ない）を直せる。消せる
 // - 設定：1試合の長さ・試合の時間（→ 組ごとの試合の数）・試合の形・レベルの分け方。レベル別の人数と試合の数を出す
 // - 「試合表を作る」（作ってあれば「組み直す」。終わった試合は残す）で組み、試合表の画面へ移る
@@ -58,6 +59,7 @@ import { addPlayer, countRoster, importPeople, removePlayer, updatePlayer } from
 import type { ImportMode } from "./roster-edit.ts";
 import { assignNicknames, readRoster } from "./roster-read.ts";
 import type { RosterReadResult } from "./roster-read.ts";
+import { ReceptionImportDialog } from "./ReceptionImportDialog.tsx";
 import { EditorState, TableFrame } from "./TableFrame.tsx";
 import type { TableEditor } from "./table-editor.ts";
 
@@ -87,7 +89,7 @@ function importSummary(result: RosterReadResult, added: number): string {
 }
 
 /**
- * 名簿の入れ方（貼り付け・CSV・1人足す）。
+ * 名簿の入れ方（受付の交流会から・貼り付け・CSV・1人足す）。
  * @param props 試合表（table）・直す道具（editor）・氏名を覚える関数（onNames）
  * @param props.onNames 入れた人の ID と氏名・入れ方（画面を開いている間だけ見せる）
  * @returns 要素
@@ -99,6 +101,7 @@ function ImportActions({
 }: BodyProps & { onNames: (names: Map<string, string>, mode: ImportMode) => void }) {
   const [pasteOpen, setPasteOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [receptionOpen, setReceptionOpen] = useState(false);
   const [text, setText] = useState("");
   const [mode, setMode] = useState<ImportMode>("replace");
   const [message, setMessage] = useState<{ tone: "success" | "danger"; text: string }>();
@@ -153,6 +156,9 @@ function ImportActions({
   return (
     <div className="flex flex-col gap-xxs">
       <div className="flex flex-wrap gap-xxs">
+        <Button size="small" disabled={disabled} onClick={() => setReceptionOpen(true)}>
+          受付の交流会から
+        </Button>
         <Button size="small" disabled={disabled} onClick={() => setPasteOpen(true)}>
           フォームから貼り付ける
         </Button>
@@ -223,6 +229,16 @@ function ImportActions({
         </div>
       </Dialog>
       <AddPlayerDialog open={addOpen} onOpenChange={setAddOpen} editor={editor} />
+      <ReceptionImportDialog
+        table={table}
+        editor={editor}
+        open={receptionOpen}
+        onOpenChange={setReceptionOpen}
+        onImported={(result) => {
+          setMessage({ tone: "success", text: result.message });
+          onNames(result.fullNames, result.mode);
+        }}
+      />
     </div>
   );
 }
@@ -375,7 +391,7 @@ function RosterTable({
   if (players.length === 0) {
     return (
       <p className="text-m text-text-sub">
-        まだ名簿はありません。「フォームから貼り付ける」か「1人足す」で入れてください。
+        まだ名簿はありません。「受付の交流会から」「フォームから貼り付ける」か「1人足す」で入れてください。
       </p>
     );
   }
@@ -385,7 +401,7 @@ function RosterTable({
         <thead>
           <tr className="bg-head text-left">
             {showNames ? (
-              <th className="px-xxs py-xxs font-bold whitespace-nowrap">氏名（貼り付け）</th>
+              <th className="px-xxs py-xxs font-bold whitespace-nowrap">氏名（入れたもの）</th>
             ) : null}
             <th className="px-xxs py-xxs font-bold whitespace-nowrap">呼び名（試合表に出る）</th>
             <th className="px-xxs py-xxs font-bold whitespace-nowrap">レベル</th>

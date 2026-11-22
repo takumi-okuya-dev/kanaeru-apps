@@ -56,6 +56,7 @@ export function importPeople(
       level: person.level,
       status: "present",
       ...(person.nameCheck ? { nameCheck: true } : {}),
+      ...(person.accountId ? { accountId: person.accountId } : {}),
     });
   }
   return {

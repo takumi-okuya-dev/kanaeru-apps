@@ -1,6 +1,7 @@
 // 予約の表の読み書き（表は booking の領域だけが読み書きする。AD-3）。名前はログに出さない。
 import { createHash } from "node:crypto";
 import { and, asc, count, eq, inArray, isNull, sql } from "drizzle-orm";
+import { usesRoster } from "@workspace/contracts/booking";
 import type { BookingMode, EntryKind, EntryStatus } from "@workspace/contracts/booking";
 import type { ApplicationSource } from "@workspace/contracts/reception";
 import type { Executor } from "../../kernel/db.ts";
@@ -111,6 +112,34 @@ export function listEntries(db: Executor, eventId: string): Promise<EntryRecord[
     .select()
     .from(bookingEntry)
     .where(listedIn(eventId))
+    .orderBy(...OLDEST_FIRST);
+}
+
+/** ほかのアプリに出す申込みの名簿の1人（名前と account だけ。メールアドレス・媒体・案内の同意は出さない。AD-23）。 */
+export type ApplicantRosterRow = {
+  /** 名前（申し込んだときの名前。LINE の表示名のことがある） */
+  name: string;
+  /** LINE ログインで申し込んだ人の account（手で足した・取り込んだ・メールで申し込んだ人は null） */
+  accountId: string | null;
+};
+
+/**
+ * 交流会の確定した申込みの名簿（申し込んだ日時の古い順。まとめた行・キャンセル待ち・打診中・取り消しは出さない）。
+ * 使い方が受付だけの交流会は、名簿が隠れているので空にする。ほかのアプリ（試合表）が index.ts から読む（AD-23。match-006）。
+ * 権限（交流会の主催者か）は呼ぶ側が event の判定で確かめる。
+ * @param db DB
+ * @param eventId 交流会の ID
+ * @returns 名前と account の並び
+ */
+export async function listApplicantRoster(
+  db: Executor,
+  eventId: string,
+): Promise<ApplicantRosterRow[]> {
+  if (!usesRoster(await findMode(db, eventId))) return [];
+  return db
+    .select({ name: bookingEntry.name, accountId: bookingEntry.accountId })
+    .from(bookingEntry)
+    .where(and(listedIn(eventId), eq(bookingEntry.status, "confirmed")))
     .orderBy(...OLDEST_FIRST);
 }
 

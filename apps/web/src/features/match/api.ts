@@ -1,4 +1,5 @@
 // 試合表の窓口の呼び出し（型は apps/api/src/client.ts の ModuleRoutes["match"] から import type で読む）。
+// 受付の交流会から名簿を入れるときだけ、選ぶ交流会の一覧を event の窓口（ModuleRoutes["event"]）から読む（match-006 research R1）。
 // 読み書きは lib/api.ts の request を通す（エラーの読み方をそろえる）。
 import type {
   MatchJoinInput,
@@ -12,6 +13,7 @@ import { createApiClient, request } from "../../lib/api.ts";
 const SAVE_TIMEOUT_MS = 15_000;
 
 let client: ReturnType<typeof createApiClient<ModuleRoutes["match"]>> | undefined;
+let eventClient: ReturnType<typeof createApiClient<ModuleRoutes["event"]>> | undefined;
 
 /**
  * 試合表の窓口の呼び出しの道具。
@@ -186,4 +188,31 @@ export function submitJoin(joinToken: string, input: MatchJoinInput) {
  */
 export function fetchOfflineSetting() {
   return request(() => matchApi().offline.$get());
+}
+
+/**
+ * 自分が主催者の受付の交流会（event の交流会の一覧のうち、役目が主催者のもの。日時の新しい順。match-006）。
+ * 試合表に入れられるかは reception-import.ts の canImportEvent で絞る。
+ * 受付係の交流会は出さない（主催者だけが名簿を入れられる。AD-25）。
+ * @returns 交流会の並び
+ */
+export async function fetchOrganizerEvents() {
+  eventClient ??= createApiClient<ModuleRoutes["event"]>();
+  const api = eventClient.api.v1.events;
+  const list = await request(() => api.$get());
+  return list.events.filter((event) => event.myRole === "organizer");
+}
+
+/**
+ * 受付の交流会から入れられる人（チェックインした人と確定した申込みの名簿。名前は呼び名を作るためだけ。match-006）。
+ * @param tableId 試合表の ID
+ * @param eventId 交流会の ID
+ * @returns 入れられる人
+ */
+export function fetchReceptionRoster(tableId: string, eventId: string) {
+  return request(() =>
+    matchApi().tables[":tableId"]["reception-events"][":eventId"].$get({
+      param: { tableId, eventId },
+    }),
+  );
 }

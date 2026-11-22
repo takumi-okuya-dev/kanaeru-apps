@@ -152,7 +152,7 @@ export async function insertTable(
   return row.id;
 }
 
-/** 書くときに読む試合表の欄（版・担当の端末・最後の変更）。 */
+/** 書くときに読む試合表の欄（版・担当の端末・最後の変更・今の中身）。 */
 export type TableState = {
   /** 版の番号 */
   version: number;
@@ -160,13 +160,15 @@ export type TableState = {
   editorDeviceId: string | null;
   /** 最後に受けた変更の ID */
   lastChangeId: string | null;
+  /** 今の中身（形を確かめる前の DB の値。前に入れたレベルを覚えるときに、送られた中身と比べる。match-006） */
+  content: unknown;
 };
 
 /**
  * 書くときに読む試合表の欄（requireTableAccess で行を押さえたあとに読む）。
  * @param db DB（トランザクション）
  * @param tableId 試合表の ID
- * @returns 版・担当の端末・最後の変更（なければ undefined）
+ * @returns 版・担当の端末・最後の変更・今の中身（なければ undefined）
  */
 export async function readTableState(
   db: Executor,
@@ -177,6 +179,7 @@ export async function readTableState(
       version: matchTable.version,
       editorDeviceId: matchTable.editorDeviceId,
       lastChangeId: matchTable.lastChangeId,
+      content: matchTable.content,
     })
     .from(matchTable)
     .where(eq(matchTable.id, tableId));
