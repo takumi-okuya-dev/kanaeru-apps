@@ -6,6 +6,7 @@
 // （開発のサーバーは React の更新の仕組みが、中に書いた script と WebSocket を使うため CSP を付けない）。
 // 受け付ける宛先は localhost だけ（手元の外から届かない）。
 // 試合表の道（/match/）だけに効く Service Worker を組み立てのときに書き出す（AD-27。scoped-service-worker.ts。core-015）。
+// 試合表のホーム画面の manifest とアイコンは public/match/ に置き、その Service Worker に持たせる（match-007）。
 // カメラ（QR を読む）は試合表の道だけで許す（API の web.ts と同じ。core-015）。
 import type { ServerResponse } from "node:http";
 import { fileURLToPath } from "node:url";
@@ -14,6 +15,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
 import type { Plugin } from "vite";
 import { scopedServiceWorker } from "./scoped-service-worker.ts";
+import { MATCH_HOME_SCREEN_FILES } from "./src/features/match/home-screen.ts";
 
 const envDir = fileURLToPath(new URL("../..", import.meta.url));
 
@@ -129,6 +131,8 @@ export default defineConfig(({ mode }) => {
         fileName: "match/sw.js",
         template: MATCH_SERVICE_WORKER,
         includeModule: (moduleId) => moduleId.includes("/src/features/match/"),
+        // ホーム画面に置くための manifest とアイコン（public/match/。電波がなくても出す。match-007）
+        publicFiles: MATCH_HOME_SCREEN_FILES,
       }),
     ],
     define: { __APP_NAME__: JSON.stringify(name), __LIFF_ID__: JSON.stringify(liffId) },

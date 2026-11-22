@@ -2,6 +2,7 @@
 // 運営が受付アプリで交流会を作り、参加者が LINE でチェックインし、運営が手で1人チェックインし、予約の名簿に2人を取り込む。
 // 試合表を作り、「受付の交流会から」でチェックインした人を入れる（レベルはまだない）→ LINE の人のレベルを選ぶ →
 // 次の試合表で同じ交流会から入れると、そのレベルが入る → 申込みの名簿を後ろに足す。両方の幅で axe・CSP を確かめる。
+// 入れた交流会は、名簿と設定の題の下（受付アプリで開くリンクつき）と一覧に「受付：… から入れた」と出る（match-007）。
 // 名前はどれも架空のもの。試合表のアプリは台帳に行がない間は運営者だけに見えるので、始めに「公開」にし、終わりに「切」に戻す。
 import { expect, test } from "@playwright/test";
 import type { APIRequest, APIRequestContext, Page } from "@playwright/test";
@@ -180,6 +181,27 @@ test("受付の交流会からチェックインした人と申込みの名簿�
   await expect(page.getByText("姓と名の間に空白がありません")).toBeVisible();
   // 名前はこの画面にだけ出す
   await expect(page.getByRole("cell", { name: "なかむらさき" })).toBeVisible();
+  // どの交流会から入れたかを題の下に出し、受付アプリで開くリンクを出す（match-007）
+  const [year, month, day] = tomorrow.split("-").map(Number);
+  const dateText = `${year}/${month}/${day}`;
+  const sourceText = new RegExp(
+    `受付：${eventName.replace(/[()（）]/gu, ".")}（${dateText}\\(.\\)）から入れた`,
+    "u",
+  );
+  await expect(page.getByText(sourceText)).toBeVisible();
+  await expect(page.getByRole("link", { name: "受付アプリで交流会を開く" })).toHaveAttribute(
+    "href",
+    `/admin/events/${eventId}`,
+  );
+  // 一覧にも出す（受付アプリへのリンクは題の下だけ）
+  await page.goto("/match");
+  await expect(page.getByText(sourceText)).toBeVisible();
+  await expectNoA11yViolations(page, "試合表の一覧（受付の交流会から入れた）");
+  // 名簿と設定に戻ると、名前は出ない（保存しない）が、どの交流会から入れたかは残る
+  await page.goBack();
+  await expect(page.getByRole("heading", { level: 1, name: "12/13(日) 練習会" })).toBeVisible();
+  await expect(page.getByText(sourceText)).toBeVisible();
+  await expect(page.getByRole("cell", { name: "なかむらさき" })).toHaveCount(0);
 
   // LINE でチェックインした人のレベルを選ぶ（覚える）。呼び名も直す
   await savedAfter(page, async () => {

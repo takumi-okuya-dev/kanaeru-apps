@@ -1,6 +1,7 @@
 // M0 試合表の一覧（/match）。開ける試合表（自分のものと、管理者・編集者の組織に入れたもの）を試合の日の新しい順に出し、
 // 名前から名簿と設定へ移る。主の操作は「試合表を作る」。試合の日から90日を過ぎた自分の試合表は、開いたときにサーバーが消す（AD-25）。
 // 電波がないときは、この端末で最後に読んだ一覧を出す（match-005。開けるのは、この端末で開いたことのある試合表）。
+// 受付の交流会から名簿を入れた試合表には「受付：… から入れた」を出す（受付アプリへのリンクは試合表の題の下だけ。match-007）。
 import type { MatchTableList } from "@workspace/contracts/match";
 import { Link } from "@tanstack/react-router";
 import { Badge } from "@workspace/ui/components/badge";
@@ -10,6 +11,7 @@ import { MatchGate } from "./MatchGate.tsx";
 import { formatClock, formatPlayDate } from "./format.ts";
 import { tableListDeviceCopyAt } from "./offline/table-list.ts";
 import { useMatchTables } from "./queries.ts";
+import { receptionEventText } from "./ReceptionEventNote.tsx";
 
 /**
  * 一覧の中身。
@@ -60,6 +62,9 @@ function TableList({ list }: { list: MatchTableList }) {
                 {table.organization ? <Badge>組織「{table.organization.name}」</Badge> : null}
                 {table.isOwner ? null : <span>（組織の人の試合表）</span>}
               </p>
+              {table.receptionEvent ? (
+                <p className="text-s text-text-sub">{receptionEventText(table.receptionEvent)}</p>
+              ) : null}
             </li>
           ))}
         </ul>

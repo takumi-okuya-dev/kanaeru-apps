@@ -4,12 +4,13 @@
 import { INITIAL_CONTENT, MATCH_ERRORS, MatchTableContent } from "@workspace/contracts/match";
 import type { MatchTable, MatchTableSummary } from "@workspace/contracts/match";
 import { jstDate } from "@workspace/contracts/core";
-import { and, desc, eq, inArray, lt, or } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import type { Executor } from "../../kernel/db.ts";
 import { AppError } from "../../kernel/errors.ts";
 import { listMemberships } from "../suite/index.ts";
 import { EDITING_ROLES } from "./access.ts";
 import type { TableAccess } from "./access.ts";
+import type { ReceptionLinkRow } from "./reception-link.ts";
 import { matchTable, matchTableOrganization } from "./schema.ts";
 import { linkStateOf } from "./share-repository.ts";
 
@@ -66,13 +67,20 @@ async function membershipIndex(db: Executor, accountId: string): Promise<Members
   );
 }
 
+/** 名簿を入れた受付の交流会の見せ方を決める前の行（見せ方は routes が reception-link.ts で決める。match-007）。 */
+export type WithReceptionLink<T> = Omit<T, "receptionEvent"> & ReceptionLinkRow;
+
 /**
  * 今の利用者が開ける試合表の一覧（自分が持ち主のものと、管理者・編集者の組織に入れたもの。試合の日の新しい順）。
+ * 中身は読まず、名簿を入れた受付の交流会の写し（content の receptionEvent）だけを読む。
  * @param db DB
  * @param accountId 今の利用者
  * @returns 一覧の行
  */
-export async function listTables(db: Executor, accountId: string): Promise<MatchTableSummary[]> {
+export async function listTables(
+  db: Executor,
+  accountId: string,
+): Promise<WithReceptionLink<MatchTableSummary>[]> {
   const organizations = await membershipIndex(db, accountId);
   const editable = [...organizations].filter(([, value]) => value.canEdit).map(([id]) => id);
   const rows = await db
@@ -83,6 +91,8 @@ export async function listTables(db: Executor, accountId: string): Promise<Match
       ownerAccountId: matchTable.ownerAccountId,
       organizationId: matchTableOrganization.organizationId,
       updatedAt: matchTable.updatedAt,
+      source: sql<unknown>`${matchTable.content} -> 'receptionEvent'`,
+      linkedEventId: matchTable.eventId,
     })
     .from(matchTable)
     .leftJoin(matchTableOrganization, eq(matchTableOrganization.matchTableId, matchTable.id))
@@ -104,6 +114,8 @@ export async function listTables(db: Executor, accountId: string): Promise<Match
       : null,
     isOwner: row.ownerAccountId === accountId,
     updatedAt: row.updatedAt.toISOString(),
+    source: row.source,
+    linkedEventId: row.linkedEventId,
   }));
 }
 
@@ -162,6 +174,8 @@ export type TableState = {
   lastChangeId: string | null;
   /** 今の中身（形を確かめる前の DB の値。前に入れたレベルを覚えるときに、送られた中身と比べる。match-006） */
   content: unknown;
+  /** つないだ受付の交流会（中身の写しの交流会が変わったときだけ、つなぎ直す。match-007） */
+  eventId: string | null;
 };
 
 /**
@@ -180,6 +194,7 @@ export async function readTableState(
       editorDeviceId: matchTable.editorDeviceId,
       lastChangeId: matchTable.lastChangeId,
       content: matchTable.content,
+      eventId: matchTable.eventId,
     })
     .from(matchTable)
     .where(eq(matchTable.id, tableId));
@@ -213,6 +228,20 @@ export async function writeContent(
 }
 
 /**
+ * 名簿を入れた受付の交流会をつなぐ・外す（版は上げない。つないでよいかは呼ぶ側が reception-link.ts で確かめる。match-007）。
+ * @param db DB（トランザクション）
+ * @param tableId 試合表の ID
+ * @param eventId つなぐ交流会（外すときは null）
+ */
+export async function setLinkedEvent(
+  db: Executor,
+  tableId: string,
+  eventId: string | null,
+): Promise<void> {
+  await db.update(matchTable).set({ eventId }).where(eq(matchTable.id, tableId));
+}
+
+/**
  * 担当の端末を替える（版は上げない。中身は変わらないため）。
  * @param db DB
  * @param tableId 試合表の ID
@@ -237,7 +266,7 @@ export async function deleteTable(db: Executor, tableId: string): Promise<void> 
  * @param db DB
  * @param access 権限を確かめた試合表
  * @param accountId 今の利用者
- * @returns 試合表
+ * @returns 試合表（名簿を入れた受付の交流会の見せ方は、routes が決める）
  * @throws {AppError} 行がないとき（確かめたあとに消えたとき。MATCH_NOT_FOUND）
  * @throws {Error} 中身の形が合わないとき
  */
@@ -245,7 +274,7 @@ export async function readTable(
   db: Executor,
   access: TableAccess,
   accountId: string,
-): Promise<MatchTable> {
+): Promise<WithReceptionLink<MatchTable>> {
   const [row] = await db.select().from(matchTable).where(eq(matchTable.id, access.tableId));
   if (!row) throw new AppError(MATCH_ERRORS.NOT_FOUND);
   const parsed = MatchTableContent.safeParse(row.content);
@@ -269,6 +298,8 @@ export async function readTable(
     seed: row.seed,
     editorDeviceId: row.editorDeviceId,
     links: linkStateOf(row, new Date()),
+    source: parsed.data.receptionEvent,
+    linkedEventId: row.eventId,
   };
 }
 

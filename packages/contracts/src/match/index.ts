@@ -35,6 +35,8 @@ export {
   MatchOrganization,
   MatchOrganizationOptions,
   MatchPlayer,
+  MatchReceptionEventLink,
+  MatchReceptionSource,
   MatchSettings,
   MatchTable,
   MatchTableContent,
@@ -45,6 +47,7 @@ export {
   NICKNAME_MAX,
   PLAN_GAMES_MAX,
   PlayDate,
+  RECEPTION_EVENT_NAME_MAX,
   ROSTER_MAX,
   TABLE_NAME_MAX,
 } from "./table.ts";

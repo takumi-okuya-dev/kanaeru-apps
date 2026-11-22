@@ -1,6 +1,6 @@
 # 試合表（match）の地図
 
-2026-11-22 作成（match-001：表とアプリの登録。決めた理由は [specs/match/001-tables/research.md](../../specs/match/001-tables/research.md)）。2026-11-22 直した（match-002：窓口・権限・90日の片付け・退会の手順・名簿・組み方・試合表・印刷。理由は [specs/match/002-roster/research.md](../../specs/match/002-roster/research.md)）。2026-11-22 直した（match-003：当日の組み直し・分け方を当日に変える・大きく映す・担当の受け渡しの見せ方。理由は [specs/match/003-day-of/research.md](../../specs/match/003-day-of/research.md)）。2026-11-22 直した（match-004：見るだけのページ・入口の QR・QR で受け付ける。理由は [specs/match/004-view-and-join/research.md](../../specs/match/004-view-and-join/research.md)）。2026-11-22 直した（match-005：ネットなしで開く・端末に残して送る・電波なしで渡す QR・参加者の QR を読む。理由は [specs/match/005-offline/research.md](../../specs/match/005-offline/research.md)）。2026-11-22 直した（match-006：受付の交流会から名簿を入れる・前に入れたレベル。理由は [specs/match/006-reception-import/research.md](../../specs/match/006-reception-import/research.md)）。
+2026-11-22 作成（match-001：表とアプリの登録。決めた理由は [specs/match/001-tables/research.md](../../specs/match/001-tables/research.md)）。2026-11-22 直した（match-002：窓口・権限・90日の片付け・退会の手順・名簿・組み方・試合表・印刷。理由は [specs/match/002-roster/research.md](../../specs/match/002-roster/research.md)）。2026-11-22 直した（match-003：当日の組み直し・分け方を当日に変える・大きく映す・担当の受け渡しの見せ方。理由は [specs/match/003-day-of/research.md](../../specs/match/003-day-of/research.md)）。2026-11-22 直した（match-004：見るだけのページ・入口の QR・QR で受け付ける。理由は [specs/match/004-view-and-join/research.md](../../specs/match/004-view-and-join/research.md)）。2026-11-22 直した（match-005：ネットなしで開く・端末に残して送る・電波なしで渡す QR・参加者の QR を読む。理由は [specs/match/005-offline/research.md](../../specs/match/005-offline/research.md)）。2026-11-22 直した（match-006：受付の交流会から名簿を入れる・前に入れたレベル。理由は [specs/match/006-reception-import/research.md](../../specs/match/006-reception-import/research.md)）。2026-11-22 直した（match-007：名簿を入れた受付の交流会を試合表に持って出す・ホーム画面のアイコンと manifest。理由は [specs/match/007-event-link-and-icon/research.md](../../specs/match/007-event-link-and-icon/research.md)）。
 
 試合表アプリ（key `match`）の1つの領域（構成の決めごと AD-25）。バドミントンのサークルの運営が、名簿からレベル別のダブルス・シングルスの試合表を作り、印刷し、当日に組み直して配る（[PRD](../../_bmad-output/prd-kanaeru-match/prd-kanaeru-match.md)）。試合表は交流会に頼らない、持ち主の account の記録で、組織に入れられる（AD-19・AD-25）。組み合わせの計算は画面の側に置く（AD-29）。
 
@@ -17,12 +17,13 @@
 | LIFF | 試合表の道（`/match`・`/match/…`）は LIFF を始めない（AD-4 の例外。core-013）。この道の画面は `getLiff()` と、それを読む部品（account の `SessionGate` など）を使わない |
 | ネットなし | 範囲 `/match/` の Service Worker（`/match/sw.js`。機能の印 `match.offline` が入のときだけ入れる。AD-27。8章） |
 | カメラ | 試合表の道だけ Permissions-Policy で自分の源に許す（QR を読む。core-015） |
+| ホーム画面 | manifest `/match/manifest.webmanifest`（名前「kanaeru 試合表」・短い名前「試合表」・始まりと範囲 `/match/`・standalone）とアイコン（`apps/web/public/match/`。9章）。見出しのリンクは運営の画面を開いている間だけ付ける（match-007） |
 
 ## 2. 表
 
 | 表 | 列 | 決まり |
 |---|---|---|
-| `match_table` | `id`・`owner_account_id`・`name`・`play_date`・`content`・`version`・`editor_device_id`・`last_change_id`・`seed`・`view_token_hash`・`view_token_expires_at`・`join_token_hash`・`join_token_expires_at`・`join_closed_at`・`event_id`・`created_at`・`updated_at` | 試合表（最上位の記録）。中身（名簿〈呼び名・レベル・当日の印〉・組み合わせ・進み具合・設定）は1つの JSON（object の CHECK `match_table_content_check`）で、形は約束の zod で確かめてから書く。氏名・メールアドレスは持たない（Constitution II）。`version` は1以上（直すたびに上げる。AD-28）、`editor_device_id` は担当の端末（1〜64文字か空）、`last_change_id` は最後に受けた変更の ID（同じ変更の二重を止める）、`seed` はくじの種（AD-29）。名前は1〜60文字。札は SHA-256 だけを持ち、空でなければ一意（`match_table_view_token_hash_unique`・`match_table_join_token_hash_unique`。AD-26・AD-30）。索引 `(owner_account_id, play_date)`（90日を過ぎた試合表をまとめて消す）・`event_id` |
+| `match_table` | `id`・`owner_account_id`・`name`・`play_date`・`content`・`version`・`editor_device_id`・`last_change_id`・`seed`・`view_token_hash`・`view_token_expires_at`・`join_token_hash`・`join_token_expires_at`・`join_closed_at`・`event_id`・`created_at`・`updated_at` | 試合表（最上位の記録）。中身（名簿〈呼び名・レベル・当日の印〉・組み合わせ・進み具合・設定）は1つの JSON（object の CHECK `match_table_content_check`）で、形は約束の zod で確かめてから書く。氏名・メールアドレスは持たない（Constitution II）。`version` は1以上（直すたびに上げる。AD-28）、`editor_device_id` は担当の端末（1〜64文字か空）、`last_change_id` は最後に受けた変更の ID（同じ変更の二重を止める）、`seed` はくじの種（AD-29）。`event_id` は名簿を入れた受付の交流会（中身の写し `receptionEvent` の交流会を、入れてよいときだけつなぐ。match-007）。名前は1〜60文字。札は SHA-256 だけを持ち、空でなければ一意（`match_table_view_token_hash_unique`・`match_table_join_token_hash_unique`。AD-26・AD-30）。索引 `(owner_account_id, play_date)`（90日を過ぎた試合表をまとめて消す）・`event_id` |
 | `match_table_organization` | `match_table_id`（主キー）・`organization_id`・`owner_account_id`・`placed_at` | 試合表を組織に入れる（1つの組織まで。チームには入れない）。`(organization_id, owner_account_id)` は `organization_member` を指す複合の外部キー（`match_table_organization_member_fk`）。索引 `organization_id` |
 | `match_level_memory` | `id`・`owner_account_id`・`organization_id`・`account_id`・`level`・`created_at`・`updated_at` | 前に入れたレベル（account のある人だけ）。相手は運営か組織のどちらか1つ（`match_level_memory_holder_check`）で、相手と人の組ごとに1行（部分の一意）。レベルは `advanced`・`intermediate`・`beginner`・`novice` の CHECK |
 | `match_join` | `id`・`match_table_id`・`nickname`・`level`・`created_at`・`updated_at` | QR の受付（ログインなしで入れた呼び名とレベル。AD-30）。呼び名は1〜20文字。担当の端末が読んで名簿に足す（行は残し、名簿の人の ID は `joinPlayerId(id)`。試合表ごとに100行まで受ける）。索引 `(match_table_id, created_at)` |
@@ -46,6 +47,7 @@
 - `players`：名簿（150人まで）。ID（端末が作る英数字）・呼び名（1〜20文字）・レベル（空は「選ぶまで試合に入らない」）・当日の印（`present`・`late`・`absent`・`left`〈帰った〉。試合に入るのは `present` だけ）・呼び名を確かめてほしい印・受付の交流会から入れた人の account（LINE でチェックイン・申込みした人だけ。前に入れたレベルを覚えるため。見るだけのページ・電波なしで渡す QR には出さない。match-006）。
 - `plan`：組（分け方の組。`MATCH_GROUPS`）ごとの試合（240行まで）。1試合は入る人の ID（ダブルスは4人・シングルスは2人）と、終わったか。任意の `offset` は行の数の差（当日に分け方・試合の形を変えたとき。行の数 = 設定から決まる試合の数〈60まで〉+ offset）。
 - `archive`（任意）：前の分け方・試合の形で終わった試合（今の組に入れられなくなった終わった試合。組の key ごと。別々の2人か4人）。記録と、試合の数を均すために持つ。
+- `receptionEvent`（任意）：名簿を入れた受付の交流会の写し（交流会の ID・入れたときの名前〈200文字まで〉と始まりの日時。match-007）。受付の交流会から入れると（置きかえても足しても）その交流会に置きかわり、フォームの貼り付け・CSV で置きかえると外れ、貼り付けで足しただけなら残る。交流会があとで消えても・見られなくなっても、運営の画面にこの写しを出す。見るだけのページ・電波なしで渡す QR には出さない（AD-26）。
 
 ## 4. 窓口
 
@@ -53,11 +55,11 @@
 
 | 道 | 何をするか |
 |---|---|
-| `GET /api/v1/match/tables` | 開ける試合表の一覧（試合の日の新しい順）。先に今の利用者の、試合の日から90日を過ぎた試合表を消す |
+| `GET /api/v1/match/tables` | 開ける試合表の一覧（試合の日の新しい順。行ごとに名簿を入れた受付の交流会 `receptionEvent`）。先に今の利用者の、試合の日から90日を過ぎた試合表を消す |
 | `POST /api/v1/match/tables` | 作る（名前・試合の日・任意で自分が入っている組織・端末の ID）。作った端末が担当の端末。くじの種はサーバーの乱数。先に90日を過ぎた試合表を消す |
 | `GET /api/v1/match/organization-options` | 入れられる組織（自分が入っている組織） |
-| `GET /api/v1/match/tables/{tableId}` | 読む（中身・版・くじの種・担当の端末） |
-| `PUT /api/v1/match/tables/{tableId}` | 直す。担当の端末で、もとの版が今の版と同じときだけ受けて版を1つ上げる（違えば 409 `MATCH_NOT_EDITOR`・`MATCH_VERSION_CONFLICT`）。最後に受けた変更の ID と同じ送りは、書かずに今の試合表を返す。中身は約束で確かめるだけで、計算し直さない |
+| `GET /api/v1/match/tables/{tableId}` | 読む（中身・版・くじの種・担当の端末・名簿を入れた受付の交流会 `receptionEvent`） |
+| `PUT /api/v1/match/tables/{tableId}` | 直す。担当の端末で、もとの版が今の版と同じときだけ受けて版を1つ上げる（違えば 409 `MATCH_NOT_EDITOR`・`MATCH_VERSION_CONFLICT`）。最後に受けた変更の ID と同じ送りは、書かずに今の試合表を返す。中身は約束で確かめるだけで、計算し直さない。中身の写し `receptionEvent` の交流会が変わったら `event_id` をつなぎ直す（下の「名簿を入れた受付の交流会」） |
 | `GET /api/v1/match/tables/{tableId}/reception-events/{eventId}` | 受付の交流会から入れられる人（match-006。`routes-reception.ts`）。チェックインした人（reception の `listEventAttendees`）と確定した申込みの名簿（booking の `listApplicantRoster`）の名前・account・覚えているレベル。名前は呼び名を作るためだけに返す。選べるのは event の判定で自分が主催者の交流会のうち、試合表と同じ組織のもの（どちらも組織に入れていなければ持ち主が同じもの。組織ごとに閉じる。AD-23）だけで、ない・主催者でない・持ち主が違う・受付アプリが見えないときは同じ 404 `MATCH_EVENT_NOT_FOUND`。試合表の権限も確かめる |
 | `PUT /api/v1/match/tables/{tableId}/editor` | この端末を担当の端末にする（版は上げない） |
 | `DELETE /api/v1/match/tables/{tableId}` | 消す |
@@ -72,6 +74,8 @@
 
 前に入れたレベル（`level-memory.ts`。AD-25。match-006）：中身を直す `PUT` で、account のある人のレベルが入った・前と変わったら、`match_level_memory` に書く（同じトランザクション）。覚えている持ち主は試合表を入れた組織、入れていなければ試合表の持ち主。名簿に残った account が消えていたら、その人だけ飛ばす（外部キーの違反を区切り〈savepoint〉で捨てる。保存は止めない）。受付の交流会から入れるときに読む。CSV・貼り付け・手で入れた人・QR の受付の人は覚えない。
 
+名簿を入れた受付の交流会（`reception-link.ts`。match-007）：中身を直す `PUT` で、写しの交流会が今つないでいる交流会と違えば、入れてよい交流会（受付の交流会から入れる窓口と同じ `canImportEvent`：受付アプリが見え・交流会の主催者で・持ち主が同じ）のときだけ `event_id` につなぎ、ほかは外す（送りは止めない）。一覧と試合表の答えの `receptionEvent` は、写しの名前と日時と、受付アプリで開けるか（`canOpen`：つないだ交流会が写しと同じで、今の利用者がその主催者か受付係で、受付アプリが見えるとき）。交流会が消えたら `event_id` は外部キーで空になり、`canOpen` は false（画面は「交流会は見られません」）。交流会のことは event・suite の `index.ts` からだけ読む。
+
 退会の手順（`withdrawal.ts`）：account を消すトランザクションの中で、組織に入れた試合表を組織の今の管理者に引き継ぐ（持ち主を替える）。組織に入れていない試合表は外部キーで消える。確かめの中身に、引き継がれる試合表と消える試合表を分けて出す。
 
 ## 5. 画面
@@ -80,9 +84,9 @@
 
 | 道 | 画面 |
 |---|---|
-| `/match` | 試合表の一覧（M0） |
+| `/match` | 試合表の一覧（M0）。受付の交流会から名簿を入れた試合表には「受付：{名前}（{日付}）から入れた」 |
 | `/match/new` | 試合表を作る（M0。名前・試合の日・組織） |
-| `/match/tables/$tableId` | 名簿と設定（M1）。受付の交流会から（M0。`ReceptionImportDialog.tsx`：自分が主催者で試合表と同じ組織の交流会〈event の一覧 `GET /api/v1/events` の主催者の行〉を選び、チェックインした人か申込みの名簿を入れる。呼び名は貼り付けと同じ決まり・覚えたレベルを入れ、ない人は名簿で選ぶ・後ろに足すときは名簿にいる account の人を入れない。`reception-import.ts`）・フォームから貼り付ける（タブ区切りの表）・CSV を読む・1人足す。読むのは氏名・レベル・タイムスタンプだけ（`roster-read.ts`。同じ氏名は新しいほう・呼び名は姓、同じ姓は名の字を足す・空白のない氏名に印）。氏名は保存せず、画面を開いている間だけ出す。呼び名・レベル・当日の印・設定を直す。「試合表を作る」（「組み直す」） |
+| `/match/tables/$tableId` | 名簿と設定（M1）。題の下に名簿を入れた受付の交流会（`ReceptionEventNote.tsx`。開けるときは受付アプリの一覧画面へのリンク〈ページを読み直すふつうのリンク〉、開けないときは「交流会は見られません」。試合表の画面も同じ）。受付の交流会から（M0。`ReceptionImportDialog.tsx`：自分が主催者で試合表と同じ組織の交流会〈event の一覧 `GET /api/v1/events` の主催者の行〉を選び、チェックインした人か申込みの名簿を入れる。呼び名は貼り付けと同じ決まり・覚えたレベルを入れ、ない人は名簿で選ぶ・後ろに足すときは名簿にいる account の人を入れない。`reception-import.ts`）・フォームから貼り付ける（タブ区切りの表）・CSV を読む・1人足す。読むのは氏名・レベル・タイムスタンプだけ（`roster-read.ts`。同じ氏名は新しいほう・呼び名は姓、同じ姓は名の字を足す・空白のない氏名に印）。氏名は保存せず、画面を開いている間だけ出す。呼び名・レベル・当日の印・設定を直す。「試合表を作る」（「組み直す」） |
 | `/match/tables/$tableId/board` | 試合表（M2・M6）。組のタブ（`GroupTabs.tsx`）・名前だけの行（見出しなし・左に番号・名前の列の間に縦線）・行のチェックで進める（チェックのない最初が今、その次が次）・別の組み合わせにする。担当の端末は「人を選んで直す」（来なかった・来た・帰る → その人の組だけを組み直す。`day-of.ts`）と「レベルの分け方」（当日に分け方・試合の形を変える。何が変わるかを先に出す。`regroup.ts`）。組み直したら上に帯。前の分け方で終わった試合は下に畳んで出す |
 | `/match/tables/$tableId/view-link` | 見るだけのページのリンクと QR（作る・作り直す・コピー・期限）。札は作った端末の localStorage にだけ置く（`link-store.ts`）。ほかの端末で出すときは作り直す |
 | `/match/tables/$tableId/join` | QR で受け付ける（M7）。受付の QR とリンク・受け付けた人（5秒おきに読み直す。同じ名前の印・消す）・受付を締める・この名簿で試合表を作る。担当の端末は受け付けた人を名簿に入れる（`use-joins.ts`・`joins.ts`。名簿と設定の画面も開いたときに入れる）。「参加者の QR を読む」（P3 の QR をカメラか写真で読んで名簿に入れる。`JoinQrReader.tsx`） |
@@ -109,7 +113,8 @@
 - 約束：`packages/contracts/src/match/*.test.ts`。
 - 組み方：`apps/web/src/features/match/pairing.test.ts`・`day-of.test.ts`・`regroup.test.ts`（fast-check の property-based）。名簿の読み方 `roster-read.test.ts`・受付の交流会から入れる `reception-import.test.ts`・印刷の大きさ `print-layout.test.ts`・受付を名簿に入れる `joins.test.ts`。
 - ネットなし：`offline/outbox.test.ts`（もとの版のつなぎ方・古い順・電波がないときは残す・同じ変更の ID で送り直す・409 は止めて残す・捨てる・上書き・開き直し）・`handoff.test.ts`（Base45・試合表の QR の行き来〈property-based〉・大きさ・本物の模様を jsQR で読む・版の比べ方・受付の QR）・`view-estimate.test.ts`。組み立ての plugin は `apps/web/scoped-service-worker.test.ts`。
-- E2E：`e2e/tests/match-reception.spec.ts`（受付の交流会からチェックインした人を入れる → レベルを選ぶ → 次の試合表で覚えたレベルが入る → 申込みの名簿を後ろに足す）・`e2e/tests/match-offline.spec.ts`（Service Worker の範囲は `/match/` だけ・ほかの道は受け持たない・電波なしで開いて直し、つながったら送る・電波なしで渡す QR を見るだけのページが写真から読む・参加者の QR を M7 が読む）・`e2e/tests/match.spec.ts`（未ログイン・作る → 貼る → 設定 → 作る → チェック → 印刷 → シングルス／当日：人を選んで直す → 分け方を変える → 大きく映す → 別の端末で担当を受け取る／見せる・受け付ける：リンクと QR → 印刷の QR → ログインなしで受け付ける → 見るだけのページ → 名簿に入る → 締める。両方の幅で axe・横のスクロール・CSP）。
+- 名簿を入れた受付の交流会：`reception-link.test.ts`（API：つなぐ・入れ直すと置きかわる・入れてよくなければつながない・交流会が消えても写しを出す・開けるかは見る人ごと・見るだけのページに出さない）・画面の `reception-link.test.ts`（写しの置き方・文・開けるかの見え方・電波なしで渡す QR に入らない）。ホーム画面：`home-screen.test.tsx`（manifest の中身・PNG の大きさ・Service Worker が持つ一覧・見出しのリンクは開いている間だけ）。
+- E2E：`e2e/tests/match-home-screen.spec.ts`（manifest とアイコン・運営の画面にだけリンクが付き、ほかのアプリの道と見るだけのページには付かない・電波がなくても読める）・`e2e/tests/match-reception.spec.ts`（受付の交流会からチェックインした人を入れる → 題の下と一覧に「受付：… から入れた」 → レベルを選ぶ → 次の試合表で覚えたレベルが入る → 申込みの名簿を後ろに足す）・`e2e/tests/match-offline.spec.ts`（Service Worker の範囲は `/match/` だけ・ほかの道は受け持たない・電波なしで開いて直し、つながったら送る・電波なしで渡す QR を見るだけのページが写真から読む・参加者の QR を M7 が読む）・`e2e/tests/match.spec.ts`（未ログイン・作る → 貼る → 設定 → 作る → チェック → 印刷 → シングルス／当日：人を選んで直す → 分け方を変える → 大きく映す → 別の端末で担当を受け取る／見せる・受け付ける：リンクと QR → 印刷の QR → ログインなしで受け付ける → 見るだけのページ → 名簿に入る → 締める。両方の幅で axe・横のスクロール・CSP）。
 
 ## 8. ネットなし（AD-27・AD-28・AD-30。match-005）
 
@@ -124,4 +129,14 @@
 | 受付の QR | `handoff.ts`・`JoinPage.tsx`・`JoinQrReader.tsx` | 受付の札の印・レベル・参加者の端末の乱数・呼び名。名簿の人の ID は `q` と乱数（2回読んでも1人） |
 
 実機（iPhone の Safari・Android の Chrome）での確かめはまだ（構成の決めごと Open Questions 9・10）。
+
+## 9. ホーム画面のアイコンと manifest（match-007）
+
+| もの | 置き場所 | 中身 |
+|---|---|---|
+| アイコンの絵 | `apps/web/public/match/icon.svg`・`icon-maskable.svg` | 墨の地に白い表。名前の枠が4つずつ並んだ行のうち1行（いまの試合）を墨にし、2つ目と3つ目の間を広げて2人ずつの組を表す（競技を選ばない・文字なし）。maskable は同じ絵を 0.86 倍にして安全な円の中に収めたもの |
+| PNG | `apple-touch-icon.png`（180）・`icon-192.png`・`icon-512.png`・`icon-maskable-192.png`・`icon-maskable-512.png` | SVG から `pnpm exec tsx e2e/scripts/render-match-icons.ts` で作る（Playwright の Chromium・等倍。SVG を直したときだけ手で流す） |
+| manifest | `apps/web/public/match/manifest.webmanifest` | `id`・`start_url`・`scope` は `/match/`（Service Worker の範囲の中なので、ホーム画面から電波なしでも開く）・`display: standalone`・`theme_color` は surface・`background_color` は background（tokens.css。`home-screen.test.tsx` が見張る） |
+| 見出しのリンク | `use-home-screen.ts`（`MatchGate` が呼ぶ）・道は `home-screen.ts` | 運営の画面を開いている間だけ manifest・`apple-touch-icon`・`apple-mobile-web-app-title` を付け、離れたら外す。ほかのアプリの道と、見るだけ・受付のページ（参加者が開く）には付けない |
+| Service Worker に持たせる | `vite.config.ts` の `scopedServiceWorker` の `publicFiles`（一覧は `home-screen.ts` の `MATCH_HOME_SCREEN_FILES`） | 束に入らない public のファイルを名指しして持つ。中身も版の印に入れる |
 

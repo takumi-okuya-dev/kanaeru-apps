@@ -6,9 +6,12 @@
 // - 版の印は、持つファイルの名前（中身の印つき）と本文と index.html から作る。画面を組み直すと印が変わり、ブラウザが新しい
 //   Service Worker に気づく
 // - 本文には `self.__SW_PRECACHE__`（持つ道の並び）と `self.__SW_VERSION__`（版の印）を1つずつ書く。なければ組み立てを止める
+// - 束に入らない public のファイル（例：ホーム画面のアイコンと manifest の match/…）は publicFiles で名指しして持つ。中身も
+//   版の印に入れる（アイコンを描き直すと印が変わる）。名指ししたファイルがなければ組み立てを止める（match-007）
 // 開発のサーバー（vite dev）では書き出さない（Service Worker は組み立てた画面だけで動かす）。
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { Plugin } from "vite";
 
 /** 書き出す Service Worker の決め方。 */
@@ -19,6 +22,8 @@ export type ScopedServiceWorkerOptions = {
   template: string;
   /** 範囲の画面のモジュールか（モジュールの ID〈ファイルの絶対の道〉を受け取る） */
   includeModule: (moduleId: string) => boolean;
+  /** 持つ public のファイル（public からの道。例："match/manifest.webmanifest"。置いたフォルダが範囲の下のものだけ） */
+  publicFiles?: readonly string[];
 };
 
 /** 束（chunk）の、ここで読むところだけ。 */
@@ -122,21 +127,23 @@ export function fillServiceWorker(template: string, paths: readonly string[], ve
  * @param paths 持つ道
  * @param template 本文
  * @param shell index.html の中身（まだなければ空）
+ * @param files 持つ public のファイルの中身（publicFiles の順）
  * @returns 16進の12文字
  */
 export function serviceWorkerVersion(
   paths: readonly string[],
   template: string,
   shell: string | Uint8Array,
+  files: readonly Uint8Array[] = [],
 ): string {
-  return createHash("sha256")
+  const hash = createHash("sha256")
     .update(paths.join("\n"))
     .update("\0")
     .update(template)
     .update("\0")
-    .update(shell)
-    .digest("hex")
-    .slice(0, 12);
+    .update(shell);
+  for (const file of files) hash.update("\0").update(file);
+  return hash.digest("hex").slice(0, 12);
 }
 
 /**
@@ -145,15 +152,30 @@ export function serviceWorkerVersion(
  * @returns Vite の plugin（組み立てのときだけ動く）
  */
 export function scopedServiceWorker(options: ScopedServiceWorkerOptions): Plugin {
+  let publicDir = "";
   return {
     name: "scoped-service-worker",
     apply: "build",
     enforce: "post",
+    configResolved(config) {
+      publicDir = config.publicDir;
+    },
     generateBundle(_output, bundle) {
       const template = readFileSync(options.template, "utf8");
-      const paths = precachePaths(bundle, options.includeModule);
+      const publicFiles = options.publicFiles ?? [];
+      const files = publicFiles.map((file) => {
+        try {
+          return readFileSync(join(publicDir, file));
+        } catch {
+          throw new Error(`Service Worker が持つ public のファイル ${file} がありません。`);
+        }
+      });
+      const paths = [
+        ...precachePaths(bundle, options.includeModule),
+        ...publicFiles.map((file) => `/${file}`),
+      ];
       const shell = (bundle["index.html"] as BundleAsset | undefined)?.source ?? "";
-      const version = serviceWorkerVersion(paths, template, shell);
+      const version = serviceWorkerVersion(paths, template, shell, files);
       this.emitFile({
         type: "asset",
         fileName: options.fileName,
