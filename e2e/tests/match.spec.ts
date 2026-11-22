@@ -114,6 +114,52 @@ test("ログインしていなければ、試合表の一覧は「ログイン�
   expect(await readCspViolations()).toEqual([]);
 });
 
+test("すべてのアプリから画面の中で試合表へ移ると、カメラを許す試合表の文書を読み直す", async ({
+  page,
+}, testInfo) => {
+  const lineUserId = `U${`d${testInfo.project.name === "mobile" ? 2 : 1}${Date.now().toString(16)}`.padStart(32, "0")}`;
+  const login = await page.request.post("/api/v1/auth/test-login", {
+    data: { lineUserId, displayName: `試合表へ移る人（${testInfo.project.name}）` },
+    headers: ORIGIN,
+  });
+  expect(login.status()).toBe(200);
+  /**
+   * 今の文書でカメラを使えるか（Permissions-Policy。Chromium の document.featurePolicy）。
+   * @returns 使えれば true（調べられなければ null）
+   */
+  const cameraAllowed = () =>
+    page.evaluate(() => {
+      const policy = (
+        document as Document & { featurePolicy?: { allowsFeature(name: string): boolean } }
+      ).featurePolicy;
+      return policy ? policy.allowsFeature("camera") : null;
+    });
+
+  await page.goto("/apps");
+  const open = page.getByRole("link", { name: "開く：試合表" });
+  await expect(open).toBeVisible();
+  expect(await cameraAllowed()).not.toBe(true);
+  await page.evaluate(() => {
+    (window as Window & { __sameDocument?: boolean }).__sameDocument = true;
+  });
+  // Link で移っても、試合表の道の文書（カメラを許す見出しつき）をサーバーから読み直す
+  const matchDocument = page.waitForResponse(
+    (response) =>
+      response.request().resourceType() === "document" &&
+      new URL(response.url()).pathname === "/match",
+  );
+  await open.click();
+  const response = await matchDocument;
+  expect(response.headers()["permissions-policy"]).toContain("camera=(self)");
+  await expect(page.getByRole("heading", { level: 1, name: "試合表" })).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => (window as Window & { __sameDocument?: boolean }).__sameDocument === true,
+    ),
+  ).toBe(false);
+  expect(await cameraAllowed()).not.toBe(false);
+});
+
 test("貼り付けた名簿から試合表を作り、進めて、印刷の版を見る", async ({ page }, testInfo) => {
   const readCspViolations = await collectCspViolations(page);
   const tag = testInfo.project.name === "mobile" ? "c2" : "c1";

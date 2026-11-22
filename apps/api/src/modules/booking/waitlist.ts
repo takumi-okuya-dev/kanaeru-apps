@@ -790,7 +790,8 @@ export async function resolveScheduleChange(
 }
 
 /**
- * 定期の仕事（Cloud Scheduler が10分おき・9時〜23時台に呼ぶ。research R9・R10）：対象の交流会ごとに片付けと変更の知らせ。
+ * 定期の仕事（共通の窓口が10分ごと・9時〜23時台に scheduledJob として動かす。research R9・R10・booking-007）：対象の交流会
+ * ごとに片付けと変更の知らせ。数のログは共通の窓口が出す。
  * @param deps 道具
  * @param now 今の時刻
  * @returns 数だけ
@@ -809,7 +810,6 @@ export async function runWaitlistJob(deps: WaitlistDeps, now: Date): Promise<Wai
       );
     }
   }
-  deps.logger.info({ ...summary }, "予約の定期の仕事");
   return summary;
 }
 
