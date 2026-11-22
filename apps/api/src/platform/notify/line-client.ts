@@ -1,5 +1,6 @@
 // LINE の Messaging API の HTTP の呼び方（push・reply・ボット情報とトークンを発行したチャネルの ID）。宛先は決まった https://api.line.me だけで、
-// 利用者の入れた値を URL に入れない（SSRF を起こさない。プロフィールの道の LINE のユーザー ID は、形を確かめてから入れる）。外へは渡された fetch で出る（テストでは差しかえ、手元とテストは呼ばない）。
+// 利用者の入れた値で宛先を変えない（SSRF を起こさない。プロフィールの道の LINE のユーザー ID は、形を確かめてから入れる。
+// v2.1 のトークンの確かめは LINE の決まりでトークンを問い合わせの部分に入れるが、宛先は同じで、URL をログに出さない）。外へは渡された fetch で出る（テストでは差しかえ、手元とテストは呼ばない）。
 // トークン・宛先・本文をログに出さない（失敗のときも状態の番号だけ）。5秒で切る。
 import { randomUUID } from "node:crypto";
 import type { LineBotInfoResult, LineProfileResult } from "../../kernel/notifier.ts";
