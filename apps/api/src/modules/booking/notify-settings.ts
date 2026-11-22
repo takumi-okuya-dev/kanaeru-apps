@@ -283,6 +283,22 @@ async function writeChannel(
     const lineChannelId = input.lineChannelId ?? channel.lineChannelId;
     // 押さえた行のチャネル ID でも確かめる（トークンだけを入れ直す間に、別の管理者がチャネル ID を替えたときに、
     // 前のチャネルのトークンを新しいチャネル ID の下に書かないように）
+    // 押さえた行と違うチャネル ID を、トークンなしで書かない（読んだあとに別の管理者がチャネルを替えたとき）
+    if (
+      bot === null &&
+      input.lineChannelId !== undefined &&
+      input.lineChannelId !== channel.lineChannelId
+    ) {
+      throw new AppError("INVALID_INPUT", {
+        fields: [
+          {
+            path: "accessToken",
+            message:
+              "チャネル ID を変えるときは、シークレットとアクセストークンも入れ直してください。",
+          },
+        ],
+      });
+    }
     if (bot?.channelId != null && lineChannelId !== null && bot.channelId !== lineChannelId) {
       throw new AppError(BOOKING_ERRORS.LINE_CHANNEL_MISMATCH, {
         fields: [{ path: "lineChannelId", message: BOOKING_ERRORS.LINE_CHANNEL_MISMATCH.message }],
