@@ -3,7 +3,7 @@
 # - develop：ステージングに出す。
 # - main（週ごとのリリース・緊急の直し）：先にステージングに同じ中身を出し、GitHub の環境 production の承認者が承認したら本番に出す。
 # 時間帯：日本時間の8時15分〜23時に始まったときだけ出す（DB は夜間〈0時〜8時〉止まる。AD-10）。
-# 夜に緊急で出すとき：main で手で流し、wake_db を入にする（日本時間の0時〜7時45分だけ）。DB を一時的に起こしてから出し、
+# 夜に緊急で出すとき：main で手で流し、wake_db を入にする（日本時間の0時10分〜7時45分だけ）。DB を一時的に起こしてから出し、
 # keep_awake_minutes の分だけ起こしておいたあと（直ったかを画面で確かめるため）、必ず止め直す（取り消しても）。承認と本番のデプロイは、その時間の中で済ませる。
 # DB を起こす・止めるのは、main からだけなりすませる専用の身分（リポジトリの変数 GCP_DB_WAKER_SA）。デプロイの身分は DB の台に触れない。
 # 本番は承認を待つので、時間の確かめは deploy-environment.yml の中（承認のあと）でもう一度する。
@@ -32,7 +32,7 @@ on:
         type: boolean
         default: false
       wake_db:
-        description: "夜（日本時間の0時〜7時45分）に緊急で出す：DB を一時的に起こしてから出し、あとで止め直す"
+        description: "夜（日本時間の0時10分〜7時45分）に緊急で出す：DB を一時的に起こしてから出し、あとで止め直す（main だけ）"
         type: boolean
         default: false
       keep_awake_minutes:
@@ -51,7 +51,7 @@ permissions:
 jobs:
   # 時間帯の確かめ。DB は夜間（0時〜8時。日本時間）に止まっているので、その間は db:migrate が落ちる。GitHub Actions は時刻で止められないので、ここで早く落とす。
   # 始まる時刻だけを見るので、余裕を持たせる：8時15分から（8時に起こした DB が動き出すまで数分かかる）・23時まで（0時の停止までに終わる）。
-  # wake_db は main だけ・DB を止めている0時〜7時45分だけ（8時の起動と重ならないように）。
+  # wake_db は main だけ・0時10分〜7時45分だけ（0時の停止が効き終わる前と、8時の起動と重ならないように）。
   prepare:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
@@ -77,8 +77,8 @@ jobs:
               echo "::error::wake_db（DB を一時的に起こして出す）は main だけで使えます（緊急の直しは main に入れてから出す）。"
               exit 1
             fi
-            if [ "$minutes" -ge $((7 * 60 + 45)) ]; then
-              echo "::error::日本時間の ${now} です。wake_db（DB を一時的に起こして出す）は、DB を止めている0時〜7時45分だけ使えます。昼はふつうに流してください。"
+            if [ "$minutes" -lt 10 ] || [ "$minutes" -ge $((7 * 60 + 45)) ]; then
+              echo "::error::日本時間の ${now} です。wake_db（DB を一時的に起こして出す）は、0時10分〜7時45分だけ使えます（0時の停止・8時の起動と重ならないように）。昼はふつうに流してください。"
               exit 1
             fi
             keep="${KEEP_AWAKE_MINUTES:-60}"
@@ -107,7 +107,7 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.wake == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: read
       id-token: write
@@ -153,7 +153,8 @@ jobs:
           WAS_STOPPED: ${{ steps.before.outputs.was_stopped }}
         run: |
           if [ "$WAS_STOPPED" = "true" ]; then
-            gcloud sql instances patch "$SQL_INSTANCE" --activation-policy=ALWAYS --quiet
+            # 終わるのを gcloud で待たず（待ちの上限で落ちても、起こす処理は続くため）、下で状態を見て待つ
+            gcloud sql instances patch "$SQL_INSTANCE" --activation-policy=ALWAYS --async --quiet
           fi
           status=""
           for _ in $(seq 1 60); do
@@ -180,11 +181,12 @@ jobs:
     with:
       environment: staging
       stop_at: ${{ needs.wake-db.outputs.stop_at }}
-      skip_hour_check: ${{ inputs.skip_hour_check == true }}
+      # wake_db のときは飛ばさない（止め直す時刻までの残りを必ず確かめる）
+      skip_hour_check: ${{ inputs.skip_hour_check == true && needs.prepare.outputs.wake != 'true' }}
 
   # main のときだけ。GitHub の環境 production の承認者が、ステージングで確かめてから承認すると始まる
   production:
-    needs: [staging, wake-db]
+    needs: [prepare, staging, wake-db]
     if: >-
       !cancelled() && github.ref == 'refs/heads/main' && needs.staging.result == 'success'
     permissions:
@@ -194,13 +196,17 @@ jobs:
     with:
       environment: production
       stop_at: ${{ needs.wake-db.outputs.stop_at }}
-      skip_hour_check: ${{ inputs.skip_hour_check == true }}
+      skip_hour_check: ${{ inputs.skip_hour_check == true && needs.prepare.outputs.wake != 'true' }}
 
   # wake_db で DB を起こしたとき、決めた分だけ起こしておいてから、必ず止め直す（途中で失敗しても・承認されなくても・流れを取り消しても）。
-  # 取り消したときは、待たずにすぐ止める。7時45分を過ぎていたら止めない（Cloud Scheduler が8時に起こすのとぶつからないため）
+  # 取り消したときは、待たずにすぐ止める。7時45分を過ぎていたら止めない（Cloud Scheduler が8時に起こすのとぶつからないため）。
+  # wake-db が途中で落ちて、前の状態が読めなかったときも止める（夜は止まっているはずのため）
   stop-db:
     needs: [prepare, wake-db]
-    if: always() && needs.wake-db.outputs.was_stopped == 'true'
+    if: >-
+      always() && needs.prepare.outputs.wake == 'true'
+      && (needs.wake-db.outputs.was_stopped == 'true'
+      || (needs.wake-db.result != 'success' && needs.wake-db.outputs.was_stopped != 'false'))
     runs-on: ubuntu-latest
     timeout-minutes: 100
     permissions:
@@ -239,5 +245,13 @@ jobs:
             echo "日本時間の ${now} です。7時45分を過ぎたので、DB は止めません（Cloud Scheduler が8時に起こします）。"
             exit 0
           fi
-          gcloud sql instances patch "$SQL_INSTANCE" --activation-policy=NEVER --quiet
-          echo "日本時間の ${now}。DB を止め直しました。"
+          # 起こす処理などがまだ動いていると断られるので、少し待って何回か試す
+          for _ in $(seq 1 10); do
+            if gcloud sql instances patch "$SQL_INSTANCE" --activation-policy=NEVER --async --quiet; then
+              echo "日本時間の ${now}。DB を止め直しました。"
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "::error::DB を止め直せませんでした。手で止めてください：gcloud sql instances patch ${SQL_INSTANCE} --activation-policy=NEVER（docs/release-guide.md 7）"
+          exit 1

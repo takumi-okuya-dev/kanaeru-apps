@@ -72,13 +72,13 @@ jobs:
 
       # 本番は承認を待つので、流れが始まった時刻ではなく、ここ（承認のあと）で時間を確かめる。
       # 昼：DB は0時に止まる。この仕事は30分で切れる（timeout-minutes）ので、23時15分までに始まれば止まる前に終わる。
-      # 夜の緊急デプロイ：DB を止め直す時刻（stop_at）まで15分より短ければ始めない。
+      # 夜の緊急デプロイ：DB を止め直す時刻（stop_at）まで20分より短ければ始めない。
       - name: 時間の確かめ（始める前）
         env:
           STOP_AT: ${{ inputs.stop_at }}
           SKIP_HOUR_CHECK: ${{ inputs.skip_hour_check && 'true' || 'false' }}
           LAST_MINUTE: "1395" # 23時15分
-          MIN_REMAINING_SECONDS: "900" # 15分
+          MIN_REMAINING_SECONDS: "1200" # 20分
         run: |
           now_epoch=$(date +%s)
           now=$(TZ=Asia/Tokyo date +%H:%M)
@@ -117,13 +117,13 @@ jobs:
           esac
           echo "IMAGE_DIGEST=${image_digest}" >> "$GITHUB_ENV"
 
-      # コンテナを作るのに時間がかかるので、DB の変更の直前にもう一度確かめる（昼は23時40分まで・夜は止め直すまで8分より長く）
+      # コンテナを作るのに時間がかかるので、DB の変更の直前にもう一度確かめる（昼は23時40分まで・夜は止め直すまで15分より長く。DB の変更の job の起動・新しい版・動いているかの確かめ〈4分まで〉に足りるように）
       - name: 時間の確かめ（DB の変更の前）
         env:
           STOP_AT: ${{ inputs.stop_at }}
           SKIP_HOUR_CHECK: ${{ inputs.skip_hour_check && 'true' || 'false' }}
           LAST_MINUTE: "1420" # 23時40分
-          MIN_REMAINING_SECONDS: "480" # 8分
+          MIN_REMAINING_SECONDS: "900" # 15分
         run: |
           now_epoch=$(date +%s)
           now=$(TZ=Asia/Tokyo date +%H:%M)

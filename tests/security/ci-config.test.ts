@@ -246,7 +246,7 @@ describe("deploy.yml・deploy-environment.yml：本番とステージングへ�
     );
     expect(squash(code)).toContain(
       squash(
-        "production: needs: [staging, wake-db] if: >- !cancelled() && github.ref == 'refs/heads/main' && needs.staging.result == 'success'",
+        "production: needs: [prepare, staging, wake-db] if: >- !cancelled() && github.ref == 'refs/heads/main' && needs.staging.result == 'success'",
       ),
     );
     expect(squash(code)).toContain(
@@ -322,7 +322,7 @@ describe("deploy.yml・deploy-environment.yml：本番とステージングへ�
     expect(code).toMatch(/--activation-policy=ALWAYS/);
     expect(squash(code)).toContain(
       squash(
-        "stop-db: needs: [prepare, wake-db] if: always() && needs.wake-db.outputs.was_stopped == 'true'",
+        "stop-db: needs: [prepare, wake-db] if: >- always() && needs.prepare.outputs.wake == 'true' && (needs.wake-db.outputs.was_stopped == 'true' || (needs.wake-db.result != 'success' && needs.wake-db.outputs.was_stopped != 'false'))",
       ),
     );
     const stopJob = code.slice(code.indexOf("stop-db:"));
@@ -332,6 +332,15 @@ describe("deploy.yml・deploy-environment.yml：本番とステージングへ�
       squash("name: DB を止め直す（7時45分より前だけ） if: always()"),
     );
     expect(code).toMatch(/if \[ "\$keep" -gt 90 \]; then keep=90; fi/);
+    expect(code).toMatch(
+      /if \[ "\$minutes" -lt 10 \] \|\| \[ "\$minutes" -ge \$\(\(7 \* 60 \+ 45\)\) \]; then/,
+    );
+    // wake_db のときは skip_hour_check を入にしても、止め直す時刻までの残りの確かめを飛ばさない
+    const skips = [...code.matchAll(/skip_hour_check: \$\{\{ ([^}]*) \}\}/g)].map(
+      (match) => match[1],
+    );
+    expect(skips).toHaveLength(2);
+    for (const skip of skips) expect(skip).toContain("needs.prepare.outputs.wake != 'true'");
   });
 
   it("DB を起こす・止めるのは main だけの専用の身分（GCP_DB_WAKER_SA）で、デプロイの身分では触らない", () => {

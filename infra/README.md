@@ -153,7 +153,7 @@ GitHub に変数を入れる（どれも Secrets ではなく Variables）：
   ```
 
 - 初めて作ったあと、一度だけ手で動かして確かめる：`gcloud scheduler jobs run kanaeru-db-start --location=asia-northeast1`。
-- 夜（0時〜7時45分）に緊急で出すとき：GitHub の Actions で `deploy` を `main` で手で流し（Run workflow）、`wake_db` を入にする。流れが DB を起こし（動き出すまで数分）、ステージングに出す → 承認 → 本番に出す。DB が動き出してから `keep_awake_minutes`（既定60分・15〜90分）たつと、成功しても失敗しても（流れを取り消しても）DB を止め直す（7時45分を過ぎていたら止めない。前から動いていたときは、起こしも止めもしない）。その時間の中で、ステージングでの確かめ・承認・本番のデプロイを済ませる（[本番に出す手順](../docs/release-guide.md) 4-3）。DB を起こす・止めるのは、`main` からだけなりすませる `kanaeru-db-waker`（夜間の停止と同じ役割 `kanaeruSqlActivation`。この役割は台の設定も直せるので、デプロイの身分には付けない）。
+- 夜（0時10分〜7時45分）に緊急で出すとき：GitHub の Actions で `deploy` を `main` で手で流し（Run workflow）、`wake_db` を入にする。流れが DB を起こし（動き出すまで数分）、ステージングに出す → 承認 → 本番に出す。DB が動き出してから `keep_awake_minutes`（既定60分・15〜90分）たつと、成功しても失敗しても（流れを取り消しても）DB を止め直す（7時45分を過ぎていたら止めない。前から動いていたときは、起こしも止めもしない）。その時間の中で、ステージングでの確かめ・承認・本番のデプロイを済ませる（[本番に出す手順](../docs/release-guide.md) 4-3）。DB を起こす・止めるのは、`main` からだけなりすませる `kanaeru-db-waker`（夜間の停止と同じ役割 `kanaeruSqlActivation`。この役割は台の設定も直せるので、デプロイの身分には付けない）。
 - 共通の定期の仕事（環境ごとに1つ：本番 `kanaeru-jobs-tick`・ステージング `kanaeru-stg-jobs-tick`。その環境で Threads か booking が入のときだけ）は、日本時間 8時〜23時台の5分ごとに、その環境の `POST /api/v1/jobs/tick` を呼び、その回に当たる領域の仕事（各領域の `scheduledJob`）を動かす。DB の夜間の停止の間は動かさない。止めたいときは `gcloud scheduler jobs pause <仕事の名前> --location=asia-northeast1`（その環境のすべての領域の定期の仕事が止まる）。Cloud Scheduler の無料の枠は請求先アカウントごとに3つで、DB の停止・起動と、両方の環境の共通の仕事で4つになる（4つ目は月0.10ドル）。
 
 ## 8. 消さないための仕組み
