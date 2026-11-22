@@ -1,7 +1,7 @@
 # GCPの学び（kanaeru で使うところだけ）
 
 - 作成日：2026-11-19
-- 直した日：—（まだない）
+- 直した日：2026-11-22（core-018：Cloud SQL を内部の IP だけにした注記を足した）
 - 読む人：TypeScript で Web を作ってきて、GCP は初めての人（kanaeru の開発者）。
 - この文書は「学び」の文書。考え方と使い方の説明で、**今のシステムの正本でも、決まりの正本でもない**。
   - 置き場所の決めごと（台の型・台数・夜間の停止・バックアップ・予算）は[構成の決めごと](../../_bmad-output/architecture-kanaeru/architecture-kanaeru.md)の AD-8〜AD-11 が正本。
@@ -146,6 +146,7 @@ Google が PostgreSQL を動かし、更新・バックアップを受け持つ�
 
 **つなぎ方（Cloud Run の組み込みの接続）**：
 
+- **2026-11-22 から（core-018）、kanaeru は Cloud SQL を内部の IP だけにし、Cloud Run は Direct VPC egress で VPC に出て TCP でつなぐ形に変えた**（下の Unix ソケットの形は、公開の IP のときの道。今の形は [infra/README.md](../../infra/README.md) と [specs/core/018-staging-private-db/research.md](../../specs/core/018-staging-private-db/research.md) R2）。
 - Cloud Run の設定で Cloud SQL を指定すると、コンテナの中に `/cloudsql/<プロジェクト>:<リージョン>:<インスタンス>` という **Unix ソケット**（ファイルの形の入口）ができる。通信は自動で暗号化され、実行用のサービスアカウントの **Cloud SQL クライアント**のロールで守られる。
 - この仕組みは **Cloud SQL に公開 IP があることが前提**（私的な IP だけにすると VPC のつなぎ口が要る）。承認済みネットワーク（つないでよい IP の一覧）を空にしておけば、外から直接はつなげない。
 - `pg` は `host` にソケットのフォルダを渡すとつながる。`DATABASE_URL` 1本の形（`?host=/cloudsql/...`）が通るかは作り始めに試す（要確認）。

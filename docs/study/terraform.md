@@ -1,7 +1,9 @@
 # Terraformの学び（kanaeru で使うところだけ）
 
+> 2026-11-22（core-018）から、`infra/` は「共通の資源」と「環境ごとの部品（`infra/modules/environment`）」に分かれ、本番とステージングを同じ部品で作る。Cloud SQL は内部の IP だけになった。この文書の例（`kanaeru/prod` の state・Unix ソケットの `DATABASE_URL`・`roles/cloudsql.client`）は作り始めのころの形で、今の形は [infra/README.md](../../infra/README.md) が正本。
+
 - 作成日：2026-11-19
-- 直した日：—（まだない）
+- 直した日：2026-11-22（core-018：今の infra の形への注記を頭に足した）
 - 読む人：TypeScript で Web を作ってきて、Terraform（インフラをコードで書く道具）は初めての人。GCP のサービスそのもの（Cloud Run・Cloud SQL など）は[GCPの学び](./gcp.md)で先に読むと分かりやすい。
 - この文書は「学び」の文書。考え方と使い方の説明で、**今のシステムの正本でも、決まりの正本でもない**。
   - 何を Terraform で持つか・Cloud SQL の型・夜間の停止などの決めごとは、[構成の決めごと](../../_bmad-output/architecture-kanaeru/architecture-kanaeru.md)（AD-8〜AD-11）が正本。

@@ -1,5 +1,5 @@
 # 外から渡す値（core-002）。値は terraform.tfvars（コミットしない。見本は terraform.tfvars.example）で渡す。
-# 秘密の値はここに置かない（DB のパスワードは Terraform の中で作り、state に残さない。secrets.tf）。
+# 秘密の値はここに置かない（DB のパスワードは Terraform の中で作り、state に残さない。modules/environment/secrets.tf）。
 
 variable "project_id" {
   type        = string
@@ -19,7 +19,7 @@ variable "billing_account_id" {
 
 variable "github_repository" {
   type        = string
-  description = "デプロイを許す GitHub のリポジトリ（owner/repo の形）。このリポジトリの main のブランチだけが入れる"
+  description = "デプロイを許す GitHub のリポジトリ（owner/repo の形）。このリポジトリの main（本番）と develop（ステージング）のブランチだけが入れる"
 
   validation {
     condition     = can(regex("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", var.github_repository))
@@ -48,39 +48,6 @@ variable "github_repository_owner_id" {
   }
 }
 
-variable "app_name" {
-  type        = string
-  description = "画面に出すアプリの名前（設定 APP_NAME。コンテナの組み立ての APP_NAME と同じにする）"
-  default     = "kanaeru"
-}
-
-variable "web_url" {
-  type        = string
-  description = "画面の源（設定 WEB_URL）。空なら Cloud Run の決まった形の URL（https://<サービス>-<プロジェクト番号>.<リージョン>.run.app）にする"
-  default     = ""
-}
-
-variable "line_channel_ids" {
-  type        = string
-  description = "IDトークンを確かめるときの LINE のチャネルID（カンマで並べる。秘密ではない。AD-4）"
-}
-
-variable "organizer_line_user_id" {
-  type        = string
-  description = "主催者の LINE のユーザーID（秘密ではない。AD-5）"
-}
-
-variable "open_chat_url" {
-  type        = string
-  description = "コミュニティのオープンチャットの URL（秘密ではない）"
-}
-
-variable "db_password_version" {
-  type        = number
-  description = "DB のパスワードの版。上げて apply すると、新しいパスワードを作って DB と Secret Manager の両方に書く（README の 6）"
-  default     = 1
-}
-
 variable "budget_amount" {
   type        = number
   description = "請求の予算（月。AD-9：2,000円）"
@@ -93,59 +60,71 @@ variable "budget_currency" {
   default     = "JPY"
 }
 
-variable "threads_enabled" {
-  type        = bool
-  description = "Threads の運用アプリの秘密と定期の仕事を作るか。true にする前に、鍵の束の秘密に版を足す（README の 9）"
-  default     = false
+# ---- 環境ごとの値（core-018）。資源の名前・台数・DB の接続の数は environments.tf で決める
+variable "production" {
+  description = "本番（kanaeru。main のマージで出る）の値"
+  type = object({
+    # 画面の源（設定 WEB_URL）。空なら Cloud Run の決まった形の URL（https://<サービス>-<プロジェクト番号>.<リージョン>.run.app）。
+    # 独自ドメインにするときはその URL（LINE のミニアプリ・OAuth の戻り先に登録する前に決める）
+    web_url = optional(string, "")
+    # 画面に出すアプリの名前（設定 APP_NAME。GitHub の環境の変数 APP_NAME と同じにする）
+    app_name = optional(string, "kanaeru")
+    # IDトークンを確かめるときの LINE のチャネルID（カンマで並べる。秘密ではない。AD-4）。環境ごとの LINE ミニアプリのチャネル
+    line_channel_ids = string
+    # 主催者の LINE のユーザーID（秘密ではない。AD-5。同じプロバイダーなら環境で同じ値）
+    organizer_line_user_id = string
+    # コミュニティのオープンチャットの URL（秘密ではない）
+    open_chat_url = string
+    # DB のパスワードの版。上げて apply すると、新しいパスワードを作って DB と Secret Manager の両方に書く（README の 6）
+    db_password_version = optional(number, 1)
+    # Threads の運用アプリの秘密を作るか。true にする前に、鍵の束の秘密に版を足す（README の 9）
+    threads_enabled = optional(bool, false)
+    # トークンを包む今の鍵の版（TOKEN_ENCRYPTION_KEY_VERSION）
+    threads_token_key_version = optional(number, 1)
+    # Threads の OAuth の接続と Meta の Webhook（threads-010）を入にするか。threads_enabled と threads_app_id が要る
+    threads_oauth_enabled = optional(bool, false)
+    # Meta のアプリの ID（数字。公開してよい値）
+    threads_app_id = optional(string, "")
+    # 予約（AD-24）の秘密を作るか。true にする前に、鍵の束の秘密に版を足す（README の 10）
+    booking_enabled = optional(bool, false)
+    # 予約の知らせの送り方（NOTIFY_MODE）。off・allowlist・on。ステージングは off か allowlist にする
+    booking_notify_mode = optional(string, "off")
+  })
 }
 
-variable "threads_token_key_version" {
-  type        = number
-  description = "Threads のトークンを包む今の鍵の版（TOKEN_ENCRYPTION_KEY_VERSION。鍵の束の JSON にある版）"
-  default     = 1
-}
-
-variable "threads_oauth_enabled" {
-  type        = bool
-  description = "Threads の OAuth の接続と Meta の Webhook（threads-010。機能の印 threads.oauth）を入にするか。threads_enabled と threads_app_id が要る。true にする前に、Meta のアプリの秘密の値の秘密に版を足す（README の 9）。切にしても秘密の値は残る"
-  default     = false
+variable "staging" {
+  description = "ステージング（kanaeru-stg。develop のマージで出る。本番と同じ Cloud SQL のサーバーの中の別の DB を使う）の値。null なら作らない"
+  type = object({
+    # 画面の源（設定 WEB_URL）。空なら Cloud Run の決まった形の URL（https://<サービス>-<プロジェクト番号>.<リージョン>.run.app）。
+    # 独自ドメインにするときはその URL（LINE のミニアプリ・OAuth の戻り先に登録する前に決める）
+    web_url = optional(string, "")
+    # 画面に出すアプリの名前（設定 APP_NAME。GitHub の環境の変数 APP_NAME と同じにする）
+    app_name = optional(string, "kanaeru")
+    # IDトークンを確かめるときの LINE のチャネルID（カンマで並べる。秘密ではない。AD-4）。環境ごとの LINE ミニアプリのチャネル
+    line_channel_ids = string
+    # 主催者の LINE のユーザーID（秘密ではない。AD-5。同じプロバイダーなら環境で同じ値）
+    organizer_line_user_id = string
+    # コミュニティのオープンチャットの URL（秘密ではない）
+    open_chat_url = string
+    # DB のパスワードの版。上げて apply すると、新しいパスワードを作って DB と Secret Manager の両方に書く（README の 6）
+    db_password_version = optional(number, 1)
+    # Threads の運用アプリの秘密を作るか。true にする前に、鍵の束の秘密に版を足す（README の 9）
+    threads_enabled = optional(bool, false)
+    # トークンを包む今の鍵の版（TOKEN_ENCRYPTION_KEY_VERSION）
+    threads_token_key_version = optional(number, 1)
+    # Threads の OAuth の接続と Meta の Webhook（threads-010）を入にするか。threads_enabled と threads_app_id が要る
+    threads_oauth_enabled = optional(bool, false)
+    # Meta のアプリの ID（数字。公開してよい値）
+    threads_app_id = optional(string, "")
+    # 予約（AD-24）の秘密を作るか。true にする前に、鍵の束の秘密に版を足す（README の 10）
+    booking_enabled = optional(bool, false)
+    # 予約の知らせの送り方（NOTIFY_MODE）。off・allowlist・on。ステージングは off か allowlist にする
+    booking_notify_mode = optional(string, "off")
+  })
+  default = null
 
   validation {
-    condition     = !var.threads_oauth_enabled || var.threads_app_id != ""
-    error_message = "threads_oauth_enabled を true にするときは、threads_app_id（Meta のアプリの ID）も入れてください。"
-  }
-}
-
-variable "threads_app_id" {
-  type        = string
-  description = "Meta のアプリ（Threads の API を使うアプリ）の ID（数字。公開してよい値）。threads_oauth_enabled のときだけ使う"
-  default     = ""
-
-  validation {
-    condition     = var.threads_app_id == "" || can(regex("^[0-9]+$", var.threads_app_id))
-    error_message = "threads_app_id は数字だけにしてください（Meta の開発者の画面のアプリ ID）。"
-  }
-}
-
-
-variable "booking_enabled" {
-  type        = bool
-  description = "予約（booking-002〜004。AD-24）の秘密と定期の仕事を作るか。true にすると、Threads と同じ鍵の束と合言葉（threads_enabled が false でも作る）・許可リストの入れ物・共通の定期の仕事（scheduler.tf の kanaeru-jobs-tick。threads_enabled と共に1つ）ができ、Cloud Run に NOTIFY_MODE が足される。true にする前に、鍵の束の秘密に版を足す（README の 10）"
-  default     = false
-}
-
-variable "booking_notify_mode" {
-  type        = string
-  description = "予約の知らせの送り方（NOTIFY_MODE。AD-24）。off（送らない）・allowlist（許可リストの人だけ）・on（送る）。allowlist にする前に、許可リストの秘密に版を足す（README の 10）"
-  default     = "off"
-
-  validation {
-    condition     = contains(["off", "allowlist", "on"], var.booking_notify_mode)
-    error_message = "booking_notify_mode は off・allowlist・on のどれかにしてください。"
-  }
-
-  validation {
-    condition     = var.booking_notify_mode == "off" || var.booking_enabled
-    error_message = "booking_notify_mode を off 以外にするときは、booking_enabled も true にしてください。"
+    condition     = var.staging == null || var.staging.booking_notify_mode != "on"
+    error_message = "ステージングの booking_notify_mode は off か allowlist にしてください（本物の参加者に知らせを送らないため）。"
   }
 }

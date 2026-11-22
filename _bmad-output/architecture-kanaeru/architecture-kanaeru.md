@@ -121,16 +121,17 @@ flowchart TB
   - 割引（`event_discount`）は消さない。外すと「使うのをやめる」（`archived_at`）だけで、新しいチェックインで選べなくなる。`checkin` の `(event_id, discount_id)` は `event_discount(event_id, id)` を指す複合の外部キーで `RESTRICT`（別の交流会の割引を指せない）。チェックインは名前と額を写しているので、割引を直しても外しても履歴は変わらない（event は reception の表を読めないので、使われたかで消すかを決められない。reception-002）。
   - チェックインの取り消し（FR-8）は行を消す（`DELETE`）。回答も一緒に消える。取り消しの確かめの枠に「アンケートの回答があれば一緒に消えます」と出す。FR-5 の重なりをまとめるときは、LINE のほうを残し、手のほうを消す。
 
-### AD-8 — 置き場所は1つの Cloud Run と1つの Cloud SQL [ADOPTED]
+### AD-8 — 置き場所は環境ごとに1つの Cloud Run と、共にする1つの Cloud SQL [ADOPTED]
 
 - **Binds:** all（運用）
 - **Prevents:** 画面と API が別の源になってクッキーが使えなくなること。費用がかかる部品が知らないうちに増えること。Terraform が既定のエディションで落ちること。会場の回線で受付が止まること
 - **Rule:**
   - 1つのコンテナ（Cloud Run・asia-northeast1）が、画面の組み立てたファイルと `/api` を同じ源で返す（画面に戻さない道の頭〈`/api`・`/.well-known`。AD-21〉のほかは `index.html` に戻す）。`/api` の下は API の CSP、ほかは画面の CSP（LINE の SDK が要る源を足す）。これは組み立て（`app.ts`）を直す共通の PR で入れる。
-  - DB は Cloud SQL for PostgreSQL を1つだけ：`edition = "ENTERPRISE"`・`tier = "db-f1-micro"`・`database_version = "POSTGRES_18"`（共有コアで SLA の対象外）。公開IPに承認済みネットワークを付けず、Cloud Run に備わっている Cloud SQL の接続（Unix ソケット）だけでつなぐ。
-  - Cloud Run の最大の台数は2、最小は0。pg の接続のプールは1台あたり5まで（合計が Cloud SQL の上限を超えない）。
+  - 環境は本番（`kanaeru`）とステージング（`kanaeru-stg`）の2つ（2026-11-22。core-018）。どちらも同じ Terraform の部品（`infra/modules/environment`）で作り、同じプロジェクトに置く（構成 B）。別のプロジェクトに分ける（構成 C）ときは、移した先で共通の資源を作って同じ部品を呼ぶ。
+  - DB は Cloud SQL for PostgreSQL のサーバーを1つだけ：`edition = "ENTERPRISE"`・`tier = "db-f1-micro"`・`database_version = "POSTGRES_18"`（共有コアで SLA の対象外）。本番とステージングは、この中の別の DB を使う。公開の IP を持たず内部の IP だけにし、Cloud Run は Direct VPC egress（VPC に出るのは内部の宛先だけ。サーバー代のかかるコネクタは使わない）で、TCP・暗号つき（`sslmode=no-verify`）でつなぐ。
+  - Cloud Run の最小の台数は0。最大の台数と1台の pg の接続のプールは、本番 2台 × 5・ステージング 1台 × 3（合計と DB の変更を当てる job の分が、Cloud SQL の上限〈25〉を超えない）。
   - 会場では参加者が同じIPに見えるので、本番は `TRUSTED_PROXY_HOPS=1`・`RATE_LIMIT_MAX` を受付の山に見合う値（600）にする。
-  - ロードバランサ・VPC のつなぎ口・最小の台数1・Enterprise Plus は、この文書を直さずに足さない。
+  - ロードバランサ・VPC のコネクタ（Serverless VPC Access）・最小の台数1・Enterprise Plus は、この文書を直さずに足さない。
 
 ### AD-9 — GCP の資源はすべて Terraform で持ち、費用とデータを守る設定を入れる [ADOPTED]
 
@@ -156,7 +157,7 @@ flowchart TB
 
 - **Binds:** 運用・すべての領域
 - **Prevents:** 新しいコードが古い表で動くこと。手元から本番の DB を直接直すこと。どのブランチで本番に出るかが人によって違うこと
-- **Rule:** 環境は本番の1つだけ。`main` へのマージで GitHub Actions が、コンテナを作る → 同じコンテナを Cloud Run jobs で `db:migrate` として動かす → 成功したときだけ新しい版を出す。`develop` のマージでは何も出さない（ステージングを足したら出す）。文書・仕様だけの変更では動かさない（`paths` で絞る）。DB の変更は後ろに戻れる形にする。この決まりは [docs/rules/development-flow.md](../../docs/rules/development-flow.md) 5章にも書く。
+- **Rule:** `main` へのマージで本番、`develop` へのマージでステージングに、GitHub Actions が出す（2026-11-22 から。core-018）。コンテナを作る → 同じコンテナを Cloud Run jobs で `db:migrate` として動かす → 成功したときだけ新しい版を出す。どの環境のデプロイの身分になりすませるかはブランチで分ける（`develop` から本番は触れない）。文書・仕様だけの変更では動かさない（`paths` で絞る）。DB の変更は後ろに戻れる形にする。この決まりは [docs/rules/development-flow.md](../../docs/rules/development-flow.md) 5章にも書く。
 
 ### AD-12 — 今の利用者は account の1つの仕組みで受け取る [ADOPTED]
 
@@ -459,11 +460,11 @@ flowchart LR
     sch["Cloud Scheduler<br/>0時停止・8時起動"]
     budget["請求の予算<br/>月2,000円"]
   end
-  gh["GitHub Actions<br/>main のマージで出す"]
+  gh["GitHub Actions<br/>main → 本番・develop → ステージング"]
   user -- "QR（ミニアプリのURL）→ https" --> run
   user -- "ログイン" --> line
   run -- "IDトークンの確かめ" --> line
-  run -- "Unix ソケット" --> sql
+  run -- "内部の IP（Direct VPC egress）" --> sql
   job --> sql
   sm -. "秘密の値" .-> run
   gh -- "WIF" --> ar

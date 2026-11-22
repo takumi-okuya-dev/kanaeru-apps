@@ -1,39 +1,42 @@
-# apply のあとに出す値（core-002）。どれも秘密ではないが、プロジェクトの番号などを含むので文書には写さない。
-# GitHub のリポジトリの変数（Variables）に写す値は github_variables にまとめた（README の 5）。
+# apply のあとに出す値（core-002・core-018）。どれも秘密ではないが、プロジェクトの番号などを含むので文書には写さない。
+# GitHub に写す値は、リポジトリの変数（github_repository_variables）と、環境ごとの変数（production・staging の
+# github_environment_variables）に分けた（README の 5）。
 
-output "web_url" {
-  description = "画面の源（設定 WEB_URL）。LINE のミニアプリのエンドポイント URL にもこれを使う（ほかの URL から開くと、書く操作が源の確かめで 403 になる）"
-  value       = local.web_url
-}
-
-output "service_urls" {
-  description = "Cloud Run のサービスの URL（決まった形と、そうでない形の両方）"
-  value       = google_cloud_run_v2_service.app.urls
-}
-
-output "image_repository" {
-  description = "コンテナのイメージの置き場所（GitHub Actions が <この値>:<コミット> を押し込む）"
-  value       = local.image_repository
-}
-
-output "sql_connection_name" {
-  description = "Cloud SQL の接続の名前（PROJECT:REGION:INSTANCE）"
-  value       = google_sql_database_instance.main.connection_name
-}
-
-output "migrate_job_name" {
-  description = "DB の変更を当てる Cloud Run の job"
-  value       = google_cloud_run_v2_job.migrate.name
-}
-
-output "github_variables" {
-  description = "GitHub のリポジトリの変数（Settings → Secrets and variables → Actions → Variables）に入れる値。LIFF_ID は LINE の側の値を入れる"
+output "github_repository_variables" {
+  description = "GitHub のリポジトリの変数（Settings → Secrets and variables → Actions → Variables）に入れる値（両方の環境で共に使う）"
   value = {
     GCP_PROJECT_ID   = var.project_id
     GCP_REGION       = var.region
     GCP_WIF_PROVIDER = google_iam_workload_identity_pool_provider.github.name
-    GCP_DEPLOYER_SA  = google_service_account.deployer.email
-    # 画面の題に埋める名前（既定の kanaeru のままなら、変数を入れなくてよい）
-    APP_NAME = var.app_name
   }
+}
+
+output "production" {
+  description = "本番の値（web_url は LINE のミニアプリのエンドポイント URL にも使う。github_environment_variables は GitHub の環境 production の変数に入れる）"
+  value = {
+    web_url                      = module.production.web_url
+    service_urls                 = module.production.service_urls
+    migrate_job_name             = module.production.migrate_job_name
+    github_environment_variables = module.production.github_environment_variables
+  }
+}
+
+output "staging" {
+  description = "ステージングの値（作らないときは null。github_environment_variables は GitHub の環境 staging の変数に入れる）"
+  value = var.staging == null ? null : {
+    web_url                      = module.staging[0].web_url
+    service_urls                 = module.staging[0].service_urls
+    migrate_job_name             = module.staging[0].migrate_job_name
+    github_environment_variables = module.staging[0].github_environment_variables
+  }
+}
+
+output "image_repository" {
+  description = "コンテナのイメージの置き場所（GitHub Actions が <この値>/app-<環境>:<コミット> を押し込む）"
+  value       = local.image_repository
+}
+
+output "sql_connection_name" {
+  description = "Cloud SQL の接続の名前（PROJECT:REGION:INSTANCE。手で DB を見るときに使う）"
+  value       = google_sql_database_instance.main.connection_name
 }

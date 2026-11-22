@@ -1,13 +1,11 @@
-# 名前などの共通の値（core-002）。資源の名前はここから作る。
+# 名前などの共通の値（core-002・core-018）。共通の資源の名前はここから作る（環境ごとの資源の名前は environments.tf）。
 
 locals {
   name = "kanaeru"
 
-  # 画面の源（WEB_URL）。Cloud Run の決まった形の URL を、サービスを作る前に組み立てる
-  web_url = var.web_url != "" ? var.web_url : "https://${local.name}-${data.google_project.this.number}.${var.region}.run.app"
-
-  # コンテナのイメージの置き場所（GitHub Actions が <この値>:<コミット> を押し込む）
-  image_repository = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.app.repository_id}/app"
+  # コンテナのイメージの置き場所（GitHub Actions が <この値>/app-<環境>:<コミット> を押し込む。環境ごとにイメージの名前を分け、
+  # 古いイメージの掃除が環境ごとに新しい10個を残すようにする。artifact_registry.tf）
+  image_repository = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.app.repository_id}"
 
   # 最初だけの仮のイメージ（本物は GitHub Actions が出す。Terraform はイメージの差を無視する）
   placeholder_service_image = "us-docker.pkg.dev/cloudrun/container/hello"

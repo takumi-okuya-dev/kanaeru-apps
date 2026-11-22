@@ -1,14 +1,17 @@
-# 本番へのデプロイ（core-002。docs/rules/development-flow.md 5・構成の決めごと AD-11）。
-# 流れる時：main に push したとき（出すものが変わるファイルだけ。文書・仕様・infra/ だけの変更では流れない）と、main から手で流したとき。
+# 本番とステージングへのデプロイ（core-002・core-018。docs/rules/development-flow.md 5・構成の決めごと AD-11）。
+# 流れる時：main（本番）・develop（ステージング）に push したとき（出すものが変わるファイルだけ。文書・仕様・infra/ だけの変更では流れない）と、
+# そのブランチから手で流したとき。どちらの環境かはブランチで決め、GitHub の環境（production・staging）の変数を使う。
 # 順番：時間帯の確かめ（日本時間の8時15分〜23時に始まったときだけ）→ コンテナを作って Artifact Registry へ → 同じコンテナで db:migrate（Cloud Run jobs）→ 成功したときだけ新しい版を出す。
 # GCP へは Workload Identity Federation で入り、デプロイ用のサービスアカウントになりすます（鍵は置かない。Cloud Run は WIF の直の権限に対応していない）。
-# 秘密の値（secrets.*）は使わない。使うのはリポジトリの変数（vars.*）だけ：GCP_PROJECT_ID・GCP_REGION・GCP_WIF_PROVIDER・GCP_DEPLOYER_SA・LIFF_ID・APP_NAME（任意。既定 kanaeru）。
+# 秘密の値（secrets.*）は使わない。使うのは変数（vars.*）だけ（infra/README.md の 5）：
+# - リポジトリの変数：GCP_PROJECT_ID・GCP_REGION・GCP_WIF_PROVIDER（terraform output github_repository_variables）
+# - 環境の変数（production・staging）：GCP_DEPLOYER_SA・CLOUD_RUN_SERVICE・MIGRATE_JOB・APP_NAME（terraform output の各環境の github_environment_variables）と LIFF_ID（LINE の側）
 # 外の部品はコミットの指紋（SHA）で固定し、版の名前を注釈に書く（Dependabot が新しくする）。
 name: deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
     paths:
       - "apps/**"
       - "packages/**"
@@ -27,9 +30,9 @@ on:
         type: boolean
         default: false
 
-# デプロイは1つずつ。DB の変更の途中で止めないよう、流れているものは取り消さず、後のものを待たせる
+# デプロイは環境ごとに1つずつ。DB の変更の途中で止めないよう、流れているものは取り消さず、後のものを待たせる
 concurrency:
-  group: deploy-production
+  group: deploy-${{ github.ref_name }}
   cancel-in-progress: false
 
 permissions:
@@ -37,23 +40,27 @@ permissions:
 
 jobs:
   deploy:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
+    # main は本番、develop はステージング（GitHub の環境の変数を使い分ける）
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
     timeout-minutes: 30
     permissions:
       contents: read
       id-token: write
     env:
-      SERVICE: kanaeru
-      MIGRATE_JOB: kanaeru-migrate
+      DEPLOY_ENV: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+      SERVICE: ${{ vars.CLOUD_RUN_SERVICE }}
+      MIGRATE_JOB: ${{ vars.MIGRATE_JOB }}
       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
       GCP_REGION: ${{ vars.GCP_REGION }}
       LIFF_ID: ${{ vars.LIFF_ID }}
       # 画面の題に埋める名前。Terraform の app_name（Cloud Run の APP_NAME）と同じにする（infra/README.md 5）
       APP_NAME: ${{ vars.APP_NAME || 'kanaeru' }}
-      IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/kanaeru/app:${{ github.sha }}
+      # 環境ごとにイメージの名前を分ける（LIFF ID と APP_NAME を組み立てに埋めるので、中身が環境で違う。古いイメージの掃除も環境ごと）
+      IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/kanaeru/app-${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}:${{ github.sha }}
     steps:
-      # DB は夜間（0時〜8時。日本時間）に止まっているので、その間は db:migrate が落ちる（AD-10）。GitHub Actions は時刻で止められないので、ここで早く落とす。
+      # DB は夜間（0時〜8時。日本時間）に止まっているので、その間は db:migrate が落ちる（AD-10。本番とステージングは同じ DB のサーバー）。GitHub Actions は時刻で止められないので、ここで早く落とす。
       # 始まる時刻だけを見るので、余裕を持たせる：
       # - 8時15分から：8時に起こした DB が動き出すまで数分かかる。
       # - 23時まで：コンテナを作るのに数分かかり、db:migrate はそのあと。この仕事は30分で切れる（timeout-minutes）ので、23時に始まっても0時の停止より前に終わる。
@@ -63,10 +70,10 @@ jobs:
           now=$(TZ=Asia/Tokyo date +%H:%M)
           minutes=$((10#${now%:*} * 60 + 10#${now#*:}))
           if [ "$minutes" -lt $((8 * 60 + 15)) ] || [ "$minutes" -ge $((23 * 60)) ]; then
-            echo "::error::日本時間の ${now} です。デプロイは8時15分〜23時に始まったときだけ出します（DB は夜間〈0時〜8時〉止まり、8時に起こしてから動き出すまで数分かかるため）。8時15分を過ぎてから、Actions の deploy を main で手で流してください（Run workflow）。交流会で夜間の停止を止めていて DB が動いているときだけ、skip_hour_check を入にして流せます。"
+            echo "::error::日本時間の ${now} です。デプロイは8時15分〜23時に始まったときだけ出します（DB は夜間〈0時〜8時〉止まり、8時に起こしてから動き出すまで数分かかるため）。8時15分を過ぎてから、Actions の deploy を同じブランチ（main か develop）で手で流してください（Run workflow）。交流会で夜間の停止を止めていて DB が動いているときだけ、skip_hour_check を入にして流せます。"
             exit 1
           fi
-          echo "日本時間の ${now} です。デプロイします。"
+          echo "日本時間の ${now} です。${DEPLOY_ENV} にデプロイします。"
 
       - name: リポジトリの変数の確かめ
         env:
@@ -75,11 +82,11 @@ jobs:
         run: |
           # 空白だけの値も「ない」とみなす。とくに LIFF_ID が空だと、画面は LINE につながない仮の LIFF の形で組み立てられ、黙って本番に出てしまう
           missing=""
-          for name in GCP_PROJECT_ID GCP_REGION GCP_WIF_PROVIDER GCP_DEPLOYER_SA LIFF_ID APP_NAME; do
+          for name in GCP_PROJECT_ID GCP_REGION GCP_WIF_PROVIDER GCP_DEPLOYER_SA SERVICE MIGRATE_JOB LIFF_ID APP_NAME; do
             if [ -z "$(printenv "$name" | tr -d '[:space:]')" ]; then missing="$missing $name"; fi
           done
           if [ -n "$missing" ]; then
-            echo "::error::リポジトリの変数（Settings → Secrets and variables → Actions → Variables）がありません：${missing}（値は infra/ の terraform output github_variables と LINE の LIFF ID。infra/README.md の 5）"
+            echo "::error::変数がありません：${missing}（${DEPLOY_ENV}。GCP_PROJECT_ID・GCP_REGION・GCP_WIF_PROVIDER はリポジトリの変数、ほかは Settings → Environments → ${DEPLOY_ENV} の変数に入れる。SERVICE は CLOUD_RUN_SERVICE。値は infra/ の terraform output と LINE の LIFF ID。infra/README.md の 5）"
             exit 1
           fi
 
@@ -114,4 +121,4 @@ jobs:
           url=$(gcloud run services describe "$SERVICE" --region="$GCP_REGION" --format='value(status.url)')
           curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-all-errors "${url}/api/v1/health"
           echo
-          echo "出しました：${url}"
+          echo "${DEPLOY_ENV} に出しました：${url}"
