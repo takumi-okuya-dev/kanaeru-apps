@@ -164,6 +164,9 @@ function tailOf(value: string): string {
   return value.slice(-SECRET_TAIL_LENGTH);
 }
 
+/** ボット情報で確かめた公式アカウント（channelId は LINE が返すトークンを発行したチャネルの ID。偽の送り手では null）。 */
+type LineBot = { basicId: string | null; botUserId: string | null; channelId: string | null };
+
 /**
  * 公式アカウントの設定を入れる・入れ直す（research R10・R21）。
  * 初めは3つとも要る。チャネル ID を変えるときはシークレットとアクセストークンも要り、前の紐づけと札を消す。
@@ -208,7 +211,7 @@ export async function saveLineChannel(
   }
   // アクセストークンを入れたときだけ、ボット情報を読み直す。入れないときは、書くときに押さえた行の値を残す
   // （ここで読んだ値を使うと、同時に別の管理者がトークンを入れ替えたときに、古いボット情報で上書きしてしまう）
-  let bot: { basicId: string | null; botUserId: string | null } | null = null;
+  let bot: LineBot | null = null;
   if (input.accessToken !== undefined) {
     const info = await notifierOf(deps).getLineBotInfo(input.accessToken);
     if (!info.ok) {
@@ -225,7 +228,7 @@ export async function saveLineChannel(
         fields: [{ path: "lineChannelId", message: BOOKING_ERRORS.LINE_CHANNEL_MISMATCH.message }],
       });
     }
-    bot = { basicId: info.basicId, botUserId: info.userId };
+    bot = { basicId: info.basicId, botUserId: info.userId, channelId: info.channelId };
   }
   try {
     await writeChannel(deps, box, holder, input, bot);
@@ -268,7 +271,7 @@ async function writeChannel(
   box: SecretBox,
   holder: NotifyHolderRef,
   input: LineChannelInput,
-  bot: { basicId: string | null; botUserId: string | null } | null,
+  bot: LineBot | null,
 ): Promise<void> {
   await deps.db.transaction(async (tx) => {
     const channel = await ensureChannel(tx, holder);
@@ -278,6 +281,13 @@ async function writeChannel(
     const channelSecret = input.channelSecret ?? previous?.channelSecret;
     const accessToken = input.accessToken ?? previous?.accessToken;
     const lineChannelId = input.lineChannelId ?? channel.lineChannelId;
+    // 押さえた行のチャネル ID でも確かめる（トークンだけを入れ直す間に、別の管理者がチャネル ID を替えたときに、
+    // 前のチャネルのトークンを新しいチャネル ID の下に書かないように）
+    if (bot?.channelId != null && lineChannelId !== null && bot.channelId !== lineChannelId) {
+      throw new AppError(BOOKING_ERRORS.LINE_CHANNEL_MISMATCH, {
+        fields: [{ path: "lineChannelId", message: BOOKING_ERRORS.LINE_CHANNEL_MISMATCH.message }],
+      });
+    }
     if (!channelSecret || !accessToken || !lineChannelId) {
       // 前の値が開けない（鍵の版がない）ときは、3つとも入れ直してもらう
       throw new AppError("INVALID_INPUT", {
