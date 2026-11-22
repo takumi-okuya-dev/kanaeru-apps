@@ -19,7 +19,7 @@
 | `service_accounts.tf` | 身分（Cloud Run・デプロイ・夜間の停止）と権限 |
 | `wif.tf` | GitHub Actions から鍵なしで入る仕組み（このリポジトリの `main` だけ。名前と数字の ID の両方で絞る） |
 | `cloud_run.tf` | Cloud Run のサービス（画面と `/api`）と、DB の変更を当てる job |
-| `scheduler.tf` | 毎日0時に DB を止め、8時に動かす（日本時間） |
+| `scheduler.tf` | 毎日0時に DB を止め、8時に動かす（日本時間）。Threads か booking が入なら、5分ごとの共通の定期の仕事（`kanaeru-jobs-tick`。core-017） |
 | `budget.tf` | 請求の予算（月2,000円・50%と100%でメール） |
 | `threads.tf` | Threads の運用アプリ（`threads_enabled` が true のときだけ）：トークンを包む鍵の束と定期の仕事の合言葉の秘密・5分おきの定期の仕事。`threads_oauth_enabled` も true なら Meta のアプリの秘密の値の入れ物（9章）。鍵の束と合言葉は、予約（`booking_enabled`）が入でも作る |
 | `booking.tf` | 予約（`booking_enabled` が true のときだけ）：知らせの許可リストの入れ物・10分おきの定期の仕事。鍵の束と合言葉は `threads.tf` のものを共に使う（10章） |
@@ -133,6 +133,7 @@ GitHub のリポジトリの **Variables**（Settings → Secrets and variables 
   ```
 
 - 初めて作ったあと、一度だけ手で動かして確かめる：`gcloud scheduler jobs run kanaeru-db-start --location=asia-northeast1`。
+- 共通の定期の仕事（`kanaeru-jobs-tick`。Threads か booking が入のときだけ）は、日本時間 8時〜23時台の5分ごとに `POST /api/v1/jobs/tick` を呼び、その回に当たる領域の仕事（各領域の `scheduledJob`）を動かす。DB の夜間の停止の間は動かさない。止めたいときは `gcloud scheduler jobs pause kanaeru-jobs-tick --location=asia-northeast1`（すべての領域の定期の仕事が止まる）。Cloud Scheduler の仕事は、DB の停止・起動と合わせて3つ（請求先アカウントごとの無料の枠）に収める。
 
 ## 8. 消さないための仕組み
 
