@@ -4,7 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase } from "../src/kernel/db.ts";
-import { HTML_CACHE, WEB_CSP_DIRECTIVES, allowsCamera } from "../src/platform/web/index.ts";
+import {
+  EDGE_CACHE_HEADER,
+  EDGE_HTML_CACHE,
+  WEB_CSP_DIRECTIVES,
+  allowsCamera,
+} from "../src/platform/web/index.ts";
 import { buildApp, testConfig } from "./helpers/app.ts";
 
 /** 画面のフォルダの中身（組み立てた形を小さくまねたもの）。 */
@@ -59,8 +64,9 @@ describe("画面のファイル", () => {
       expect(response.status, path).toBe(200);
       expect(response.headers.get("content-type"), path).toContain("text/html");
       expect(await response.text(), path).toContain("テストの画面");
-      // 源（Cloud Run）が落ちていても、前に置く Cloudflare が前の画面を出せる（core-020）
-      expect(response.headers.get("cache-control"), path).toBe(HTML_CACHE);
+      // ブラウザは毎回確かめる。源（Cloud Run）が落ちたときは、前に置く Cloudflare が前の画面を出せる（core-020）
+      expect(response.headers.get("cache-control"), path).toBe("no-cache");
+      expect(response.headers.get(EDGE_CACHE_HEADER), path).toBe(EDGE_HTML_CACHE);
       const csp = response.headers.get("content-security-policy") ?? "";
       expect(csp, path).toContain("script-src 'self' https://static.line-scdn.net");
       expect(csp, path).toContain("connect-src 'self' https://api.line.me");
@@ -95,16 +101,18 @@ describe("画面のファイル", () => {
     expect(allowsCamera("/matches")).toBe(false);
   });
 
-  it("HTML のファイルは源が落ちても出せる形、HTML でないほかのファイル（sw.js）は毎回確かめさせる（core-020）", async () => {
+  it("HTML のファイルは Cloudflare に源が落ちたときだけ前のものを出させ、HTML でないファイル（sw.js）には付けない（core-020）", async () => {
     const app = appWithWeb();
     const index = await app.request("/index.html");
     expect(index.status).toBe(200);
-    expect(index.headers.get("cache-control")).toBe(HTML_CACHE);
-    expect(HTML_CACHE).toContain("stale-if-error=");
-    expect(HTML_CACHE).not.toMatch(/no-cache|must-revalidate|no-store/);
+    expect(index.headers.get("cache-control")).toBe("no-cache");
+    expect(index.headers.get(EDGE_CACHE_HEADER)).toBe(EDGE_HTML_CACHE);
+    expect(EDGE_HTML_CACHE).toContain("stale-if-error=");
+    expect(EDGE_HTML_CACHE).not.toMatch(/no-cache|must-revalidate|no-store|public/);
     const worker = await app.request("/match/sw.js");
     expect(worker.status).toBe(200);
     expect(worker.headers.get("cache-control")).toBe("no-cache");
+    expect(worker.headers.get(EDGE_CACHE_HEADER)).toBeNull();
   });
 
   it("中身の印つきのファイル（/assets/）は、そのまま返し、長く持たせる", async () => {

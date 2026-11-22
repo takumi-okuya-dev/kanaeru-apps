@@ -68,15 +68,15 @@ describe("request", () => {
     ]);
   });
 
-  it("エラーの本文でない失敗は、INTERNAL の ApiError（要求の ID は見出しから）", async () => {
+  it("エラーの本文でない失敗（5xx と 429 のほか）は、INTERNAL の ApiError（要求の ID は見出しから）", async () => {
     const error = await request(() =>
-      Promise.resolve(new Response("x", { status: 500, headers: { "x-request-id": "req-9" } })),
+      Promise.resolve(new Response("x", { status: 418, headers: { "x-request-id": "req-9" } })),
     ).catch((caught: unknown) => caught);
-    expect(error).toMatchObject({ code: "INTERNAL", status: 500, requestId: "req-9" });
+    expect(error).toMatchObject({ code: "INTERNAL", status: 418, requestId: "req-9" });
   });
 
-  it("エラーの本文でない 502・503・504（置き場所が止まっている）は「ただいま使えません」。API の 503（夜間の停止）はそのまま（core-020）", async () => {
-    for (const status of [502, 503, 504]) {
+  it("エラーの本文でない 5xx と 429（置き場所が止まっている・混み合っている）は「ただいま使えません」。API の 503（夜間の停止）はそのまま（core-020）", async () => {
+    for (const status of [500, 502, 503, 504, 520, 524, 530, 429]) {
       const error = await request(() =>
         Promise.resolve(new Response("<html>Service Unavailable</html>", { status })),
       ).catch((caught: unknown) => caught);

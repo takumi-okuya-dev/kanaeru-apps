@@ -9,10 +9,14 @@ import { UiProvider } from "@workspace/ui/components/ui-provider";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { startLiffFor } from "./lib/liff.ts";
+import { installPreloadErrorReload } from "./lib/preload-error.ts";
 import { createQueryClient } from "./lib/query.ts";
 import { createAppRouter } from "./router.tsx";
 import { StartupErrorPage } from "./shell/StartupErrorPage.tsx";
 import "./styles.css";
+
+// 古い画面が新しい版にない部品を読もうとして失敗したら、1回だけ読み直す（core-020）
+installPreloadErrorReload();
 
 const element = document.getElementById("root");
 if (!element) throw new Error("#root が見つかりません。");
