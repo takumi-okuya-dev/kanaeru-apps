@@ -1,6 +1,7 @@
 // Threads への接続と自動投稿の窓口（threads-002）。道の頭は /api/v1/threads（AD-15）。
 // 運用アカウントの道はログインが要り、持ち主だけ（ほかの人のものは 404。AD-19）。台帳でアプリが見えなければ 404（組み立ての requireApp。定期の仕事は切のときだけ 404）。
-// 定期の仕事の窓口（POST /api/v1/threads/jobs/tick）は、Cloud Scheduler が合言葉（Authorization: Bearer）を付けて呼ぶ。
+// 定期の仕事の窓口（POST /api/v1/threads/jobs/tick）は、Threads の定期の仕事を1回だけ行う（手で流すときとテストの入口）。ふだんは
+// 共通の窓口（POST /api/v1/jobs/tick）が index.ts の scheduledJob として同じ仕事を動かす（core-017）。合言葉（Authorization: Bearer）が要る。
 // 合言葉がない・違うときは、窓口があることを知らせないよう 404 にする。
 // トークン・投稿の本文はログに出さない。
 import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
@@ -238,7 +239,7 @@ function defineRoutes(deps: DomainRouteDeps) {
       tags,
       operationId: "threadsJobTick",
       summary:
-        "定期の仕事を1回行う（Cloud Scheduler が5分おきに呼ぶ。自動投稿・トークンの確かめ直しと延長・片付け）",
+        "定期の仕事を1回行う（自動投稿・トークンの確かめ直しと延長・片付け。ふだんは共通の定期の仕事の窓口が5分おきに動かす）",
       description: "見出し Authorization: Bearer <JOB_TRIGGER_SECRET> が要る。合わなければ 404。",
       middleware: [jobAuth],
       responses: {
