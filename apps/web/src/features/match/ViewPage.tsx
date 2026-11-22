@@ -24,14 +24,14 @@ import { GroupTabs } from "./GroupTabs.tsx";
 import {
   HandoffCollector,
   HandoffFormatError,
-  compareHandoffVersion,
   decodeTableHandoff,
   readHandoffPart,
-  viewFromHandoff,
 } from "./handoff.ts";
 import { tokenHint } from "./link-store.ts";
 import { QrScanner } from "./QrScanner.tsx";
 import { estimateNowIndex, nowIndexOf } from "./view-estimate.ts";
+import { decideHandoffImport, isHandoffNewer, newerView } from "./view-import.ts";
+import type { SavedView } from "./view-import.ts";
 import { useOnline } from "./online.ts";
 import { MATCH_ROUTE_PATTERNS } from "./paths.ts";
 import { useNoIndex } from "./no-index.ts";
@@ -41,16 +41,6 @@ const VERSION_CHECK_MS = 30_000;
 
 /** 見込みを描き直す間（ミリ秒）。 */
 const ESTIMATE_TICK_MS = 30_000;
-
-/** 最後に読んだ表（この端末に置く）。 */
-type SavedView = {
-  /** 中身 */
-  view: MatchView;
-  /** 読んだ時刻（ミリ秒） */
-  readAt: number;
-  /** QR で受け取った表か（match-005） */
-  source?: "qr";
-};
 
 /**
  * 端末に置く鍵（札ごと）。
@@ -296,13 +286,14 @@ function ViewBody({
 type ImportResult = { tone: "success" | "info" | "danger"; text: string };
 
 /**
- * 「QR を読む」の枠（担当の端末が出した試合表の QR を読み、同じ試合表で今より新しい版のときだけ取り込む）。
- * @param props 開いているか・開く閉じる・札・今の版・取り込む関数
+ * 「QR を読む」の枠（担当の端末が出した試合表の QR を読み、同じ試合表で今より新しい版で、画面に出せるときだけ取り込む。
+ * 決め方は view-import.ts の decideHandoffImport）。
+ * @param props 開いているか・開く閉じる・札・今出している表・サーバーから読んだ表・取り込む関数
  * @param props.open 開いているか
  * @param props.onOpenChange 開く・閉じる
  * @param props.token 見るだけの札
- * @param props.currentVersion 今出している表の版（なければ undefined）
- * @param props.expiresAt 今出している表の見られる期限（なければ undefined）
+ * @param props.current 今出している表（なければ undefined）
+ * @param props.server サーバーから読んだ表（なければ undefined）
  * @param props.onImport 取り込む（新しい中身を受け取る）
  * @returns 枠の要素
  */
@@ -310,15 +301,15 @@ function ReadQrDialog({
   open,
   onOpenChange,
   token,
-  currentVersion,
-  expiresAt,
+  current,
+  server,
   onImport,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   token: string;
-  currentVersion: number | undefined;
-  expiresAt: string | undefined;
+  current: MatchView | undefined;
+  server: MatchView | undefined;
   onImport: (view: MatchView) => void;
 }) {
   const [collector] = useState(() => new HandoffCollector());
@@ -348,33 +339,19 @@ function ReadQrDialog({
     }
     try {
       const table = await decodeTableHandoff(progress.data);
-      if (table.hint === null || table.hint !== (await tokenHint(token))) {
-        setResult({
-          tone: "danger",
-          text: "この試合表の QR ではありません（別の試合表か、運営がリンクを作り直しました）。運営に新しいリンクを聞いてください。",
-        });
+      const decision = decideHandoffImport(table, {
+        hint: await tokenHint(token),
+        current,
+        server,
+        now: Date.now(),
+        expiresAt: current?.expiresAt ?? endOfJstDate(table.playDate).toISOString(),
+      });
+      if (decision.kind === "reject") {
+        setResult({ tone: decision.tone, text: decision.text });
         return "continue";
       }
-      if (table.updatedAt > Date.now() + 5 * 60_000) {
-        setResult({
-          tone: "danger",
-          text: "この QR の時刻が、この端末の時刻より先になっています。運営の端末の時刻を確かめてください。",
-        });
-        return "continue";
-      }
-      const compared = compareHandoffVersion(table.version, currentVersion);
-      if (compared !== "newer") {
-        setResult({
-          tone: "info",
-          text:
-            compared === "same"
-              ? `もう同じ版（版 ${table.version}）の表が入っています。`
-              : `この端末の表のほうが新しいため、取り込みませんでした（QR は版 ${table.version}）。`,
-        });
-        return "continue";
-      }
-      onImport(viewFromHandoff(table, expiresAt ?? endOfJstDate(table.playDate).toISOString()));
-      setResult({ tone: "success", text: `版 ${table.version} の表を取り込みました。` });
+      onImport(decision.view);
+      setResult({ tone: "success", text: decision.text });
       return "done";
     } catch (caught) {
       setResult({
@@ -407,34 +384,6 @@ function ReadQrDialog({
 }
 
 /**
- * QR で受け取った表を、サーバーから読んだ表より先に出すか：版が大きく、かつ中身の時刻もサーバーの最後の保存より新しいときだけ
- * （運営が送っていない変更を捨てた・いたずらで大きな版の QR を作られたときに、サーバーの表がずっと出なくならないよう、
- * サーバーで次に保存されたら、サーバーの表に戻る）。
- * @param qr QR で受け取った表
- * @param server サーバーから読んだ表
- * @returns 先に出すなら true
- */
-function qrIsNewer(qr: MatchView, server: MatchView): boolean {
-  return qr.version > server.version && Date.parse(qr.updatedAt) > Date.parse(server.updatedAt);
-}
-
-/**
- * 出す表を選ぶ（サーバーから読んだ表と、端末に置いた表〈QR で受け取った表を含む〉）。読めればサーバーの表を出し、
- * QR で受け取った表は qrIsNewer のときだけ先に出す。
- * @param fromServer サーバーから読んだ表
- * @param saved 端末に置いた表
- * @returns 出す表
- */
-function newerView(
-  fromServer: SavedView | undefined,
-  saved: SavedView | undefined,
-): SavedView | undefined {
-  if (!fromServer) return saved;
-  if (saved?.source === "qr" && qrIsNewer(saved.view, fromServer.view)) return saved;
-  return fromServer;
-}
-
-/**
  * 見るだけのページ（道の部品）。
  * @returns 画面の要素
  */
@@ -461,6 +410,9 @@ export function ViewRoute() {
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: false,
     retry: false,
+    // 届かない（通信の誤り）間は、つながっていれば30秒おきに読み直す（失敗のたびにすぐ読み直さない）
+    refetchInterval: (query) =>
+      online && query.state.error instanceof NetworkError ? VERSION_CHECK_MS : false,
   });
   // 版の番号が変わっていたら読み直す
   const loadedVersion = view.data?.version;
@@ -470,16 +422,21 @@ export function ViewRoute() {
       void refetch();
     }
   }, [latest, loadedVersion, refetch]);
-  // つながったら読み直す（電波がない間に読めなかったとき）
+  // 電波が戻った知らせ（online）で、1回だけ読み直す（電波がない間に読めなかったとき）。失敗のたびに誤りは新しくなるので、
+  // 誤りそのものを見て読み直すと、onLine が true のまま届かないときに読み直しが止まらない
+  const unreachable = view.error instanceof NetworkError;
   useEffect(() => {
-    if (online && view.error instanceof NetworkError) void refetch();
-  }, [online, refetch, view.error]);
+    if (!unreachable) return;
+    const onOnline = () => void refetch();
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [refetch, unreachable]);
   // サーバーから読んだ表を端末に置く（QR で受け取ったもっと新しい表は上書きしない）
   useEffect(() => {
     if (!view.data) return;
     const next: SavedView = { view: view.data, readAt: view.dataUpdatedAt };
     const current = loadSaved(viewToken);
-    if (current?.source === "qr" && qrIsNewer(current.view, view.data)) return;
+    if (current?.source === "qr" && isHandoffNewer(current.view, view.data)) return;
     save(storageKey(viewToken, "view"), JSON.stringify(next));
     setSaved(next);
   }, [view.data, view.dataUpdatedAt, viewToken]);
@@ -514,8 +471,8 @@ export function ViewRoute() {
       open
       onOpenChange={setQrOpen}
       token={viewToken}
-      currentVersion={current?.view.version}
-      expiresAt={current?.view.expiresAt}
+      current={current?.view}
+      server={fromServer?.view}
       onImport={importView}
     />
   ) : null;

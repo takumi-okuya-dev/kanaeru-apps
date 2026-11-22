@@ -36,6 +36,9 @@ export const HANDOFF_CHUNK_CHARS = 1000;
 /** つづきの QR の枚数の上限。 */
 export const HANDOFF_MAX_PARTS = 16;
 
+/** 渡す試合表の時刻の単位（ミリ秒。QR を小さくするため、時刻は分に丸めて入れる）。 */
+export const HANDOFF_TIME_UNIT_MS = 60_000;
+
 /** 戻したあとの大きさの上限（バイト。読む端末を重くする QR を止める）。 */
 const MAX_INFLATED_BYTES = 256 * 1024;
 
@@ -56,7 +59,7 @@ export type HandoffTable = {
   playDate: string;
   /** 1試合の長さ（分） */
   minutesPerGame: number;
-  /** 中身の時刻（ミリ秒。分の単位に丸める） */
+  /** 中身の時刻（ミリ秒。分の単位に丸める〈HANDOFF_TIME_UNIT_MS〉。サーバーの時刻と比べるときは丸めた幅を見込む。view-import.ts） */
   updatedAt: number;
   /** 組ごとの試合（分け方の順） */
   groups: { key: MatchGroupKey; games: { players: string[]; done: boolean }[] }[];
@@ -385,7 +388,7 @@ export function serializeTable(table: HandoffTable): Uint8Array {
     Math.round((Date.UTC(year ?? 2000, (month ?? 1) - 1, day ?? 1) - DAY_ZERO) / DAY_MS),
   );
   writer.varint(table.minutesPerGame);
-  writer.varint(Math.floor(table.updatedAt / 60_000));
+  writer.varint(Math.floor(table.updatedAt / HANDOFF_TIME_UNIT_MS));
   writer.varint(names.length);
   for (const name of names) writer.text(name);
   writer.varint(table.groups.length);
@@ -425,7 +428,7 @@ export function deserializeTable(bytes: Uint8Array): HandoffTable {
   const playDate = date.toISOString().slice(0, 10);
   const minutesPerGame = reader.varint();
   if (minutesPerGame < 1 || minutesPerGame > 600) throw new HandoffFormatError();
-  const updatedAt = reader.varint() * 60_000;
+  const updatedAt = reader.varint() * HANDOFF_TIME_UNIT_MS;
   const nameCount = reader.varint();
   if (nameCount > 1000) throw new HandoffFormatError();
   const names = Array.from({ length: nameCount }, () => {
@@ -600,7 +603,7 @@ export function handoffOfTable(table: MatchTable, version: number, now: number):
     name: table.name,
     playDate: table.playDate,
     minutesPerGame: content.settings.minutesPerGame,
-    updatedAt: Math.floor(now / 60_000) * 60_000,
+    updatedAt: Math.floor(now / HANDOFF_TIME_UNIT_MS) * HANDOFF_TIME_UNIT_MS,
     groups: MATCH_GROUPS[content.settings.grouping].map((group) => ({
       key: group.key,
       games: (content.plan.find((plan) => plan.key === group.key)?.games ?? []).map((game) => ({

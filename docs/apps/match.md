@@ -1,6 +1,6 @@
 # 試合表（match）の地図
 
-2026-11-22 作成（match-001：表とアプリの登録。決めた理由は [specs/match/001-tables/research.md](../../specs/match/001-tables/research.md)）。2026-11-22 直した（match-002：窓口・権限・90日の片付け・退会の手順・名簿・組み方・試合表・印刷。理由は [specs/match/002-roster/research.md](../../specs/match/002-roster/research.md)）。2026-11-22 直した（match-003：当日の組み直し・分け方を当日に変える・大きく映す・担当の受け渡しの見せ方。理由は [specs/match/003-day-of/research.md](../../specs/match/003-day-of/research.md)）。2026-11-22 直した（match-004：見るだけのページ・入口の QR・QR で受け付ける。理由は [specs/match/004-view-and-join/research.md](../../specs/match/004-view-and-join/research.md)）。2026-11-22 直した（match-005：ネットなしで開く・端末に残して送る・電波なしで渡す QR・参加者の QR を読む。理由は [specs/match/005-offline/research.md](../../specs/match/005-offline/research.md)）。2026-11-22 直した（match-006：受付の交流会から名簿を入れる・前に入れたレベル。理由は [specs/match/006-reception-import/research.md](../../specs/match/006-reception-import/research.md)）。2026-11-22 直した（match-007：名簿を入れた受付の交流会を試合表に持って出す・ホーム画面のアイコンと manifest。理由は [specs/match/007-event-link-and-icon/research.md](../../specs/match/007-event-link-and-icon/research.md)）。
+2026-11-22 作成（match-001：表とアプリの登録。決めた理由は [specs/match/001-tables/research.md](../../specs/match/001-tables/research.md)）。2026-11-22 直した（match-002：窓口・権限・90日の片付け・退会の手順・名簿・組み方・試合表・印刷。理由は [specs/match/002-roster/research.md](../../specs/match/002-roster/research.md)）。2026-11-22 直した（match-003：当日の組み直し・分け方を当日に変える・大きく映す・担当の受け渡しの見せ方。理由は [specs/match/003-day-of/research.md](../../specs/match/003-day-of/research.md)）。2026-11-22 直した（match-004：見るだけのページ・入口の QR・QR で受け付ける。理由は [specs/match/004-view-and-join/research.md](../../specs/match/004-view-and-join/research.md)）。2026-11-22 直した（match-005：ネットなしで開く・端末に残して送る・電波なしで渡す QR・参加者の QR を読む。理由は [specs/match/005-offline/research.md](../../specs/match/005-offline/research.md)）。2026-11-22 直した（match-006：受付の交流会から名簿を入れる・前に入れたレベル。理由は [specs/match/006-reception-import/research.md](../../specs/match/006-reception-import/research.md)）。2026-11-22 直した（match-007：名簿を入れた受付の交流会を試合表に持って出す・ホーム画面のアイコンと manifest。理由は [specs/match/007-event-link-and-icon/research.md](../../specs/match/007-event-link-and-icon/research.md)）。2026-11-22 直した（Codex の指摘の直し：ほかの道で開いた文書から試合表の道へ入るときに読み直す・見るだけのページの QR の取り込みの比べ方と読み直しの間）。
 
 試合表アプリ（key `match`）の1つの領域（構成の決めごと AD-25）。バドミントンのサークルの運営が、名簿からレベル別のダブルス・シングルスの試合表を作り、印刷し、当日に組み直して配る（[PRD](../../_bmad-output/prd-kanaeru-match/prd-kanaeru-match.md)）。試合表は交流会に頼らない、持ち主の account の記録で、組織に入れられる（AD-19・AD-25）。組み合わせの計算は画面の側に置く（AD-29）。
 
@@ -80,7 +80,7 @@
 
 ## 5. 画面
 
-`apps/web/src/features/match/`。試合表の道は LIFF を始めないので、ログインは窓口の 401 で知り（`MatchGate`）、`/settings/account` でログインしてもらう。ナビの項目は試合表の画面の中だけ（`useNavItems`：試合表の一覧・名簿と設定・試合表・印刷・見るだけのページ・QR で受け付ける）。大きく映す画面・見るだけのページ・受付のページはナビのない外枠（`"bare"`）。見るだけのページと受付のページはログインを確かめない（`MatchGate` を使わない）。
+`apps/web/src/features/match/`。試合表の道は LIFF を始めないので、ログインは窓口の 401 で知り（`MatchGate`）、`/settings/account` でログインしてもらう。ナビの項目は試合表の画面の中だけ（`useNavItems`：試合表の一覧・名簿と設定・試合表・印刷・見るだけのページ・QR で受け付ける）。大きく映す画面・見るだけのページ・受付のページはナビのない外枠（`"bare"`）。見るだけのページと受付のページはログインを確かめない（`MatchGate` を使わない）。ほかの道（すべてのアプリなど）で開いた文書から画面の中で試合表の道へ入るときは、同じ URL でページを読み直す（カメラを許す Permissions-Policy と Service Worker は文書ごとに決まるため。今の文書の道は Navigation Timing で見る。`document-boundary.ts`。試合表の道の中の行き来は読み直さない）。
 
 | 道 | 画面 |
 |---|---|
@@ -90,7 +90,7 @@
 | `/match/tables/$tableId/board` | 試合表（M2・M6）。組のタブ（`GroupTabs.tsx`）・名前だけの行（見出しなし・左に番号・名前の列の間に縦線）・行のチェックで進める（チェックのない最初が今、その次が次）・別の組み合わせにする。担当の端末は「人を選んで直す」（来なかった・来た・帰る → その人の組だけを組み直す。`day-of.ts`）と「レベルの分け方」（当日に分け方・試合の形を変える。何が変わるかを先に出す。`regroup.ts`）。組み直したら上に帯。前の分け方で終わった試合は下に畳んで出す |
 | `/match/tables/$tableId/view-link` | 見るだけのページのリンクと QR（作る・作り直す・コピー・期限）。札は作った端末の localStorage にだけ置く（`link-store.ts`）。ほかの端末で出すときは作り直す |
 | `/match/tables/$tableId/join` | QR で受け付ける（M7）。受付の QR とリンク・受け付けた人（5秒おきに読み直す。同じ名前の印・消す）・受付を締める・この名簿で試合表を作る。担当の端末は受け付けた人を名簿に入れる（`use-joins.ts`・`joins.ts`。名簿と設定の画面も開いたときに入れる）。「参加者の QR を読む」（P3 の QR をカメラか写真で読んで名簿に入れる。`JoinQrReader.tsx`） |
-| `/match/view/$viewToken` | 見るだけのページ（P1。ログインなし）。組のタブ・呼び名だけの表・今と次・自分の名前の印（端末に置く）・最後に読んだ表とその時刻（端末に置き、読めないときに出す）・つながらない間は1試合の長さから今の試合を見込む（`view-estimate.ts`）・「QR を読む」（M4 の QR を読み、同じ試合表で今より新しい版のときだけ取り込む）・30秒おきに版の番号を確かめる・`noindex`（`no-index.ts`）・「kanaeru で作った試合表・自分のサークルでも使う」 |
+| `/match/view/$viewToken` | 見るだけのページ（P1。ログインなし）。組のタブ・呼び名だけの表・今と次・自分の名前の印（端末に置く）・最後に読んだ表とその時刻（端末に置き、読めないときに出す）・つながらない間は1試合の長さから今の試合を見込む（`view-estimate.ts`）・「QR を読む」（M4 の QR を読み、同じ試合表で今より新しい版のときだけ取り込む。サーバーから読んだ表があれば、版が大きく、かつ QR を作った分〈QR の時刻は分に丸めてある〉がサーバーの最後の保存より前でないときだけ取り込んで出し、出さないときは取り込んだと出さない。`view-import.ts`）・30秒おきに版の番号を確かめる（表を読めない〈通信の誤り〉間は、30秒おきと電波が戻った知らせのときだけ読み直す）・`noindex`（`no-index.ts`）・「kanaeru で作った試合表・自分のサークルでも使う」 |
 | `/match/join/$joinToken` | 受付のページ（P2・P3。ログインなし）。名前とレベルだけ・受付できました・締め切り。電波がなくて送れないときは、名前とレベルの QR を出し（運営に見せる）、つながったら自動で送る |
 | `/match/tables/$tableId/big` | 大きく映す（M3）。組のタブと、今の試合と次の試合だけを大きな字（名前は SVG で描き、画面の幅に合わせる）で出す。担当でない端末は、つながっている間30秒おきに読み直す |
 | `/match/tables/$tableId/print` | 印刷（M5・R1）。刷る組・紙（A5〜A2・B5〜B3）と向き・組ごとに1枚の版（SVG。紙1枚にちょうど収まるよう字の大きさを合わせる。`print-layout.ts`・`print.css`）。見るだけのリンクがこの端末にあれば、版の右上に QR（`qr.tsx`）と、入口に貼る1枚（R2。A4 縦）。下に「kanaeru で作った試合表」 |
@@ -112,9 +112,9 @@
 - 窓口：`routes.test.ts`（作る・一覧・読む・直す・担当・消す・権限・入力の誤り・90日・見えないアプリ）・`routes-share.test.ts`（見るだけ・受付：レベルが出ない・no-store と noindex・期限切れと作り直した札・strict・締めた受付・100人・同じ名前）・`withdrawal.test.ts`・`reception-import.test.ts`（受付の交流会から入れる：チェックインと申込みの名簿・権限〈受付係・部員・ほかの人は 404・試合表の権限・受付アプリが見えない〉・前に入れたレベル〈組織か持ち主ごと・消えた account は飛ばす・見るだけのページに出さない〉）。手伝いは `apps/api/test/helpers/match.ts`（`showMatchApp`・`createTable`・`updateTable`）。
 - 約束：`packages/contracts/src/match/*.test.ts`。
 - 組み方：`apps/web/src/features/match/pairing.test.ts`・`day-of.test.ts`・`regroup.test.ts`（fast-check の property-based）。名簿の読み方 `roster-read.test.ts`・受付の交流会から入れる `reception-import.test.ts`・印刷の大きさ `print-layout.test.ts`・受付を名簿に入れる `joins.test.ts`。
-- ネットなし：`offline/outbox.test.ts`（もとの版のつなぎ方・古い順・電波がないときは残す・同じ変更の ID で送り直す・409 は止めて残す・捨てる・上書き・開き直し）・`handoff.test.ts`（Base45・試合表の QR の行き来〈property-based〉・大きさ・本物の模様を jsQR で読む・版の比べ方・受付の QR）・`view-estimate.test.ts`。組み立ての plugin は `apps/web/scoped-service-worker.test.ts`。
+- ネットなし：`offline/outbox.test.ts`（もとの版のつなぎ方・古い順・電波がないときは残す・同じ変更の ID で送り直す・409 は止めて残す・捨てる・上書き・開き直し）・`handoff.test.ts`（Base45・試合表の QR の行き来〈property-based〉・大きさ・本物の模様を jsQR で読む・版の比べ方・受付の QR）・`view-estimate.test.ts`・`view-import.test.ts`（同じ分にサーバーで保存した直後の QR・取り込んだと出すのは出すときだけ・電波なしで直すたびに渡す版が上がる）・`ViewPage.test.tsx`（届かない間に読み直し続けない・30秒おき・電波が戻ったら1回）・`document-boundary.test.ts`（ほかの道で開いた文書から入るときだけ読み直す）。組み立ての plugin は `apps/web/scoped-service-worker.test.ts`。
 - 名簿を入れた受付の交流会：`reception-link.test.ts`（API：つなぐ・入れ直すと置きかわる・入れてよくなければつながない・交流会が消えても写しを出す・開けるかは見る人ごと・見るだけのページに出さない）・画面の `reception-link.test.ts`（写しの置き方・文・開けるかの見え方・電波なしで渡す QR に入らない）。ホーム画面：`home-screen.test.tsx`（manifest の中身・PNG の大きさ・Service Worker が持つ一覧・見出しのリンクは開いている間だけ）。
-- E2E：`e2e/tests/match-home-screen.spec.ts`（manifest とアイコン・運営の画面にだけリンクが付き、ほかのアプリの道と見るだけのページには付かない・電波がなくても読める）・`e2e/tests/match-reception.spec.ts`（受付の交流会からチェックインした人を入れる → 題の下と一覧に「受付：… から入れた」 → レベルを選ぶ → 次の試合表で覚えたレベルが入る → 申込みの名簿を後ろに足す）・`e2e/tests/match-offline.spec.ts`（Service Worker の範囲は `/match/` だけ・ほかの道は受け持たない・電波なしで開いて直し、つながったら送る・電波なしで渡す QR を見るだけのページが写真から読む・参加者の QR を M7 が読む）・`e2e/tests/match.spec.ts`（未ログイン・作る → 貼る → 設定 → 作る → チェック → 印刷 → シングルス／当日：人を選んで直す → 分け方を変える → 大きく映す → 別の端末で担当を受け取る／見せる・受け付ける：リンクと QR → 印刷の QR → ログインなしで受け付ける → 見るだけのページ → 名簿に入る → 締める。両方の幅で axe・横のスクロール・CSP）。
+- E2E：`e2e/tests/match-home-screen.spec.ts`（manifest とアイコン・運営の画面にだけリンクが付き、ほかのアプリの道と見るだけのページには付かない・電波がなくても読める）・`e2e/tests/match-reception.spec.ts`（受付の交流会からチェックインした人を入れる → 題の下と一覧に「受付：… から入れた」 → レベルを選ぶ → 次の試合表で覚えたレベルが入る → 申込みの名簿を後ろに足す）・`e2e/tests/match-offline.spec.ts`（Service Worker の範囲は `/match/` だけ・ほかの道は受け持たない・電波なしで開いて直し、つながったら送る・電波なしで渡す QR を見るだけのページが写真から読む・参加者の QR を M7 が読む）・`e2e/tests/match.spec.ts`（未ログイン・すべてのアプリから移るとカメラを許す文書を読み直す・作る → 貼る → 設定 → 作る → チェック → 印刷 → シングルス／当日：人を選んで直す → 分け方を変える → 大きく映す → 別の端末で担当を受け取る／見せる・受け付ける：リンクと QR → 印刷の QR → ログインなしで受け付ける → 見るだけのページ → 名簿に入る → 締める。両方の幅で axe・横のスクロール・CSP）。
 
 ## 8. ネットなし（AD-27・AD-28・AD-30。match-005）
 
@@ -124,7 +124,7 @@
 | 入れ方・外し方 | `offline/register.ts`・`offline/start.ts`（試合表のどの道も `beforeLoad` で呼ぶ） | `GET /api/v1/match/offline` が入なら入れ、切か 404 なら外して置き場所（`kanaeru-match-…`）を消す。届かなければ今のまま。本文も10分おきに確かめ、切なら自分を外す。壊れたときは `sw.js` の `SELF_UNREGISTER` を true にして出す |
 | 端末の置き場所 | `offline/store.ts`（IndexedDB `kanaeru-match`。開けなければ画面を開いている間だけ） | `tables`（試合表ごとの最後の中身と置いた時刻）・`changes`（送っていない変更：変更の ID・もとの版・中身・くじの種・時刻）・`meta`（端末の ID・一覧） |
 | 送りの列 | `offline/outbox.ts`・`offline/table-sync.ts` | 古い順に1つずつ送る。電波がない・5xx・429 は残して待つ（15秒おきとつながったとき）。401 は残してログインを待つ。409・400・403・404 は止めて残す（held）。試合表を読むと、送っていない変更を重ねて出す。読めなければ（通信の誤り・5xx）端末の中身を出す。403・404 なら端末の中身を消す |
-| 見るだけのページ | `ViewPage.tsx`・`view-estimate.ts` | 最後に読んだ表（localStorage）・見込みの今の試合・「QR を読む」 |
+| 見るだけのページ | `ViewPage.tsx`・`view-estimate.ts`・`view-import.ts` | 最後に読んだ表（localStorage）・見込みの今の試合・「QR を読む」（取り込むかの決め方と、出す表の選び方は `view-import.ts`） |
 | 電波なしで渡す QR | `handoff.ts`・`HandoffDialog.tsx`・`QrScanner.tsx`・`qr-decode.ts` | 中身は版・見るだけの札の印・名前と日付・1試合の長さ・組ごとの呼び名の組み合わせと終わったか（呼び名は番号で指す・deflate・Base45）。1枚 1000 文字（18 型）まで、入らなければ最大16枚のつづき。読むのは BarcodeDetector、なければ jsQR。写真からも読める |
 | 受付の QR | `handoff.ts`・`JoinPage.tsx`・`JoinQrReader.tsx` | 受付の札の印・レベル・参加者の端末の乱数・呼び名。名簿の人の ID は `q` と乱数（2回読んでも1人） |
 
