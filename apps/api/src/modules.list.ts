@@ -9,3 +9,4 @@ export * as survey from "./modules/survey/index.ts";
 export * as threads from "./modules/threads/index.ts";
 export * as suite from "./modules/suite/index.ts";
 export * as booking from "./modules/booking/index.ts";
+export * as match from "./modules/match/index.ts";
