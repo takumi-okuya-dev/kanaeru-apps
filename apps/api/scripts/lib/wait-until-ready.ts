@@ -8,6 +8,12 @@ export type WaitUntilReadyOptions = {
   /** 確かめ直すまでの間（ミリ秒） */
   intervalMs: number;
   /**
+   * 確かめ直してよい誤りか（既定はどれも確かめ直す）。false なら待たずにすぐ投げる（パスワード違いなど、待っても直らないもの）
+   * @param error その回の誤り
+   * @returns 確かめ直すなら true
+   */
+  shouldRetry?: (error: unknown) => boolean;
+  /**
    * 確かめ直す前に呼ぶ（ログに出すため）
    * @param attempt 失敗した回（1から）
    * @param error その回の誤り
@@ -46,6 +52,7 @@ export async function waitUntilReady(
       await check();
       return;
     } catch (error) {
+      if (options.shouldRetry && !options.shouldRetry(error)) throw error;
       if (now() + options.intervalMs > deadline) throw error;
       options.onRetry?.(attempt, error);
       await sleep(options.intervalMs);

@@ -27,7 +27,9 @@ resource "google_sql_database" "app" {
 # アプリの DB の利用者。パスワードは、Secret Manager に書いた版を読み直した値を、書くだけの欄で渡す（state に残らない）。
 # 書く順番と、途中で落ちたときに食い違わない理由は secrets.tf の頭
 resource "google_sql_user" "app" {
-  name                = local.db_name
+  name = local.db_name
+  # 環境を消すとき、表を持ったままの利用者を消そうとして止まらないよう、利用者は残す（README の 11）
+  deletion_policy     = "ABANDON"
   instance            = var.sql_instance_name
   password_wo         = local.db_password
   password_wo_version = var.db_password_version

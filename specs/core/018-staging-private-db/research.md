@@ -40,5 +40,20 @@
 
 - WIF のプロバイダは、このリポジトリ（名前と数字の ID）の `main` と `develop` だけを受け入れる。なりすましの権限は `attribute.ref` で分ける（本番の身分は `refs/heads/main`、ステージングは `refs/heads/develop`）。
 - デプロイの身分の書く権限は、その環境の Cloud Run のサービスと job の単位（`roles/run.developer`）で付け、操作の進み具合を読むためにプロジェクトの単位で `roles/run.viewer` を付ける。初めてのデプロイで、権限が足りるかを確かめる（足りなければ、この research に書き足して直す）。
-- `deploy.yml` は GitHub の環境（`production`・`staging`）の変数で、サービスと job の名前・デプロイの身分・LIFF ID・APP_NAME を使い分ける。共に使う値（プロジェクト・リージョン・WIF）はリポジトリの変数。
-- イメージは `kanaeru/app-<環境>:<コミット>`。Artifact Registry の「新しい10個を残す」はイメージの名前（パッケージ）ごとに数える（[掃除の決まり](https://cloud.google.com/artifact-registry/docs/repositories/cleanup-policy)）ので、ステージングに何度出しても本番の動いている版は消えない。LIFF ID を組み立てに埋めるので、中身も環境で違う。
+- `deploy.yml` は GitHub の環境（`production`・`staging`）の変数で、サービスと job の名前・デプロイの身分・イメージの置き場所・LIFF ID・APP_NAME を使い分ける。共に使う値（プロジェクト・リージョン・WIF）はリポジトリの変数。
+- イメージは環境ごとの置き場所（`kanaeru/app`・`kanaeru-stg/app`）に押し込み、Cloud Run には digest で渡す（R6）。Artifact Registry の「新しい10個を残す」は置き場所の中のイメージの名前ごとに数える（[掃除の決まり](https://cloud.google.com/artifact-registry/docs/repositories/cleanup-policy)）ので、ステージングに何度出しても本番の動いている版は消えない。LIFF ID を組み立てに埋めるので、中身も環境で違う。
+
+## R6. 別の Claude の独立のレビュー（Codex の上限に達したため）で見つかったことと直し方
+
+| 指摘 | 直し方 |
+|---|---|
+| P1：本番とステージングの DB が権限で分かれていない。PostgreSQL の既定では、だれ（PUBLIC）でもほかの DB につなげ、Cloud SQL の API で作った DB の持ち主は cloudsqlsuperuser。ステージングの利用者が本番の DB の public スキーマの持ち主として表を消せる | DB の変更を当てる job が、当てる前に毎回、`REVOKE CONNECT, TEMPORARY … FROM PUBLIC`・`GRANT … TO current_user`・`ALTER DATABASE … OWNER TO current_user`・`ALTER SCHEMA public OWNER TO current_user`・`REVOKE CREATE ON SCHEMA public FROM PUBLIC` を流す（`apps/api/scripts/lib/isolate-database.ts`）。Cloud SQL の API で作った利用者は CREATEDB を持ち cloudsqlsuperuser の一員なので、持ち主を替えられる。手元で、Cloud SQL と同じ形の権限の利用者を2つ作って、ほかの環境の DB につなげないこと・何度流しても同じことを確かめた |
+| P1：イメージの置き場所が共通で、ステージングのデプロイの身分が本番のタグを上書きできる | 置き場所を環境ごと（`kanaeru`・`kanaeru-stg`）にし、書く権限はその環境のデプロイの身分だけにした。押し込んだあと digest を読み、Cloud Run には `…@sha256:…` で渡す |
+| P2：デプロイのあとの確かめ（`/api/v1/health`）が、Direct VPC egress の立ち上がりで落ちうる | curl を最大4分（`--retry 20 --retry-delay 10 --retry-max-time 240`）待つ |
+| P2：プライベート サービス アクセスの範囲を自動で選ぶと、Cloud Run のサブネットとぶつかりうる | 範囲を `10.20.0.0/20` と書いて決めた |
+| P2：`staging = null` にすると、サービスの消す守りと、表を持った利用者で止まる | 変数 `deletion_protection`（環境ごと・既定 true）を足し、DB の利用者は `deletion_policy = "ABANDON"`。手順は `infra/README.md` 11章 |
+| P2：`APP_NAME` がないのに確かめを通る | 既定の値を外し、変数の確かめに入れた |
+| P2：待っても直らない誤り（パスワード違い・DB がない）でも3分待つ | `28P01`・`28000`・`3D000` は待たずに止める |
+| P2：古いファイル（`infra/cloud_run.tf`）を指すコメント | `Dockerfile`・`.env.example`・`kernel/db.ts` を直した |
+| P2：deploy.yml の守りのテストに、変数とイメージの置き場所の確かめがない | `tests/security/ci-config.test.ts` に足した |
+

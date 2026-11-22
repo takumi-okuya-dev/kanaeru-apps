@@ -69,3 +69,29 @@ describe("準備ができるまで確かめ直す", () => {
     expect(clock.waits).toEqual([]);
   });
 });
+
+describe("待っても直らない誤り", () => {
+  it("shouldRetry が false を返す誤りは、待たずにすぐ投げる", async () => {
+    let calls = 0;
+    const waits: number[] = [];
+    await expect(
+      waitUntilReady(
+        () => {
+          calls += 1;
+          return Promise.reject(Object.assign(new Error("パスワード違い"), { code: "28P01" }));
+        },
+        {
+          deadlineMs: 60_000,
+          intervalMs: 5_000,
+          shouldRetry: (error) => (error as { code?: string }).code !== "28P01",
+          sleep: (ms) => {
+            waits.push(ms);
+            return Promise.resolve();
+          },
+        },
+      ),
+    ).rejects.toThrow("パスワード違い");
+    expect(calls).toBe(1);
+    expect(waits).toEqual([]);
+  });
+});

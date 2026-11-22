@@ -13,7 +13,6 @@
 | `variables.tf`・`terraform.tfvars.example` | 外から渡す値と、その見本 |
 | `locals.tf`・`outputs.tf` | 名前などの共通の値・apply のあとに出す値 |
 | `apis.tf` | 使う API の有効化 |
-| `artifact_registry.tf` | コンテナのイメージの置き場所（東京・古いものを自動で消す） |
 | `network.tf` | VPC・Cloud Run が出ていくサブネット（Direct VPC egress）・Cloud SQL を内部の IP で置くための道（プライベート サービス アクセス） |
 | `cloud_sql.tf` | Cloud SQL のサーバー（ENTERPRISE・db-f1-micro・PostgreSQL 18・内部の IP だけ）。本番とステージングが、この中の別の DB を使う |
 | `service_accounts.tf` | 共通の身分（夜間の停止）と権限 |
@@ -21,7 +20,7 @@
 | `scheduler.tf` | 毎日0時に DB を止め、8時に動かす（日本時間。本番とステージングの両方が止まる） |
 | `budget.tf` | 請求の予算（月2,000円・50%と100%でメール） |
 | `environments.tf` | 本番（`kanaeru`。2台 × DB の接続5本）とステージング（`kanaeru-stg`。1台 × 3本。`staging` が null なら作らない）を、同じ部品で作る |
-| `modules/environment/` | 環境ごとの部品：DB と DB の利用者・秘密の値（DB の接続先・鍵の束・合言葉・Meta のアプリの秘密・知らせの許可リスト）・身分と権限（Cloud Run の身分・デプロイの身分）・Cloud Run のサービスと DB の変更を当てる job・共通の定期の仕事（`<name>-jobs-tick`。Threads か予約が入のときだけ） |
+| `modules/environment/` | 環境ごとの部品：コンテナのイメージの置き場所（古いものを自動で消す）・DB と DB の利用者・秘密の値（DB の接続先・鍵の束・合言葉・Meta のアプリの秘密・知らせの許可リスト）・身分と権限（Cloud Run の身分・デプロイの身分）・Cloud Run のサービスと DB の変更を当てる job・共通の定期の仕事（`<name>-jobs-tick`。Threads か予約が入のときだけ） |
 | `tests/plan.tftest.hcl` | GCP につながずに組み上がりを確かめる試し（`terraform test`。模擬のプロバイダを使う） |
 
 Terraform は**手元から**流す（GitHub Actions からは流さない）。GitHub Actions が変えるのはイメージだけで、ほかの設定（台数・環境の値・権限）は Terraform だけが変える。
@@ -121,7 +120,8 @@ GitHub に変数を入れる（どれも Secrets ではなく Variables）：
    | `GCP_DEPLOYER_SA` | `terraform output production`（`staging`）の `github_environment_variables` の値（`kanaeru-deployer@…`・`kanaeru-stg-deployer@…`） |
    | `CLOUD_RUN_SERVICE` | 同上（`kanaeru`・`kanaeru-stg`） |
    | `MIGRATE_JOB` | 同上（`kanaeru-migrate`・`kanaeru-stg-migrate`） |
-   | `APP_NAME` | 同上（環境ごとの `app_name`。画面の題に埋める名前で、Cloud Run の `APP_NAME` とそろえる） |
+   | `IMAGE_REPOSITORY` | 同上（環境ごとのイメージの置き場所。`asia-northeast1-docker.pkg.dev/<プロジェクトID>/kanaeru/app`・`…/kanaeru-stg/app`） |
+   | `APP_NAME` | 同上（環境ごとの `app_name`。画面の題に埋める名前で、Cloud Run の `APP_NAME` とそろえる。空だとデプロイは止まる） |
    | `LIFF_ID` | その環境の LINE のミニアプリの LIFF ID（空だとデプロイは止まる） |
 
 そのあと、日本時間の8時15分〜23時に（デプロイはこの間に始まったときだけ進む）、GitHub の Actions で `deploy` を流す。`develop` で流す（またはマージする）とステージング、`main` で流す（または `develop`→`main` のリリースの PR をマージする）と本番に出る。
@@ -133,7 +133,7 @@ GitHub に変数を入れる（どれも Secrets ではなく Variables）：
 - DB のパスワードが食い違ったとき（API が `password authentication failed` で DB につなげない）：`db_password_version` を1つ上げて apply し、上と同じく新しい版に切り替える。
   - パスワードは、版（`db_password_version`）が変わったとき（と最初に作るとき）だけ書かれる。2つの資源（Secret Manager の版・DB の利用者）は同じ `db_password_version` を見ているので、上げると**両方に同じ新しい値**が書かれる。
   - 書く順番は「Secret Manager の版 → それを読み直して DB の利用者」（`modules/environment/secrets.tf` の頭）。apply が途中で落ちても、もう一度 apply すれば、DB の利用者は Secret Manager にある値で書かれてそろう。版を上げるのは、画面で手で直したなど、それでもそろわないときだけ。
-- 手元から DB の中を見たいとき：Cloud SQL は内部の IP だけなので、外からはつなげない。`cloud_sql.tf` の `ipv4_enabled` を一時的に `true` にして apply し、[Cloud SQL Auth Proxy](https://cloud.google.com/sql/docs/postgres/sql-proxy) でつなぐ。見終わったら `false` に戻して apply する（公開の IP を持つ間は、止めている時間に IP の料金がかかる）。
+- 手元から DB の中を見たいとき：Cloud SQL は内部の IP だけなので、外からはつなげない。`cloud_sql.tf` の `ipv4_enabled` を一時的に `true` にして apply し、[Cloud SQL Auth Proxy](https://cloud.google.com/sql/docs/postgres/sql-proxy) でつなぐ。各 DB につなげるのはその環境の利用者（`kanaeru`・`kanaeru_stg`。パスワードは Secret Manager の `<name>-database-url` の中）だけ（11章）。見終わったら `false` に戻して apply する（公開の IP を持つ間は、止めている時間に IP の料金がかかる）。
 - 何も直していないのに plan に差が出たら、apply しない。理由（画面で手で直した・GitHub Actions が変えた）を先に調べる。
 
 ## 7. 夜間の停止と交流会
@@ -213,10 +213,13 @@ Cloud SQL は `prevent_destroy`・`deletion_protection`・`deletion_protection_e
 
 - ステージング（`kanaeru-stg`）は、本番と同じプロジェクト・同じ Cloud SQL のサーバーの中の別の DB（`kanaeru_stg`）を使う。料金はほぼ増えない（Cloud Run は無料の枠の中。Cloud SQL は共有。Cloud Scheduler の4つ目が月0.10ドル）。
 - ステージングは `develop` のマージで出る。`terraform.tfvars` の `staging` を `null` にすると作らない。
+- **DB は権限でも分ける**：DB の変更を当てる job（`apps/api/scripts/migrate.ts`）が、当てる前に毎回、その DB につなげるのはその環境の利用者だけにし、DB と public スキーマの持ち主をその利用者にする（`apps/api/scripts/lib/isolate-database.ts`）。同じサーバーなので、これがないとステージングの利用者が本番の DB につなげてしまう。
+- **イメージの置き場所も環境ごと**：押し込めるのはその環境のデプロイの身分だけで、Cloud Run には digest（中身の指紋）で渡す（ステージングの身分が本番のイメージを上書きできない）。
+- **ステージングを消すとき**：先に `staging` の中に `deletion_protection = false` を入れて apply し（Cloud Run のサービスを消せるようにする）、そのあと `staging = null` で apply する。DB の利用者は消さずに残す（表を持ったままの利用者を消そうとして止まらないよう）。要らなければ、あとで手で消す。
 - 気をつけること：
-  - DB の接続の数：本番 2台 × 5本・ステージング 1台 × 3本と DB の変更を当てる job で、db-f1-micro の上限（25本）に収める（`environments.tf`）。台数や接続を増やすときは、合計を確かめる。
+  - DB の接続の数：本番 2台 × 5本・ステージング 1台 × 3本と DB の変更を当てる job で、db-f1-micro の上限（25本。管理用の分を引いて22本）に収める（`environments.tf`）。台数や接続を増やすときは、合計を確かめる。
   - ステージングで重い処理（大きな CSV の取り込みなど）をすると、同じサーバーの本番が少し遅くなることがある。
   - Threads は試し用のアカウントだけ（9章）。予約の知らせは `off` か `allowlist` だけ（10章）。
   - LINE のミニアプリ（LIFF）は環境ごとに別（4章）。Meta のアプリの戻り先 URL も、環境ごとに登録する。
-- 別のプロジェクトに分けるとき（構成 C）：移した先のプロジェクトで、共通の資源（`network.tf`・`cloud_sql.tf`・`artifact_registry.tf`・`wif.tf` にあたるもの）を作り、同じ部品 `modules/environment` を呼ぶ（state も別にする）。そのあと、この state から `module.staging` を外す（`staging = null`）。データを移すときは、ステージングの DB を書き出して入れ直す。
+- 別のプロジェクトに分けるとき（構成 C）：移した先のプロジェクトで、共通の資源（`network.tf`・`cloud_sql.tf`・`wif.tf` にあたるもの）を作り、同じ部品 `modules/environment` を呼ぶ（state も別にする）。そのあと、上の「ステージングを消すとき」の手順で、この state から `module.staging` を外す。データを移すときは、ステージングの DB を書き出して入れ直す。
 

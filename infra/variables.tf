@@ -64,6 +64,8 @@ variable "budget_currency" {
 variable "production" {
   description = "本番（kanaeru。main のマージで出る）の値"
   type = object({
+    # Cloud Run のサービスを消せないようにするか。環境を消すときだけ、先に false にして apply する（README の 11）
+    deletion_protection = optional(bool, true)
     # 画面の源（設定 WEB_URL）。空なら Cloud Run の決まった形の URL（https://<サービス>-<プロジェクト番号>.<リージョン>.run.app）。
     # 独自ドメインにするときはその URL（LINE のミニアプリ・OAuth の戻り先に登録する前に決める）
     web_url = optional(string, "")
@@ -95,6 +97,8 @@ variable "production" {
 variable "staging" {
   description = "ステージング（kanaeru-stg。develop のマージで出る。本番と同じ Cloud SQL のサーバーの中の別の DB を使う）の値。null なら作らない"
   type = object({
+    # Cloud Run のサービスを消せないようにするか。環境を消すときだけ、先に false にして apply する（README の 11）
+    deletion_protection = optional(bool, true)
     # 画面の源（設定 WEB_URL）。空なら Cloud Run の決まった形の URL（https://<サービス>-<プロジェクト番号>.<リージョン>.run.app）。
     # 独自ドメインにするときはその URL（LINE のミニアプリ・OAuth の戻り先に登録する前に決める）
     web_url = optional(string, "")

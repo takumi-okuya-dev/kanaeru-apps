@@ -73,16 +73,6 @@ variable "vpc_subnetwork_id" {
   description = "Cloud Run が出ていく VPC のサブネット（Direct VPC egress）"
 }
 
-variable "artifact_repository_location" {
-  type        = string
-  description = "コンテナのイメージの置き場所のリージョン"
-}
-
-variable "artifact_repository_name" {
-  type        = string
-  description = "コンテナのイメージの置き場所の名前（デプロイの身分に押し込む権限を付ける）"
-}
-
 variable "workload_identity_pool_name" {
   type        = string
   description = "GitHub Actions から入る WIF のプールの名前（projects/<番号>/locations/global/workloadIdentityPools/<ID>）"
@@ -104,6 +94,12 @@ variable "placeholder_job_image" {
 }
 
 # ---- 環境ごとの値（infra/terraform.tfvars の production・staging）
+variable "deletion_protection" {
+  type        = bool
+  description = "Cloud Run のサービスを消せないようにするか。環境を消す（staging = null など）ときだけ、先に false にして apply する（README の 11）"
+  default     = true
+}
+
 variable "web_url" {
   type        = string
   description = "画面の源（設定 WEB_URL）。空なら Cloud Run の決まった形の URL（https://<name>-<プロジェクト番号>.<リージョン>.run.app）。独自ドメインにするときはその URL"

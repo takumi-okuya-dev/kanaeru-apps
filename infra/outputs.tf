@@ -1,6 +1,6 @@
 # apply のあとに出す値（core-002・core-018）。どれも秘密ではないが、プロジェクトの番号などを含むので文書には写さない。
 # GitHub に写す値は、リポジトリの変数（github_repository_variables）と、環境ごとの変数（production・staging の
-# github_environment_variables）に分けた（README の 5）。
+# github_environment_variables。イメージの置き場所 IMAGE_REPOSITORY も環境ごと）に分けた（README の 5）。
 
 output "github_repository_variables" {
   description = "GitHub のリポジトリの変数（Settings → Secrets and variables → Actions → Variables）に入れる値（両方の環境で共に使う）"
@@ -29,11 +29,6 @@ output "staging" {
     migrate_job_name             = module.staging[0].migrate_job_name
     github_environment_variables = module.staging[0].github_environment_variables
   }
-}
-
-output "image_repository" {
-  description = "コンテナのイメージの置き場所（GitHub Actions が <この値>/app-<環境>:<コミット> を押し込む）"
-  value       = local.image_repository
 }
 
 output "sql_connection_name" {

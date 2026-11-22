@@ -52,6 +52,10 @@ run "both" {
     condition     = module.staging[0].web_url == "https://kanaeru-stg-123456789012.asia-northeast1.run.app"
     error_message = "stg url"
   }
+  assert {
+    condition     = endswith(module.production.github_environment_variables.IMAGE_REPOSITORY, "/kanaeru/app") && endswith(module.staging[0].github_environment_variables.IMAGE_REPOSITORY, "/kanaeru-stg/app")
+    error_message = "image repositories must be separate per environment"
+  }
 }
 
 run "no_staging" {

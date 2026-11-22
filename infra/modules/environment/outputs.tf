@@ -26,6 +26,7 @@ output "github_environment_variables" {
     GCP_DEPLOYER_SA   = google_service_account.deployer.email
     CLOUD_RUN_SERVICE = google_cloud_run_v2_service.app.name
     MIGRATE_JOB       = google_cloud_run_v2_job.migrate.name
+    IMAGE_REPOSITORY  = local.image_repository
     APP_NAME          = var.app_name
   }
 }

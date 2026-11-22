@@ -45,7 +45,7 @@ locals {
 resource "google_cloud_run_v2_service" "app" {
   name                = var.name
   location            = var.region
-  deletion_protection = true
+  deletion_protection = var.deletion_protection
 
   # 参加者のスマホから届く。誰でも開ける（ログインはアプリの中で確かめる）
   ingress              = "INGRESS_TRAFFIC_ALL"

@@ -20,10 +20,12 @@ resource "google_compute_subnetwork" "run" {
 }
 
 # Cloud SQL などの Google の管理する資源に渡す内部の IP の範囲
+# 範囲は書いて決める（自動で選ばせると、Cloud Run のサブネット 10.10.0.0/24 とぶつかる範囲が選ばれうるため）
 resource "google_compute_global_address" "private_services" {
   name          = "${local.name}-private-services"
   purpose       = "VPC_PEERING"
   address_type  = "INTERNAL"
+  address       = "10.20.0.0"
   prefix_length = 20
   network       = google_compute_network.main.id
 }

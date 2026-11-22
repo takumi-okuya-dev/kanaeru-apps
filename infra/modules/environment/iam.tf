@@ -3,9 +3,9 @@
 # | 身分 | 使う所 | 役割 |
 # |---|---|---|
 # | <name>-run | この環境の Cloud Run のサービスと migrate の job | この環境の秘密を読む（DB へは内部の IP とパスワードでつなぐので、Cloud SQL の役割は要らない） |
-# | <name>-deployer | GitHub Actions（WIF でなりすます。鍵は作らない） | イメージを押し込む・この環境の Cloud Run のサービスと job だけを更新して動かす・<name>-run として動かす |
+# | <name>-deployer | GitHub Actions（WIF でなりすます。鍵は作らない） | この環境の置き場所にイメージを押し込む・この環境の Cloud Run のサービスと job だけを更新して動かす・<name>-run として動かす |
 #
-# ステージングのデプロイの身分は、本番の Cloud Run を触れない（サービスと job の単位で権限を付ける）。
+# ステージングのデプロイの身分は、本番の Cloud Run とイメージの置き場所を触れない（サービス・job・置き場所の単位で権限を付ける）。
 # なりすませるのは、この環境のブランチ（github_ref）から入った GitHub Actions だけ（リポジトリは WIF のプロバイダの条件で絞る）。
 
 # ---- Cloud Run が動くときの身分（既定の Compute Engine のサービスアカウントは権限が広いので使わない）
@@ -55,10 +55,10 @@ resource "google_service_account" "deployer" {
   display_name = "${var.name} のデプロイ（GitHub Actions）"
 }
 
-# イメージを押し込める（共通の置き場所だけ。環境ごとにイメージの名前を分ける：app-<環境>）
+# イメージを押し込める（この環境の置き場所だけ。ほかの環境の置き場所には押し込めない）
 resource "google_artifact_registry_repository_iam_member" "deployer_writer" {
-  location   = var.artifact_repository_location
-  repository = var.artifact_repository_name
+  location   = google_artifact_registry_repository.app.location
+  repository = google_artifact_registry_repository.app.name
   role       = "roles/artifactregistry.writer"
   member     = google_service_account.deployer.member
 }
