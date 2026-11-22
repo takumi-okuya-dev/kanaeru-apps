@@ -9,6 +9,7 @@ import { loginAs } from "../../../test/helpers/account.ts";
 import {
   SAMPLE_ACCESS_TOKEN,
   SAMPLE_CHANNEL_SECRET,
+  SAMPLE_LINE_CHANNEL_ID,
   SAMPLE_LINE_INPUT,
   followAndLink,
   lineUser,
@@ -222,6 +223,27 @@ describe("公式アカウントとメールの設定", () => {
     expect(bot.rows).toEqual([{ basic_id: "@fake2", bot_user_id: `U${"e".repeat(32)}` }]);
   });
 
+  it("チャネル ID が、アクセストークンを発行したチャネル（LINE が確かめて返す ID）と違えば 400 で保存しない", async () => {
+    const mismatch = await call(app, admin.cookie, `${notifyBase(organizationId)}/line`, "PUT", {
+      ...SAMPLE_LINE_INPUT,
+      accessToken: "otherchannel-token-xxxxxxxxxxxx",
+    });
+    expect(mismatch.status).toBe(400);
+    const body = (await mismatch.json()) as { error: { code: string; fields: { path: string }[] } };
+    expect(body.error.code).toBe("BOOKING_LINE_CHANNEL_MISMATCH");
+    expect(body.error.fields.map((field) => field.path)).toEqual(["lineChannelId"]);
+    const read = (await (
+      await call(app, admin.cookie, notifyBase(organizationId))
+    ).json()) as SettingsBody;
+    expect(read.line).toBeNull();
+    const matched = await call(app, admin.cookie, `${notifyBase(organizationId)}/line`, "PUT", {
+      ...SAMPLE_LINE_INPUT,
+      lineChannelId: "9999999999",
+      accessToken: "otherchannel-token-xxxxxxxxxxxx",
+    });
+    expect(matched.status).toBe(200);
+  });
+
   it("同じチャネル ID は、ほかの持ち主の設定に入れられない（409）", async () => {
     await saveLine(app, admin.cookie, organizationId);
     const taken = await call(
@@ -274,13 +296,22 @@ describe("公式アカウントとメールの設定", () => {
     const urls: string[] = [];
     const realApp = buildApp(database, notifyConfig({ fakeOnly: false, mode: "off" }), {
       fetch: (input) => {
-        urls.push(input instanceof Request ? input.url : input.toString());
-        return Promise.resolve(Response.json({ basicId: "@abc1234" }));
+        const url = input instanceof Request ? input.url : input.toString();
+        urls.push(url);
+        // トークンの確かめは、トークンを発行したチャネルの ID を返す
+        return Promise.resolve(
+          url.endsWith("/v2/oauth/verify")
+            ? Response.json({ client_id: SAMPLE_LINE_CHANNEL_ID, expires_in: 100 })
+            : Response.json({ basicId: "@abc1234" }),
+        );
       },
     });
     const body = await saveLine(realApp, admin.cookie, organizationId);
     expect(body.line?.basicId).toBe("@abc1234");
-    expect(urls).toEqual(["https://api.line.me/v2/bot/info"]);
+    expect(urls).toEqual([
+      "https://api.line.me/v2/bot/info",
+      "https://api.line.me/v2/oauth/verify",
+    ]);
   });
 
   it("鍵の束の設定がなければ 503", async () => {

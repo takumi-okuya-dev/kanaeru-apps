@@ -90,7 +90,7 @@
 | 動き | 道 | だれ | すること |
 |---|---|---|---|
 | GET | `/notify-settings/{holder}` | 本人・組織の管理者 | 設定の画面の答え（持ち主・今の送り方・LINE の値〈末尾・Webhook の URL・紐づいた人数・今月 LINE で送った数〉・あいさつの見本・送り主の名前と返信先・自分が紐づいているか。個人のときは自分が管理者の組織の一覧） |
-| PUT | `/notify-settings/{holder}/line` | 同じ | LINE の値を入れる・入れ直す（初めは3つとも、入れ直しは1つ以上。チャネル ID を変えるときは3つとも要り、前の紐づけと札を消す）。アクセストークンはボット情報で確かめ（401 は 400 `BOOKING_LINE_TOKEN_INVALID`・届かないと 502 `BOOKING_LINE_UNREACHABLE`）、ベーシック ID とボットの userId を持つ（アクセストークンだけを入れ直して userId〈前の版の行はベーシック ID〉が替われば、前の紐づけと札を消す）。同じチャネル ID がほかの持ち主の設定にあれば 409 `BOOKING_LINE_CHANNEL_TAKEN`。秘密の箱がなければ 503 `BOOKING_NOTIFY_UNAVAILABLE` |
+| PUT | `/notify-settings/{holder}/line` | 同じ | LINE の値を入れる・入れ直す（初めは3つとも、入れ直しは1つ以上。チャネル ID を変えるときは3つとも要り、前の紐づけと札を消す）。アクセストークンはボット情報で確かめ（401 は 400 `BOOKING_LINE_TOKEN_INVALID`・届かないと 502 `BOOKING_LINE_UNREACHABLE`）、ベーシック ID とボットの userId を持つ（アクセストークンだけを入れ直して userId〈前の版の行はベーシック ID〉が替われば、前の紐づけと札を消す）。LINE にトークンを確かめさせて（短期・長期は `POST /v2/oauth/verify`、v2.1 は `GET /oauth2/v2.1/verify`）、トークンを発行したチャネルの ID が入れたチャネル ID と違えば 400 `BOOKING_LINE_CHANNEL_MISMATCH`（ほかの人のチャネル ID を先に入れて、持ち主の設定を止められないように。偽の送り手は比べない）。同じチャネル ID がほかの持ち主の設定にあれば 409 `BOOKING_LINE_CHANNEL_TAKEN`。秘密の箱がなければ 503 `BOOKING_NOTIFY_UNAVAILABLE` |
 | DELETE | `/notify-settings/{holder}/line` | 同じ | LINE の値と紐づけ・札を消す（返信先は残る） |
 | PUT | `/notify-settings/{holder}/mail` | 同じ | 返信先を変える（`{ replyToEmail }`。null で消す） |
 | POST | `/notify-settings/{holder}/test` | 同じ | 自分に確かめのメッセージを送る（紐づいていなければ `not_linked`。許可リストにないときは本人の ID を返す。LINE の値がなければ 409 `BOOKING_LINE_NOT_SET`） |
