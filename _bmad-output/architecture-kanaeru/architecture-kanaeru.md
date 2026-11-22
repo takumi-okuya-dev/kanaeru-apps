@@ -157,7 +157,7 @@ flowchart TB
 
 - **Binds:** 運用・すべての領域
 - **Prevents:** 新しいコードが古い表で動くこと。手元から本番の DB を直接直すこと。どのブランチで本番に出るかが人によって違うこと
-- **Rule:** `main` へのマージで本番、`develop` へのマージでステージングに、GitHub Actions が出す（2026-11-22 から。core-018）。コンテナを作る → 同じコンテナを Cloud Run jobs で `db:migrate` として動かす → 成功したときだけ新しい版を出す。どの環境のデプロイの身分になりすませるかはブランチで分ける（`develop` から本番は触れない）。文書・仕様だけの変更では動かさない（`paths` で絞る）。DB の変更は後ろに戻れる形にする。この決まりは [docs/rules/development-flow.md](../../docs/rules/development-flow.md) 5章にも書く。
+- **Rule:** `develop` へのマージでステージングに、`main` へのマージでは先にステージングに同じ中身を出し、GitHub の環境 `production` の承認のあと本番に、GitHub Actions が出す（2026-11-22 から。core-018・core-019）。コンテナを作る → 同じコンテナを Cloud Run jobs で `db:migrate` として動かす → 成功したときだけ新しい版を出す。どの環境のデプロイの身分になりすませるかはブランチで分ける（本番は `main` からだけ。ステージングは `develop` と `main` から）。夜に緊急で出すときだけ、デプロイの流れが DB を一時的に起こして止め直す。文書・仕様だけの変更では動かさない（`paths` で絞る）。DB の変更は後ろに戻れる形にする。この決まりは [docs/rules/development-flow.md](../../docs/rules/development-flow.md) 5章にも書く。
 
 ### AD-12 — 今の利用者は account の1つの仕組みで受け取る [ADOPTED]
 

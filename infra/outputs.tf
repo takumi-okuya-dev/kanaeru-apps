@@ -8,6 +8,8 @@ output "github_repository_variables" {
     GCP_PROJECT_ID   = var.project_id
     GCP_REGION       = var.region
     GCP_WIF_PROVIDER = google_iam_workload_identity_pool_provider.github.name
+    # 夜に緊急で出すとき、デプロイの流れが起こして止め直す Cloud SQL のサーバーの名前（core-019）
+    SQL_INSTANCE = google_sql_database_instance.main.name
   }
 }
 

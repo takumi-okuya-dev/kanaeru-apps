@@ -22,9 +22,14 @@ variable "app_env" {
   }
 }
 
-variable "github_ref" {
+variable "github_refs" {
+  type        = list(string)
+  description = "この環境へデプロイしてよい GitHub のブランチ（本番は refs/heads/main だけ・ステージングは refs/heads/develop と、本番の前に確かめるための refs/heads/main。core-019）"
+}
+
+variable "sql_activation_role" {
   type        = string
-  description = "この環境へデプロイしてよい GitHub のブランチ（本番は refs/heads/main・ステージングは refs/heads/develop）"
+  description = "Cloud SQL を止める・動かすだけの自前の役割の ID（夜に緊急で出すとき、デプロイの流れが DB を一時的に起こして止め直す。core-019）"
 }
 
 variable "max_instances" {

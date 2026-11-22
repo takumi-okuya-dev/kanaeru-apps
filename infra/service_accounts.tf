@@ -2,7 +2,7 @@
 #
 # | 身分 | 使う所 | 役割 |
 # |---|---|---|
-# | kanaeru-db-scheduler | Cloud Scheduler（夜間の停止と朝の起動） | Cloud SQL の台を読む・直す（自前の役割で2つの権限だけ） |
+# | kanaeru-db-scheduler | Cloud Scheduler（夜間の停止と朝の起動） | Cloud SQL の台を読む・直す（自前の役割で2つの権限だけ。同じ役割を、環境ごとのデプロイの身分にも付ける。core-019） |
 
 resource "google_service_account" "db_scheduler" {
   account_id   = "${local.name}-db-scheduler"

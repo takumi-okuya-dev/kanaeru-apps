@@ -1,13 +1,11 @@
-# 本番とステージングへのデプロイ（core-002・core-018。docs/rules/development-flow.md 5・構成の決めごと AD-11）。
-# 流れる時：main（本番）・develop（ステージング）に push したとき（出すものが変わるファイルだけ。文書・仕様・infra/ だけの変更では流れない）と、
-# そのブランチから手で流したとき。どちらの環境かはブランチで決め、GitHub の環境（production・staging）の変数を使う。
-# 順番：時間帯の確かめ（日本時間の8時15分〜23時に始まったときだけ）→ コンテナを作って Artifact Registry へ → 同じコンテナで db:migrate（Cloud Run jobs）→ 成功したときだけ新しい版を出す。
-# GCP へは Workload Identity Federation で入り、デプロイ用のサービスアカウントになりすます（鍵は置かない。Cloud Run は WIF の直の権限に対応していない）。
-# 秘密の値（secrets.*）は使わない。使うのは変数（vars.*）だけ（infra/README.md の 5）：
-# - リポジトリの変数：GCP_PROJECT_ID・GCP_REGION・GCP_WIF_PROVIDER（terraform output github_repository_variables）
-# - 環境の変数（production・staging）：GCP_DEPLOYER_SA・CLOUD_RUN_SERVICE・MIGRATE_JOB・IMAGE_REPOSITORY・APP_NAME（terraform output の各環境の github_environment_variables）と LIFF_ID（LINE の側）
-# イメージは環境ごとの置き場所に押し込み、Cloud Run には digest（中身の指紋）で渡す（押し込んだあとにタグを付け替えられても、確かめた中身だけを出す）。
-# 外の部品はコミットの指紋（SHA）で固定し、版の名前を注釈に書く（Dependabot が新しくする）。
+# 本番とステージングへのデプロイ（core-002・core-018・core-019。docs/rules/development-flow.md 5・構成の決めごと AD-11）。
+# 流れる時：main・develop に push したとき（出すものが変わるファイルだけ。文書・仕様・infra/ だけの変更では流れない）と、そのブランチから手で流したとき。
+# - develop：ステージングに出す。
+# - main（週ごとのリリース・緊急の直し）：先にステージングに同じ中身を出し、GitHub の環境 production の承認者が承認したら本番に出す。
+# 時間帯：日本時間の8時15分〜23時に始まったときだけ出す（DB は夜間〈0時〜8時〉止まる。AD-10）。
+# 夜に緊急で出すとき：main で手で流し、wake_db を入にする（日本時間の0時〜7時45分だけ）。DB を一時的に起こしてから出し、
+# keep_awake_minutes の分だけ起こしておいたあと（直ったかを画面で確かめるため）、必ず止め直す。承認と本番のデプロイは、その時間の中で済ませる。
+# 1つの環境へのデプロイの中身は deploy-environment.yml。外の部品はコミットの指紋（SHA）で固定し、版の名前を注釈に書く（Dependabot が新しくする）。
 name: deploy
 
 on:
@@ -23,6 +21,7 @@ on:
       - "Dockerfile"
       - ".dockerignore"
       - ".github/workflows/deploy.yml"
+      - ".github/workflows/deploy-environment.yml"
       - "!**/*.md"
   workflow_dispatch:
     inputs:
@@ -30,8 +29,16 @@ on:
         description: "時間帯の確かめ（日本時間の8時15分〜23時に始まったときだけ出す）を飛ばす。夜間の停止を止めて DB が動いていると確かめたときだけ"
         type: boolean
         default: false
+      wake_db:
+        description: "夜（日本時間の0時〜7時45分）に緊急で出す：DB を一時的に起こしてから出し、あとで止め直す"
+        type: boolean
+        default: false
+      keep_awake_minutes:
+        description: "wake_db のとき、DB を起こしておく分（10〜60。この中で、ステージングでの確かめ・承認・本番のデプロイを済ませる）"
+        type: number
+        default: 40
 
-# デプロイは環境ごとに1つずつ。DB の変更の途中で止めないよう、流れているものは取り消さず、後のものを待たせる
+# 同じブランチのデプロイは1つずつ。DB の変更の途中で止めないよう、流れているものは取り消さず、後のものを待たせる
 concurrency:
   group: deploy-${{ github.ref_name }}
   cancel-in-progress: false
@@ -40,59 +47,123 @@ permissions:
   contents: read
 
 jobs:
-  deploy:
+  # 時間帯の確かめ。DB は夜間（0時〜8時。日本時間）に止まっているので、その間は db:migrate が落ちる。GitHub Actions は時刻で止められないので、ここで早く落とす。
+  # 始まる時刻だけを見るので、余裕を持たせる：8時15分から（8時に起こした DB が動き出すまで数分かかる）・23時まで（0時の停止までに終わる）。
+  # wake_db は、DB を止めている0時〜7時45分だけ（8時の起動と重ならないように）。
+  prepare:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
-    # main は本番、develop はステージング（GitHub の環境の変数を使い分ける）
-    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
-    timeout-minutes: 30
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      wake: ${{ steps.window.outputs.wake }}
+    steps:
+      - name: 時間帯の確かめ（日本時間の8時15分〜23時に始まったときだけ出す）
+        id: window
+        env:
+          WAKE_DB: ${{ inputs.wake_db && 'true' || 'false' }}
+          SKIP_HOUR_CHECK: ${{ inputs.skip_hour_check && 'true' || 'false' }}
+        run: |
+          now=$(TZ=Asia/Tokyo date +%H:%M)
+          minutes=$((10#${now%:*} * 60 + 10#${now#*:}))
+          if [ "$WAKE_DB" = "true" ]; then
+            if [ "$minutes" -ge $((7 * 60 + 45)) ]; then
+              echo "::error::日本時間の ${now} です。wake_db（DB を一時的に起こして出す）は、DB を止めている0時〜7時45分だけ使えます。昼はふつうに流してください。"
+              exit 1
+            fi
+            echo "wake=true" >> "$GITHUB_OUTPUT"
+            echo "日本時間の ${now} です。DB を一時的に起こして出します。"
+            exit 0
+          fi
+          echo "wake=false" >> "$GITHUB_OUTPUT"
+          if [ "$SKIP_HOUR_CHECK" = "true" ]; then
+            echo "時間帯の確かめを飛ばします（日本時間の ${now}）。"
+            exit 0
+          fi
+          if [ "$minutes" -lt $((8 * 60 + 15)) ] || [ "$minutes" -ge $((23 * 60)) ]; then
+            echo "::error::日本時間の ${now} です。デプロイは8時15分〜23時に始まったときだけ出します（DB は夜間〈0時〜8時〉止まり、8時に起こしてから動き出すまで数分かかるため）。8時15分を過ぎてから、Actions の deploy を同じブランチ（main か develop）で手で流してください（Run workflow）。夜に緊急で出すときは、main で wake_db を入にして流します。"
+            exit 1
+          fi
+          echo "日本時間の ${now} です。デプロイします。"
+
+  # 夜に緊急で出すとき、DB を起こして動き出すまで待つ（ステージングのデプロイの身分で。本番とステージングは同じ DB のサーバー）
+  wake-db:
+    needs: prepare
+    if: needs.prepare.outputs.wake == 'true'
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 15
     permissions:
       contents: read
       id-token: write
     env:
-      DEPLOY_ENV: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
-      SERVICE: ${{ vars.CLOUD_RUN_SERVICE }}
-      MIGRATE_JOB: ${{ vars.MIGRATE_JOB }}
-      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-      GCP_REGION: ${{ vars.GCP_REGION }}
-      LIFF_ID: ${{ vars.LIFF_ID }}
-      # 画面の題に埋める名前。Terraform の app_name（Cloud Run の APP_NAME）と同じにする（infra/README.md 5）。入れ忘れたら止める（既定の値を持たない）
-      APP_NAME: ${{ vars.APP_NAME }}
-      # 環境ごとの置き場所（押し込めるのはその環境のデプロイの身分だけ。LIFF ID と APP_NAME を組み立てに埋めるので、中身も環境で違う）
-      IMAGE_REPOSITORY: ${{ vars.IMAGE_REPOSITORY }}
-      IMAGE: ${{ vars.IMAGE_REPOSITORY }}:${{ github.sha }}
+      SQL_INSTANCE: ${{ vars.SQL_INSTANCE }}
     steps:
-      # DB は夜間（0時〜8時。日本時間）に止まっているので、その間は db:migrate が落ちる（AD-10。本番とステージングは同じ DB のサーバー）。GitHub Actions は時刻で止められないので、ここで早く落とす。
-      # 始まる時刻だけを見るので、余裕を持たせる：
-      # - 8時15分から：8時に起こした DB が動き出すまで数分かかる。
-      # - 23時まで：コンテナを作るのに数分かかり、db:migrate はそのあと。この仕事は30分で切れる（timeout-minutes）ので、23時に始まっても0時の停止より前に終わる。
-      - name: 時間帯の確かめ（日本時間の8時15分〜23時に始まったときだけ出す）
-        if: ${{ !inputs.skip_hour_check }}
-        run: |
-          now=$(TZ=Asia/Tokyo date +%H:%M)
-          minutes=$((10#${now%:*} * 60 + 10#${now#*:}))
-          if [ "$minutes" -lt $((8 * 60 + 15)) ] || [ "$minutes" -ge $((23 * 60)) ]; then
-            echo "::error::日本時間の ${now} です。デプロイは8時15分〜23時に始まったときだけ出します（DB は夜間〈0時〜8時〉止まり、8時に起こしてから動き出すまで数分かかるため）。8時15分を過ぎてから、Actions の deploy を同じブランチ（main か develop）で手で流してください（Run workflow）。交流会で夜間の停止を止めていて DB が動いているときだけ、skip_hour_check を入にして流せます。"
-            exit 1
-          fi
-          echo "日本時間の ${now} です。${DEPLOY_ENV} にデプロイします。"
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
 
-      - name: リポジトリの変数の確かめ
-        env:
-          GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
-          GCP_DEPLOYER_SA: ${{ vars.GCP_DEPLOYER_SA }}
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: DB を起こす（動き出すまで待つ）
         run: |
-          # 空白だけの値も「ない」とみなす。とくに LIFF_ID が空だと、画面は LINE につながない仮の LIFF の形で組み立てられ、黙って本番に出てしまう
-          missing=""
-          for name in GCP_PROJECT_ID GCP_REGION GCP_WIF_PROVIDER GCP_DEPLOYER_SA SERVICE MIGRATE_JOB IMAGE_REPOSITORY LIFF_ID APP_NAME; do
-            if [ -z "$(printenv "$name" | tr -d '[:space:]')" ]; then missing="$missing $name"; fi
+          if [ -z "$SQL_INSTANCE" ]; then echo "::error::リポジトリの変数 SQL_INSTANCE がありません（terraform output github_repository_variables）"; exit 1; fi
+          gcloud sql instances patch "$SQL_INSTANCE" --activation-policy=ALWAYS --quiet
+          for _ in $(seq 1 60); do
+            state=$(gcloud sql instances describe "$SQL_INSTANCE" --format='value(state)')
+            if [ "$state" = "RUNNABLE" ]; then echo "DB が動いています。"; exit 0; fi
+            sleep 10
           done
-          if [ -n "$missing" ]; then
-            echo "::error::変数がありません：${missing}（${DEPLOY_ENV}。GCP_PROJECT_ID・GCP_REGION・GCP_WIF_PROVIDER はリポジトリの変数、ほかは Settings → Environments → ${DEPLOY_ENV} の変数に入れる。SERVICE は CLOUD_RUN_SERVICE。値は infra/ の terraform output と LINE の LIFF ID。infra/README.md の 5）"
-            exit 1
-          fi
+          echo "::error::DB が10分たっても動き出しませんでした（${state}）"
+          exit 1
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+  staging:
+    needs: [prepare, wake-db]
+    if: always() && needs.prepare.result == 'success' && (needs.wake-db.result == 'success' || needs.wake-db.result == 'skipped')
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/deploy-environment.yml
+    with:
+      environment: staging
+
+  # main のときだけ。GitHub の環境 production の承認者が、ステージングで確かめてから承認すると始まる
+  production:
+    needs: staging
+    if: always() && github.ref == 'refs/heads/main' && needs.staging.result == 'success'
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/deploy-environment.yml
+    with:
+      environment: production
+
+  # wake_db のとき、決めた分だけ起こしておいてから、必ず DB を止め直す（途中で失敗しても・承認されなくても）。
+  # 8時を過ぎていたら止めない（Cloud Scheduler が8時に起こしたあとの、昼の DB を止めないため）
+  stop-db:
+    needs: [prepare, wake-db]
+    if: always() && needs.prepare.outputs.wake == 'true'
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      SQL_INSTANCE: ${{ vars.SQL_INSTANCE }}
+      KEEP_AWAKE_MINUTES: ${{ inputs.keep_awake_minutes }}
+    steps:
+      - name: 決めた分だけ待つ
+        run: |
+          minutes="${KEEP_AWAKE_MINUTES:-40}"
+          case "$minutes" in ''|*[!0-9]*) minutes=40 ;; esac
+          if [ "$minutes" -lt 10 ]; then minutes=10; fi
+          if [ "$minutes" -gt 60 ]; then minutes=60; fi
+          echo "${minutes}分たったら DB を止め直します。その間に、ステージングでの確かめ・承認・本番のデプロイを済ませてください。"
+          sleep $((minutes * 60))
 
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
@@ -102,33 +173,12 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
-      - name: コンテナを作って Artifact Registry へ押し込む
+      - name: DB を止め直す（夜のあいだだけ）
         run: |
-          gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
-          docker build --build-arg VITE_LIFF_ID="$LIFF_ID" --build-arg APP_NAME="$APP_NAME" --tag "$IMAGE" .
-          docker push "$IMAGE"
-          # ここから先は digest（中身の指紋）で指す。タグはあとから付け替えられるため（押し込んだあとの docker が持つ値を使う）
-          image_digest=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
-          case "$image_digest" in
-            "${IMAGE_REPOSITORY}@sha256:"*) ;;
-            *) echo "::error::押し込んだイメージの digest を読めませんでした：${IMAGE}"; exit 1 ;;
-          esac
-          echo "IMAGE_DIGEST=${image_digest}" >> "$GITHUB_ENV"
-
-      # 同じコンテナで DB の変更を当てる。失敗したら、ここで止まり、新しい版は出ない（AD-11）
-      - name: DB の変更を当てる（Cloud Run jobs の db:migrate）
-        run: |
-          gcloud run jobs update "$MIGRATE_JOB" --image="$IMAGE_DIGEST" --region="$GCP_REGION" --quiet
-          gcloud run jobs execute "$MIGRATE_JOB" --region="$GCP_REGION" --wait
-
-      - name: 新しい版を出す（Cloud Run）
-        run: |
-          gcloud run services update "$SERVICE" --image="$IMAGE_DIGEST" --region="$GCP_REGION" --quiet
-
-      - name: 動いているかの確かめ
-        run: |
-          url=$(gcloud run services describe "$SERVICE" --region="$GCP_REGION" --format='value(status.url)')
-          # 新しい台は Direct VPC egress で DB につながるまで1分以上かかることがある（Google の文書）。4分まで待つ
-          curl --fail --silent --show-error --max-time 15 --retry 20 --retry-delay 10 --retry-max-time 240 --retry-all-errors "${url}/api/v1/health"
-          echo
-          echo "${DEPLOY_ENV} に出しました：${url}"
+          now=$(TZ=Asia/Tokyo date +%H:%M)
+          if [ "$((10#${now%:*}))" -ge 8 ]; then
+            echo "日本時間の ${now} です。8時を過ぎたので、DB は止めません（Cloud Scheduler が8時に起こしています）。"
+            exit 0
+          fi
+          gcloud sql instances patch "$SQL_INSTANCE" --activation-policy=NEVER --quiet
+          echo "日本時間の ${now}。DB を止め直しました。"

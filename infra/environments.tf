@@ -2,8 +2,8 @@
 #
 # | 環境 | 名前 | 出る合図 | Cloud Run の台数 × DB の接続 |
 # |---|---|---|---|
-# | 本番 | kanaeru | main のマージ | 2台 × 5本 ＝ 10本 |
-# | ステージング | kanaeru-stg | develop のマージ | 1台 × 3本 ＝ 3本 |
+# | 本番 | kanaeru | main のマージ（ステージングで確かめ、承認のあと） | 2台 × 5本 ＝ 10本 |
+# | ステージング | kanaeru-stg | develop のマージ・main のマージ（本番の前） | 1台 × 3本 ＝ 3本 |
 #
 # DB の接続の合計（13本と、DB の変更を当てる job の分）を、db-f1-micro の上限（25本）に収める。
 # 別のプロジェクトに環境を移すとき（構成 C）は、移した先で共通の資源（network.tf・cloud_sql.tf・wif.tf）を作り、
@@ -23,6 +23,7 @@ locals {
     web_dist_dir                = local.web_dist_dir
     placeholder_service_image   = local.placeholder_service_image
     placeholder_job_image       = local.placeholder_job_image
+    sql_activation_role         = google_project_iam_custom_role.sql_activation.id
   }
 }
 
@@ -31,7 +32,7 @@ module "production" {
 
   name          = local.name
   app_env       = "production"
-  github_ref    = "refs/heads/main"
+  github_refs   = ["refs/heads/main"]
   max_instances = 2
   db_pool_max   = 5
 
@@ -46,6 +47,7 @@ module "production" {
   web_dist_dir                = local.environment_shared.web_dist_dir
   placeholder_service_image   = local.environment_shared.placeholder_service_image
   placeholder_job_image       = local.environment_shared.placeholder_job_image
+  sql_activation_role         = local.environment_shared.sql_activation_role
 
   deletion_protection       = var.production.deletion_protection
   web_url                   = var.production.web_url
@@ -70,7 +72,7 @@ module "staging" {
 
   name          = "${local.name}-stg"
   app_env       = "staging"
-  github_ref    = "refs/heads/develop"
+  github_refs   = ["refs/heads/develop", "refs/heads/main"]
   max_instances = 1
   db_pool_max   = 3
 
@@ -85,6 +87,7 @@ module "staging" {
   web_dist_dir                = local.environment_shared.web_dist_dir
   placeholder_service_image   = local.environment_shared.placeholder_service_image
   placeholder_job_image       = local.environment_shared.placeholder_job_image
+  sql_activation_role         = local.environment_shared.sql_activation_role
 
   deletion_protection       = var.staging.deletion_protection
   web_url                   = var.staging.web_url

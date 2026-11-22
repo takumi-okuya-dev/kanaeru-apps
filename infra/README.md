@@ -112,6 +112,7 @@ GitHub に変数を入れる（どれも Secrets ではなく Variables）：
    | `GCP_PROJECT_ID` | `terraform output github_repository_variables` の値 |
    | `GCP_REGION` | 同上（`asia-northeast1`） |
    | `GCP_WIF_PROVIDER` | 同上（`projects/<番号>/locations/global/workloadIdentityPools/github/providers/github`） |
+   | `SQL_INSTANCE` | 同上（`kanaeru-db`。夜に緊急で出すとき、デプロイの流れが DB を一時的に起こして止め直す） |
 
 2. 環境（Settings → Environments で `production` と `staging` を作り、それぞれの Environment variables）：
 
@@ -124,7 +125,11 @@ GitHub に変数を入れる（どれも Secrets ではなく Variables）：
    | `APP_NAME` | 同上（環境ごとの `app_name`。画面の題に埋める名前で、Cloud Run の `APP_NAME` とそろえる。空だとデプロイは止まる） |
    | `LIFF_ID` | その環境の LINE のミニアプリの LIFF ID（空だとデプロイは止まる） |
 
-そのあと、日本時間の8時15分〜23時に（デプロイはこの間に始まったときだけ進む）、GitHub の Actions で `deploy` を流す。`develop` で流す（またはマージする）とステージング、`main` で流す（または `develop`→`main` のリリースの PR をマージする）と本番に出る。
+3. 環境の守り（Settings → Environments の各環境）：
+   - `production`：**Required reviewers** に自分を入れる（`main` のマージでは、ステージングに出たあと、ここで承認するまで本番に出ない）。**Deployment branches** は `main` だけ。
+   - `staging`：**Deployment branches** は `main` と `develop`（`main` のマージでも、本番の前にステージングに出すため）。
+
+そのあと、日本時間の8時15分〜23時に（デプロイはこの間に始まったときだけ進む）、GitHub の Actions で `deploy` を流す。`develop` で流す（またはマージする）とステージングに、`main` で流す（または `develop`→`main` のリリースの PR をマージする）と、ステージングに出たあと承認で本番に出る（[開発の流れの決まり](../docs/rules/development-flow.md) 5章の3つのモード）。
 
 ## 6. ふだんの直し
 
@@ -147,6 +152,7 @@ GitHub に変数を入れる（どれも Secrets ではなく Variables）：
   ```
 
 - 初めて作ったあと、一度だけ手で動かして確かめる：`gcloud scheduler jobs run kanaeru-db-start --location=asia-northeast1`。
+- 夜（0時〜7時45分）に緊急で出すとき：GitHub の Actions で `deploy` を `main` で手で流し（Run workflow）、`wake_db` を入にする。流れが DB を起こし（動き出すまで数分）、ステージングに出す → 承認 → 本番に出す。`keep_awake_minutes`（既定40分・10〜60分）たつと、成功しても失敗しても DB を止め直す（8時を過ぎていたら止めない）。その時間の中で、ステージングでの確かめ・承認・本番のデプロイを済ませる。デプロイの身分は、DB を止める・動かすだけの権限（`kanaeruSqlActivation`）を持つ。
 - 共通の定期の仕事（環境ごとに1つ：本番 `kanaeru-jobs-tick`・ステージング `kanaeru-stg-jobs-tick`。その環境で Threads か booking が入のときだけ）は、日本時間 8時〜23時台の5分ごとに、その環境の `POST /api/v1/jobs/tick` を呼び、その回に当たる領域の仕事（各領域の `scheduledJob`）を動かす。DB の夜間の停止の間は動かさない。止めたいときは `gcloud scheduler jobs pause <仕事の名前> --location=asia-northeast1`（その環境のすべての領域の定期の仕事が止まる）。Cloud Scheduler の無料の枠は請求先アカウントごとに3つで、DB の停止・起動と、両方の環境の共通の仕事で4つになる（4つ目は月0.10ドル）。
 
 ## 8. 消さないための仕組み
