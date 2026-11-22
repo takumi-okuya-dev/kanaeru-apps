@@ -47,9 +47,10 @@ flowchart LR
 ![置き場所の構成図：Google Cloud の東京リージョンに、本番とステージングの Cloud Run、VPC、内部の IP だけの Cloud SQL を置く](./images/infra-architecture.svg)
 
 - 本番（`kanaeru`）とステージング（`kanaeru-stg`）の Cloud Run が、同じ Cloud SQL のサーバーの中の別の DB を使う。Cloud Run は Direct VPC egress で VPC に出て、内部の IP の Cloud SQL に TCP でつなぐ（core-018。構成の決めごと AD-8・AD-11）。
-- デプロイは GitHub Actions が Workload Identity Federation で鍵なしで入り、DB の変更 → 新しい版の順に出す（`develop` → ステージング・`main` → 本番）。
+- デプロイは GitHub Actions が Workload Identity Federation で鍵なしで入り、環境ごとのイメージの置き場所に押し込んで、DB の変更 → 新しい版の順に出す（`develop` → ステージング・`main` → 本番。デプロイの身分も置き場所も環境ごとなので、ステージングから本番は触れない）。
+- 本番とステージングの DB は、DB の変更を当てる job が毎回、その環境の利用者だけがつなげる形にそろえる（同じサーバーを共にするため）。
 - Cloud Scheduler は、夜間（0時〜8時）に Cloud SQL Admin API で DB を止め、8時〜23時台は環境ごとの共通の定期の仕事（`POST /api/v1/jobs/tick`。core-017）を5分ごとに呼ぶ（Threads か予約を入にした環境だけ）。
-- Cloudflare（独自ドメイン・CDN・WAF）は、一般に公開するときに中継（CDN）として前に置く（[バックログ](./backlog.md) C1）。画面のファイルは今までどおり Cloud Run が持ち、Cloudflare は JS・CSS を覚えて返す。
+- Cloudflare（独自ドメイン・CDN・WAF）は、一般に公開するときに中継として前に置く予定（[バックログ](./backlog.md) C1・C2）。
 - LINE と Meta は、Cloud Run から呼ぶほかに、Webhook で Cloud Run を呼ぶ（予約の LINE 公式アカウント・Threads の連携の解除とデータの削除）。
 - 資源の名前と手順の正本は [infra/README.md](../infra/README.md)、料金と比べた案は [置き場所の比べと料金の試算](./hosting-cost.md)。図のアイコンは Google Cloud 公式（<https://cloud.google.com/icons>）。ほかの会社は名前だけで表す。図は `docs/images/infra-architecture.py` で作る（使い方は台本の頭）。
 

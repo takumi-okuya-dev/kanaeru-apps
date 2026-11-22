@@ -9,6 +9,8 @@
 # アイコンは Google Cloud 公式のものだけを使う。ほかの会社（Cloudflare・LINE・Meta・GitHub）はロゴを使わず名前だけで表す
 # （各社の商標の決まりで、ロゴは許可が要ることがある）。
 import base64, sys, html
+if len(sys.argv) != 3:
+    sys.exit("使い方：python3 docs/images/infra-architecture.py <Google Cloud のアイコンを広げたフォルダ> <書き出す SVG>")
 ICON_DIR = sys.argv[1]
 OUT = sys.argv[2]
 def icon(name):
@@ -77,13 +79,13 @@ box(70, 300, 1120, 735, "#4285f4", "#f8fbff", dash="7 5")
 label(240, 325, "リージョン：asia-northeast1（東京）", "#1a73e8")
 
 # 左の列
-node("artifact_registry", 185, 380, ["Artifact Registry", "app-production・app-staging"])
-node("secret_manager", 185, 565, ["Secret Manager", "DB の接続先・鍵の束・合言葉", "（環境ごと）"])
-node("cloud_scheduler", 185, 810, ["Cloud Scheduler", "DB：0時に止める・8時に動かす", "jobs-tick：8〜23時台・5分ごと"])
+node("artifact_registry", 185, 380, ["Artifact Registry（環境ごと）", "kanaeru・kanaeru-stg"])
+node("secret_manager", 185, 565, ["Secret Manager", "DB の接続先・鍵の束・合言葉など", "（環境ごと）"])
+node("cloud_scheduler", 185, 810, ["Cloud Scheduler", "DB：0時に止める・8時に動かす", "jobs-tick：8〜23時台・5分ごと", "（環境ごと・Threads か予約が入）"])
 
 # Cloud Run
 box(390, 345, 770, 245, "#1a73e8", "#e8f0fe")
-label(408, 370, "Cloud Run（使われないと0台）", "#1a73e8")
+label(425, 370, "Cloud Run（使われないと0台）", "#1a73e8")
 node("cloud_run", 500, 430, ["kanaeru（本番）", "画面＋/api・最大2台"])
 node("cloud_run", 760, 430, ["kanaeru-stg（ステージング）", "画面＋/api・最大1台"])
 node("cloud_run", 1020, 430, ["DB の変更を当てる job", "kanaeru-migrate・kanaeru-stg-migrate"])
@@ -110,8 +112,8 @@ lines(1395, 523, ["Meta（Threads の API）", "投稿・反応の取りこみ"]
 
 # 線
 arrow([(185, 100), (185, 180)], "① OIDC", 222, 145, anchor="start")
-arrow([(185, 272), (185, 350)], "② 環境ごとのデプロイの身分でイメージを押し込む", 200, 290, anchor="start")
-arrow([(215, 384), (390, 384)], "③ DB の変更を当てる\n④ 成功したら新しい版", 302, 358)
+arrow([(185, 272), (185, 350)], "② その環境のデプロイの身分で、その環境の置き場所にイメージを押し込む", 200, 290, anchor="start")
+arrow([(215, 384), (390, 384)], "③ DB の変更 → ④ 新しい版\n（digest で指定）", 305, 358)
 arrow([(215, 550), (390, 550)], "秘密の値", 300, 542, dash="5 4")
 arrow([(215, 795), (340, 795), (340, 500), (390, 500)], "POST /api/v1/jobs/tick", 348, 620, anchor="start")
 arrow([(215, 840), (360, 840), (360, 905), (740, 905)], "Cloud SQL Admin API で止める・動かす", 560, 897, dash="5 4")
@@ -125,4 +127,4 @@ arrow([(1250, 540), (1160, 540)], "Webhook", 1205, 532)
 
 text(W - 20, H - 14, "アイコン：Google Cloud 公式（cloud.google.com/icons）。Cloudflare・LINE・Meta・GitHub は名前だけで表す（各社の商標の決まり）", size=11, color="#80868b", anchor="end")
 add("</svg>")
-open(OUT, "w").write("\n".join(o))
+open(OUT, "w", encoding="utf-8").write("\n".join(o))
