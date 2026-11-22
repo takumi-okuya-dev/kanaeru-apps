@@ -5,6 +5,9 @@
 /** 受け手。今の利用者の ID（ログアウト・退会は null）を受け取る。 */
 export type AccountChangeListener = (accountId: string | null) => void | Promise<void>;
 
+/** 受け手を待つ時間の上限（ミリ秒）。端末の置き場所（IndexedDB）が答えないときに、ログインの画面を止めないため。 */
+export const ACCOUNT_CHANGE_TIMEOUT_MS = 2000;
+
 /** 受け手の一覧。 */
 const listeners = new Set<AccountChangeListener>();
 
@@ -22,10 +25,20 @@ export function onAccountChange(listener: AccountChangeListener): () => void {
 
 /**
  * 今の利用者を知らせる（account の領域が、ログインした・ログアウトした・退会したときに呼ぶ）。
- * 受け手の失敗は、ほかの受け手と呼び手に広げない。
+ * 受け手の失敗は、ほかの受け手と呼び手に広げない。待つのは timeoutMs まで（それを過ぎても受け手は続ける）。
  * @param accountId 今の利用者の ID（ログアウト・退会は null）
- * @returns すべての受け手が終わったら終わる
+ * @param timeoutMs 待つ時間の上限（ミリ秒）
+ * @returns すべての受け手が終わるか、上限の時間が過ぎたら終わる
  */
-export async function notifyAccountChange(accountId: string | null): Promise<void> {
-  await Promise.allSettled([...listeners].map(async (listener) => listener(accountId)));
+export async function notifyAccountChange(
+  accountId: string | null,
+  timeoutMs: number = ACCOUNT_CHANGE_TIMEOUT_MS,
+): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const settled = Promise.allSettled([...listeners].map(async (listener) => listener(accountId)));
+  const timeout = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, timeoutMs);
+  });
+  await Promise.race([settled, timeout]);
+  clearTimeout(timer);
 }
