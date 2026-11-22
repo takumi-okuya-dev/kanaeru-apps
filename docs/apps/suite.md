@@ -18,7 +18,7 @@
 | `uses` | 使ってよいほかのアプリの key |
 | `accountData` | 退会で消える、そのアプリの本人の記録（退会の確かめの枠に出す） |
 
-今のアプリ：`reception`（受付。`event`・`reception`・`survey`）。
+今のアプリ：`reception`（受付。`event`・`reception`・`survey`・`booking`）・`threads`（Threads。`threads`）・`match`（試合表。`match`。`reception` を使う）。一覧の正本は `packages/contracts/src/core/apps.list.ts`。
 
 確かめ：`appRegistryProblems`（key・領域・道の頭）と `unassignedDomains`（どこにも属さない領域）。`packages/contracts/src/core/apps.test.ts`・`apps/api/test/apps-registry.test.ts`（API の領域）・`apps/web/src/router.test.tsx`（画面の領域）。API は、決まりに合わないと起動しない。
 

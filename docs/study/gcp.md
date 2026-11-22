@@ -1,7 +1,7 @@
 # GCPの学び（kanaeru で使うところだけ）
 
 - 作成日：2026-11-19
-- 直した日：2026-11-22（core-018：Cloud SQL を内部の IP だけにした注記を足した）
+- 直した日：2026-11-22（core-018：Cloud SQL を内部の IP だけにした注記を足した。core-019：今のデプロイの流れの注記を足した）
 - 読む人：TypeScript で Web を作ってきて、GCP は初めての人（kanaeru の開発者）。
 - この文書は「学び」の文書。考え方と使い方の説明で、**今のシステムの正本でも、決まりの正本でもない**。
   - 置き場所の決めごと（台の型・台数・夜間の停止・バックアップ・予算）は[構成の決めごと](../../_bmad-output/architecture-kanaeru/architecture-kanaeru.md)の AD-8〜AD-11 が正本。
@@ -235,6 +235,8 @@ sequenceDiagram
 ### 4.3 デプロイの流れ（例）
 
 順番は「コンテナを作る → 同じコンテナで `db:migrate` → 成功したときだけ新しい版を出す」（AD-11）。決まりの正本は[開発の流れの決まり](../rules/development-flow.md) 5章。
+
+- **今の kanaeru の流れ（core-019）は、下の例より段が多い**：1つの環境へのデプロイを `deploy-environment.yml` にまとめ、`deploy.yml` が `develop` ならステージングだけ、`main` ならステージング → GitHub の環境 `production` の承認 → 本番の順に呼ぶ。環境ごとの値（デプロイの身分・サービス・LIFF ID など）は GitHub の環境（Environments）の変数に置く。夜は DB を一時的に起こして出す道もある。使い方は[本番に出す手順](../release-guide.md)。
 
 ```yaml
 # 学びのための例。実際のワークフロー（.github/workflows/deploy.yml）は infra と一緒に作る。

@@ -1,11 +1,13 @@
 # infra（GCP の資源の Terraform）
 
 - 作成日：2026-11-19（core-002）
-- 直した日：2026-11-20（threads-002：`threads.tf` と9章。threads-015：9章の5に OAuth を入にする手順）・2026-11-21（booking-005：`booking.tf` と10章）・2026-11-22（core-018：ステージング〈構成 B〉・環境ごとの部品・Cloud SQL を内部の IP だけに。0・4〜7・9〜11章）
+- 直した日：2026-11-20（threads-002：`threads.tf` と9章。threads-015：9章の5に OAuth を入にする手順）・2026-11-21（booking-005：`booking.tf` と10章）・2026-11-22（core-018：ステージング〈構成 B〉・環境ごとの部品・Cloud SQL を内部の IP だけに。0・4〜7・9〜11章。core-019：GitHub の環境の承認・夜の緊急デプロイ。5・7章。0章に構成図へのリンク）
 - 読む人：本番とステージングの置き場所を作る・直す人（主催者）。Terraform と GCP の考え方は [Terraformの学び](../docs/study/terraform.md)・[GCPの学び](../docs/study/gcp.md)。
 - 決めごとの正本は[構成の決めごと](../_bmad-output/architecture-kanaeru/architecture-kanaeru.md) AD-8〜AD-11、デプロイの決まりは[開発の流れの決まり](../docs/rules/development-flow.md) 5章。なぜこの形にしたかは [specs/core/002-infra/research.md](../specs/core/002-infra/research.md)・[specs/core/018-staging-private-db/research.md](../specs/core/018-staging-private-db/research.md)。
 
 ## 0. 何があるか
+
+構成図は[全体の形](../docs/architecture.md)の「置き場所の構成図（GCP）」（`docs/images/infra-architecture.svg`）。
 
 | ファイル | 中身 |
 |---|---|
@@ -15,8 +17,8 @@
 | `apis.tf` | 使う API の有効化 |
 | `network.tf` | VPC・Cloud Run が出ていくサブネット（Direct VPC egress）・Cloud SQL を内部の IP で置くための道（プライベート サービス アクセス） |
 | `cloud_sql.tf` | Cloud SQL のサーバー（ENTERPRISE・db-f1-micro・PostgreSQL 18・内部の IP だけ）。本番とステージングが、この中の別の DB を使う |
-| `service_accounts.tf` | 共通の身分（夜間の停止）と権限 |
-| `wif.tf` | GitHub Actions から鍵なしで入る仕組み（このリポジトリの `main` と `develop` だけ。名前と数字の ID の両方で絞る） |
+| `service_accounts.tf` | 共通の身分（夜間の停止・夜の緊急デプロイで DB を起こす `kanaeru-db-waker`）と権限 |
+| `wif.tf` | GitHub Actions から鍵なしで入る仕組み（このリポジトリの `main` と `develop` だけ。名前と数字の ID の両方で絞る。どの身分になれるかはブランチで分ける） |
 | `scheduler.tf` | 毎日0時に DB を止め、8時に動かす（日本時間。本番とステージングの両方が止まる） |
 | `budget.tf` | 請求の予算（月2,000円・50%と100%でメール） |
 | `environments.tf` | 本番（`kanaeru`。2台 × DB の接続5本）とステージング（`kanaeru-stg`。1台 × 3本。`staging` が null なら作らない）を、同じ部品で作る |
@@ -219,7 +221,7 @@ Cloud SQL は `prevent_destroy`・`deletion_protection`・`deletion_protection_e
 ## 11. ステージング（構成 B）と、別のプロジェクトへの移し方（core-018）
 
 - ステージング（`kanaeru-stg`）は、本番と同じプロジェクト・同じ Cloud SQL のサーバーの中の別の DB（`kanaeru_stg`）を使う。料金はほぼ増えない（Cloud Run は無料の枠の中。Cloud SQL は共有。Cloud Scheduler の4つ目が月0.10ドル）。
-- ステージングは `develop` のマージで出る。`terraform.tfvars` の `staging` を `null` にすると作らない。
+- ステージングは `develop` のマージと、`main` のマージ（本番の前に同じ中身を出す）で出る。`terraform.tfvars` の `staging` を `null` にすると作らない。
 - **DB は権限でも分ける**：DB の変更を当てる job（`apps/api/scripts/migrate.ts`）が、当てる前に毎回、その DB につなげるのはその環境の利用者だけにし、DB と public スキーマの持ち主をその利用者にする（`apps/api/scripts/lib/isolate-database.ts`）。同じサーバーなので、これがないとステージングの利用者が本番の DB につなげてしまう。
 - **イメージの置き場所も環境ごと**：押し込めるのはその環境のデプロイの身分だけで、Cloud Run には digest（中身の指紋）で渡す（ステージングの身分が本番のイメージを上書きできない）。
 - **ステージングを消すとき**：DB が動いている昼（8時15分〜23時）に行う。先に `staging` の中に `deletion_protection = false` を入れて apply し（Cloud Run のサービスを消せるようにする）、そのあと `staging = null` で apply する。Terraform は Cloud Run → DB → DB の利用者の順に消す。DB を消すところで落ちたら（古い台の接続が残っている・持ち主がその環境の利用者なので API から消せない、など）、少し待ってもう一度 apply する。それでも落ちるときは、手元から一時的につなぎ（6章）、`kanaeru_stg` として DB `postgres` に入って `DROP DATABASE kanaeru_stg;` を流してから、もう一度 apply する。

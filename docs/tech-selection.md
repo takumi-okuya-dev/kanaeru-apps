@@ -61,14 +61,14 @@
 | ORM | **Drizzle 0.45（安定版）**（SQL を読んでから当てる・生の SQL・RLS の宣言）。1.0 は RC（壊れる変更あり）。正式版が出たら移る | Kysely（ORM に縛られたくない）・Prisma 7（慣れを優先。8 は作り直しで揺れる） |
 | DB | **PostgreSQL。置き場所は Cloud SQL 東京**（最小で月 2,000〜3,000円ほど。要確認） | Supabase（東京あり。試作は無料〈7日使わないと止まる〉・Pro は $25）・PlanetScale Postgres（東京の単価は要確認）。Neon は東京がない |
 | ログイン | **Better Auth**（データは自分の DB・0円・独自の OAuth/OIDC〈LINE など〉・組織・パスキー。2026-07 に Vercel が買収） | Supabase Auth（Supabase にまとめるとき）・WorkOS（企業の SSO が要るとき）・Clerk（データが外に出る） |
-| 裏の処理 | **Cloud Tasks（列）＋Cloud Scheduler（時刻）**。応答のあと CPU が止まる置き場所に合う | pg-boss（取引の中で確実に積みたいときの受け皿）・Inngest・Trigger.dev（データが国外を通る） |
+| 裏の処理 | **Cloud Tasks（列）＋Cloud Scheduler（時刻）**。応答のあと CPU が止まる置き場所に合う。kanaeru は今のところ Cloud Tasks を使わず、Cloud Scheduler が環境ごとに1つの共通の窓口（`POST /api/v1/jobs/tick`）を5分ごとに呼ぶ形（core-017） | pg-boss（取引の中で確実に積みたいときの受け皿）・Inngest・Trigger.dev（データが国外を通る） |
 | ファイル | **GCS 東京** | S3 東京・R2（日本に置く保証がない） |
 
 ### 3-5. 置き場所とインフラ
 
 | 層 | 既定 | 候補と目安 |
 |---|---|---|
-| 置き場所 | **GCP 東京の Cloud Run**（最小0台・使った分だけ・容器なので移しやすい） | Vercel Pro（画面だけ・商用）・Cloudflare Workers（静的な画面の配信は無料。実行地域を東京に固定できない）・Fly.io（安いが運用を背負う）。Render・Railway は東京がない。AWS App Runner は新しい客を受け付けない |
+| 置き場所 | **GCP 東京の Cloud Run**（最小0台・使った分だけ・容器なので移しやすい）。kanaeru は一般に公開するとき、独自ドメインを取り Cloudflare の無料プランを前に置く（CDN・WAF。[置き場所の比べ](./hosting-cost.md)） | Vercel Pro（画面だけ・商用）・Cloudflare Workers（静的な画面の配信は無料。実行地域を東京に固定できない）・Fly.io（安いが運用を背負う）。Render・Railway は東京がない。AWS App Runner は新しい客を受け付けない |
 | インフラのコード | **Terraform 1.17**（BSL。使う分には制約なし） | OpenTofu（オープンソースのライセンスにこだわるとき。ほぼ互換）・Pulumi（TS で書きたいとき） |
 | CI | **GitHub Actions**（ラベル `run-ci` のときだけ・部品は SHA で固定・鍵を置かず WIF で GCP に入る） | — |
 | AI エージェントの入口 | **MCP の公式 SDK v2（`@modelcontextprotocol/server`＋`@modelcontextprotocol/hono`）を同じ API に置く** | 認可（OAuth）の作法は使うときに確かめる |

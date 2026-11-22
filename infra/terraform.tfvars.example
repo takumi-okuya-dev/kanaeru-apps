@@ -31,7 +31,7 @@ production = {
   # booking_notify_mode = "off"   # off・allowlist・on
 }
 
-# ステージング（develop のマージで出る。本番と同じ Cloud SQL のサーバーの中の別の DB。README の 11）。作らないなら null
+# ステージング（develop のマージと、main のマージ〈本番の前〉で出る。本番と同じ Cloud SQL のサーバーの中の別の DB。README の 11）。作らないなら null
 staging = {
   line_channel_ids       = "2345678901" # ステージング用の LINE ミニアプリのチャネル
   organizer_line_user_id = "U00000000000000000000000000000000"
