@@ -54,7 +54,7 @@ export function createDatabase(
   const queryTimeoutMs = options.queryTimeoutMs ?? DEFAULT_DATABASE_OPTIONS.queryTimeoutMs;
   const pool = new pg.Pool({
     connectionString: databaseUrl,
-    // 1台あたりの接続の上限（設定 DATABASE_POOL_MAX）。本番は infra/cloud_run.tf で、
+    // 1台あたりの接続の上限（設定 DATABASE_POOL_MAX）。本番は infra/environments.tf（環境ごとの台数と接続の数）で、
     // 台数の上限 × この値が Cloud SQL（db-f1-micro）の接続の上限を超えないように決める（構成の決めごと AD-8）
     max: options.poolMax ?? DEFAULT_DATABASE_OPTIONS.poolMax,
     connectionTimeoutMillis: options.connectTimeoutMs ?? DEFAULT_DATABASE_OPTIONS.connectTimeoutMs,
