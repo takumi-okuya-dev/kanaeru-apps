@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase } from "../src/kernel/db.ts";
-import { WEB_CSP_DIRECTIVES } from "../src/platform/web/index.ts";
+import { WEB_CSP_DIRECTIVES, allowsCamera } from "../src/platform/web/index.ts";
 import { buildApp, testConfig } from "./helpers/app.ts";
 
 /** 画面のフォルダの中身（組み立てた形を小さくまねたもの）。 */
@@ -68,6 +68,27 @@ describe("画面のファイル", () => {
       expect(response.headers.get("referrer-policy"), path).toBe("strict-origin-when-cross-origin");
       expect(response.headers.get("x-request-id"), path).toBeTruthy();
     }
+  });
+
+  it("カメラは試合表の道（/match・/match/…）だけで自分の源に許し、ほかの道と /api では止める（core-015）", async () => {
+    const app = appWithWeb();
+    for (const path of ["/match", "/match/", "/match/tables/x/join", "/match/view/abc"]) {
+      const response = await app.request(path);
+      expect(response.headers.get("permissions-policy"), path).toBe(
+        "camera=(self), microphone=(), geolocation=()",
+      );
+      expect(response.headers.get("content-security-policy"), path).toContain(
+        "frame-ancestors 'none'",
+      );
+    }
+    for (const path of ["/", "/matchfoo", "/Match", "/apps", "/e/x/checkin", "/api/v1/health"]) {
+      const response = await app.request(path);
+      expect(response.headers.get("permissions-policy"), path).toBe(
+        "camera=(), microphone=(), geolocation=()",
+      );
+    }
+    expect(allowsCamera("/match/sw.js")).toBe(true);
+    expect(allowsCamera("/matches")).toBe(false);
   });
 
   it("中身の印つきのファイル（/assets/）は、そのまま返し、長く持たせる", async () => {

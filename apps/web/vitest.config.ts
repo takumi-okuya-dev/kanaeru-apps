@@ -8,7 +8,8 @@ export default defineConfig({
   test: {
     name: "web",
     environment: "jsdom",
-    include: ["src/**/*.test.{ts,tsx}"],
+    // 組み立ての plugin（scoped-service-worker.ts。core-015）のテストも流す
+    include: ["src/**/*.test.{ts,tsx}", "*.test.ts"],
     setupFiles: ["./vitest.setup.ts"],
   },
 });
