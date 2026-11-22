@@ -35,6 +35,24 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * 置き場所（Cloud Run）が止まっている・混み合っているときの文（core-020。画面だけの印 SERVICE_UNAVAILABLE で、API は返さない）。
+ * API のエラーの本文でない 5xx（502〜504・Cloudflare の 520〜530 など）と 429（Cloud Run の台が足りない）は、
+ * アプリより前（Google の入口・前に置く Cloudflare）が返したもの。アプリの 5xx はいつもエラーの本文を持つ。
+ * 夜間の停止（API が返す 503 DB_UNAVAILABLE）とは分ける。
+ */
+export const SERVICE_UNAVAILABLE_MESSAGE =
+  "ただいま使えません。サービスが止まっているか、混み合っています。しばらくしてから、もう一度お試しください。";
+
+/**
+ * 置き場所が止まっている・混み合っているときの状態の番号か（API のエラーの本文がないときだけ、この扱いにする）。
+ * @param status 状態の番号
+ * @returns 5xx か 429 なら true
+ */
+function isServiceUnavailableStatus(status: number): boolean {
+  return status >= 500 || status === 429;
+}
+
 /** 通信が届かなかった（応答がない）。入れた値は消さずに、この文を出す。 */
 export class NetworkError extends Error {
   /**
@@ -112,18 +130,20 @@ export async function request<R extends ResponseLike>(
 }
 
 /**
- * エラーの応答から ApiError を作る（本文がエラーの形でなければ INTERNAL）。401 なら onUnauthenticated の受け手に知らせる。
+ * エラーの応答から ApiError を作る（本文がエラーの形でなければ、5xx と 429 は SERVICE_UNAVAILABLE、ほかは INTERNAL）。
+ * 401 なら onUnauthenticated の受け手に知らせる。
  * request と、ファイルを受け取る fetchDownload（lib/download.ts）が同じ読み方を使う。
  * @param response エラーの応答（ok でないもの）
  * @returns 投げる ApiError
  */
 export async function apiErrorFrom(response: ResponseLike): Promise<ApiError> {
   const body: unknown = await response.json().catch(() => undefined);
+  const unavailable = isServiceUnavailableStatus(response.status);
   const error = isErrorBody(body)
     ? new ApiError(response.status, body.error)
     : new ApiError(response.status, {
-        code: "INTERNAL",
-        message: CORE_ERROR_MESSAGES.INTERNAL,
+        code: unavailable ? "SERVICE_UNAVAILABLE" : "INTERNAL",
+        message: unavailable ? SERVICE_UNAVAILABLE_MESSAGE : CORE_ERROR_MESSAGES.INTERNAL,
         requestId: response.headers.get("x-request-id") ?? "",
       });
   if (error.status === 401) for (const listener of unauthenticatedListeners) listener(error);

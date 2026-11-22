@@ -22,8 +22,37 @@ const IMMUTABLE_PREFIX = "/assets/";
 /** 長く持ってよいファイルのキャッシュ。 */
 const IMMUTABLE_CACHE = "public, max-age=31536000, immutable";
 
-/** index.html など、毎回確かめるファイルのキャッシュ。 */
+/** index.html・sw.js など、毎回確かめるファイルのキャッシュ（ブラウザ向け）。 */
 const REVALIDATE_CACHE = "no-cache";
+
+/** 前に置く Cloudflare だけが読む見出し（Cloudflare は読んだあと外し、ブラウザには渡さない）。 */
+export const EDGE_CACHE_HEADER = "Cloudflare-CDN-Cache-Control";
+
+/**
+ * 画面のもと（index.html と画面の道）の、Cloudflare 向けのキャッシュ（core-020）。毎回確かめる（max-age=0）が、
+ * 源（Cloud Run）が 500〜504 を返したときは、前に覚えたものを1日まで出してよい（stale-if-error。Cloudflare が使う状態の番号）。
+ * ブラウザ向けの Cache-Control は no-cache のまま（Cloudflare の Browser Cache TTL は、数の入った max-age を
+ * 長く書きかえることがあり、デプロイのあとも古い画面を持ち続けるため）。no-cache・must-revalidate は Cloudflare に
+ * 古いものを出すのを禁じるので、こちらには付けない。
+ */
+export const EDGE_HTML_CACHE = "max-age=0, stale-if-error=86400";
+
+/**
+ * 見つかったファイルのキャッシュの見出しを付ける。中身の印つきは長く、ほか（index.html・sw.js など）は毎回確かめる。
+ * HTML には、源が落ちたときに Cloudflare が前のものを出せる見出しも付ける。
+ * @param path 道
+ * @param headers ファイルの応答の見出し（ここに付ける）
+ */
+function setCacheHeaders(path: string, headers: Headers): void {
+  if (path.startsWith(IMMUTABLE_PREFIX)) {
+    headers.set("Cache-Control", IMMUTABLE_CACHE);
+    return;
+  }
+  headers.set("Cache-Control", REVALIDATE_CACHE);
+  if (headers.get("content-type")?.startsWith("text/html")) {
+    headers.set(EDGE_CACHE_HEADER, EDGE_HTML_CACHE);
+  }
+}
 
 /** 画面の CSP（Hono の secureHeaders の形）。LINE の源は research.md R7。Threads の画像の源は core-008。 */
 export const WEB_CSP_DIRECTIVES = {
@@ -131,16 +160,14 @@ export function serveWeb(options: { distDir: string }): MiddlewareHandler {
     const found = await files(c, () => Promise.resolve());
     if (found) {
       if (found.status === 200 || found.status === 206) {
-        found.headers.set(
-          "Cache-Control",
-          c.req.path.startsWith(IMMUTABLE_PREFIX) ? IMMUTABLE_CACHE : REVALIDATE_CACHE,
-        );
+        setCacheHeaders(c.req.path, found.headers);
       }
       return found;
     }
     // /assets/ の下のないファイルは、index.html を返さず API の 404（no-store）にする
     if (c.req.path.startsWith(IMMUTABLE_PREFIX)) return next();
     c.header("Cache-Control", REVALIDATE_CACHE);
+    c.header(EDGE_CACHE_HEADER, EDGE_HTML_CACHE);
     if (c.req.method === "HEAD") {
       c.header("Content-Type", "text/html; charset=UTF-8");
       return c.body(null, 200);
