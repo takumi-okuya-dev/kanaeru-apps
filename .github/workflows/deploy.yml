@@ -107,10 +107,13 @@ jobs:
           gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
           docker build --build-arg VITE_LIFF_ID="$LIFF_ID" --build-arg APP_NAME="$APP_NAME" --tag "$IMAGE" .
           docker push "$IMAGE"
-          # ここから先は digest（中身の指紋）で指す。タグはあとから付け替えられるため
-          digest=$(gcloud artifacts docker images describe "$IMAGE" --format='value(image_summary.digest)')
-          if [ -z "$digest" ]; then echo "::error::押し込んだイメージの digest を読めませんでした：${IMAGE}"; exit 1; fi
-          echo "IMAGE_DIGEST=${IMAGE_REPOSITORY}@${digest}" >> "$GITHUB_ENV"
+          # ここから先は digest（中身の指紋）で指す。タグはあとから付け替えられるため（押し込んだあとの docker が持つ値を使う）
+          image_digest=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
+          case "$image_digest" in
+            "${IMAGE_REPOSITORY}@sha256:"*) ;;
+            *) echo "::error::押し込んだイメージの digest を読めませんでした：${IMAGE}"; exit 1 ;;
+          esac
+          echo "IMAGE_DIGEST=${image_digest}" >> "$GITHUB_ENV"
 
       # 同じコンテナで DB の変更を当てる。失敗したら、ここで止まり、新しい版は出ない（AD-11）
       - name: DB の変更を当てる（Cloud Run jobs の db:migrate）

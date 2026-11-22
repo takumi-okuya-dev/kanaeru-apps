@@ -46,9 +46,10 @@
 ## Requirements *(mandatory)*
 
 - **FR-001**: `infra/modules/environment`：DB と DB の利用者・秘密の値・身分と権限・Cloud Run のサービスと job・共通の定期の仕事（core-017）を、環境の名前（`kanaeru`・`kanaeru-stg`）で作る部品。
-- **FR-002**: `infra/`：共通の資源（`network.tf`〈VPC・サブネット・プライベート サービス アクセス〉・`cloud_sql.tf`〈内部の IP だけ〉・`wif.tf`〈main と develop〉・`artifact_registry.tf`・`scheduler.tf`〈夜間の停止〉・`budget.tf`）と、2つの環境を呼ぶ `environments.tf`。変数は `production`・`staging`（null なら作らない）。
+- **FR-002**: `infra/`：共通の資源（`network.tf`〈VPC・サブネット・プライベート サービス アクセス〉・`cloud_sql.tf`〈内部の IP だけ〉・`wif.tf`〈main と develop〉・`scheduler.tf`〈夜間の停止〉・`budget.tf`）と、2つの環境を呼ぶ `environments.tf`。イメージの置き場所は環境ごと（部品の中）。変数は `production`・`staging`（null なら作らない）。
 - **FR-003**: デプロイの身分は環境ごと。書く権限は、その環境の Cloud Run のサービスと job の単位で付ける。WIF のなりすましはブランチ（`refs/heads/main`・`refs/heads/develop`）で分ける。
-- **FR-004**: `.github/workflows/deploy.yml`：`main`・`develop` の push で、GitHub の環境（`production`・`staging`）の変数を使って出す。イメージの名前は `app-<環境>`。
+- **FR-004**: `.github/workflows/deploy.yml`：`main`・`develop` の push で、GitHub の環境（`production`・`staging`）の変数を使って出す。イメージは環境ごとの置き場所（`IMAGE_REPOSITORY`）に押し込み、digest で出す。
+- **FR-007**: 本番とステージングの DB は、DB の変更を当てる job が毎回、その環境の利用者だけがつなげる形にそろえる（research R6・R7）。
 - **FR-005**: `infra/tests/plan.tftest.hcl`：模擬のプロバイダで組み上がりを確かめる（両方・ステージングなし・ステージングで知らせを on にすると止まる）。
 - **FR-006**: 文書：`infra/README.md`（0・1・4〜7・9〜11章）・構成の決めごと AD-8・AD-11・`docs/rules/development-flow.md` 5章・`docs/decisions.md`・バックログ C3。
 

@@ -127,8 +127,9 @@ resource "google_cloud_run_v2_service" "app" {
     ]
   }
 
-  # 秘密を読む権限と版ができてから、新しい版を立ち上げる
+  # 秘密を読む権限と版・DB ができてから、新しい版を立ち上げる（消すときは、サービスを DB より先に消す）
   depends_on = [
+    google_sql_database.app,
     google_secret_manager_secret_iam_member.runtime_database_url,
     google_secret_manager_secret_version.database_url,
     google_secret_manager_secret_iam_member.runtime_token_keys,
@@ -198,6 +199,7 @@ resource "google_cloud_run_v2_job" "migrate" {
   }
 
   depends_on = [
+    google_sql_database.app,
     google_secret_manager_secret_iam_member.runtime_database_url,
     google_secret_manager_secret_version.database_url,
   ]

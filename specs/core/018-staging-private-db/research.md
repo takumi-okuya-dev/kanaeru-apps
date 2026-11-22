@@ -57,3 +57,8 @@
 | P2：古いファイル（`infra/cloud_run.tf`）を指すコメント | `Dockerfile`・`.env.example`・`kernel/db.ts` を直した |
 | P2：deploy.yml の守りのテストに、変数とイメージの置き場所の確かめがない | `tests/security/ci-config.test.ts` に足した |
 
+## R7. 2回目の独立のレビューで残った前提と手当て
+
+- **P1（要確認）**：Cloud SQL は PostgreSQL に手を入れていて、cloudsqlsuperuser が PG16 以降の CREATEROLE の決まり（作っていない役割の ADMIN を持たない）より多くのことができるかもしれない。もしステージングの利用者が `GRANT kanaeru TO kanaeru_stg` や `ALTER ROLE kanaeru PASSWORD` をできるなら、R6 の権限の分け方では防げない。手元の素の PostgreSQL 18 では、どちらも断られることを確かめた（独立のレビューでも、DB へのつなぎ・DB の削除と持ち主の変更・役割を足すこともすべて断られた）。初めての apply のあとに、本物の Cloud SQL で確かめる（`infra/README.md` 11章・tasks T009）。通ってしまったら、ステージングの利用者を cloudsqlsuperuser に入れない形（`google_sql_user` の `database_roles` で絞り、持ち主の変え方を別に考える）か、構成 C に早めに移る。
+- **P2**：初めての DB の変更を当てるまでは、DB が権限で分かれていない → apply の直後に両方の環境の migrate を一度ずつ流す手順を書いた。Cloud SQL の書き出し・取り込みは使えない見込み → その環境の利用者で `pg_dump`・`pg_restore` する手順を書いた。環境を消す順番 → `google_sql_database` を利用者のあと・Cloud Run を DB のあとにし（消すときは Cloud Run → DB → 利用者）、利用者の ABANDON はやめた。digest → Artifact Registry の API ではなく、押し込んだあとの docker が持つ値（`RepoDigests`）を使う。
+
