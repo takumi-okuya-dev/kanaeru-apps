@@ -1,6 +1,6 @@
 # 全体の形（アーキテクチャ）
 
-2026-11-18 作成（TypeScript の骨組み。`typescript` ブランチ）。2026-11-19 直した（core-001：見本の領域を消し、画面を API から返す形・LIFF の始め方・DB の夜間停止の 503・参加者の道と日本時間の関数・プロダクトの見た目の値を足した。account-001：アカウントとセッション・LINE のログイン・今の利用者の受け取り方を足した。event-001：交流会・受付係・招待・交流会ごとの権限・管理の画面の道とナビを足した。reception-001：チェックイン・一覧画面・合計と内訳・参加者の CSV と、選択肢のチップの部品を足した。survey-001：アンケートの回答・困りごとの一覧と CSV と、reception の差しこみの場所への節を足した。reception-002：交流会ごとの割引〈event〉と、チェックインの割引の写し・紹介者の名前〈reception〉を足した）。2026-11-20 直した（core-005：アプリの一覧と suite の台帳・組み立てが付ける `requireApp`・外枠のアプリの切り替えと設定・退会の窓口）。2026-11-20 直した（booking-002：知らせを送る道具 `platform/notify` と設定 `NOTIFY_MODE`・`NOTIFY_ALLOWLIST`）。2026-11-22 直した（core-013：試合表の道は LIFF を始めずに開く）。
+2026-11-18 作成（TypeScript の骨組み。`typescript` ブランチ）。2026-11-19 直した（core-001：見本の領域を消し、画面を API から返す形・LIFF の始め方・DB の夜間停止の 503・参加者の道と日本時間の関数・プロダクトの見た目の値を足した。account-001：アカウントとセッション・LINE のログイン・今の利用者の受け取り方を足した。event-001：交流会・受付係・招待・交流会ごとの権限・管理の画面の道とナビを足した。reception-001：チェックイン・一覧画面・合計と内訳・参加者の CSV と、選択肢のチップの部品を足した。survey-001：アンケートの回答・困りごとの一覧と CSV と、reception の差しこみの場所への節を足した。reception-002：交流会ごとの割引〈event〉と、チェックインの割引の写し・紹介者の名前〈reception〉を足した）。2026-11-20 直した（core-005：アプリの一覧と suite の台帳・組み立てが付ける `requireApp`・外枠のアプリの切り替えと設定・退会の窓口）。2026-11-20 直した（booking-002：知らせを送る道具 `platform/notify` と設定 `NOTIFY_MODE`・`NOTIFY_ALLOWLIST`）。2026-11-22 直した（core-013：試合表の道は LIFF を始めずに開く）。2026-11-22 直した（core-014：CSV を読む処理を画面の共通に移した）。
 
 今のシステムの形。選んだ技術の候補と目安は [技術選定の候補](./tech-selection.md)、守る決まりは [コードの書き方の決まり](./rules/coding.md) 6章。
 
@@ -64,7 +64,7 @@ flowchart LR
 | アプリ | 土台 | 共通 | 領域 | 組み立て |
 |---|---|---|---|---|
 | API（`apps/api/src/`） | `kernel/`（設定・DB の接続・ログ・エラーと読みかえ・PostgreSQL のエラーの見分け・共通の列・道の型と手伝い・要求の ID・機能の印・知らせを送る道具の型） | `platform/<名前>/`（`health`・`rate-limit`・`web`・`notify`） | `modules/<領域>/` | `app.ts`・`index.ts`・`modules.list.ts`・`client.ts` |
-| 画面（`apps/web/src/`） | — | `lib/`（API の呼び出し・LINE の始め方・道の根・ページの形・知らせ・フォームの誤り）・`shell/`（外枠・始められないときの画面） | `features/<領域>/` | `router.tsx`・`main.tsx`・`features.list.ts` |
+| 画面（`apps/web/src/`） | — | `lib/`（API の呼び出し・LINE の始め方・道の根・ページの形・知らせ・フォームの誤り・ファイルの保存・CSV と貼った表を読む）・`shell/`（外枠・始められないときの画面） | `features/<領域>/` | `router.tsx`・`main.tsx`・`features.list.ts` |
 
 ```mermaid
 flowchart TB

@@ -38,8 +38,8 @@ import { SessionGate } from "../account/index.ts";
 import { EventAccessGate } from "../event/index.ts";
 import { APPLICATION_SOURCE_OPTIONS, SameNameFlag } from "../reception/index.ts";
 import { fetchImportMappings, previewImport, runImport } from "./api.ts";
-import { decodeCsv, parseCsv, splitPastedNames } from "./csv-read.ts";
-import type { ParsedCsv } from "./csv-read.ts";
+import { decodeCsv, parseCsv, splitPastedNames } from "../../lib/csv-read.ts";
+import type { ParsedCsv } from "../../lib/csv-read.ts";
 import { BOOKING_QUERY_KEYS } from "./queries.ts";
 import { RosterGate } from "./RosterGate.tsx";
 
