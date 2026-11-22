@@ -15,7 +15,13 @@ import { createQueryClient } from "../../lib/query.ts";
 import type * as LiffModule from "../../lib/liff.ts";
 import type { LiffClient } from "../../lib/liff.ts";
 import { SessionGate } from "./SessionGate.tsx";
-import { RELOGIN_COOLDOWN_MS, resetAutoLoginForTest } from "./session.ts";
+import { onAccountChange } from "../../lib/account-events.ts";
+import {
+  RELOGIN_COOLDOWN_MS,
+  resetAutoLoginForTest,
+  setAuthenticated,
+  setSignedOut,
+} from "./session.ts";
 
 const liffState = vi.hoisted(() => ({ client: undefined as LiffClient | undefined }));
 
@@ -272,5 +278,23 @@ describe("SessionGate と useSession", () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(other).toHaveBeenCalledTimes(4);
     unsubscribe();
+  });
+});
+
+describe("今の利用者が替わったことを、領域に知らせる", () => {
+  it("ログインした状態にすると利用者の ID、ログアウトした状態にすると null を知らせる", async () => {
+    const received: (string | null)[] = [];
+    const stop = onAccountChange((accountId) => {
+      received.push(accountId);
+    });
+    const queryClient = new QueryClient();
+    await setAuthenticated(queryClient, {
+      id: "0193a1b2-0000-7000-8000-000000000001",
+      displayName: "高橋",
+    } as never);
+    setSignedOut(queryClient);
+    await waitFor(() => expect(received).toHaveLength(2));
+    expect(received).toEqual(["0193a1b2-0000-7000-8000-000000000001", null]);
+    stop();
   });
 });
