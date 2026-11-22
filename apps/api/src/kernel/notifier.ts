@@ -39,9 +39,12 @@ export type LineReplyInput = {
   text: string;
 };
 
-/** ボット情報を読んだ結果（userId は公式アカウントそのものの ID。Webhook の destination と同じ）。 */
+/**
+ * ボット情報を読んだ結果（userId は公式アカウントそのものの ID。Webhook の destination と同じ）。
+ * channelId はトークンを発行したチャネルの ID（LINE がトークンを確かめて返すもの。偽の送り手では、わからないので null）。
+ */
 export type LineBotInfoResult =
-  | { ok: true; basicId: string | null; userId: string | null }
+  | { ok: true; basicId: string | null; userId: string | null; channelId: string | null }
   | { ok: false; reason: "unauthorized" | "unreachable" };
 
 /** 友だちのプロフィールを読んだ結果（表示名だけ。読めなければ ok: false）。 */

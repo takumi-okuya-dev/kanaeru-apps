@@ -1,4 +1,4 @@
-// LINE の Messaging API の HTTP の呼び方（push・reply・ボット情報）。宛先は決まった https://api.line.me だけで、
+// LINE の Messaging API の HTTP の呼び方（push・reply・ボット情報とトークンを発行したチャネルの ID）。宛先は決まった https://api.line.me だけで、
 // 利用者の入れた値を URL に入れない（SSRF を起こさない。プロフィールの道の LINE のユーザー ID は、形を確かめてから入れる）。外へは渡された fetch で出る（テストでは差しかえ、手元とテストは呼ばない）。
 // トークン・宛先・本文をログに出さない（失敗のときも状態の番号だけ）。5秒で切る。
 import { randomUUID } from "node:crypto";
@@ -30,7 +30,7 @@ export type LineClient = {
    */
   reply(accessToken: string, replyToken: string, text: string): Promise<boolean>;
   /**
-   * ボット情報を読む。
+   * ボット情報と、トークンを発行したチャネルの ID を読む（LINE にトークンを確かめさせる）。
    * @param accessToken チャネルアクセストークン
    * @returns 結果
    */
@@ -54,6 +54,56 @@ const LINE_USER_ID = /^U[0-9a-f]{32}$/;
  * @returns 道具
  */
 export function createLineClient(fetch: typeof globalThis.fetch, logger: Logger): LineClient {
+  /**
+   * トークンを発行したチャネルの ID を、LINE にトークンを確かめさせて読む（セキュリティの全体点検 run-1）。
+   * 短期・長期のトークンは POST /v2/oauth/verify、期限を決めたトークン（v2.1）は GET /oauth2/v2.1/verify。
+   * どちらも 400 なら合わないトークン。返る client_id は「トークンを発行したチャネルの ID」（LINE の Messaging API の文書）。
+   * @param accessToken チャネルアクセストークン
+   * @returns チャネルの ID か、合わない・届かない
+   */
+  async function channelIdOf(
+    accessToken: string,
+  ): Promise<
+    { ok: true; channelId: string } | { ok: false; reason: "unauthorized" | "unreachable" }
+  > {
+    const attempts: (() => Promise<Response>)[] = [
+      () =>
+        fetch(`${LINE_API_BASE_URL}/v2/oauth/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ access_token: accessToken }).toString(),
+          signal: AbortSignal.timeout(LINE_TIMEOUT_MS),
+        }),
+      () =>
+        fetch(
+          `${LINE_API_BASE_URL}/oauth2/v2.1/verify?${new URLSearchParams({ access_token: accessToken }).toString()}`,
+          { signal: AbortSignal.timeout(LINE_TIMEOUT_MS) },
+        ),
+    ];
+    try {
+      for (const attempt of attempts) {
+        const response = await attempt();
+        if (response.status === 400) continue;
+        if (!response.ok) {
+          logger.warn({ status: response.status }, "LINE のトークンの確かめに失敗しました");
+          return { ok: false, reason: "unreachable" };
+        }
+        const body = (await response.json()) as { client_id?: unknown };
+        if (typeof body.client_id !== "string" || body.client_id === "") {
+          return { ok: false, reason: "unreachable" };
+        }
+        return { ok: true, channelId: body.client_id };
+      }
+      return { ok: false, reason: "unauthorized" };
+    } catch (error) {
+      logger.warn(
+        { errorName: error instanceof Error ? error.name : "unknown" },
+        "LINE のトークンの確かめに届きませんでした",
+      );
+      return { ok: false, reason: "unreachable" };
+    }
+  }
+
   /**
    * メッセージを送る（push・reply）。
    * @param path 道
@@ -115,10 +165,13 @@ export function createLineClient(fetch: typeof globalThis.fetch, logger: Logger)
           return { ok: false, reason: "unreachable" };
         }
         const info = (await response.json()) as { basicId?: unknown; userId?: unknown };
+        const channel = await channelIdOf(accessToken);
+        if (!channel.ok) return channel;
         return {
           ok: true,
           basicId: typeof info.basicId === "string" ? info.basicId : null,
           userId: typeof info.userId === "string" ? info.userId : null,
+          channelId: channel.channelId,
         };
       } catch (error) {
         logger.warn(
