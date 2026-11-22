@@ -130,7 +130,7 @@ sequenceDiagram
   Note over B: main.tsx が initLiff() を待ってからルーターを作る
   B->>V: POST /api/v1/…（同じ源）
   V->>A: /api（本番は同じ API の中。手元は Vite が中継）
-  Note over A: 要求の ID → 守りの見出し → 要求ごとのログ1行<br/>→ 源の確かめ（Origin が画面の源と違えば 403）<br/>→ 本文の大きさ（100KB まで）→ 回数の制限（書く操作。IP ごと・IPv6 は /64 ごと。booking の Webhook の道だけは別の高めの上限〈60秒に1200回〉で数え、booking が署名のあとに設定ごとにも数える）
+  Note over A: 要求の ID → 守りの見出し → 要求ごとのログ1行<br/>→ 源の確かめ（Origin が画面の源と違えば 403）<br/>→ 本文の大きさ（100KB まで）→ 回数の制限（書く操作。IP ごと・IPv6 は /64 ごと。booking の Webhook の道だけは別の高めの上限〈60秒に1200回〉で数え、booking が署名のあとに設定ごとにも数える。領域が `publicReadPaths` で出したログインなしで読める道は、読む要求も別の上限〈60秒に600回〉で数える。core-016）
   Note over A: アプリに属する領域の道は、組み立てが付けた suite の requireApp が<br/>app_setting の公開の状態を引く（見えなければ 404。運営者だけのアプリのときだけセッションも引く）
   Note over A: ログインが要る道は account の requireSession が<br/>クッキーの札の SHA-256 で session を引く（なければ 401 UNAUTHENTICATED）
   Note over A: 交流会ごとの権限が要る道は event の requireEventRole が<br/>event と event_staff を引く（ない交流会は 404・役目が合わなければ 403）
