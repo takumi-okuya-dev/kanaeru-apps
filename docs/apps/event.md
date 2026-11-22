@@ -23,7 +23,7 @@
 | `event_discount` | `id`・`event_id`・`name`・`amount`（円の整数）・`asks_referrer`（紹介者の名前を聞くか。既定 false）・`archived_at`（使うのをやめた時刻）・`created_at`・`updated_at` | `amount > 0`（`event_discount_amount_check`）。`event_id` は `RESTRICT`。`UNIQUE (event_id, id)`（`event_discount_event_id_id_unique`。reception の `checkin` の複合の外部キーのため）。行は消さない（外すと `archived_at`） |
 | `event_organization` | `event_id`（主キー）・`organization_id`・`owner_account_id`（入れた持ち主）・`placed_at` | 交流会を組織に入れる（1つの組織まで）。`(organization_id, owner_account_id)` は suite の `organization_member` を指す複合の外部キーで `ON DELETE CASCADE`（`event_organization_member_fk`。持ち主が組織を抜ける・外される・組織が消えると行が消える）。`event_id` は `RESTRICT`。索引 `event_organization_organization_id_idx` |
 | `staff_invite` | `id`・`event_id`・`token`・`created_at` | 交流会ごとに1行（`staff_invite_event_id_unique`）。`token` は 32 バイトの base64url で一意。作り直す・受付係を外すと、同じ行の印と時刻が替わる。期限は列に持たず、受けるときに `endOfJstDate(starts_at)` で決める |
-| `staff_invite_viewer` | `id`・`event_id`・`account_id`・`viewed_at` | 招待のリンクを主催者として見た人（交流会と人ごとに1行。`staff_invite_viewer_event_id_account_id_unique`。見る・作るたびに `viewed_at` を新しくする）。受けるとき、主催者でも受付係でもない人が、今のリンクを作った時刻より後に見ていれば `404 STAFF_INVITE_INVALID`（降格・組織から外れた・交流会が組織から外れたあと、見たリンクで受付係にならないように。作り直したリンクなら受けられる）。`account` は CASCADE、退会で消す交流会の分は退会の段が先に消す |
+| `staff_invite_viewer` | `id`・`event_id`・`account_id`・`viewed_at` | 招待のリンクを主催者として見た人（交流会と人ごとに1行。`staff_invite_viewer_event_id_account_id_unique`。見る・作るたびに `viewed_at` を新しくする）。今のリンク（作った時刻より後）を見た人のうち、もう主催者でない人（降格・組織から外れた・交流会が組織から外れた）がいれば、確かめの画面と受けるのを `404 STAFF_INVITE_INVALID` にし、受けようとしたときにリンクを作り直す（その人が別のアカウントや人にリンクを渡しても使えないように。主催者が新しいリンクを渡せば受けられる）。`account` は CASCADE、退会で消す交流会の分は退会の段が先に消す |
 
 ほかの領域は `event.id` を外部キーで参照するだけ（`eventTable` を `.references(() => eventTable.id, { onDelete: "restrict" })` にだけ使う。AD-7）。
 

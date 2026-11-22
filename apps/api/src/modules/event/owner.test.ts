@@ -454,6 +454,25 @@ describe("交流会の持ち主と組織", () => {
       expect(await (await accept(editor.cookie, next)).json()).toMatchObject({ role: "staff" });
     });
 
+    it("下げられた編集者がリンクを別のアカウントに渡しても受けられない。リンクは作り直され、確かめの画面も使えない", async () => {
+      const { editor, created, organizationId, token } = await editorSawInvite();
+      await setOrganizationRole(app, owner.cookie, organizationId, editor.account.id, "member");
+      const friend = await loginAs(app);
+      const preview = await call(app, friend.cookie, `/api/v1/staff-invites/${token}`);
+      expect(preview.status).toBe(404);
+      const refused = await accept(friend.cookie, token);
+      expect(refused.status).toBe(404);
+      expect(((await refused.json()) as ErrorBody).error.code).toBe("STAFF_INVITE_INVALID");
+      expect((await call(app, friend.cookie, `/api/v1/events/${created.id}/checkins`)).status).toBe(
+        403,
+      );
+      // リンクは作り直されたので、前の印はもう誰も使えない。主催者の今のリンクなら受けられる
+      const current = await call(app, owner.cookie, `/api/v1/events/${created.id}/staff-invite`);
+      const next = ((await current.json()) as { invite: { token: string } }).invite.token;
+      expect(next).not.toBe(token);
+      expect(await (await accept(friend.cookie, next)).json()).toMatchObject({ role: "staff" });
+    });
+
     it("組織から外された編集者も、交流会が組織から外れたあとの編集者も、見たリンクで受付係になれない", async () => {
       const removed = await editorSawInvite();
       expect(

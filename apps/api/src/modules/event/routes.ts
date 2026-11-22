@@ -18,7 +18,12 @@ import {
   unauthenticatedResponse,
 } from "../account/index.ts";
 import { listMemberships } from "../suite/index.ts";
-import { currentEventRole, requireEventRole, resolveEventAccess } from "./access.ts";
+import {
+  currentEventRole,
+  inviteSeenByFormerOrganizer,
+  requireEventRole,
+  resolveEventAccess,
+} from "./access.ts";
 import { saveDiscounts } from "./discounts.ts";
 import { generateInviteToken, isInviteToken } from "./ids.ts";
 import { getEventOrganizationState, placeEvent } from "./organization.ts";
@@ -35,7 +40,6 @@ import {
   recordInviteViewer,
   removeStaff,
   replaceInviteToken,
-  sawCurrentInvite,
   setSurveyOpen,
   updateEvent,
   upsertInvite,
@@ -598,6 +602,10 @@ export function eventRoutes(deps: DomainRouteDeps) {
     })
     .openapi(routes.previewInvite, async (c) => {
       const record = await findInvitedEvent(deps, c.req.valid("param").inviteToken);
+      // 受けるときに断るリンク（もう主催者でない人が見た）は、確かめの画面でも使えないと出す
+      if (await inviteSeenByFormerOrganizer(db, record.id)) {
+        throw new AppError(EVENT_ERRORS.STAFF_INVITE_INVALID);
+      }
       const me = currentAccount(c);
       const role = (await resolveEventAccess(db, config, record.id, me))?.role ?? null;
       // 部員は受付係ではない（受ければ受付係になる）ので、受ける前の役目は「どれでもない」
@@ -626,9 +634,11 @@ export function eventRoutes(deps: DomainRouteDeps) {
         if (Date.now() >= endOfJstDate(record.startsAt).getTime()) {
           throw new AppError(EVENT_ERRORS.STAFF_INVITE_EXPIRED);
         }
-        // 主催者のときに見たリンクで、主催者でなくなった人（降格・組織から外れた・交流会が組織から外れた）は受付係にしない。
-        // 主催者がリンクを作り直せば、新しいリンクで受けられる（受付係を外すときに作り直すのと同じ考え。SC-003・SC-004）
-        if (await sawCurrentInvite(db, record.id, me.accountId)) {
+        // 主催者のときにこのリンクを見た人が、もう主催者でない（降格・組織から外れた・交流会が組織から外れた）なら、
+        // その人が別のアカウントや人に渡せるので、リンクを作り直して断る。主催者が新しいリンクを渡せば受けられる
+        // （受付係を外すときに作り直すのと同じ考え。SC-003・SC-004）
+        if (await inviteSeenByFormerOrganizer(db, record.id)) {
+          await replaceInviteToken(db, record.id, generateInviteToken());
           throw new AppError(EVENT_ERRORS.STAFF_INVITE_INVALID);
         }
         await addStaff(db, record.id, me.accountId);

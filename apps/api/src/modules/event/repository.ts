@@ -398,30 +398,23 @@ export async function recordInviteViewer(
 }
 
 /**
- * 今の招待のリンクを、主催者として見たことがあるか（見たあとにリンクを作り直していれば、見ていないとみなす）。
+ * 今の招待のリンクを主催者として見た人（見たあとにリンクを作り直していれば、その人は入れない）。
  * @param db DB
  * @param eventId 交流会の ID
- * @param accountId 人
- * @returns 見たことがあれば true
+ * @returns 見た人の account の ID
  */
-export async function sawCurrentInvite(
-  db: Executor,
-  eventId: string,
-  accountId: string,
-): Promise<boolean> {
-  const [row] = await db
-    .select({ id: staffInviteViewer.id })
+export async function listCurrentInviteViewers(db: Executor, eventId: string): Promise<string[]> {
+  const rows = await db
+    .select({ accountId: staffInviteViewer.accountId })
     .from(staffInviteViewer)
     .innerJoin(staffInvite, eq(staffInvite.eventId, staffInviteViewer.eventId))
     .where(
       and(
         eq(staffInviteViewer.eventId, eventId),
-        eq(staffInviteViewer.accountId, accountId),
         gte(staffInviteViewer.viewedAt, staffInvite.createdAt),
       ),
-    )
-    .limit(1);
-  return row !== undefined;
+    );
+  return rows.map((row) => row.accountId);
 }
 
 /**
