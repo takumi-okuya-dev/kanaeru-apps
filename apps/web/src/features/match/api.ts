@@ -8,6 +8,9 @@ import type {
 import type { ModuleRoutes } from "../../../../api/src/client.ts";
 import { createApiClient, request } from "../../lib/api.ts";
 
+/** 試合表の中身を送るときの時間切れ（ミリ秒）。 */
+const SAVE_TIMEOUT_MS = 15_000;
+
 let client: ReturnType<typeof createApiClient<ModuleRoutes["match"]>> | undefined;
 
 /**
@@ -60,7 +63,13 @@ export function fetchTable(tableId: string) {
  * @returns 直した試合表
  */
 export function saveTable(tableId: string, input: MatchTableUpdateInput) {
-  return request(() => matchApi().tables[":tableId"].$put({ param: { tableId }, json: input }));
+  // 弱い電波で返らない送りを待ち続けない（時間切れは通信の誤りとして扱い、端末に残して送り直す。match-005）
+  return request(() =>
+    matchApi().tables[":tableId"].$put(
+      { param: { tableId }, json: input },
+      { init: { signal: AbortSignal.timeout(SAVE_TIMEOUT_MS) } },
+    ),
+  );
 }
 
 /**
@@ -169,4 +178,12 @@ export function fetchJoinInfo(joinToken: string) {
  */
 export function submitJoin(joinToken: string, input: MatchJoinInput) {
   return request(() => matchApi().joins[":joinToken"].$post({ param: { joinToken }, json: input }));
+}
+
+/**
+ * ネットなしで開く仕組みを使うか（機能の印 match.offline。ログインなし。AD-27）。
+ * @returns 使うか
+ */
+export function fetchOfflineSetting() {
+  return request(() => matchApi().offline.$get());
 }

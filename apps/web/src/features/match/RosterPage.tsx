@@ -141,7 +141,7 @@ function ImportActions({
     if (!applied) {
       setMessage({
         tone: "danger",
-        text: "試合表を読み直しています。読み直したあとで、もう一度入れてください。",
+        text: "送れなかった変更が端末に残っているため、今は入れられません。上の知らせで、捨てるか上書きするかを選んでください。",
       });
       return false;
     }

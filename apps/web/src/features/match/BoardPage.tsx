@@ -6,6 +6,7 @@
 // - 当日（match-003）：「人を選んで直す」（来なかった・来た・帰る → その人の組のこれからの試合だけを組み直す。FR-M14）・
 //   「レベルの分け方」（当日に分け方や試合の形を変えても、終わった試合はできるだけ残す。何が変わるかを先に出す）・
 //   「大きく映す」（M3）。組み直したら、画面の上に何を変えたかを出す。前の分け方で終わった試合は、下に畳んで出す
+// 「電波なしで渡す」（M4。match-005）：今の表を QR にして出し、見るだけのページのスマホがネットなしで読む（HandoffDialog）。
 // 1人ひとりの試合の数は出さない（FR-M13）。
 import { MATCH_FORMAT_LABELS, PLAYERS_PER_GAME } from "@workspace/contracts/match";
 import type {
@@ -25,6 +26,7 @@ import type { AttendanceAction } from "./day-of.ts";
 import { AttendanceDialog, RegroupDialog } from "./DayOfDialogs.tsx";
 import { formatPlayDate } from "./format.ts";
 import { GroupTabs, currentGameIndex, currentGameNumber } from "./GroupTabs.tsx";
+import { HandoffDialog } from "./HandoffDialog.tsx";
 import { MATCH_ROUTE_PATTERNS } from "./paths.ts";
 import { buildPlan, groupsOf, newSeed, presentPlayersOf } from "./plan.ts";
 import { changeSettings, groupLabelOf } from "./regroup.ts";
@@ -157,6 +159,7 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [attendanceOpen, setAttendanceOpen] = useState(false);
   const [regroupOpen, setRegroupOpen] = useState(false);
+  const [handoffOpen, setHandoffOpen] = useState(false);
   const [changeNote, setChangeNote] = useState<{ tone: "info" | "danger"; text: string }>();
   const group = groups.find((entry) => entry.key === selected) ?? groups[0];
   const plan = group ? planOf(group.key) : undefined;
@@ -183,7 +186,7 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
     if (!applied) {
       setChangeNote({
         tone: "danger",
-        text: "試合表を読み直しています。読み直したあとで、もう一度直してください。",
+        text: "送れなかった変更が端末に残っているため、今は直せません。上の知らせで、捨てるか上書きするかを選んでください。",
       });
     } else if (text) setChangeNote({ tone: "info", text });
   };
@@ -203,7 +206,7 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
         ? { tone: "info", text: "分け方と試合の形を変えて、まだの試合を組み直しました。" }
         : {
             tone: "danger",
-            text: "試合表を読み直しています。読み直したあとで、もう一度変えてください。",
+            text: "送れなかった変更が端末に残っているため、今は変えられません。上の知らせで、捨てるか上書きするかを選んでください。",
           },
     );
     const firstGroup = groupsOf({ settings: next })[0];
@@ -266,6 +269,9 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
             >
               印刷
             </Link>
+            <Button size="small" onClick={() => setHandoffOpen(true)}>
+              電波なしで渡す
+            </Button>
             <Button size="small" disabled={!editor.isEditor} onClick={() => setConfirmOpen(true)}>
               別の組み合わせにする
             </Button>
@@ -337,6 +343,14 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
       ) : null}
       {regroupOpen ? (
         <RegroupDialog open onOpenChange={setRegroupOpen} table={table} onApply={regroup} />
+      ) : null}
+      {handoffOpen ? (
+        <HandoffDialog
+          open
+          onOpenChange={setHandoffOpen}
+          table={table}
+          version={editor.expectedVersion ?? table.version}
+        />
       ) : null}
       <ConfirmDialog
         open={confirmOpen}

@@ -67,6 +67,18 @@ export const MatchViewVersion = z.object({
   version: z.number().int(),
 });
 
+/**
+ * ネットなしで開く仕組みを使うか（機能の印 match.offline。AD-27 の止め方。ログインなしで読む）。
+ * 画面は false か 404（アプリが見えない）なら Service Worker を入れず、入っているものを外す（match-005）。
+ */
+export const MatchOfflineSetting = z.object({
+  /** 使うか */
+  enabled: z.boolean(),
+});
+
+/** ネットなしで開く仕組みを使うかの型。 */
+export type MatchOfflineSetting = z.infer<typeof MatchOfflineSetting>;
+
 /** 受付のページの中身（試合表の名前と日付・選べるレベル）。 */
 export const MatchJoinInfo = z.object({
   /** 試合表の名前 */

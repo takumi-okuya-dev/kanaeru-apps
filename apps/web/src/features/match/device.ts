@@ -1,11 +1,22 @@
-// この端末の ID（担当の端末を見分ける乱数。AD-28）。端末の中（localStorage）に置き、読めない・書けないときはこの画面を開いている
-// 間だけの値にする（プライベートブラウズなど）。ネットなしで開く段（AD-27）で IndexedDB に移す【仮決め】research R5。
+// この端末の ID（担当の端末を見分ける乱数。AD-28）。端末の中（localStorage）に置き、IndexedDB にも写す（match-005）。
+// localStorage が消えて IndexedDB に残っているときは、IndexedDB の ID に戻す（syncDeviceId。試合表の道を開いたときに呼ぶ）。
+// 読めない・書けないときは、この画面を開いている間だけの値にする（プライベートブラウズなど）。
+import { offlineStore } from "./offline/store.ts";
 
 /** 置き場所の鍵。 */
 const STORAGE_KEY = "kanaeru.match.deviceId";
 
+/** IndexedDB の鍵。 */
+const META_KEY = "deviceId";
+
+/** 端末の ID の形。 */
+const DEVICE_ID_PATTERN = /^d-[a-z0-9-]{8,60}$/u;
+
 /** 読めなかったときの、この画面を開いている間だけの ID。 */
 let fallback: string | undefined;
+
+/** この画面を開いてから新しく作った ID（IndexedDB に前の ID があれば戻す）。 */
+let createdNow: string | undefined;
 
 /**
  * この端末の ID を返す（なければ作って置く）。
@@ -14,13 +25,35 @@ let fallback: string | undefined;
 export function deviceId(): string {
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored && /^d-[a-z0-9-]{8,60}$/u.test(stored)) return stored;
+    if (stored && DEVICE_ID_PATTERN.test(stored)) return stored;
     const created = `d-${crypto.randomUUID()}`;
     window.localStorage.setItem(STORAGE_KEY, created);
+    createdNow = created;
     return created;
   } catch {
     fallback ??= `d-${crypto.randomUUID()}`;
     return fallback;
+  }
+}
+
+/**
+ * 端末の ID を IndexedDB とそろえる：この画面で新しく作った ID より IndexedDB の ID を先にし、ほかは IndexedDB に写す。
+ * @returns 終わり（失敗しても投げない）
+ */
+export async function syncDeviceId(): Promise<void> {
+  try {
+    const store = await offlineStore();
+    if (!store.durable) return;
+    const saved = await store.readMeta<string>(META_KEY);
+    const current = deviceId();
+    if (saved && DEVICE_ID_PATTERN.test(saved) && saved !== current && current === createdNow) {
+      window.localStorage.setItem(STORAGE_KEY, saved);
+      createdNow = undefined;
+      return;
+    }
+    if (saved !== current) await store.writeMeta(META_KEY, current);
+  } catch {
+    // そろえられなくても、localStorage の ID で動く
   }
 }
 

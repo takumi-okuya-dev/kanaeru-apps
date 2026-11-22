@@ -1,6 +1,7 @@
 // 試合表を見せる・受け付ける窓口（match-004 contracts）。
 // - 運営（ログインと権限が要る）：見るだけの札を作り直す・受付の札を作り直す・受付を締める・受付の一覧・受付の行を消す
 // - 参加者（ログインなし。AD-26・AD-30）：見るだけのページ・その版の番号・受付のページ・受け付ける
+// - 画面（ログインなし）：ネットなしで開く仕組みを使うか（機能の印 match.offline。AD-27 の止め方。match-005）
 // ログインなしの道は、札の SHA-256 で試合表を見つけ、期限を過ぎた・締めた・ない・形の違う札はみな同じ 404 にする（あるかを漏らさない）。
 // 答えには Cache-Control: no-store と X-Robots-Tag: noindex を付ける。回数の制限は、組み立ての IP ごとの制限（状態を変える道。
 // 受け付ける POST）を使う（research R6）。アプリが見えないときの 404 は組み立ての requireApp。呼び名はログに出さない。
@@ -37,6 +38,8 @@ const MatchJoinList = contract.MatchJoinList.openapi("MatchJoinList");
 const MatchView = contract.MatchView.openapi("MatchView");
 /** 見るだけのページの版の番号。 */
 const MatchViewVersion = contract.MatchViewVersion.openapi("MatchViewVersion");
+/** ネットなしで開く仕組みを使うか。 */
+const MatchOfflineSetting = contract.MatchOfflineSetting.openapi("MatchOfflineSetting");
 /** 受付のページの中身。 */
 const MatchJoinInfo = contract.MatchJoinInfo.openapi("MatchJoinInfo");
 /** 受付の入力。 */
@@ -45,6 +48,9 @@ const MatchJoinInput = contract.MatchJoinInput.openapi("MatchJoinInput", {
 });
 /** 受け付けた答え。 */
 const MatchJoinAccepted = contract.MatchJoinAccepted.openapi("MatchJoinAccepted");
+
+/** ネットなしで開く仕組みの機能の印（設定 DOMAIN_FEATURES。既定は切。AD-27 の止め方。match-005）。 */
+export const MATCH_OFFLINE_FEATURE = "match.offline";
 
 /** 道の tableId。 */
 const TableParams = z.object({ tableId: uuidParam("tableId", "試合表の ID") });
@@ -201,6 +207,16 @@ function defineRoutes(deps: DomainRouteDeps) {
       request: { params: ViewParams },
       responses: { 200: json(MatchViewVersion, "版の番号"), 404: viewNotFoundResponse },
     }),
+    offline: createRoute({
+      method: "get",
+      path: "/api/v1/match/offline",
+      tags,
+      operationId: "matchGetOffline",
+      summary:
+        "ネットなしで開く仕組みを使うか（ログインなし。機能の印 match.offline。切なら画面は Service Worker を外す。no-store）",
+      middleware: [publicHeaders] as const,
+      responses: { 200: json(MatchOfflineSetting, "使うか") },
+    }),
     joinInfo: createRoute({
       method: "get",
       path: "/api/v1/match/joins/{joinToken}",
@@ -310,6 +326,9 @@ export function matchShareRoutes(deps: DomainRouteDeps) {
       if (version === undefined) throw new AppError(MATCH_ERRORS.VIEW_NOT_FOUND);
       return c.json({ version }, 200);
     })
+    .openapi(routes.offline, (c) =>
+      c.json({ enabled: deps.features.enabled(MATCH_OFFLINE_FEATURE) }, 200),
+    )
     .openapi(routes.joinInfo, async (c) => {
       const hash = hashOf(c.req.valid("param").joinToken);
       const target = hash ? await findJoinTarget(db, hash, new Date()) : undefined;

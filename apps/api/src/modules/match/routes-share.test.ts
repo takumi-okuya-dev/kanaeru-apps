@@ -25,6 +25,7 @@ import {
   showMatchApp,
   updateTable,
 } from "../../../test/helpers/match.ts";
+import { createDomainFeatures } from "../../kernel/features.ts";
 import { upsertVisibility } from "../suite/index.ts";
 import { matchJoin, matchTable } from "./schema.ts";
 import { tokenExpiry } from "./tokens.ts";
@@ -388,6 +389,19 @@ describe("見せる・受け付ける窓口", () => {
       await call(app, owner.cookie, `${MATCH_TABLES}/${other.id}/joins`)
     ).json()) as MatchJoinList;
     expect(list.hint).toBe(otherLink.hint);
+  });
+
+  it("ネットなしで開く仕組みを使うかは、機能の印 match.offline で決まる（ログインなし・no-store。既定は切）", async () => {
+    const off = await call(app, "", "/api/v1/match/offline");
+    expect(off.status).toBe(200);
+    expect(await off.json()).toEqual({ enabled: false });
+    expect(off.headers.get("cache-control")).toBe("no-store");
+    const on = buildApp(database, testConfig(), {
+      features: createDomainFeatures(["match.offline"]),
+    });
+    expect(await (await call(on, "", "/api/v1/match/offline")).json()).toEqual({ enabled: true });
+    await upsertVisibility(database.db, "match", "off");
+    expect((await call(on, "", "/api/v1/match/offline")).status).toBe(404);
   });
 
   it("アプリが見えない（台帳で「切」）ときは、ログインなしの道も 404", async () => {

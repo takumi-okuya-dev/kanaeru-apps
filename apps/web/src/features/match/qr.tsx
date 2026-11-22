@@ -18,12 +18,13 @@ const QUIET_ZONE = 4;
 const MIN_SCREEN_SIZE = 240;
 
 /**
- * 文字から QR の模様を作る（誤り訂正は M）。
- * @param text 入れる文字（URL）
+ * 文字から QR の模様を作る（誤り訂正は既定で M）。
+ * @param text 入れる文字（URL か、電波なしで渡す中身）
+ * @param ecc 誤り訂正（画面に大きく出す、電波なしで渡す試合表は L。match-005）
  * @returns 模様
  */
-export function qrPattern(text: string): QrPattern {
-  const { data, size } = encode(text, { ecc: "M", border: 0 });
+export function qrPattern(text: string, ecc: "L" | "M" = "M"): QrPattern {
+  const { data, size } = encode(text, { ecc, border: 0 });
   let path = "";
   data.forEach((row, y) => {
     row.forEach((dark, x) => {
@@ -63,28 +64,35 @@ export function QrGroup({
 }
 
 /**
- * QR の画像（画面に出す SVG。一辺 240px）。
- * @param props 入れる文字（text）・読み上げの名前（label）・class（className）
+ * QR の画像（画面に出す SVG。既定で一辺 240px）。
+ * @param props 入れる文字（text）・読み上げの名前（label）・class（className）・誤り訂正（ecc）・一辺（size）
  * @param props.text 入れる文字（URL）
  * @param props.label 読み上げの名前（例：「見るだけのページの QR」）
  * @param props.className 追加の class
+ * @param props.ecc 誤り訂正（既定は M）
+ * @param props.size 一辺の px（既定は 240。240 より小さくしない）
  * @returns SVG の要素
  */
 export function QrCode({
   text,
   label,
   className,
+  ecc = "M",
+  size = MIN_SCREEN_SIZE,
 }: {
   text: string;
   label: string;
   className?: string;
+  ecc?: "L" | "M";
+  size?: number;
 }) {
-  const pattern = qrPattern(text);
+  const pattern = qrPattern(text, ecc);
+  const side = Math.max(MIN_SCREEN_SIZE, size);
   return (
     <svg
       viewBox={`0 0 ${pattern.size} ${pattern.size}`}
-      width={MIN_SCREEN_SIZE}
-      height={MIN_SCREEN_SIZE}
+      width={side}
+      height={side}
       role="img"
       aria-label={label}
       data-qr-value={text}
