@@ -109,7 +109,7 @@ flowchart TB
 | 触る所 | 中身 |
 |---|---|
 | `packages/contracts/src/<領域>/` | 入出力の形（zod）と、領域のエラーの code と文言 |
-| `apps/api/src/modules/<領域>/` | 表（`schema.ts`）・読み書き（`repository.ts`）・道（`routes.ts`。`createRoute`）。入口は `index.ts` の `routes(deps)`。土台が渡すのは `db`・`logger`・`features`（機能の印）・`config`（秘密でない設定だけの `DomainConfig`）・`fetch`（外のサービスへの出口。テストでは差しかえる）と、秘密の値を使う道具（秘密の箱・定期の仕事の合言葉の確かめ・Meta のアプリ・知らせを送る道具 `notifier`）だけ。ログインが要る道は account の `requireSession(deps)` を `createRoute` の `middleware` に付け、`currentAccount(c)` で今の利用者を読む |
+| `apps/api/src/modules/<領域>/` | 表（`schema.ts`）・読み書き（`repository.ts`）・道（`routes.ts`。`createRoute`）。入口は `index.ts` の `routes(deps)`。土台が渡すのは `db`・`logger`・`features`（機能の印）・`config`（秘密でない設定だけの `DomainConfig`）・`fetch`（外のサービスへの出口。テストでは差しかえる）と、秘密の値を使う道具（秘密の箱・定期の仕事の合言葉の確かめ・Meta のアプリ・知らせを送る道具 `notifier`）だけ。ログインが要る道は account の `requireSession(deps)` を `createRoute` の `middleware` に付け、`currentAccount(c)` で今の利用者を読む。定期の仕事は `index.ts` の `scheduledJob`（間隔・時間帯・`run`）で出し、組み立てが集めて共通の窓口（`apps/api/src/platform/jobs`・`POST /api/v1/jobs/tick`。Cloud Scheduler が5分ごとに呼ぶ）に渡す。窓口はその回に当たる領域の仕事を同時に動かし、属するアプリが「切」の領域は動かさない（core-017） |
 | `apps/api/src/modules.list.ts` | 1行足す（`merge=union`。[並行開発の決まり](./rules/parallel-development.md) 3-1） |
 | `packages/contracts/src/core/apps.list.ts` | 属するアプリの1行を足すか、その行の `domains` に足す（`merge=union`。足し忘れるとテストが落ち、API は起動しない） |
 | `apps/web/src/features/<領域>/` | 画面と道（`createRoute({ getParentRoute: () => rootRoute })`）。入口は `index.ts` の `feature`（`id`・`routes`・任意で `nav`） |
