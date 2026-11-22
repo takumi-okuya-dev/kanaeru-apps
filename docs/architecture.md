@@ -1,6 +1,6 @@
 # 全体の形（アーキテクチャ）
 
-2026-11-18 作成（TypeScript の骨組み。`typescript` ブランチ）。2026-11-19 直した（core-001：見本の領域を消し、画面を API から返す形・LIFF の始め方・DB の夜間停止の 503・参加者の道と日本時間の関数・プロダクトの見た目の値を足した。account-001：アカウントとセッション・LINE のログイン・今の利用者の受け取り方を足した。event-001：交流会・受付係・招待・交流会ごとの権限・管理の画面の道とナビを足した。reception-001：チェックイン・一覧画面・合計と内訳・参加者の CSV と、選択肢のチップの部品を足した。survey-001：アンケートの回答・困りごとの一覧と CSV と、reception の差しこみの場所への節を足した。reception-002：交流会ごとの割引〈event〉と、チェックインの割引の写し・紹介者の名前〈reception〉を足した）。2026-11-20 直した（core-005：アプリの一覧と suite の台帳・組み立てが付ける `requireApp`・外枠のアプリの切り替えと設定・退会の窓口）。2026-11-20 直した（booking-002：知らせを送る道具 `platform/notify` と設定 `NOTIFY_MODE`・`NOTIFY_ALLOWLIST`）。
+2026-11-18 作成（TypeScript の骨組み。`typescript` ブランチ）。2026-11-19 直した（core-001：見本の領域を消し、画面を API から返す形・LIFF の始め方・DB の夜間停止の 503・参加者の道と日本時間の関数・プロダクトの見た目の値を足した。account-001：アカウントとセッション・LINE のログイン・今の利用者の受け取り方を足した。event-001：交流会・受付係・招待・交流会ごとの権限・管理の画面の道とナビを足した。reception-001：チェックイン・一覧画面・合計と内訳・参加者の CSV と、選択肢のチップの部品を足した。survey-001：アンケートの回答・困りごとの一覧と CSV と、reception の差しこみの場所への節を足した。reception-002：交流会ごとの割引〈event〉と、チェックインの割引の写し・紹介者の名前〈reception〉を足した）。2026-11-20 直した（core-005：アプリの一覧と suite の台帳・組み立てが付ける `requireApp`・外枠のアプリの切り替えと設定・退会の窓口）。2026-11-20 直した（booking-002：知らせを送る道具 `platform/notify` と設定 `NOTIFY_MODE`・`NOTIFY_ALLOWLIST`）。2026-11-22 直した（core-013：試合表の道は LIFF を始めずに開く）。
 
 今のシステムの形。選んだ技術の候補と目安は [技術選定の候補](./tech-selection.md)、守る決まりは [コードの書き方の決まり](./rules/coding.md) 6章。
 
@@ -127,7 +127,7 @@ sequenceDiagram
   participant A as API（Hono）
   participant D as PostgreSQL
   B->>V: GET /e/{eventId}/checkin（ファイルがなければ index.html。画面の CSP などの守りの見出しつき）
-  Note over B: main.tsx が initLiff() を待ってからルーターを作る
+  Note over B: main.tsx が initLiff() を待ってからルーターを作る（/match/… は待たない。core-013）
   B->>V: POST /api/v1/…（同じ源）
   V->>A: /api（本番は同じ API の中。手元は Vite が中継）
   Note over A: 要求の ID → 守りの見出し → 要求ごとのログ1行<br/>→ 源の確かめ（Origin が画面の源と違えば 403）<br/>→ 本文の大きさ（100KB まで）→ 回数の制限（書く操作。IP ごと・IPv6 は /64 ごと。booking の Webhook の道だけは別の高めの上限〈60秒に1200回〉で数え、booking が署名のあとに設定ごとにも数える。領域が `publicReadPaths` で出したログインなしで読める道は、読む要求も別の上限〈60秒に600回〉で数える。core-016）
@@ -162,7 +162,7 @@ sequenceDiagram
 - ページ（`lib/page.tsx` の `Page`）：題（h1）→ リード文 → 中身。ブラウザの題は「{ページの題}｜{APP_NAME}」。
 - 状態と結果の出し方は EXPERIENCE.md の型：入力の誤りは欄のそば・送った結果はボタンの近く・画面が切り替わるときだけ画面の上の知らせの帯・消す前は確かめの枠・読みこみ中と空と失敗の状態。
 - 見た目の値は `packages/ui/src/styles/tokens.css` だけ（Tailwind の初期の値は消してある）。組み立てた画面は CSP（`script-src 'self' https://static.line-scdn.net`・`style-src 'self'`。`'unsafe-inline'`・`'unsafe-eval'` なし）で動き、Base UI の部品にも `<style>` を書き足させない（`UiProvider`）。
-- 画面の入口（`main.tsx`）は、`lib/liff.ts` の `initLiff()` を待ってからルーターを作る（LIFF の init の前に URL を変えないため）。LIFF ID（組み立てのときの `VITE_LIFF_ID`）がなければ、LINE につながない仮の形（未ログイン・ID トークンなし）で動く。始められなければ「読みこめませんでした」の画面（`shell/StartupErrorPage.tsx`）を出す。
+- 画面の入口（`main.tsx`）は、`lib/liff.ts` の `initLiff()` を待ってからルーターを作る（LIFF の init の前に URL を変えないため）。LIFF ID（組み立てのときの `VITE_LIFF_ID`）がなければ、LINE につながない仮の形（未ログイン・ID トークンなし）で動く。始められなければ「読みこめませんでした」の画面（`shell/StartupErrorPage.tsx`）を出す。ただし試合表の道（`/match`・`/match/…`。見るだけ・受付・運営のどれも）は、LIFF を始めずにルーターを作る（電波がなくても開ける。AD-4 の例外。決め方は `lib/liff.ts` の `startLiffFor`・`needsLiff`。core-013）。そこでは `getLiff()` を使えない。LIFF を始めずに開いたあとで LIFF の要る道へ移るときは、道の根（`lib/router.ts` の `beforeLoad`）が同じ URL でページを読み直し、そこで LIFF を始める。
 - はじめの画面（`/`）は、この端末で最後に使ったアプリ（localStorage。見えるもの）、なければ見える最初のアプリの、最初のナビの項目へ移る（今は受付アプリの「交流会の一覧」〈`/admin/events`〉。受付係と主催者がミニアプリを開き直すと一覧に来る）。見えるアプリを読めなければ登録されたアプリから選び、見えるアプリが1つもなければ「すべてのアプリ」（`/apps`）。
 - **アプリの切り替え**（core-005。AD-15・AD-16）：見えるアプリ（suite の `useVisibleApps`。組み立てが `useShellApps` で外枠に渡す）が2つ以上のときだけ、PC はサイドバーの上のボタンとメニュー（使えるアプリ・運営者だけの札・すべてのアプリ）、スマホは上の帯の右のボタンと下から出す枠（同じ並び・すべてのアプリ・設定）。1つなら出さない。外枠はアプリの名前を書かない。今の道のアプリが見えないときは、外枠が「ページが見つかりません」を出す（窓口は API の `requireApp` が 404）。アプリの中にいるときは、そのアプリをこの端末に覚える。
 - **外枠の画面**（どのアプリにも属さない。道の `staticData.section`）：すべてのアプリ（`/apps`。ナビの項目なし）と設定（`/settings/…`。ナビは領域の `feature.settings` を「個人の設定・アプリの設定・運営（運営者だけ）」の見出しごとに並べたもの。見えないアプリの項目は出さない。スマホはタブバーを出さず、一覧の画面から入る）。入口は、PC は上の帯の右の「設定」、スマホは切り替えの枠の一番下（切り替えがないときは上の帯の右）。画面は suite の領域が持つ（地図は [apps/suite.md](./apps/suite.md)）。
