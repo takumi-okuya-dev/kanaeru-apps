@@ -1,7 +1,9 @@
 // 古い画面が、新しい版にない部品（中身の印つきの JS・CSS）を読もうとして失敗したとき、1回だけ読み直す（core-020）。
 // デプロイのあと開いたままの画面や、Cloudflare が源の失敗のあいだ出した前の画面（stale-if-error）が、
 // 道を移ったときに古い部品を読みにいき、真っ白になるのを防ぐ。Vite は読めなかったとき window に vite:preloadError を投げる。
-// 読み直しても直らないときに繰り返さないよう、1分に1回までにする（sessionStorage に時刻を残す）。
+// 読み直しても直らないときに繰り返さないよう、1分に1回までにする（sessionStorage に時刻を残す）。電波がないときは読み直さない
+// （読み直すとブラウザの「つながりません」の画面になるため）。エラーは止めない（preventDefault しない）ので、
+// 読み直すまでのあいだ、道の部品（TanStack Router）は読みこみ中のまま待つ（Vite の文書の形）。
 
 /** 前に読み直した時刻を残す場所の名前。 */
 const RELOADED_AT_KEY = "kanaeru:preload-reloaded-at";
@@ -19,6 +21,8 @@ export type PreloadErrorReloadOptions = {
   reload?: () => void;
   /** 今の時刻（ミリ秒） */
   now?: () => number;
+  /** 電波があるか（既定は navigator.onLine） */
+  isOnline?: () => boolean;
 };
 
 /**
@@ -29,17 +33,19 @@ export function installPreloadErrorReload(options: PreloadErrorReloadOptions = {
   const target = options.target ?? window;
   const reload = options.reload ?? (() => window.location.reload());
   const now = options.now ?? Date.now;
-  target.addEventListener("vite:preloadError", (event) => {
+  const isOnline = options.isOnline ?? (() => navigator.onLine);
+  target.addEventListener("vite:preloadError", () => {
+    if (!isOnline()) return;
     try {
       const storage = options.storage ?? window.sessionStorage;
-      const last = Number(storage.getItem(RELOADED_AT_KEY) ?? 0);
-      if (now() - last < RELOAD_INTERVAL_MS) return;
+      const elapsed = now() - Number(storage.getItem(RELOADED_AT_KEY) ?? 0);
+      // 時計が戻って残した時刻が先にあるときは、間を過ぎたものとみなす
+      if (elapsed >= 0 && elapsed < RELOAD_INTERVAL_MS) return;
       storage.setItem(RELOADED_AT_KEY, String(now()));
     } catch {
       // 時刻を残せないと繰り返しを止められないので、読み直さない（ふつうのエラーの画面になる）
       return;
     }
-    event.preventDefault();
     reload();
   });
 }

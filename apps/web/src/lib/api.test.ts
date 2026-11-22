@@ -91,6 +91,15 @@ describe("request", () => {
       ),
     ).catch((caught: unknown) => caught);
     expect(night).toMatchObject({ code: "DB_UNAVAILABLE", status: 503 });
+    // アプリが返す 429（操作が続いた）も、本文の印のまま
+    const limited = await request(() =>
+      Promise.resolve(
+        json(429, {
+          error: { code: "RATE_LIMITED", message: "少し止めています。", requestId: "req-1" },
+        }),
+      ),
+    ).catch((caught: unknown) => caught);
+    expect(limited).toMatchObject({ code: "RATE_LIMITED", status: 429 });
   });
 
   it("応答がなければ NetworkError で、文は通信が切れたこと", async () => {

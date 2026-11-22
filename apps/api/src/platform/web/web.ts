@@ -30,7 +30,7 @@ export const EDGE_CACHE_HEADER = "Cloudflare-CDN-Cache-Control";
 
 /**
  * 画面のもと（index.html と画面の道）の、Cloudflare 向けのキャッシュ（core-020）。毎回確かめる（max-age=0）が、
- * 源（Cloud Run）が 5xx を返す・届かないときは、前に覚えたものを1日まで出してよい（stale-if-error）。
+ * 源（Cloud Run）が 500〜504 を返したときは、前に覚えたものを1日まで出してよい（stale-if-error。Cloudflare が使う状態の番号）。
  * ブラウザ向けの Cache-Control は no-cache のまま（Cloudflare の Browser Cache TTL は、数の入った max-age を
  * 長く書きかえることがあり、デプロイのあとも古い画面を持ち続けるため）。no-cache・must-revalidate は Cloudflare に
  * 古いものを出すのを禁じるので、こちらには付けない。
