@@ -10,6 +10,18 @@ describe("csvCell", () => {
     },
   );
 
+  it("全角の ＝ ＋ － ＠ で始まる欄と、前に空白・改行がある = にも ' を足す（表計算ソフトが式として読むことがあるため）", () => {
+    for (const value of ["＝1+1", "＋1", "－1", "＠SUM(A1)", " =1+1", "\u3000=1+1", "\n=1+1"]) {
+      expect(csvCell(value).replace(/^"/, ""), JSON.stringify(value)).toMatch(/^'/);
+    }
+    expect(csvCell("＝HYPERLINK(1)")).toBe("'＝HYPERLINK(1)");
+  });
+
+  it("全角でも式の文字でなければ、そのまま", () => {
+    expect(csvCell("ＡＢＣ")).toBe("ＡＢＣ");
+    expect(csvCell("　山田")).toBe("　山田");
+  });
+
   it("途中の = は守らない", () => {
     expect(csvCell("a=1")).toBe("a=1");
   });
