@@ -17,7 +17,7 @@
 | LIFF | 試合表の道（`/match`・`/match/…`）は LIFF を始めない（AD-4 の例外。core-013）。この道の画面は `getLiff()` と、それを読む部品（account の `SessionGate` など）を使わない |
 | ネットなし | 範囲 `/match/` の Service Worker（`/match/sw.js`。機能の印 `match.offline` が入のときだけ入れる。AD-27。8章） |
 | カメラ | 試合表の道だけ Permissions-Policy で自分の源に許す（QR を読む。core-015） |
-| ホーム画面 | manifest `/match/manifest.webmanifest`（名前「kanaeru 試合表」・短い名前「試合表」・始まりと範囲 `/match/`・standalone）とアイコン（`apps/web/public/match/`。9章）。見出しのリンクは運営の画面を開いている間だけ付ける（match-007） |
+| ホーム画面 | manifest `/match/manifest.webmanifest`（名前「kanaeru 試合表」・短い名前「試合表」・始まり `/match/`・範囲 `/match`・standalone）とアイコン（`apps/web/public/match/`。9章）。見出しのリンクは運営の画面を開いている間だけ付ける（match-007） |
 
 ## 2. 表
 
@@ -74,7 +74,7 @@
 
 前に入れたレベル（`level-memory.ts`。AD-25。match-006）：中身を直す `PUT` で、account のある人のレベルが入った・前と変わったら、`match_level_memory` に書く（同じトランザクション）。覚えている持ち主は試合表を入れた組織、入れていなければ試合表の持ち主。名簿に残った account が消えていたら、その人だけ飛ばす（外部キーの違反を区切り〈savepoint〉で捨てる。保存は止めない）。受付の交流会から入れるときに読む。CSV・貼り付け・手で入れた人・QR の受付の人は覚えない。
 
-名簿を入れた受付の交流会（`reception-link.ts`。match-007）：中身を直す `PUT` で、写しの交流会が今つないでいる交流会と違えば、入れてよい交流会（受付の交流会から入れる窓口と同じ `canImportEvent`：受付アプリが見え・交流会の主催者で・持ち主が同じ）のときだけ `event_id` につなぎ、ほかは外す（送りは止めない）。一覧と試合表の答えの `receptionEvent` は、写しの名前と日時と、受付アプリで開けるか（`canOpen`：つないだ交流会が写しと同じで、今の利用者がその主催者か受付係で、受付アプリが見えるとき）。交流会が消えたら `event_id` は外部キーで空になり、`canOpen` は false（画面は「交流会は見られません」）。交流会のことは event・suite の `index.ts` からだけ読む。
+名簿を入れた受付の交流会（`reception-link.ts`。match-007）：中身を直す `PUT` で、写しの交流会が前の中身の写しと変わったら（入れた・入れ直した・外した。ふだんの直しでは確かめない）、入れてよい交流会（受付の交流会から入れる窓口と同じ `canImportEvent`：受付アプリが見え・交流会の主催者で・持ち主が同じ）のときだけ `event_id` につなぎ、ほかは外す（送りは止めない）。一覧と試合表の答えの `receptionEvent` は、写しの名前と日時と、受付アプリで開けるか（`canOpen`：つないだ交流会が写しと同じで、今の利用者がその主催者か受付係で、受付アプリが見えるとき）。交流会が消えたら `event_id` は外部キーで空になり、`canOpen` は false（画面は「交流会は見られません」）。交流会のことは event・suite の `index.ts` からだけ読む。
 
 退会の手順（`withdrawal.ts`）：account を消すトランザクションの中で、組織に入れた試合表を組織の今の管理者に引き継ぐ（持ち主を替える）。組織に入れていない試合表は外部キーで消える。確かめの中身に、引き継がれる試合表と消える試合表を分けて出す。
 
@@ -136,7 +136,7 @@
 |---|---|---|
 | アイコンの絵 | `apps/web/public/match/icon.svg`・`icon-maskable.svg` | 墨の地に白い表。名前の枠が4つずつ並んだ行のうち1行（いまの試合）を墨にし、2つ目と3つ目の間を広げて2人ずつの組を表す（競技を選ばない・文字なし）。maskable は同じ絵を 0.86 倍にして安全な円の中に収めたもの |
 | PNG | `apple-touch-icon.png`（180）・`icon-192.png`・`icon-512.png`・`icon-maskable-192.png`・`icon-maskable-512.png` | SVG から `pnpm exec tsx e2e/scripts/render-match-icons.ts` で作る（Playwright の Chromium・等倍。SVG を直したときだけ手で流す） |
-| manifest | `apps/web/public/match/manifest.webmanifest` | `id`・`start_url`・`scope` は `/match/`（Service Worker の範囲の中なので、ホーム画面から電波なしでも開く）・`display: standalone`・`theme_color` は surface・`background_color` は background（tokens.css。`home-screen.test.tsx` が見張る） |
+| manifest | `apps/web/public/match/manifest.webmanifest` | `id`・`start_url` は `/match/`（Service Worker の範囲の中なので、ホーム画面から電波なしでも開く）・`scope` は `/match`（画面の中のリンクの `/match`〈一覧〉も範囲に入れる）・`display: standalone`・`theme_color` は surface・`background_color` は background（tokens.css。`home-screen.test.tsx` が見張る） |
 | 見出しのリンク | `use-home-screen.ts`（`MatchGate` が呼ぶ）・道は `home-screen.ts` | 運営の画面を開いている間だけ manifest・`apple-touch-icon`・`apple-mobile-web-app-title` を付け、離れたら外す。ほかのアプリの道と、見るだけ・受付のページ（参加者が開く）には付けない |
-| Service Worker に持たせる | `vite.config.ts` の `scopedServiceWorker` の `publicFiles`（一覧は `home-screen.ts` の `MATCH_HOME_SCREEN_FILES`） | 束に入らない public のファイルを名指しして持つ。中身も版の印に入れる |
+| Service Worker に持たせる | `vite.config.ts` の `scopedServiceWorker` の `publicFiles`（一覧は `home-screen.ts` の `MATCH_HOME_SCREEN_FILES`） | 束に入らない public のファイルを名指しして持つ（Service Worker を置いたフォルダの下のものだけ）。中身も版の印に入れる |
 

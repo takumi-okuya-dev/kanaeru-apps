@@ -46,7 +46,7 @@
 1. **Given** 試合表の運営の画面, **Then** 見出しに manifest（`/match/manifest.webmanifest`）と iPhone のアイコン（`/match/apple-touch-icon.png`）のリンク
 2. **Given** ほかのアプリの道（すべてのアプリ・受付アプリ・設定）・参加者が開く見るだけと受付のページ, **Then** リンクは付かない
 3. **Given** Service Worker が入った, **Then** manifest とアイコンを持ち、電波がなくても返す
-4. **Given** manifest, **Then** 名前「kanaeru 試合表」・短い名前「試合表」・始まりと範囲 `/match/`・standalone・色は tokens.css の値・アイコンは 192 と 512 の any と maskable
+4. **Given** manifest, **Then** 名前「kanaeru 試合表」・短い名前「試合表」・始まり `/match/`・範囲 `/match`・standalone・色は tokens.css の値・アイコンは 192 と 512 の any と maskable
 
 ## Requirements *(mandatory)*
 

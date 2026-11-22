@@ -172,10 +172,8 @@ export type TableState = {
   editorDeviceId: string | null;
   /** 最後に受けた変更の ID */
   lastChangeId: string | null;
-  /** 今の中身（形を確かめる前の DB の値。前に入れたレベルを覚えるときに、送られた中身と比べる。match-006） */
+  /** 今の中身（形を確かめる前の DB の値。前に入れたレベルを覚えるとき・名簿を入れた交流会の写しが変わったかを、送られた中身と比べる。match-006・match-007） */
   content: unknown;
-  /** つないだ受付の交流会（中身の写しの交流会が変わったときだけ、つなぎ直す。match-007） */
-  eventId: string | null;
 };
 
 /**
@@ -194,7 +192,6 @@ export async function readTableState(
       editorDeviceId: matchTable.editorDeviceId,
       lastChangeId: matchTable.lastChangeId,
       content: matchTable.content,
-      eventId: matchTable.eventId,
     })
     .from(matchTable)
     .where(eq(matchTable.id, tableId));

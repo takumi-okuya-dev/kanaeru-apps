@@ -178,4 +178,9 @@ describe("scopedServiceWorker の publicFiles（match-007）", () => {
   it("名指しした public のファイルがなければ、組み立てを止める", () => {
     expect(() => build(["match/icon.png"])).toThrow("match/icon.png");
   });
+
+  it("範囲（置いたフォルダ）の外の public のファイルは、組み立てを止める", () => {
+    expect(() => build(["icon.png"], "png")).toThrow("範囲");
+    expect(() => build(["match/../icon.png"], "png")).toThrow("範囲");
+  });
 });

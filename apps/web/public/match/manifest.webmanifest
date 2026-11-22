@@ -6,7 +6,7 @@
   "lang": "ja",
   "dir": "ltr",
   "start_url": "/match/",
-  "scope": "/match/",
+  "scope": "/match",
   "display": "standalone",
   "theme_color": "#ffffff",
   "background_color": "#f8f7f6",

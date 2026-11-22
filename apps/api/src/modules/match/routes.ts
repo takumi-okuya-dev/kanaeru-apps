@@ -10,7 +10,7 @@
 import { randomInt } from "node:crypto";
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import * as contract from "@workspace/contracts/match";
-import { MATCH_ERRORS } from "@workspace/contracts/match";
+import { MATCH_ERRORS, MatchReceptionSource } from "@workspace/contracts/match";
 import type { Tx } from "../../kernel/db.ts";
 import { AppError, domainErrorResponse } from "../../kernel/errors.ts";
 import { invalidInputResponse, uuidParam } from "../../kernel/http.ts";
@@ -237,24 +237,30 @@ export function matchRoutes(deps: DomainRouteDeps) {
   };
 
   /**
-   * 中身の写しの交流会が、今つないでいる交流会と違えば、つなぎ直す（入れてよい交流会のときだけつなぎ、ほかは外す。
-   * 入れたあとに主催者でなくなった・交流会が消えたなどで入れてよくなくても、送りは止めない。写しは中身に残り、画面は
-   * 「交流会は見られません」と出す）。確かめてから書くまでに交流会が消えたら、外部キーで止まるので、区切りの中で書いて外す。
+   * 中身の写しの交流会が前の中身の写しと変わったら（入れた・入れ直した・外した）、つなぎ直す（入れてよい交流会のときだけ
+   * つなぎ、ほかは外す。入れてよくなくても送りは止めない。写しは中身に残り、画面は「交流会は見られません」と出す）。
+   * 写しが変わらない送り（ふだんの直し）では確かめない（つなげなかった写しを、あとでほかの人の送りでつながない）。
+   * 確かめてから書くまでに交流会が消えたら、外部キーで止まるので、区切りの中で書いて外す。
    * @param tx DB（トランザクション）
    * @param access 権限を確かめた試合表
    * @param account 今の利用者
-   * @param linkedEventId 今つないでいる交流会
+   * @param before 前の中身（形を確かめる前の DB の値）
    * @param content 受けた中身
    */
   const relinkEvent = async (
     tx: Tx,
     access: TableAccess,
     account: SessionAccount,
-    linkedEventId: string | null,
+    before: unknown,
     content: contract.MatchTableContent,
   ) => {
     const eventId = content.receptionEvent?.eventId ?? null;
-    if (eventId === linkedEventId) return;
+    const previous = MatchReceptionSource.safeParse(
+      typeof before === "object" && before !== null && "receptionEvent" in before
+        ? before.receptionEvent
+        : undefined,
+    );
+    if (eventId === (previous.success ? previous.data.eventId : null)) return;
     const allowed =
       eventId !== null && (await canImportEvent(tx, deps.config, account, eventId, access));
     try {
@@ -342,7 +348,7 @@ export function matchRoutes(deps: DomainRouteDeps) {
         // account のある人のレベルを入れた・変えたら覚える（同じ運営の次の試合表で使う。AD-25・match-006）
         await rememberLevels(tx, holderOf(locked), levelChanges(state.content, input.content));
         // 名簿を入れた受付の交流会が変わったら、つなぎ直す（match-007）
-        await relinkEvent(tx, locked, account, state.eventId, input.content);
+        await relinkEvent(tx, locked, account, state.content, input.content);
         return locked;
       });
       return c.json(await tableFor(access, account), 200);

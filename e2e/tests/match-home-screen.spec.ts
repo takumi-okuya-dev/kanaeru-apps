@@ -77,7 +77,7 @@ test("manifest とアイコンを返す（名前・始まりと範囲・standalo
     name: "kanaeru 試合表",
     short_name: "試合表",
     start_url: "/match/",
-    scope: "/match/",
+    scope: "/match",
     display: "standalone",
   });
   expect(manifest.icons.map((icon) => icon.purpose)).toContain("maskable");

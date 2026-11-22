@@ -159,8 +159,8 @@ export const RECEPTION_EVENT_NAME_MAX = 200;
  * 見るだけのページ・電波なしで渡す QR には出さない（AD-26）。
  */
 export const MatchReceptionSource = z.strictObject({
-  /** 交流会の ID */
-  eventId: z.guid(),
+  /** 交流会の ID（サーバーが返す小文字の形だけ。DB の uuid と文字で比べるため） */
+  eventId: z.guid().regex(/^[0-9a-f-]+$/u),
   /** 入れたときの交流会の名前 */
   name: z.string().min(1).max(RECEPTION_EVENT_NAME_MAX),
   /** 入れたときの交流会の始まりの日時 */

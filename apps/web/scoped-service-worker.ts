@@ -11,7 +11,7 @@
 // 開発のサーバー（vite dev）では書き出さない（Service Worker は組み立てた画面だけで動かす）。
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { Plugin } from "vite";
 
 /** 書き出す Service Worker の決め方。 */
@@ -163,7 +163,19 @@ export function scopedServiceWorker(options: ScopedServiceWorkerOptions): Plugin
     generateBundle(_output, bundle) {
       const template = readFileSync(options.template, "utf8");
       const publicFiles = options.publicFiles ?? [];
+      const scope = `${dirname(options.fileName)}/`;
+      if (publicFiles.length > 0 && !publicDir) {
+        throw new Error(
+          "Service Worker が public のファイルを持つには、Vite の publicDir が要ります。",
+        );
+      }
       const files = publicFiles.map((file) => {
+        // 範囲（置いたフォルダ）の外のファイルは、Service Worker が受け持たないので持たない
+        if (!file.startsWith(scope) || file.split("/").includes("..")) {
+          throw new Error(
+            `Service Worker が持つ public のファイル ${file} が、範囲 /${scope} の下にありません。`,
+          );
+        }
         try {
           return readFileSync(join(publicDir, file));
         } catch {

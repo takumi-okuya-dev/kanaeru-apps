@@ -74,7 +74,7 @@ describe("ホーム画面の manifest とアイコン", () => {
       name: "kanaeru 試合表",
       short_name: "試合表",
       start_url: "/match/",
-      scope: "/match/",
+      scope: "/match",
       display: "standalone",
     });
     expect(manifest.theme_color).toBe(tokenColor("surface"));

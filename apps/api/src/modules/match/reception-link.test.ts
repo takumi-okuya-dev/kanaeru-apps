@@ -1,5 +1,5 @@
 // 名簿を入れた受付の交流会（match-007）の結合のテスト（本物の PostgreSQL）：
-// 中身の写しを送ると試合表につなぐ・一覧と試合表に「どこから入れたか」と受付アプリで開けるかを返す・別の交流会から入れ直すと
+// 中身の写しを送ると試合表につなぐ（写しが変わったときだけ確かめる）・一覧と試合表に「どこから入れたか」と受付アプリで開けるかを返す・別の交流会から入れ直すと
 // 置きかわる・入れてよくない交流会はつながず送りは止めない・交流会が消えても写しを出す・開けるかは見る人ごと・受付アプリが
 // 見えなければ開けない・見るだけのページには出さない。名前はどれも架空のもの。
 import "@hono/zod-openapi";
@@ -155,6 +155,36 @@ describe("名簿を入れた受付の交流会", () => {
     expect(await linkedEventId()).toBeNull();
   });
 
+  it("組織ごとに閉じる：主催者の交流会でも、試合表と組織が違えば写しをつながない（送りは止めない）", async () => {
+    const organizationId = await setUpOrganization(app, owner.cookie, []);
+    expect((await placeEvent(app, owner.cookie, eventId, organizationId)).status).toBe(200);
+    const saved = await send(table, contentFrom(sourceOf(eventId)));
+    expect(saved.receptionEvent).toMatchObject({ eventId, canOpen: false });
+    expect(await linkedEventId()).toBeNull();
+    // 写しが変わらない、ふだんの直しでは確かめ直さない（あとで交流会を組織から戻しても、つながない）
+    expect((await placeEvent(app, owner.cookie, eventId, null)).status).toBe(200);
+    const next = await send(saved, { ...saved.content, players: [] });
+    expect(next.receptionEvent).toMatchObject({ eventId, canOpen: false });
+    expect(await linkedEventId()).toBeNull();
+  });
+
+  it("同じ変更の ID の送り直し・版の食い違い（409）では、つながりを変えない", async () => {
+    const changeId = crypto.randomUUID();
+    const first = await updateTable(app, owner.cookie, table, contentFrom(sourceOf(eventId)), {
+      changeId,
+    });
+    expect(first.status).toBe(200);
+    const otherId = (await createEvent(app, owner.cookie, { name: "12/20(日) 練習会" })).id;
+    const resent = await updateTable(app, owner.cookie, table, contentFrom(sourceOf(otherId)), {
+      changeId,
+    });
+    expect(resent.status).toBe(200);
+    expect(await linkedEventId()).toBe(eventId);
+    const stale = await updateTable(app, owner.cookie, table, contentFrom(sourceOf(otherId)));
+    expect(stale.status).toBe(409);
+    expect(await linkedEventId()).toBe(eventId);
+  });
+
   it("交流会があとで消えたら、つながりは外れ（外部キー）、写しの名前と日時は出し続ける（開けない）", async () => {
     await send(table, contentFrom(sourceOf(eventId)));
     await database.db.execute(sql`delete from event where id = ${eventId}`);
@@ -227,5 +257,8 @@ describe("名簿を入れた受付の交流会", () => {
       receptionEvent: { ...sourceOf(eventId), email: "x@example.com" },
     } as unknown as MatchTableContent;
     expect((await updateTable(app, owner.cookie, table, extra)).status).toBe(400);
+    // ID はサーバーが返す小文字の形だけ（DB の uuid と文字で比べるため）
+    const upper = contentFrom(sourceOf(eventId.toUpperCase()));
+    expect((await updateTable(app, owner.cookie, table, upper)).status).toBe(400);
   });
 });
