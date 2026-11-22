@@ -32,8 +32,10 @@ import {
   insertEvent,
   listAccessibleEvents,
   listStaff,
+  recordInviteViewer,
   removeStaff,
   replaceInviteToken,
+  sawCurrentInvite,
   setSurveyOpen,
   updateEvent,
   upsertInvite,
@@ -546,11 +548,14 @@ export function eventRoutes(deps: DomainRouteDeps) {
     .openapi(routes.getInvite, async (c) => {
       const record = await mustFindEvent(deps, c.req.valid("param").eventId);
       const invite = await findInviteByEvent(db, record.id);
+      // 主催者として見たことを残す（あとで主催者でなくなったとき、このリンクで受付係になるのを断る）
+      if (invite) await recordInviteViewer(db, record.id, currentAccount(c).accountId);
       return c.json({ invite: invite ? toInviteView(record, invite) : null }, 200);
     })
     .openapi(routes.createInvite, async (c) => {
       const record = await mustFindEvent(deps, c.req.valid("param").eventId);
       const invite = await upsertInvite(db, record.id, generateInviteToken());
+      await recordInviteViewer(db, record.id, currentAccount(c).accountId);
       return c.json(toInviteView(record, invite), 200);
     })
     .openapi(routes.listStaff, async (c) => {
@@ -620,6 +625,11 @@ export function eventRoutes(deps: DomainRouteDeps) {
       if (role !== "staff") {
         if (Date.now() >= endOfJstDate(record.startsAt).getTime()) {
           throw new AppError(EVENT_ERRORS.STAFF_INVITE_EXPIRED);
+        }
+        // 主催者のときに見たリンクで、主催者でなくなった人（降格・組織から外れた・交流会が組織から外れた）は受付係にしない。
+        // 主催者がリンクを作り直せば、新しいリンクで受けられる（受付係を外すときに作り直すのと同じ考え。SC-003・SC-004）
+        if (await sawCurrentInvite(db, record.id, me.accountId)) {
+          throw new AppError(EVENT_ERRORS.STAFF_INVITE_INVALID);
         }
         await addStaff(db, record.id, me.accountId);
       }

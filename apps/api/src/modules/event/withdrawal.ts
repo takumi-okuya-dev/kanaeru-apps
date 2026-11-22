@@ -8,7 +8,14 @@ import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { Executor } from "../../kernel/db.ts";
 import type { WithdrawalStep } from "../../kernel/withdrawal.ts";
 import { adminAfterWithdrawal, findOrganization, findOrganizationAdmin } from "../suite/index.ts";
-import { event, eventDiscount, eventOrganization, eventStaff, staffInvite } from "./schema.ts";
+import {
+  event,
+  eventDiscount,
+  eventOrganization,
+  eventStaff,
+  staffInvite,
+  staffInviteViewer,
+} from "./schema.ts";
 
 /**
  * 組織に入れている交流会を、組織の今の管理者に引き継ぐ（管理者が退会する人のまま・いなければ何もしない）。
@@ -58,7 +65,7 @@ export async function listPersonalEventIds(
 }
 
 /**
- * 組織に入れていない交流会を、子の行（受付係・招待のリンク・割引）ごと消す。
+ * 組織に入れていない交流会を、子の行（受付係・招待のリンクとそれを見た人・割引）ごと消す。
  * チェックインがある交流会は、外部キーで止まる（投げた誤りは account の窓口が 409 にする）。
  * @param tx account を消すトランザクション
  * @param accountId 退会する人
@@ -68,6 +75,7 @@ async function deletePersonalEvents(tx: Executor, accountId: string): Promise<vo
   const ids = await listPersonalEventIds(tx, accountId, true);
   if (ids.length === 0) return;
   await tx.delete(eventStaff).where(inArray(eventStaff.eventId, ids));
+  await tx.delete(staffInviteViewer).where(inArray(staffInviteViewer.eventId, ids));
   await tx.delete(staffInvite).where(inArray(staffInvite.eventId, ids));
   await tx.delete(eventDiscount).where(inArray(eventDiscount.eventId, ids));
   await tx.delete(event).where(inArray(event.id, ids));

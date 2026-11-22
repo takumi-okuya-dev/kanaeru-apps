@@ -1,4 +1,4 @@
-// 交流会の領域の表（docs/apps/event.md）。event・event_staff・staff_invite・event_discount は event の領域だけが持つ（AD-3）。
+// 交流会の領域の表（docs/apps/event.md）。event・event_staff・staff_invite・staff_invite_viewer・event_discount は event の領域だけが持つ（AD-3）。
 // 主キーは uuid（uuidv7()）、時刻は timestamptz（docs/rules/coding.md 6-4）。金額は円の整数。
 // event を指す外部キーは RESTRICT（交流会を消すのは退会の段だけで、子の行を先に消す）。受付係の account は CASCADE（本人のデータ。AD-7）。
 // 持ち主（event.owner_account_id）と組織に入れる（event_organization）は event-002（AD-23）。
@@ -91,6 +91,33 @@ export const staffInvite = pgTable(
   (table) => [
     uniqueIndex("staff_invite_event_id_unique").on(table.eventId),
     uniqueIndex("staff_invite_token_unique").on(table.token),
+  ],
+);
+
+/**
+ * 招待のリンクを主催者として見た人と、見た時刻（交流会と人ごとに1行。見るたびに時刻を新しくする）。
+ * 組織の管理者・編集者は、交流会の主催者として招待のリンクを見られる。降格・組織から外れる・交流会が組織から外れるなどで
+ * 主催者でなくなった人が、主催者のときに見たリンク（見たあとに作り直していないもの）で受付係になるのを断るために使う。
+ */
+export const staffInviteViewer = pgTable(
+  "staff_invite_viewer",
+  {
+    id: primaryId(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => event.id, { onDelete: "restrict" }),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accountTable.id, { onDelete: "cascade" }),
+    /** 最後に見た時刻 */
+    viewedAt: timestamptz("viewed_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("staff_invite_viewer_event_id_account_id_unique").on(
+      table.eventId,
+      table.accountId,
+    ),
+    index("staff_invite_viewer_account_id_idx").on(table.accountId),
   ],
 );
 

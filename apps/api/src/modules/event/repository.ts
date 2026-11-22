@@ -3,7 +3,7 @@
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import type { Executor } from "../../kernel/db.ts";
-import { event, eventOrganization, eventStaff, staffInvite } from "./schema.ts";
+import { event, eventOrganization, eventStaff, staffInvite, staffInviteViewer } from "./schema.ts";
 
 /** 交流会の行（読み出す形）。 */
 export type EventRecord = typeof event.$inferSelect;
@@ -375,6 +375,53 @@ export async function replaceInviteToken(
     .where(eq(staffInvite.eventId, eventId))
     .returning({ id: staffInvite.id });
   return rows.length > 0;
+}
+
+/**
+ * 招待のリンクを主催者として見たことを残す（見るたびに時刻を新しくする）。
+ * @param db DB
+ * @param eventId 交流会の ID
+ * @param accountId 見た人
+ */
+export async function recordInviteViewer(
+  db: Executor,
+  eventId: string,
+  accountId: string,
+): Promise<void> {
+  await db
+    .insert(staffInviteViewer)
+    .values({ eventId, accountId })
+    .onConflictDoUpdate({
+      target: [staffInviteViewer.eventId, staffInviteViewer.accountId],
+      set: { viewedAt: sql`now()` },
+    });
+}
+
+/**
+ * 今の招待のリンクを、主催者として見たことがあるか（見たあとにリンクを作り直していれば、見ていないとみなす）。
+ * @param db DB
+ * @param eventId 交流会の ID
+ * @param accountId 人
+ * @returns 見たことがあれば true
+ */
+export async function sawCurrentInvite(
+  db: Executor,
+  eventId: string,
+  accountId: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: staffInviteViewer.id })
+    .from(staffInviteViewer)
+    .innerJoin(staffInvite, eq(staffInvite.eventId, staffInviteViewer.eventId))
+    .where(
+      and(
+        eq(staffInviteViewer.eventId, eventId),
+        eq(staffInviteViewer.accountId, accountId),
+        gte(staffInviteViewer.viewedAt, staffInvite.createdAt),
+      ),
+    )
+    .limit(1);
+  return row !== undefined;
 }
 
 /**
