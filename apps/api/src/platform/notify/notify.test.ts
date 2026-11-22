@@ -134,16 +134,22 @@ describe("偽の送り手（手元とテスト）", () => {
       ok: true,
       basicId: "@fake",
       userId: `U${"f".repeat(32)}`,
+      channelId: null,
     });
     expect(await notifier.getLineBotInfo("invalid-token-xxxxxxxxxxxx")).toEqual({
       ok: false,
       reason: "unauthorized",
     });
     // otherbot で始まるトークンは別の公式アカウント（アクセストークンだけの入れ直しで替わったときを試す）
+    expect(await notifier.getLineBotInfo("otherchannel-token-xxxxxxx")).toMatchObject({
+      ok: true,
+      channelId: "9999999999",
+    });
     expect(await notifier.getLineBotInfo("otherbot-token-xxxxxxxxxxx")).toEqual({
       ok: true,
       basicId: "@fake2",
       userId: `U${"e".repeat(32)}`,
+      channelId: null,
     });
     expect(await notifier.getLineProfile(TOKEN, LINE_USER)).toEqual({
       ok: true,
@@ -237,13 +243,16 @@ describe("本物の送り手（staging・production）", () => {
   });
 
   it("ボット情報：200 はベーシック ID・401 は合わない・ほかと届かないは unreachable", async () => {
-    const ok = fakeFetch(() =>
-      Response.json({ userId: "Uxxx", basicId: "@abc1234", displayName: "飲食チーム" }),
+    const ok = fakeFetch(({ url }) =>
+      url.endsWith("/v2/oauth/verify")
+        ? Response.json({ client_id: "1234567890", expires_in: 100, scope: "P" })
+        : Response.json({ userId: "Uxxx", basicId: "@abc1234", displayName: "飲食チーム" }),
     );
     expect(await build({ mode: "off" }, ok.fetch).notifier.getLineBotInfo(TOKEN)).toEqual({
       ok: true,
       basicId: "@abc1234",
       userId: "Uxxx",
+      channelId: "1234567890",
     });
     expect(ok.calls[0]?.url).toBe("https://api.line.me/v2/bot/info");
     expect(new Headers(ok.calls[0]?.init.headers).get("authorization")).toBe(`Bearer ${TOKEN}`);
@@ -254,6 +263,41 @@ describe("本物の送り手（staging・production）", () => {
     });
     const down = fakeFetch(() => new Response("{}", { status: 503 }));
     expect(await build({}, down.fetch).notifier.getLineBotInfo(TOKEN)).toEqual({
+      ok: false,
+      reason: "unreachable",
+    });
+  });
+
+  it("ボット情報のチャネルの ID：短期・長期のトークンの確かめが 400 なら v2.1 の確かめを使い、どちらも 400 なら合わない。トークンを URL・ログに出さない", async () => {
+    const v21 = fakeFetch(({ url }) => {
+      if (url.endsWith("/v2/bot/info")) return Response.json({ userId: "Uxxx", basicId: "@a" });
+      if (url.endsWith("/v2/oauth/verify")) return new Response("{}", { status: 400 });
+      return Response.json({ client_id: "2222222222", expires_in: 100 });
+    });
+    const built = build({}, v21.fetch);
+    expect(await built.notifier.getLineBotInfo(TOKEN)).toMatchObject({
+      ok: true,
+      channelId: "2222222222",
+    });
+    expect(v21.calls[1]?.init.method).toBe("POST");
+    expect(v21.calls[1]?.init.body).toBe(`access_token=${TOKEN}`);
+    expect(v21.calls[2]?.url).toContain("https://api.line.me/oauth2/v2.1/verify?access_token=");
+    expect(built.log.text()).not.toContain(TOKEN);
+    const bothBad = fakeFetch(({ url }) =>
+      url.endsWith("/v2/bot/info")
+        ? Response.json({ userId: "Uxxx" })
+        : new Response("{}", { status: 400 }),
+    );
+    expect(await build({}, bothBad.fetch).notifier.getLineBotInfo(TOKEN)).toEqual({
+      ok: false,
+      reason: "unauthorized",
+    });
+    const verifyDown = fakeFetch(({ url }) =>
+      url.endsWith("/v2/bot/info")
+        ? Response.json({ userId: "Uxxx" })
+        : new Response("{}", { status: 500 }),
+    );
+    expect(await build({}, verifyDown.fetch).notifier.getLineBotInfo(TOKEN)).toEqual({
       ok: false,
       reason: "unreachable",
     });

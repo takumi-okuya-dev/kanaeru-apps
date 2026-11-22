@@ -23,6 +23,12 @@ const FAKE_OTHER_BOT_TOKEN_PREFIX = "otherbot";
 /** 偽の送り手の、別の公式アカウントのボットの userId とベーシック ID。 */
 const FAKE_OTHER_BOT = { basicId: "@fake2", userId: `U${"e".repeat(32)}` };
 
+/** 偽の送り手で、別のチャネルが発行したとみなすトークンの頭（チャネル ID の照らし合わせを試すため）。 */
+export const FAKE_OTHER_CHANNEL_TOKEN_PREFIX = "otherchannel";
+
+/** 偽の送り手の、別のチャネルの ID。 */
+export const FAKE_OTHER_CHANNEL_ID = "9999999999";
+
 /** 偽の送り手の友だちの表示名。 */
 export const FAKE_PROFILE_NAME = "LINE の友だち";
 
@@ -97,10 +103,14 @@ export function createNotifier(deps: NotifierDeps): Notifier {
         if (accessToken.startsWith(FAKE_INVALID_TOKEN_PREFIX)) {
           return Promise.resolve({ ok: false, reason: "unauthorized" });
         }
+        // 偽の送り手はチャネルの ID がわからない（null）。別のチャネルとみなすトークンだけ、決まった別の ID を返す
+        const channelId = accessToken.startsWith(FAKE_OTHER_CHANNEL_TOKEN_PREFIX)
+          ? FAKE_OTHER_CHANNEL_ID
+          : null;
         return Promise.resolve(
           accessToken.startsWith(FAKE_OTHER_BOT_TOKEN_PREFIX)
-            ? { ok: true, ...FAKE_OTHER_BOT }
-            : { ok: true, basicId: FAKE_BASIC_ID, userId: FAKE_BOT_USER_ID },
+            ? { ok: true, ...FAKE_OTHER_BOT, channelId }
+            : { ok: true, basicId: FAKE_BASIC_ID, userId: FAKE_BOT_USER_ID, channelId },
         );
       }
       return line.botInfo(accessToken);
