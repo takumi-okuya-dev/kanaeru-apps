@@ -18,7 +18,12 @@ import {
   unauthenticatedResponse,
 } from "../account/index.ts";
 import { listMemberships } from "../suite/index.ts";
-import { currentEventRole, requireEventRole, resolveEventAccess } from "./access.ts";
+import {
+  currentEventRole,
+  inviteSeenByFormerOrganizer,
+  requireEventRole,
+  resolveEventAccess,
+} from "./access.ts";
 import { saveDiscounts } from "./discounts.ts";
 import { generateInviteToken, isInviteToken } from "./ids.ts";
 import { getEventOrganizationState, placeEvent } from "./organization.ts";
@@ -32,6 +37,7 @@ import {
   insertEvent,
   listAccessibleEvents,
   listStaff,
+  recordInviteViewer,
   removeStaff,
   replaceInviteToken,
   setSurveyOpen,
@@ -545,12 +551,19 @@ export function eventRoutes(deps: DomainRouteDeps) {
     })
     .openapi(routes.getInvite, async (c) => {
       const record = await mustFindEvent(deps, c.req.valid("param").eventId);
+      // もう主催者でない人が見たリンクなら、主催者に渡す前に作り直す（受ける人の確かめの画面で使えないままにしない）
+      if (await inviteSeenByFormerOrganizer(db, record.id)) {
+        await replaceInviteToken(db, record.id, generateInviteToken());
+      }
       const invite = await findInviteByEvent(db, record.id);
+      // 主催者として見たことを残す（あとで主催者でなくなったとき、このリンクで受付係になるのを断る）
+      if (invite) await recordInviteViewer(db, record.id, currentAccount(c).accountId);
       return c.json({ invite: invite ? toInviteView(record, invite) : null }, 200);
     })
     .openapi(routes.createInvite, async (c) => {
       const record = await mustFindEvent(deps, c.req.valid("param").eventId);
       const invite = await upsertInvite(db, record.id, generateInviteToken());
+      await recordInviteViewer(db, record.id, currentAccount(c).accountId);
       return c.json(toInviteView(record, invite), 200);
     })
     .openapi(routes.listStaff, async (c) => {
@@ -595,6 +608,16 @@ export function eventRoutes(deps: DomainRouteDeps) {
       const record = await findInvitedEvent(deps, c.req.valid("param").inviteToken);
       const me = currentAccount(c);
       const role = (await resolveEventAccess(db, config, record.id, me))?.role ?? null;
+      // 受けるときに断るリンク（もう主催者でない人が見た）は、確かめの画面でも使えないと出し、作り直す
+      // （主催者・受付係はそのまま通すので、確かめの画面でも今の役目を出す）
+      if (
+        role !== "organizer" &&
+        role !== "staff" &&
+        (await inviteSeenByFormerOrganizer(db, record.id))
+      ) {
+        await replaceInviteToken(db, record.id, generateInviteToken());
+        throw new AppError(EVENT_ERRORS.STAFF_INVITE_INVALID);
+      }
       // 部員は受付係ではない（受ければ受付係になる）ので、受ける前の役目は「どれでもない」
       const myRole = role === "organizer" || role === "staff" ? role : null;
       const expiresAt = endOfJstDate(record.startsAt);
@@ -620,6 +643,13 @@ export function eventRoutes(deps: DomainRouteDeps) {
       if (role !== "staff") {
         if (Date.now() >= endOfJstDate(record.startsAt).getTime()) {
           throw new AppError(EVENT_ERRORS.STAFF_INVITE_EXPIRED);
+        }
+        // 主催者のときにこのリンクを見た人が、もう主催者でない（降格・組織から外れた・交流会が組織から外れた）なら、
+        // その人が別のアカウントや人に渡せるので、リンクを作り直して断る。主催者が新しいリンクを渡せば受けられる
+        // （受付係を外すときに作り直すのと同じ考え。SC-003・SC-004）
+        if (await inviteSeenByFormerOrganizer(db, record.id)) {
+          await replaceInviteToken(db, record.id, generateInviteToken());
+          throw new AppError(EVENT_ERRORS.STAFF_INVITE_INVALID);
         }
         await addStaff(db, record.id, me.accountId);
       }

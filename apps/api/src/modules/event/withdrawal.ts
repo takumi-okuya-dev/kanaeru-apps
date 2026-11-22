@@ -4,11 +4,19 @@
 //   外部キー（RESTRICT）で DB が止め、account の退会の窓口が 409 ACCOUNT_OWNS_SHARED_RECORDS を返す（research R2）
 // - どちらも account を消すトランザクションの中（finalize）で行う。409 のときは引き継ぎも元に戻る（research R3）
 // - suite の表には書かない（管理者は suite の index.ts から読むだけ）。reception の表は読まない
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import type { Executor } from "../../kernel/db.ts";
 import type { WithdrawalStep } from "../../kernel/withdrawal.ts";
+import { generateInviteToken } from "./ids.ts";
 import { adminAfterWithdrawal, findOrganization, findOrganizationAdmin } from "../suite/index.ts";
-import { event, eventDiscount, eventOrganization, eventStaff, staffInvite } from "./schema.ts";
+import {
+  event,
+  eventDiscount,
+  eventOrganization,
+  eventStaff,
+  staffInvite,
+  staffInviteViewer,
+} from "./schema.ts";
 
 /**
  * 組織に入れている交流会を、組織の今の管理者に引き継ぐ（管理者が退会する人のまま・いなければ何もしない）。
@@ -58,7 +66,7 @@ export async function listPersonalEventIds(
 }
 
 /**
- * 組織に入れていない交流会を、子の行（受付係・招待のリンク・割引）ごと消す。
+ * 組織に入れていない交流会を、子の行（受付係・招待のリンクとそれを見た人・割引）ごと消す。
  * チェックインがある交流会は、外部キーで止まる（投げた誤りは account の窓口が 409 にする）。
  * @param tx account を消すトランザクション
  * @param accountId 退会する人
@@ -68,9 +76,35 @@ async function deletePersonalEvents(tx: Executor, accountId: string): Promise<vo
   const ids = await listPersonalEventIds(tx, accountId, true);
   if (ids.length === 0) return;
   await tx.delete(eventStaff).where(inArray(eventStaff.eventId, ids));
+  await tx.delete(staffInviteViewer).where(inArray(staffInviteViewer.eventId, ids));
   await tx.delete(staffInvite).where(inArray(staffInvite.eventId, ids));
   await tx.delete(eventDiscount).where(inArray(eventDiscount.eventId, ids));
   await tx.delete(event).where(inArray(event.id, ids));
+}
+
+/**
+ * 退会する人が主催者として見た今の招待のリンクを作り直す（見た記録はアカウントと一緒に消えるので、
+ * その人が渡したリンクを、退会のあとも使えるままにしないため）。
+ * @param tx account を消すトランザクション
+ * @param accountId 退会する人
+ */
+async function rotateInvitesSeenBy(tx: Executor, accountId: string): Promise<void> {
+  const seen = await tx
+    .select({ eventId: staffInvite.eventId })
+    .from(staffInviteViewer)
+    .innerJoin(staffInvite, eq(staffInvite.eventId, staffInviteViewer.eventId))
+    .where(
+      and(
+        eq(staffInviteViewer.accountId, accountId),
+        gte(staffInviteViewer.viewedAt, staffInvite.createdAt),
+      ),
+    );
+  for (const { eventId } of seen) {
+    await tx
+      .update(staffInvite)
+      .set({ token: generateInviteToken(), createdAt: sql`now()` })
+      .where(eq(staffInvite.eventId, eventId));
+  }
 }
 
 /** event の退会の手順。 */
@@ -86,6 +120,7 @@ export const eventWithdrawal: WithdrawalStep = {
    * @param accountId 退会する人
    */
   finalize: async (tx, accountId) => {
+    await rotateInvitesSeenBy(tx, accountId);
     await handOverPlacedEvents(tx, accountId);
     await deletePersonalEvents(tx, accountId);
   },

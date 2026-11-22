@@ -3,7 +3,7 @@
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import type { Executor } from "../../kernel/db.ts";
-import { event, eventOrganization, eventStaff, staffInvite } from "./schema.ts";
+import { event, eventOrganization, eventStaff, staffInvite, staffInviteViewer } from "./schema.ts";
 
 /** 交流会の行（読み出す形）。 */
 export type EventRecord = typeof event.$inferSelect;
@@ -375,6 +375,46 @@ export async function replaceInviteToken(
     .where(eq(staffInvite.eventId, eventId))
     .returning({ id: staffInvite.id });
   return rows.length > 0;
+}
+
+/**
+ * 招待のリンクを主催者として見たことを残す（見るたびに時刻を新しくする）。
+ * @param db DB
+ * @param eventId 交流会の ID
+ * @param accountId 見た人
+ */
+export async function recordInviteViewer(
+  db: Executor,
+  eventId: string,
+  accountId: string,
+): Promise<void> {
+  await db
+    .insert(staffInviteViewer)
+    .values({ eventId, accountId })
+    .onConflictDoUpdate({
+      target: [staffInviteViewer.eventId, staffInviteViewer.accountId],
+      set: { viewedAt: sql`now()` },
+    });
+}
+
+/**
+ * 今の招待のリンクを主催者として見た人（見たあとにリンクを作り直していれば、その人は入れない）。
+ * @param db DB
+ * @param eventId 交流会の ID
+ * @returns 見た人の account の ID
+ */
+export async function listCurrentInviteViewers(db: Executor, eventId: string): Promise<string[]> {
+  const rows = await db
+    .select({ accountId: staffInviteViewer.accountId })
+    .from(staffInviteViewer)
+    .innerJoin(staffInvite, eq(staffInvite.eventId, staffInviteViewer.eventId))
+    .where(
+      and(
+        eq(staffInviteViewer.eventId, eventId),
+        gte(staffInviteViewer.viewedAt, staffInvite.createdAt),
+      ),
+    );
+  return rows.map((row) => row.accountId);
 }
 
 /**

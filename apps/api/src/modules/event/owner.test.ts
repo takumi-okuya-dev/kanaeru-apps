@@ -408,6 +408,113 @@ describe("交流会の持ち主と組織", () => {
     });
   });
 
+  describe("主催者でなくなった人と、主催者のときに見た招待のリンク", () => {
+    /**
+     * 組織の編集者が招待のリンクを見たところまで進める。
+     * @returns 編集者・交流会・組織・編集者が見た印
+     */
+    async function editorSawInvite() {
+      const editor = await loginAs(app);
+      const created = await createEvent(app, owner.cookie);
+      const organizationId = await organizationWith([{ person: editor, role: "editor" }]);
+      await placeEvent(app, owner.cookie, created.id, organizationId);
+      await call(app, owner.cookie, `/api/v1/events/${created.id}/staff-invite`, "POST");
+      const seen = await call(app, editor.cookie, `/api/v1/events/${created.id}/staff-invite`);
+      const token = ((await seen.json()) as { invite: { token: string } }).invite.token;
+      return { editor, created, organizationId, token };
+    }
+
+    /**
+     * 招待を受ける。
+     * @param cookie クッキー
+     * @param token 印
+     * @returns 応答
+     */
+    function accept(cookie: string, token: string) {
+      return call(app, cookie, `/api/v1/staff-invites/${token}/accept`, "POST");
+    }
+
+    it("メンバーに下げられた編集者は、見たリンクで受付係になれない（404 STAFF_INVITE_INVALID）。作り直したリンクなら受けられる", async () => {
+      const { editor, created, organizationId, token } = await editorSawInvite();
+      await setOrganizationRole(app, owner.cookie, organizationId, editor.account.id, "member");
+      const refused = await accept(editor.cookie, token);
+      expect(refused.status).toBe(404);
+      expect(((await refused.json()) as ErrorBody).error.code).toBe("STAFF_INVITE_INVALID");
+      expect((await call(app, editor.cookie, `/api/v1/events/${created.id}/checkins`)).status).toBe(
+        403,
+      );
+
+      const fresh = await call(
+        app,
+        owner.cookie,
+        `/api/v1/events/${created.id}/staff-invite`,
+        "POST",
+      );
+      const next = ((await fresh.json()) as { token: string }).token;
+      expect(await (await accept(editor.cookie, next)).json()).toMatchObject({ role: "staff" });
+    });
+
+    it("下げられた編集者がリンクを別のアカウントに渡しても受けられない。リンクは作り直され、確かめの画面も使えない", async () => {
+      const { editor, created, organizationId, token } = await editorSawInvite();
+      await setOrganizationRole(app, owner.cookie, organizationId, editor.account.id, "member");
+      const friend = await loginAs(app);
+      const preview = await call(app, friend.cookie, `/api/v1/staff-invites/${token}`);
+      expect(preview.status).toBe(404);
+      const refused = await accept(friend.cookie, token);
+      expect(refused.status).toBe(404);
+      expect(((await refused.json()) as ErrorBody).error.code).toBe("STAFF_INVITE_INVALID");
+      expect((await call(app, friend.cookie, `/api/v1/events/${created.id}/checkins`)).status).toBe(
+        403,
+      );
+      // 確かめの画面と受けるので、リンクは作り直された。前の印はもう誰も使えない。主催者の今のリンクなら受けられる
+      const current = await call(app, owner.cookie, `/api/v1/events/${created.id}/staff-invite`);
+      const next = ((await current.json()) as { invite: { token: string } }).invite.token;
+      expect(next).not.toBe(token);
+      expect(await (await accept(friend.cookie, next)).json()).toMatchObject({ role: "staff" });
+    });
+
+    it("主催者がリンクを開くと、もう主催者でない人が見たリンクは作り直されて渡る（受ける人の確かめの画面で使える）", async () => {
+      const { editor, created, organizationId, token } = await editorSawInvite();
+      await setOrganizationRole(app, owner.cookie, organizationId, editor.account.id, "member");
+      const reopened = await call(app, owner.cookie, `/api/v1/events/${created.id}/staff-invite`);
+      const next = ((await reopened.json()) as { invite: { token: string } }).invite.token;
+      expect(next).not.toBe(token);
+      const friend = await loginAs(app);
+      expect((await call(app, friend.cookie, `/api/v1/staff-invites/${next}`)).status).toBe(200);
+      expect((await call(app, friend.cookie, `/api/v1/staff-invites/${token}`)).status).toBe(404);
+    });
+
+    it("見た人が退会すると、そのリンクは作り直される（見た記録が消えて、渡したリンクが使えるままにならない）", async () => {
+      const { editor, created, token } = await editorSawInvite();
+      expect((await call(app, editor.cookie, "/api/v1/accounts/me", "DELETE")).status).toBe(204);
+      const friend = await loginAs(app);
+      expect((await accept(friend.cookie, token)).status).toBe(404);
+      const current = await call(app, owner.cookie, `/api/v1/events/${created.id}/staff-invite`);
+      expect(((await current.json()) as { invite: { token: string } }).invite.token).not.toBe(
+        token,
+      );
+    });
+
+    it("組織から外された編集者も、交流会が組織から外れたあとの編集者も、見たリンクで受付係になれない", async () => {
+      const removed = await editorSawInvite();
+      expect(
+        (
+          await call(
+            app,
+            owner.cookie,
+            `/api/v1/suite/organizations/${removed.organizationId}/members/${removed.editor.account.id}`,
+            "DELETE",
+          )
+        ).status,
+      ).toBe(204);
+      expect((await accept(removed.editor.cookie, removed.token)).status).toBe(404);
+
+      const unplaced = await editorSawInvite();
+      expect((await placeEvent(app, owner.cookie, unplaced.created.id, null)).status).toBe(200);
+      expect((await accept(unplaced.editor.cookie, unplaced.token)).status).toBe(404);
+    });
+  });
+
   it("受付係のチェックインは組織と関係なく今のまま使える", async () => {
     const created = await createEvent(app, owner.cookie);
     const staff = await makeStaff(app, owner.cookie, created.id);

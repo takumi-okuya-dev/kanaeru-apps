@@ -16,7 +16,7 @@ import { currentAccount, isOrganizer } from "../account/index.ts";
 import type { SessionAccount } from "../account/index.ts";
 import { findMembership } from "../suite/index.ts";
 import { isUuid } from "./ids.ts";
-import { claimLegacyEvents, findEventAccessRow } from "./repository.ts";
+import { claimLegacyEvents, findEventAccessRow, listCurrentInviteViewers } from "./repository.ts";
 
 /** 文脈に今の役目を置く名前（event の中だけ。ほかの領域は currentEventRole で読む）。 */
 const CONTEXT_KEY = "event.role";
@@ -71,6 +71,28 @@ export async function resolveEventAccess(
   if (row.isStaff) return { ...base, role: "staff" };
   if (membership) return { ...base, role: "member" };
   return { ...base, role: null };
+}
+
+/**
+ * 今の招待のリンクを主催者として見た人のうち、もう主催者でない人がいるか（降格・組織から外れた・交流会が組織から外れた）。
+ * いれば、そのリンクはその人が別のアカウントや人に渡せるので、もう使わせない（受付係を外すときに作り直すのと同じ考え）。
+ * 見た人は数人なので、1人ずつ今の役目を引く。
+ * @param db DB
+ * @param eventId 交流会の ID
+ * @returns もう主催者でない人が見ていれば true
+ */
+export async function inviteSeenByFormerOrganizer(db: Executor, eventId: string): Promise<boolean> {
+  for (const accountId of await listCurrentInviteViewers(db, eventId)) {
+    const row = await findEventAccessRow(db, eventId, accountId);
+    if (!row) return false;
+    if (row.ownerAccountId === accountId) continue;
+    const membership = row.organizationId
+      ? await findMembership(db, row.organizationId, accountId)
+      : null;
+    if (membership?.role === "admin" || membership?.role === "editor") continue;
+    return true;
+  }
+  return false;
 }
 
 /**
