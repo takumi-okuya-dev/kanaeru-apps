@@ -6,9 +6,13 @@ import {
   matchBigRoute,
   matchBoardRoute,
   matchCreateRoute,
+  matchJoinAdminRoute,
+  matchJoinRoute,
   matchListRoute,
   matchPrintRoute,
   matchRosterRoute,
+  matchViewLinkRoute,
+  matchViewRoute,
 } from "./routes.ts";
 
 /**
@@ -24,6 +28,10 @@ export const feature = {
     matchBoardRoute,
     matchPrintRoute,
     matchBigRoute,
+    matchViewLinkRoute,
+    matchJoinAdminRoute,
+    matchViewRoute,
+    matchJoinRoute,
   ],
   useNavItems: useMatchNavItems,
 } satisfies WebFeature;

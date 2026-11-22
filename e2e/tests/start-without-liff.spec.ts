@@ -3,7 +3,8 @@
 // E2E は LIFF ID がない（仮の LIFF）ので、LIFF の失敗そのものは単体のテスト（lib/liff.test.ts）で確かめ、ここでは
 // 組み立てた画面で「試合表の道はルーターが動く」「そこから LIFF の要る道へ移ると、ページを読み直して LIFF を始める」
 // 「ほかの道から移るときは読み直さない（今までどおり）」を確かめる。
-// 試合表の道はまだないので、見つからない画面（外枠の中。ルーターが描く）で確かめる（道を足さない。spec の 【仮決め】）。
+// 見るだけ・受付の道は match-004 で足した（ない札なので、ルーターが描く「見られません」「受付は締め切られました」で確かめる）。
+// LIFF の要る道へ移る確かめは、試合表の道のうち、ない道の見つからない画面（外枠の中。ルーターが描く）で行う。
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { collectCspViolations } from "../helpers/csp.ts";
@@ -33,11 +34,12 @@ async function isSameDocument(page: Page): Promise<boolean> {
 test.describe("LIFF を始めずに開く道", () => {
   test("試合表の見るだけ・受付の道は、LIFF を始めずにルーターが画面を描く", async ({ page }) => {
     const violations = await collectCspViolations(page);
-    for (const path of ["/match/view/e2e-view-token", "/match/join/e2e-join-token"]) {
+    for (const [path, heading] of [
+      ["/match/view/e2e-view-token", "見られません"],
+      ["/match/join/e2e-join-token", "受付は締め切られました"],
+    ] as const) {
       await page.goto(path);
-      await expect(
-        page.getByRole("heading", { level: 1, name: "ページが見つかりません" }),
-      ).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
       await expect(page.getByRole("heading", { name: "読みこめませんでした" })).toHaveCount(0);
     }
     expect(await violations()).toEqual([]);
@@ -46,7 +48,7 @@ test.describe("LIFF を始めずに開く道", () => {
   test("試合表の道から LIFF の要る道へ移ると、ページを読み直して LIFF を始める", async ({
     page,
   }) => {
-    await page.goto("/match/view/e2e-view-token");
+    await page.goto("/match/e2e-not-found");
     await expect(
       page.getByRole("heading", { level: 1, name: "ページが見つかりません" }),
     ).toBeVisible();

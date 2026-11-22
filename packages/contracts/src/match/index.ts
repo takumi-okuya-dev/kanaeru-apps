@@ -48,3 +48,17 @@ export {
   ROSTER_MAX,
   TABLE_NAME_MAX,
 } from "./table.ts";
+export {
+  JOIN_MAX,
+  MatchJoinAccepted,
+  MatchJoinEntry,
+  MatchJoinInfo,
+  MatchJoinInput,
+  MatchJoinList,
+  MatchLinkIssued,
+  MatchView,
+  MatchViewGame,
+  MatchViewGroup,
+  MatchViewVersion,
+  joinPlayerId,
+} from "./public.ts";

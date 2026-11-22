@@ -2,11 +2,12 @@
 // - 組ごとに1枚（刷る組を選べる。試合のない組は選べない）。紙は A5・B5・A4・B4・A3・B3・A2、向きは縦・横（既定は A3 縦【仮決め】）
 // - 版は名前の列に縦線を引き、余白を少なくし、選んだ紙1枚にちょうど収まるよう字の大きさと行の高さを自動で合わせる
 //   （print-layout.ts。試合が少ないときは大きく、多いときは小さく。小さすぎるときは大きい紙をすすめる）
-// - 見るだけのページの QR は、そのページを作る段で足す（今は載せない）。下に「kanaeru で作った試合表」（FR-M25）
+// - 見るだけのリンクをこの端末で作ってあれば、版の右上に見るだけのページの QR を入れる（FR-M19・R1。今の試合の印は入れない）。
+//   入口に貼る1枚（R2。A4 縦・大きな QR）も選んで刷れる（FR-M20。match-004）。下に「kanaeru で作った試合表」（FR-M25）
 // - 版は SVG で描き、印刷では版だけを出す（print.css）
 import { MATCH_FORMAT_LABELS, PLAYERS_PER_GAME } from "@workspace/contracts/match";
 import type { MatchGroup, MatchGroupPlan, MatchTable } from "@workspace/contracts/match";
-import { useParams } from "@tanstack/react-router";
+import { Link, useParams as useRouteParams } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
@@ -22,9 +23,13 @@ import {
   PAPER_LABELS,
   PAPER_SIZES,
   layoutSheet,
+  printableArea,
   textWidthEm,
 } from "./print-layout.ts";
 import type { Orientation, PaperSize } from "./print-layout.ts";
+import { useStoredLink } from "./link-store.ts";
+import { matchPaths } from "./paths.ts";
+import { QrGroup, qrPattern } from "./qr.tsx";
 import { TableFrame } from "./TableFrame.tsx";
 import "./print.css";
 
@@ -40,14 +45,16 @@ type SheetProps = {
   size: PaperSize;
   /** 向き */
   orientation: Orientation;
+  /** 見るだけのページの URL（あれば右上に QR を入れる） */
+  viewUrl?: string;
 };
 
 /**
  * 1つの組の印刷の版（SVG。大きさの単位は mm）。
- * @param props 試合表（table）・組（group）・組の試合（plan）・紙（size・orientation）
+ * @param props 試合表（table）・組（group）・組の試合（plan）・紙（size・orientation）・見るだけのページの URL（viewUrl）
  * @returns 版の要素
  */
-function Sheet({ table, group, plan, size, orientation }: SheetProps) {
+function Sheet({ table, group, plan, size, orientation, viewUrl }: SheetProps) {
   const names = new Map(table.content.players.map((player) => [player.id, player.nickname]));
   const columns = PLAYERS_PER_GAME[table.content.settings.format];
   const longest = Math.max(
@@ -65,6 +72,17 @@ function Sheet({ table, group, plan, size, orientation }: SheetProps) {
   const subtitle = `${table.name}・${formatPlayDate(table.playDate)}・${MATCH_FORMAT_LABELS[settings.format]}・1試合${settings.minutesPerGame}分・試合 ${settings.startTime}〜${settings.endTime}`;
   const lineWidth = Math.max(0.2, layout.fontSize * 0.04);
   const tableBottom = layout.tableTop + layout.rowHeight * plan.games.length;
+  // 右上の QR（表の上の帯の高さ）と、その左の小さな説明（2行）
+  const qrSize = viewUrl ? Math.max(0, layout.tableTop - 1.5) : 0;
+  const noteSize = layout.subtitleSize * 0.75;
+  const noteWidth = viewUrl ? noteSize * 8 : 0;
+  const madeAt = new Date(table.updatedAt).toLocaleTimeString("ja-JP", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  // 説明の文が長くて右の QR（なければ紙の端）にかかるときは、字の間を詰めて収める
+  const subtitleRoom = layout.width - (viewUrl ? qrSize + noteWidth + noteSize * 2 : 0);
+  const subtitleWidth = textWidthEm(subtitle) * layout.subtitleSize;
   return (
     <figure
       data-paper={`${size}-${orientation}`}
@@ -87,9 +105,35 @@ function Sheet({ table, group, plan, size, orientation }: SheetProps) {
           y={layout.titleSize * 1.3 + layout.subtitleSize * 1.1}
           fontSize={layout.subtitleSize}
           className="fill-text-sub"
+          {...(subtitleWidth > subtitleRoom
+            ? { textLength: subtitleRoom, lengthAdjust: "spacingAndGlyphs" }
+            : {})}
         >
           {subtitle}
         </text>
+        {viewUrl ? (
+          <>
+            <text
+              x={layout.width - qrSize - noteSize}
+              y={qrSize / 2 - noteSize * 0.2}
+              fontSize={noteSize}
+              fontWeight={700}
+              textAnchor="end"
+            >
+              最新はスマホで
+            </text>
+            <text
+              x={layout.width - qrSize - noteSize}
+              y={qrSize / 2 + noteSize * 1.1}
+              fontSize={noteSize}
+              textAnchor="end"
+              className="fill-text-sub"
+            >
+              {`${madeAt} の表`}
+            </text>
+            <QrGroup pattern={qrPattern(viewUrl)} size={qrSize} x={layout.width - qrSize} y={0} />
+          </>
+        ) : null}
         <g className="stroke-text" strokeWidth={lineWidth} fill="none">
           <rect
             x={lineWidth / 2}
@@ -152,6 +196,61 @@ function Sheet({ table, group, plan, size, orientation }: SheetProps) {
 }
 
 /**
+ * 入口に貼る1枚（R2。A4 縦。見るだけのページの大きな QR。FR-M20）。
+ * @param props 試合表（table）・見るだけのページの URL（url）
+ * @param props.table 試合表
+ * @param props.url 見るだけのページの URL
+ * @returns 版の要素
+ */
+function EntranceSheet({ table, url }: { table: MatchTable; url: string }) {
+  const { width, height } = printableArea("a4", "portrait");
+  const qrSize = width * 0.6;
+  const center = width / 2;
+  return (
+    <figure
+      data-paper="a4-portrait"
+      aria-label="入口に貼る1枚"
+      className="w-full max-w-form border border-border bg-surface shadow-layer1"
+    >
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        width="100%"
+        height="100%"
+        role="img"
+        aria-label={`${table.name}の試合表の QR（入口に貼る1枚）`}
+        className="block fill-text"
+      >
+        <text x={center} y={14} fontSize={6} textAnchor="middle">
+          {`${table.name}・${formatPlayDate(table.playDate)}`}
+        </text>
+        <text x={center} y={48} fontSize={22} fontWeight={700} textAnchor="middle">
+          試合表は
+        </text>
+        <text x={center} y={76} fontSize={22} fontWeight={700} textAnchor="middle">
+          こちら
+        </text>
+        <QrGroup pattern={qrPattern(url)} size={qrSize} x={center - qrSize / 2} y={88} />
+        <text x={center} y={88 + qrSize + 14} fontSize={6} textAnchor="middle">
+          スマホのカメラで読んでください（ログインは要りません）。
+        </text>
+        <text
+          x={center}
+          y={88 + qrSize + 23}
+          fontSize={5}
+          textAnchor="middle"
+          className="fill-text-sub"
+        >
+          当日に組み直すことがあります。最新はスマホで見てください。
+        </text>
+        <text x={center} y={height - 3} fontSize={4} textAnchor="middle" className="fill-text-sub">
+          kanaeru で作った試合表・自分のサークルでも使えます
+        </text>
+      </svg>
+    </figure>
+  );
+}
+
+/**
  * 印刷の中身。
  * @param props 試合表（table）
  * @param props.table 試合表
@@ -168,6 +267,11 @@ function PrintBody({ table }: { table: MatchTable }) {
   );
   const [size, setSize] = useState<PaperSize>(DEFAULT_PAPER.size);
   const [orientation, setOrientation] = useState<Orientation>(DEFAULT_PAPER.orientation);
+  const [viewLink] = useStoredLink(table.id, "view", table.links.viewHint);
+  const viewUrl = viewLink
+    ? new URL(matchPaths.view(viewLink.token), window.location.origin).href
+    : undefined;
+  const [entrance, setEntrance] = useState(false);
   const selected = groups.filter((entry) => chosen.has(entry.group.key));
   const names = new Map(table.content.players.map((player) => [player.id, player.nickname]));
   const columns = PLAYERS_PER_GAME[table.content.settings.format];
@@ -235,14 +339,47 @@ function PrintBody({ table }: { table: MatchTable }) {
         <p className="text-s text-text-sub">
           選んだ紙1枚に収まるよう、字の大きさを自動で合わせます（試合が少ないときは大きく、多いときは小さく）。印刷の画面でも、同じ紙の大きさと向きを選んでください。
         </p>
+        {viewUrl ? (
+          <>
+            <p className="text-s text-text-sub">
+              版の右上に、見るだけのページの QR が入ります（今の試合の印は入りません）。
+            </p>
+            <label className="flex min-h-l items-center gap-xxs text-m">
+              <input
+                type="checkbox"
+                checked={entrance}
+                onChange={(change) => setEntrance(change.target.checked)}
+                className="size-s accent-primary"
+              />
+              入口に貼る1枚（大きな QR・A4 縦）も刷る
+            </label>
+          </>
+        ) : (
+          <p className="text-s text-text-sub">
+            <Link
+              to="/match/tables/$tableId/view-link"
+              params={{ tableId: table.id }}
+              className="text-text-link underline"
+            >
+              見るだけのページ
+            </Link>
+            のリンクをこの端末で作ると、版に QR が入り、入口に貼る1枚も刷れます。
+          </p>
+        )}
         {tooSmall ? (
           <ResponseMessage tone="info">
             字が小さくなりすぎて読みにくい組があります。大きい紙をすすめます。
           </ResponseMessage>
         ) : null}
         <div>
-          <Button variant="primary" disabled={selected.length === 0} onClick={() => window.print()}>
-            {`${selected.length}枚を印刷する（${paperLabel}）`}
+          <Button
+            variant="primary"
+            disabled={selected.length === 0 && !(viewUrl && entrance)}
+            onClick={() => window.print()}
+          >
+            {viewUrl && entrance
+              ? `${selected.length + 1}枚を印刷する（${paperLabel}・入口の1枚は A4 縦）`
+              : `${selected.length}枚を印刷する（${paperLabel}）`}
           </Button>
         </div>
       </div>
@@ -259,8 +396,10 @@ function PrintBody({ table }: { table: MatchTable }) {
             plan={plan}
             size={size}
             orientation={orientation}
+            viewUrl={viewUrl}
           />
         ))}
+        {viewUrl && entrance ? <EntranceSheet table={table} url={viewUrl} /> : null}
       </section>
     </Page>
   );
@@ -271,6 +410,6 @@ function PrintBody({ table }: { table: MatchTable }) {
  * @returns 画面の要素
  */
 export function PrintRoute() {
-  const { tableId } = useParams({ from: MATCH_ROUTE_PATTERNS.print });
+  const { tableId } = useRouteParams({ from: MATCH_ROUTE_PATTERNS.print });
   return <TableFrame tableId={tableId}>{(table) => <PrintBody table={table} />}</TableFrame>;
 }

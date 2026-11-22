@@ -1,5 +1,6 @@
 // 試合表の運営の画面の道（道の形は paths.ts）。大きく映す（M3）のほかは管理の外枠（staticData.layout を書かない）。
-// 大きく映す画面はコートの横の端末に出すので、ナビのない外枠（"bare"）にする（match-003）。
+// 大きく映す画面はコートの横の端末に出すので、ナビのない外枠（"bare"）にする（match-003）。見るだけのページと受付のページは
+// ログインなしで参加者が開くので "bare"（match-004。ログインを確かめる MatchGate を使わない）。
 // 画面は約束（zod）を読むので、開いたときに別に読む（lazyRouteComponent）。ログインは画面の中の MatchGate が確かめる
 // （試合表の道は LIFF を始めないので、account の SessionGate を使わない。core-013）。
 import { createRoute, lazyRouteComponent } from "@tanstack/react-router";
@@ -47,4 +48,34 @@ export const matchBigRoute = createRoute({
   path: MATCH_ROUTE_PATTERNS.big,
   staticData: { layout: "bare" },
   component: lazyRouteComponent(() => import("./BigPage.tsx"), "BigRoute"),
+});
+
+/** 見るだけのページのリンクと QR（運営）。 */
+export const matchViewLinkRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: MATCH_ROUTE_PATTERNS.viewLink,
+  component: lazyRouteComponent(() => import("./ViewLinkPage.tsx"), "ViewLinkRoute"),
+});
+
+/** M7 QR で受け付ける（運営）。 */
+export const matchJoinAdminRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: MATCH_ROUTE_PATTERNS.joinAdmin,
+  component: lazyRouteComponent(() => import("./JoinAdminPage.tsx"), "JoinAdminRoute"),
+});
+
+/** P1 見るだけのページ（ログインなし・ナビなし）。 */
+export const matchViewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: MATCH_ROUTE_PATTERNS.view,
+  staticData: { layout: "bare" },
+  component: lazyRouteComponent(() => import("./ViewPage.tsx"), "ViewRoute"),
+});
+
+/** P2・P3 受付のページ（ログインなし・ナビなし）。 */
+export const matchJoinRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: MATCH_ROUTE_PATTERNS.join,
+  staticData: { layout: "bare" },
+  component: lazyRouteComponent(() => import("./JoinPage.tsx"), "JoinRoute"),
 });

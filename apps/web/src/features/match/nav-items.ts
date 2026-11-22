@@ -1,6 +1,6 @@
 // 外枠のナビに出す試合表の項目。
 // - 試合表の画面の外：何も出さない（外枠は今のアプリの領域の項目だけを出す）
-// - 試合表の画面（/match…）：「試合表の一覧」。試合表の中では「名簿と設定」「試合表」「印刷」も出す
+// - 試合表の画面（/match…）：「試合表の一覧」。試合表の中では「名簿と設定」「試合表」「印刷」「見るだけのページ」「QR で受け付ける」も出す
 // - アイコンは項目ごとに違うものにする（core-011）
 import { useRouterState } from "@tanstack/react-router";
 import type { NavItem } from "../../lib/feature.ts";
@@ -48,5 +48,12 @@ export function useMatchNavItems(): readonly NavItem[] {
     { id: "match-roster", label: "名簿と設定", to: matchPaths.roster(tableId), icon: "people" },
     { id: "match-board", label: "試合表", to: matchPaths.board(tableId), icon: "drafts" },
     { id: "match-print", label: "印刷", to: matchPaths.print(tableId), icon: "pen" },
+    {
+      id: "match-view-link",
+      label: "見るだけのページ",
+      to: matchPaths.viewLink(tableId),
+      icon: "globe",
+    },
+    { id: "match-join", label: "QR で受け付ける", to: matchPaths.joinAdmin(tableId), icon: "at" },
   ];
 }
