@@ -223,3 +223,156 @@ test("貼り付けた名簿から試合表を作り、進めて、印刷の版�
   await expect(page.getByRole("link", { name: "12/13(日) 練習会" })).toBeVisible();
   expect(await readCspViolations()).toEqual([]);
 });
+
+/** 当日の E2E の名簿（上級5人・中級4人・初級2人・入門2人。架空の名前）。 */
+const DAY_PLAYERS = [
+  ["a1", "青木", "advanced"],
+  ["a2", "石田", "advanced"],
+  ["a3", "上田", "advanced"],
+  ["a4", "江口", "advanced"],
+  ["a5", "大野", "advanced"],
+  ["b1", "加納", "intermediate"],
+  ["b2", "菊池", "intermediate"],
+  ["b3", "久保", "intermediate"],
+  ["b4", "小松", "intermediate"],
+  ["c1", "佐野", "beginner"],
+  ["c2", "柴田", "beginner"],
+  ["d1", "須藤", "novice"],
+  ["d2", "関口", "novice"],
+] as const;
+
+test("当日：人を選んで直す・分け方を変える・大きく映す・担当の端末を受け取る（match-003）", async ({
+  page,
+  browser,
+}, testInfo) => {
+  const readCspViolations = await collectCspViolations(page);
+  const tag = testInfo.project.name === "mobile" ? "d2" : "d1";
+  const lineUserId = `U${(tag + Date.now().toString(16)).padStart(32, "0")}`;
+  const deviceA = `d-e2e-${tag}-device-a`;
+  await page.addInitScript((id) => {
+    window.localStorage.setItem("kanaeru.match.deviceId", id);
+  }, deviceA);
+  const login = await page.request.post("/api/v1/auth/test-login", {
+    data: { lineUserId, displayName: `当日の運営（${testInfo.project.name}）` },
+    headers: ORIGIN,
+  });
+  expect(login.status()).toBe(200);
+  // 試合表と名簿は窓口で作る（この端末が担当）
+  const created = await page.request.post("/api/v1/match/tables", {
+    data: { name: "12/20(日) 練習会", playDate: "2026-12-20", deviceId: deviceA },
+    headers: ORIGIN,
+  });
+  expect(created.status()).toBe(201);
+  const table = (await created.json()) as {
+    id: string;
+    version: number;
+    content: { settings: Record<string, unknown> };
+  };
+  const saved = await page.request.put(`/api/v1/match/tables/${table.id}`, {
+    data: {
+      deviceId: deviceA,
+      baseVersion: table.version,
+      changeId: crypto.randomUUID(),
+      seed: 11,
+      content: {
+        settings: table.content.settings,
+        players: DAY_PLAYERS.map(([id, nickname, level]) => ({
+          id,
+          nickname,
+          level,
+          status: "present",
+        })),
+        plan: [],
+      },
+    },
+    headers: ORIGIN,
+  });
+  expect(saved.status()).toBe(200);
+
+  // 組む → 上級の第1試合にチェック
+  await page.goto(`/match/tables/${table.id}`);
+  await page.getByRole("button", { name: "試合表を作る" }).click();
+  await waitSaved(page);
+  const advanced = page.getByRole("table", { name: "上級の試合表" });
+  await advanced.getByRole("checkbox", { name: "第1試合を終えた" }).check();
+  await waitSaved(page);
+  await expect(
+    page.getByRole("status").filter({ hasText: /この端末（端末 .+）が担当です/u }),
+  ).toBeVisible();
+
+  // M2 人を選んで直す：青木さんが帰る → 上級のこれからの試合だけを組み直す（第1試合は残る）
+  await page.getByRole("button", { name: "人を選んで直す" }).click();
+  const attendance = page.getByRole("dialog", { name: "人を選んで直す" });
+  await attendance.getByRole("combobox", { name: "人" }).selectOption({ label: "青木（来る）" });
+  await expect(attendance.getByRole("button", { name: "来なかった" })).toBeVisible();
+  await checkPage(page, "人を選んで直す");
+  await attendance.getByRole("button", { name: "帰る" }).click();
+  await waitSaved(page);
+  await expect(page.getByText(/組み直しました。青木：帰る（上級の第\d試合から）/u)).toBeVisible();
+  await expect(advanced.getByRole("checkbox", { name: "第1試合を終えた" })).toBeChecked();
+  await expect(page.getByText(/帰った 1人/u)).toBeVisible();
+  // 第3試合から先（今の試合の次から）に、帰った人は入らない
+  const laterRows = await advanced.getByRole("row").allInnerTexts();
+  for (const row of laterRows.slice(2)) expect(row).not.toContain("青木");
+
+  // レベルの分け方：初級と入門（2人ずつで組めない）を一緒にする。何が変わるかを先に出す
+  await page.getByRole("button", { name: "レベルの分け方" }).click();
+  const regroup = page.getByRole("dialog", { name: "レベルの分け方と試合の形" });
+  await regroup.getByRole("radio", { name: "上級・中級・初級＆入門" }).click();
+  await expect(regroup.getByText("上級・中級の試合は、そのまま残します。")).toBeVisible();
+  await checkPage(page, "レベルの分け方");
+  await regroup.getByRole("button", { name: "変えて組み直す" }).click();
+  await waitSaved(page);
+  await expect(page.getByRole("tab", { name: /初級＆入門/u })).toBeVisible();
+  await expect(advanced.getByRole("checkbox", { name: "第1試合を終えた" })).toBeChecked();
+  // 一緒にした組は、ほかの組が進んだ分（1試合）だけ少ない（8 − 1）
+  await page.getByRole("tab", { name: /初級＆入門/u }).click();
+  await expect(
+    page.getByRole("table", { name: "初級＆入門の試合表" }).getByRole("row"),
+  ).toHaveCount(7);
+  await page.getByRole("tab", { name: /上級/u }).click();
+  await checkPage(page, "試合表（当日）");
+
+  // M3 大きく映す：上級の今（第2試合）と次（第3試合）
+  await page.getByRole("link", { name: "大きく映す" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "12/20(日) 練習会" })).toBeVisible();
+  await expect(page.getByRole("listitem", { name: "今・第2試合" })).toBeVisible();
+  await expect(page.getByRole("listitem", { name: "次・第3試合" })).toBeVisible();
+  await page.getByRole("tab", { name: /初級＆入門/u }).click();
+  await expect(page.getByRole("listitem", { name: "今・第1試合" })).toBeVisible();
+  await checkPage(page, "大きく映す");
+  await page.getByRole("link", { name: "戻る" }).click();
+  await expect(page.getByRole("table", { name: "上級の試合表" })).toBeVisible();
+
+  // 担当の受け渡し（AD-28）：別の端末（同じ人のログイン・別の端末の ID）は見るだけで、確かめてから受け取る
+  const otherContext = await browser.newContext({
+    baseURL: E2E_WEB_URL,
+    viewport: page.viewportSize() ?? undefined,
+  });
+  try {
+    await otherContext.addCookies(await page.context().cookies());
+    const other = await otherContext.newPage();
+    await other.goto(`/match/tables/${table.id}/board`);
+    await expect(other.getByText("この端末は見るだけです。", { exact: false })).toBeVisible();
+    // 担当の端末の短い名前（ID の終わりの4文字。端末A は d-e2e-…-device-a → ICEA）
+    await expect(other.getByText(/今の担当：端末 ICEA（この端末は 端末 .+）/u)).toBeVisible();
+    await expect(other.getByRole("button", { name: "人を選んで直す" })).toHaveCount(0);
+    await checkPage(other, "試合表（見るだけの端末）");
+    await other.getByRole("button", { name: "この端末で直す" }).click();
+    await other.getByRole("alertdialog").getByRole("button", { name: "この端末で直す" }).click();
+    await expect(
+      other.getByRole("status").filter({ hasText: /この端末（端末 .+）が担当です/u }),
+    ).toBeVisible();
+
+    // 前の担当の端末は、次に送ると「保存できませんでした」になり、見るだけになる
+    await page
+      .getByRole("table", { name: "上級の試合表" })
+      .getByRole("checkbox", { name: "第2試合を終えた" })
+      .check();
+    await expect(page.getByText(/保存できませんでした。この端末は担当の端末でない/u)).toBeVisible();
+    await expect(page.getByText("この端末は見るだけです。", { exact: false })).toBeVisible();
+  } finally {
+    await otherContext.close();
+  }
+  expect(await readCspViolations()).toEqual([]);
+});

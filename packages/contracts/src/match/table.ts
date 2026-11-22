@@ -25,6 +25,12 @@ export const ROSTER_MAX = 150;
 /** 1つの組の試合の数の上限。 */
 export const GAMES_MAX = 60;
 
+/**
+ * 中身の1つの組に持てる試合の行の上限（当日に組を一緒にすると、ほかの組の終わった試合が移ってくるので、試合の数の上限より多い。
+ * match-003）。
+ */
+export const PLAN_GAMES_MAX = GAMES_MAX * 4;
+
 /** 1試合の長さの下限と上限（分）。 */
 export const MINUTES_PER_GAME_MIN = 5;
 
@@ -87,11 +93,30 @@ export const MatchGroupPlan = z.strictObject({
   /** 組の key */
   key: z.enum(MATCH_GROUP_KEYS),
   /** 試合（古い順） */
-  games: z.array(MatchGame).max(GAMES_MAX),
+  games: z.array(MatchGame).max(PLAN_GAMES_MAX),
+  /**
+   * 試合の行の数の差（当日に分け方・試合の形を変えたときだけ。組の行の数 = 設定から決まる試合の数 + offset。
+   * ほかの組から終わった試合が移ってきたら増え、試合の形を変えて終わった試合を組から外したら減る。match-003）
+   */
+  offset: z.number().int().min(-PLAN_GAMES_MAX).max(PLAN_GAMES_MAX).optional(),
 });
 
 /** 1つの組の試合の型。 */
 export type MatchGroupPlan = z.infer<typeof MatchGroupPlan>;
+
+/**
+ * 前の分け方・試合の形で終わった試合（当日に分け方や試合の形を変えて、今の組に入れられなくなった終わった試合。記録と、
+ * これからの試合の数を均すために残す。組の key は、終わったときの組。match-003）。
+ */
+export const MatchArchivedGroup = z.strictObject({
+  /** 終わったときの組の key */
+  key: z.enum(MATCH_GROUP_KEYS),
+  /** 終わった試合（古い順。ダブルスの4人とシングルスの2人が混ざってよい） */
+  games: z.array(MatchGame).max(PLAN_GAMES_MAX),
+});
+
+/** 前の分け方・試合の形で終わった試合の型。 */
+export type MatchArchivedGroup = z.infer<typeof MatchArchivedGroup>;
 
 /** 設定（試合の形・レベルの分け方・1試合の長さ・試合の時間）。 */
 export const MatchSettings = z
@@ -130,6 +155,8 @@ export const MatchTableContent = z
       .max(ROSTER_MAX, { error: `名簿は${ROSTER_MAX}人までにしてください。` }),
     /** 組ごとの試合（組んでいなければ空） */
     plan: z.array(MatchGroupPlan).max(MATCH_GROUP_KEYS.length),
+    /** 前の分け方・試合の形で終わった試合（組の key ごとに1つ。なければ持たない。match-003） */
+    archive: z.array(MatchArchivedGroup).max(MATCH_GROUP_KEYS.length).optional(),
   })
   .superRefine((content, context) => {
     const ids = new Set<string>();
@@ -161,6 +188,35 @@ export const MatchTableContent = z
           context.addIssue({
             code: "custom",
             message: `1試合には別々の${size}人を入れてください。`,
+            path,
+          });
+        }
+        if (game.players.some((id) => !ids.has(id))) {
+          context.addIssue({
+            code: "custom",
+            message: "名簿にいない人が試合に入っています。",
+            path,
+          });
+        }
+      }
+    }
+    const seenArchive = new Set<string>();
+    for (const [groupIndex, group] of (content.archive ?? []).entries()) {
+      if (seenArchive.has(group.key)) {
+        context.addIssue({
+          code: "custom",
+          message: "前の分け方の試合の組が重なっています。",
+          path: ["archive", groupIndex, "key"],
+        });
+      }
+      seenArchive.add(group.key);
+      for (const [gameIndex, game] of group.games.entries()) {
+        const path = ["archive", groupIndex, "games", gameIndex, "players"];
+        const sizeOk = game.players.length === 2 || game.players.length === 4;
+        if (!game.done || !sizeOk || new Set(game.players).size !== game.players.length) {
+          context.addIssue({
+            code: "custom",
+            message: "前の分け方の試合は、終わった試合（別々の2人か4人）だけにしてください。",
             path,
           });
         }

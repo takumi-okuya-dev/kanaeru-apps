@@ -1,4 +1,5 @@
-// 試合表の運営の画面の道（道の形は paths.ts）。どれも管理の外枠（staticData.layout を書かない）。
+// 試合表の運営の画面の道（道の形は paths.ts）。大きく映す（M3）のほかは管理の外枠（staticData.layout を書かない）。
+// 大きく映す画面はコートの横の端末に出すので、ナビのない外枠（"bare"）にする（match-003）。
 // 画面は約束（zod）を読むので、開いたときに別に読む（lazyRouteComponent）。ログインは画面の中の MatchGate が確かめる
 // （試合表の道は LIFF を始めないので、account の SessionGate を使わない。core-013）。
 import { createRoute, lazyRouteComponent } from "@tanstack/react-router";
@@ -38,4 +39,12 @@ export const matchPrintRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: MATCH_ROUTE_PATTERNS.print,
   component: lazyRouteComponent(() => import("./PrintPage.tsx"), "PrintRoute"),
+});
+
+/** M3 大きく映す（ナビなし）。 */
+export const matchBigRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: MATCH_ROUTE_PATTERNS.big,
+  staticData: { layout: "bare" },
+  component: lazyRouteComponent(() => import("./BigPage.tsx"), "BigRoute"),
 });

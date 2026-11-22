@@ -51,6 +51,56 @@ describe("試合表の中身", () => {
     expect(MatchTableContent.safeParse(INITIAL_CONTENT).success).toBe(true);
   });
 
+  it("当日の印の「帰った」・組の行の数の差・前の分け方で終わった試合（2人と4人が混ざってよい）は通る（match-003）", () => {
+    const content = sample();
+    const day = {
+      ...content,
+      players: content.players.map((player, index) =>
+        index === 0 ? { ...player, status: "left" as const } : player,
+      ),
+      plan: [{ ...content.plan[0]!, offset: -2 }],
+      archive: [
+        {
+          key: "beginner_novice" as const,
+          games: [
+            { players: ["a", "b"], done: true },
+            { players: ["a", "b", "c", "d"], done: true },
+          ],
+        },
+      ],
+    };
+    expect(MatchTableContent.safeParse(day).success).toBe(true);
+  });
+
+  it("前の分け方の試合は、終わった試合・別々の2人か4人・名簿にいる人・key の重なりなしだけが通る", () => {
+    const content = sample();
+    const archive = (games: unknown[], key = "all") => ({ ...content, archive: [{ key, games }] });
+    expect(
+      MatchTableContent.safeParse(archive([{ players: ["a", "b"], done: false }])).success,
+    ).toBe(false);
+    expect(
+      MatchTableContent.safeParse(archive([{ players: ["a", "b", "c"], done: true }])).success,
+    ).toBe(false);
+    expect(
+      MatchTableContent.safeParse(archive([{ players: ["a", "a"], done: true }])).success,
+    ).toBe(false);
+    expect(
+      MatchTableContent.safeParse(archive([{ players: ["a", "z"], done: true }])).success,
+    ).toBe(false);
+    const twice = {
+      ...content,
+      archive: [
+        { key: "all", games: [] },
+        { key: "all", games: [] },
+      ],
+    };
+    expect(MatchTableContent.safeParse(twice).success).toBe(false);
+    expect(
+      MatchTableContent.safeParse({ ...content, plan: [{ ...content.plan[0], offset: 1.5 }] })
+        .success,
+    ).toBe(false);
+  });
+
   it("名簿の人にほかの欄（氏名など）があれば通らない（サーバーに氏名を持たない）", () => {
     const content = sample();
     const players = content.players.map((player) => ({ ...player, fullName: "高橋 拓真" }));

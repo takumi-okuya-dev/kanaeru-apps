@@ -93,15 +93,18 @@ export function updatePlayer(
 
 /**
  * 1人を消す（その人の入った、まだの試合も組み合わせから消す。終わった試合は残す）。
- * 消した人の入った終わった試合があるときは、名簿から消さずに「来ない」にする（終わった試合の名前が消えないように）。
+ * 消した人の入った終わった試合（前の分け方で終わった試合も）があるときは、名簿から消さずに「来ない」にする
+ * （終わった試合の名前が消えないように）。
  * @param content 今の中身
  * @param id 名簿の人の ID
  * @returns 新しい中身
  */
 export function removePlayer(content: MatchTableContent, id: string): MatchTableContent {
-  const inDone = content.plan.some((plan) =>
-    plan.games.some((game) => game.done && game.players.includes(id)),
-  );
+  const inDone =
+    content.plan.some((plan) =>
+      plan.games.some((game) => game.done && game.players.includes(id)),
+    ) ||
+    (content.archive ?? []).some((entry) => entry.games.some((game) => game.players.includes(id)));
   if (inDone) return updatePlayer(content, id, { status: "absent" });
   return {
     ...content,
@@ -145,6 +148,8 @@ export type RosterCounts = {
   late: number;
   /** 来ない人の数 */
   absent: number;
+  /** 帰った人の数 */
+  left: number;
   /** 確かめる所（呼び名の印・レベルがない人） */
   checks: number;
 };
@@ -162,15 +167,17 @@ export function countRoster(players: readonly MatchPlayer[]): RosterCounts {
   let present = 0;
   let late = 0;
   let absent = 0;
+  let left = 0;
   let checks = 0;
   for (const player of players) {
     if (player.nameCheck || player.level === null) checks += 1;
     if (player.status === "late") late += 1;
     else if (player.status === "absent") absent += 1;
+    else if (player.status === "left") left += 1;
     else {
       present += 1;
       if (player.level) byLevel[player.level] += 1;
     }
   }
-  return { present, byLevel, late, absent, checks };
+  return { present, byLevel, late, absent, left, checks };
 }

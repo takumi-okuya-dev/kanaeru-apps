@@ -146,6 +146,25 @@ describe("試合表の窓口", () => {
     ).toBe(200);
   });
 
+  it("当日の「帰った」・組の行の数の差・前の分け方で終わった試合を持つ中身を保存して読める（match-003）", async () => {
+    const table = await createTable(app, owner.cookie);
+    const content = fourPlayers(true);
+    const dayOf: MatchTableContent = {
+      ...content,
+      players: content.players.map((player) =>
+        player.id === "d" ? { ...player, status: "left" } : player,
+      ),
+      plan: [{ key: "advanced", games: content.plan[0]?.games ?? [], offset: -1 }],
+      archive: [{ key: "advanced", games: [{ players: ["a", "b"], done: true }] }],
+    };
+    const saved = await updateTable(app, owner.cookie, table, dayOf);
+    expect(saved.status).toBe(200);
+    const read = (await (
+      await call(app, owner.cookie, `${MATCH_TABLES}/${table.id}`)
+    ).json()) as MatchTable;
+    expect(read.content).toEqual(dayOf);
+  });
+
   it("中身の形の誤り（氏名の欄・名簿にいない人・試合の人数）は 400 で、書かない", async () => {
     const table = await createTable(app, owner.cookie);
     const content = fourPlayers();

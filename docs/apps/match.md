@@ -1,10 +1,10 @@
 # 試合表（match）の地図
 
-2026-11-22 作成（match-001：表とアプリの登録。決めた理由は [specs/match/001-tables/research.md](../../specs/match/001-tables/research.md)）。2026-11-22 直した（match-002：窓口・権限・90日の片付け・退会の手順・名簿・組み方・試合表・印刷。理由は [specs/match/002-roster/research.md](../../specs/match/002-roster/research.md)）。
+2026-11-22 作成（match-001：表とアプリの登録。決めた理由は [specs/match/001-tables/research.md](../../specs/match/001-tables/research.md)）。2026-11-22 直した（match-002：窓口・権限・90日の片付け・退会の手順・名簿・組み方・試合表・印刷。理由は [specs/match/002-roster/research.md](../../specs/match/002-roster/research.md)）。2026-11-22 直した（match-003：当日の組み直し・分け方を当日に変える・大きく映す・担当の受け渡しの見せ方。理由は [specs/match/003-day-of/research.md](../../specs/match/003-day-of/research.md)）。
 
 試合表アプリ（key `match`）の1つの領域（構成の決めごと AD-25）。バドミントンのサークルの運営が、名簿からレベル別のダブルス・シングルスの試合表を作り、印刷し、当日に組み直して配る（[PRD](../../_bmad-output/prd-kanaeru-match/prd-kanaeru-match.md)）。試合表は交流会に頼らない、持ち主の account の記録で、組織に入れられる（AD-19・AD-25）。組み合わせの計算は画面の側に置く（AD-29）。
 
-この版で作っていないもの：ネットなしで開く・見るだけのページと入口の QR・QR の受付・当日の「来なかった・来た・帰る」と大きく映す・受付の交流会から名簿を入れる・前に入れたレベル・ログインの前に試す（PRD 7.1 の3〜6）。
+この版で作っていないもの：ネットなしで開く・見るだけのページと入口の QR・QR の受付・受付の交流会から名簿を入れる・前に入れたレベル・ログインの前に試す（PRD 7.1 の4〜6）。
 
 ## 1. アプリの登録
 
@@ -41,8 +41,9 @@
 形の正本は `@workspace/contracts/match` の `MatchTableContent`（どの object も strict で、氏名などほかの欄を受けない）。
 
 - `settings`：試合の形（`doubles`・`singles`）・レベルの分け方（`four`・`three`・`two`・`none`）・1試合の長さ（5〜90分）・試合の始まりと終わり（HH:MM）。
-- `players`：名簿（150人まで）。ID（端末が作る英数字）・呼び名（1〜20文字）・レベル（空は「選ぶまで試合に入らない」）・当日の印（`present`・`late`・`absent`）・呼び名を確かめてほしい印。
-- `plan`：組（分け方の組。`MATCH_GROUPS`）ごとの試合（60試合まで）。1試合は入る人の ID（ダブルスは4人・シングルスは2人）と、終わったか。
+- `players`：名簿（150人まで）。ID（端末が作る英数字）・呼び名（1〜20文字）・レベル（空は「選ぶまで試合に入らない」）・当日の印（`present`・`late`・`absent`・`left`〈帰った〉。試合に入るのは `present` だけ）・呼び名を確かめてほしい印。
+- `plan`：組（分け方の組。`MATCH_GROUPS`）ごとの試合（240行まで）。1試合は入る人の ID（ダブルスは4人・シングルスは2人）と、終わったか。任意の `offset` は行の数の差（当日に分け方・試合の形を変えたとき。行の数 = 設定から決まる試合の数〈60まで〉+ offset）。
+- `archive`（任意）：前の分け方・試合の形で終わった試合（今の組に入れられなくなった終わった試合。組の key ごと。別々の2人か4人）。記録と、試合の数を均すために持つ。
 
 ## 4. 窓口
 
@@ -62,26 +63,32 @@
 
 ## 5. 画面
 
-`apps/web/src/features/match/`。試合表の道は LIFF を始めないので、ログインは窓口の 401 で知り（`MatchGate`）、`/settings/account` でログインしてもらう。ナビの項目は試合表の画面の中だけ（`useNavItems`：試合表の一覧・名簿と設定・試合表・印刷）。
+`apps/web/src/features/match/`。試合表の道は LIFF を始めないので、ログインは窓口の 401 で知り（`MatchGate`）、`/settings/account` でログインしてもらう。ナビの項目は試合表の画面の中だけ（`useNavItems`：試合表の一覧・名簿と設定・試合表・印刷）。大きく映す画面はナビのない外枠（`"bare"`）。
 
 | 道 | 画面 |
 |---|---|
 | `/match` | 試合表の一覧（M0） |
 | `/match/new` | 試合表を作る（M0。名前・試合の日・組織） |
 | `/match/tables/$tableId` | 名簿と設定（M1）。フォームから貼り付ける（タブ区切りの表）・CSV を読む・1人足す。読むのは氏名・レベル・タイムスタンプだけ（`roster-read.ts`。同じ氏名は新しいほう・呼び名は姓、同じ姓は名の字を足す・空白のない氏名に印）。氏名は保存せず、画面を開いている間だけ出す。呼び名・レベル・当日の印・設定を直す。「試合表を作る」（「組み直す」） |
-| `/match/tables/$tableId/board` | 試合表（M2・M6）。組のタブ・名前だけの行（見出しなし・左に番号・名前の列の間に縦線）・行のチェックで進める（チェックのない最初が今、その次が次）・別の組み合わせにする |
+| `/match/tables/$tableId/board` | 試合表（M2・M6）。組のタブ（`GroupTabs.tsx`）・名前だけの行（見出しなし・左に番号・名前の列の間に縦線）・行のチェックで進める（チェックのない最初が今、その次が次）・別の組み合わせにする。担当の端末は「人を選んで直す」（来なかった・来た・帰る → その人の組だけを組み直す。`day-of.ts`）と「レベルの分け方」（当日に分け方・試合の形を変える。何が変わるかを先に出す。`regroup.ts`）。組み直したら上に帯。前の分け方で終わった試合は下に畳んで出す |
+| `/match/tables/$tableId/big` | 大きく映す（M3）。組のタブと、今の試合と次の試合だけを大きな字（名前は SVG で描き、画面の幅に合わせる）で出す。担当でない端末は、つながっている間30秒おきに読み直す |
 | `/match/tables/$tableId/print` | 印刷（M5・R1）。刷る組・紙（A5〜A2・B5〜B3）と向き・組ごとに1枚の版（SVG。紙1枚にちょうど収まるよう字の大きさを合わせる。`print-layout.ts`・`print.css`）。下に「kanaeru で作った試合表」 |
 
-直すたびに、担当の端末が中身をまるごと、もとの版と変更の ID を付けて古い順に送る（`table-editor.ts`。端末の ID は `device.ts` の localStorage）。送れなかったら残りを止めて読み直す。
+直すたびに、担当の端末が中身をまるごと、もとの版と変更の ID を付けて古い順に送る（`table-editor.ts`。端末の ID は `device.ts` の localStorage）。送れなかったら残りを止めて読み直す。担当でない端末には、今の担当（端末の ID の終わりの4文字）と「この端末で直す」（つながっているときだけ・確かめてから。`TableFrame.tsx`）を出す。
 
 ## 6. 組み方
 
 `pairing.ts` の `planGames`（状態を持たない関数・くじの種を引数で受け取る。説明は docstring）と `plan.ts` の `buildPlan`（組ごとに、最後にチェックした試合までを残して続きを組む。組ごとに `deriveSeed` で別のくじ）。流れと守る順は [addendum.md](../../_bmad-output/prd-kanaeru-match/addendum.md) の1〜2章：周（出た数がいちばん少ない人が入れ物）→ 周の残りから「（分けないときだけ）レベルの差の超え → 同じ試合に入った回数の2乗の合計 → 直前の試合に出た人の数 → くじ」で選ぶ。組めるのは当日の印が「来る」でレベルのある人だけ。
+
+当日（match-003）：
+- `plan.ts` の `replanGroup`：1つの組だけを、最後にチェックした試合までと今の試合（入る人がみな出られるなら）を残して組み直す。`day-of.ts` の `markAttendance` が当日の印を直してから呼ぶ。
+- `regroup.ts` の `changeSettings`：分け方・試合の形を変えたら、変わらない組はそのまま、終わった試合は新しい組に移せれば交互に移し、移せなければ `archive` に残す。新しい組の行の数は「移した試合 + 残りの時間の試合」（進んだ試合の数は、いちばん進んだ組で見る）で、差を `offset` に持つ。人が足りずに試合のなかった組を当日に組むときも、進んだ分だけ減らす。
+- `buildPlan` は `archive` の試合も数に入れ、行の数は「設定から決まる試合の数 + offset」。
 
 ## 7. テスト
 
 - 表：`apps/api/src/modules/match/schema.test.ts`（CHECK・一意・消し方を表に直に書いて確かめる）。
 - 窓口：`routes.test.ts`（作る・一覧・読む・直す・担当・消す・権限・入力の誤り・90日・見えないアプリ）・`withdrawal.test.ts`。手伝いは `apps/api/test/helpers/match.ts`（`showMatchApp`・`createTable`・`updateTable`）。
 - 約束：`packages/contracts/src/match/*.test.ts`。
-- 組み方：`apps/web/src/features/match/pairing.test.ts`（fast-check の property-based）。名簿の読み方 `roster-read.test.ts`・印刷の大きさ `print-layout.test.ts`。
-- E2E：`e2e/tests/match.spec.ts`（未ログイン・作る → 貼る → 設定 → 作る → チェック → 印刷 → シングルス。両方の幅で axe・横のスクロール・CSP）。
+- 組み方：`apps/web/src/features/match/pairing.test.ts`・`day-of.test.ts`・`regroup.test.ts`（fast-check の property-based）。名簿の読み方 `roster-read.test.ts`・印刷の大きさ `print-layout.test.ts`。
+- E2E：`e2e/tests/match.spec.ts`（未ログイン・作る → 貼る → 設定 → 作る → チェック → 印刷 → シングルス／当日：人を選んで直す → 分け方を変える → 大きく映す → 別の端末で担当を受け取る。両方の幅で axe・横のスクロール・CSP）。
