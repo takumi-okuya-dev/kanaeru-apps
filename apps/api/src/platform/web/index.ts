@@ -2,6 +2,7 @@
 export {
   CAMERA_PATH_PREFIXES,
   HSTS_MAX_AGE_SECONDS,
+  HTML_CACHE,
   allowsCamera,
   WEB_CSP_DIRECTIVES,
   isApiPath,

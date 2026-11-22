@@ -22,8 +22,27 @@ const IMMUTABLE_PREFIX = "/assets/";
 /** 長く持ってよいファイルのキャッシュ。 */
 const IMMUTABLE_CACHE = "public, max-age=31536000, immutable";
 
-/** index.html など、毎回確かめるファイルのキャッシュ。 */
+/** sw.js など、毎回確かめるファイルのキャッシュ。 */
 const REVALIDATE_CACHE = "no-cache";
+
+/**
+ * 画面のもと（index.html と画面の道）のキャッシュ（core-020）。毎回確かめる（max-age=0）が、源（Cloud Run）が
+ * 5xx を返す・届かないときは、前に持っていたものを1日まで出してよい（stale-if-error。前に置く Cloudflare が使う）。
+ * no-cache と must-revalidate は、源が落ちていても古いものを出すのを禁じるので付けない。誰が開いても同じ中身なので public。
+ */
+export const HTML_CACHE = "public, max-age=0, stale-if-error=86400";
+
+/**
+ * 見つかったファイルのキャッシュ。中身の印つきは長く、HTML は源が落ちても出せる形、ほか（sw.js など）は毎回確かめる。
+ * @param path 道
+ * @param headers ファイルの応答の見出し
+ * @returns Cache-Control の値
+ */
+function cacheControlFor(path: string, headers: Headers): string {
+  if (path.startsWith(IMMUTABLE_PREFIX)) return IMMUTABLE_CACHE;
+  if (headers.get("content-type")?.startsWith("text/html")) return HTML_CACHE;
+  return REVALIDATE_CACHE;
+}
 
 /** 画面の CSP（Hono の secureHeaders の形）。LINE の源は research.md R7。Threads の画像の源は core-008。 */
 export const WEB_CSP_DIRECTIVES = {
@@ -131,16 +150,13 @@ export function serveWeb(options: { distDir: string }): MiddlewareHandler {
     const found = await files(c, () => Promise.resolve());
     if (found) {
       if (found.status === 200 || found.status === 206) {
-        found.headers.set(
-          "Cache-Control",
-          c.req.path.startsWith(IMMUTABLE_PREFIX) ? IMMUTABLE_CACHE : REVALIDATE_CACHE,
-        );
+        found.headers.set("Cache-Control", cacheControlFor(c.req.path, found.headers));
       }
       return found;
     }
     // /assets/ の下のないファイルは、index.html を返さず API の 404（no-store）にする
     if (c.req.path.startsWith(IMMUTABLE_PREFIX)) return next();
-    c.header("Cache-Control", REVALIDATE_CACHE);
+    c.header("Cache-Control", HTML_CACHE);
     if (c.req.method === "HEAD") {
       c.header("Content-Type", "text/html; charset=UTF-8");
       return c.body(null, 200);

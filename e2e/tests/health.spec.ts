@@ -33,7 +33,8 @@ test("画面（組み立てたもの）に、守りの見出しと CSP がつく
     const response = await request.get(path);
     expect(response.status(), path).toBe(200);
     const headers = response.headers();
-    expect(headers["cache-control"], path).toBe("no-cache");
+    // 毎回確かめるが、源（Cloud Run）が落ちたときは前に置く Cloudflare が前の画面を出せる（core-020）
+    expect(headers["cache-control"], path).toBe("public, max-age=0, stale-if-error=86400");
     expect(headers["x-content-type-options"], path).toBe("nosniff");
     expect(headers["x-frame-options"], path).toBe("DENY");
     const csp = headers["content-security-policy"] ?? "";
