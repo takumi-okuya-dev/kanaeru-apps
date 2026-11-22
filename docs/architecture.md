@@ -1,6 +1,6 @@
 # 全体の形（アーキテクチャ）
 
-2026-11-18 作成（TypeScript の骨組み。`typescript` ブランチ）。2026-11-19 直した（core-001：見本の領域を消し、画面を API から返す形・LIFF の始め方・DB の夜間停止の 503・参加者の道と日本時間の関数・プロダクトの見た目の値を足した。account-001：アカウントとセッション・LINE のログイン・今の利用者の受け取り方を足した。event-001：交流会・受付係・招待・交流会ごとの権限・管理の画面の道とナビを足した。reception-001：チェックイン・一覧画面・合計と内訳・参加者の CSV と、選択肢のチップの部品を足した。survey-001：アンケートの回答・困りごとの一覧と CSV と、reception の差しこみの場所への節を足した。reception-002：交流会ごとの割引〈event〉と、チェックインの割引の写し・紹介者の名前〈reception〉を足した）。2026-11-20 直した（core-005：アプリの一覧と suite の台帳・組み立てが付ける `requireApp`・外枠のアプリの切り替えと設定・退会の窓口）。2026-11-20 直した（booking-002：知らせを送る道具 `platform/notify` と設定 `NOTIFY_MODE`・`NOTIFY_ALLOWLIST`）。2026-11-22 直した（core-013：試合表の道は LIFF を始めずに開く）。2026-11-22 直した（core-014：CSV を読む処理を画面の共通に移した）。2026-11-22 直した（match-007：Service Worker の組み立てが public のファイルも名指しで持てるようにした）。
+2026-11-18 作成（TypeScript の骨組み。`typescript` ブランチ）。2026-11-19 直した（core-001：見本の領域を消し、画面を API から返す形・LIFF の始め方・DB の夜間停止の 503・参加者の道と日本時間の関数・プロダクトの見た目の値を足した。account-001：アカウントとセッション・LINE のログイン・今の利用者の受け取り方を足した。event-001：交流会・受付係・招待・交流会ごとの権限・管理の画面の道とナビを足した。reception-001：チェックイン・一覧画面・合計と内訳・参加者の CSV と、選択肢のチップの部品を足した。survey-001：アンケートの回答・困りごとの一覧と CSV と、reception の差しこみの場所への節を足した。reception-002：交流会ごとの割引〈event〉と、チェックインの割引の写し・紹介者の名前〈reception〉を足した）。2026-11-20 直した（core-005：アプリの一覧と suite の台帳・組み立てが付ける `requireApp`・外枠のアプリの切り替えと設定・退会の窓口）。2026-11-20 直した（booking-002：知らせを送る道具 `platform/notify` と設定 `NOTIFY_MODE`・`NOTIFY_ALLOWLIST`）。2026-11-22 直した（core-013：試合表の道は LIFF を始めずに開く）。2026-11-22 直した（core-014：CSV を読む処理を画面の共通に移した）。2026-11-22 直した（match-007：Service Worker の組み立てが public のファイルも名指しで持てるようにした）。2026-11-22 直した（置き場所の構成図を足した）。
 
 今のシステムの形。選んだ技術の候補と目安は [技術選定の候補](./tech-selection.md)、守る決まりは [コードの書き方の決まり](./rules/coding.md) 6章。
 
@@ -40,7 +40,19 @@ flowchart LR
 | `scripts/security`・`security` | 秘密の値（gitleaks）と依存の脆弱性（`pnpm audit`）の確かめの手順と、依存の例外の一覧 |
 | `.githooks`・`.github` | コミットの前の秘密の値の確かめ（`pre-commit`）・CI（`workflows/ci.yml`・`security-weekly.yml`）・Dependabot |
 
-ログインは account の領域が持つ（LINE の ID トークンを API が LINE の verify で確かめ、自前のセッション〈DB の `session` の表と `HttpOnly; SameSite=Lax` のクッキー〉を出す。構成の決めごと AD-4・AD-12。地図は [apps/account.md](./apps/account.md)）。交流会ごとの権限（主催者・受付係）と、参加者に見せてよい交流会の要約は event の領域が持ち、要求のたびに引く（AD-5。地図は [apps/event.md](./apps/event.md)）。アプリ（売る・公開する単位。領域の束）は `packages/contracts/src/core/apps.list.ts` に1行ずつ登録し、どの領域もちょうど1つのアプリか、スイートの共通（account・suite）に属する。アプリが見えるか（台帳の公開の状態）は suite の領域が決め、組み立て（`app.ts`）がアプリに属する領域のすべての道に suite の `requireApp` を付ける（AD-15・AD-16。地図は [apps/suite.md](./apps/suite.md)）。チェックインと、そのときの名前と金額（AD-6）は reception の領域が持ち、survey は reception の入口から引く（地図は [apps/reception.md](./apps/reception.md)）。アンケートの回答はチェックインだけを指して survey の領域が持ち、開閉は書くたびに event の要約から読む（AD-13。地図は [apps/survey.md](./apps/survey.md)）。置き場所（Cloud Run と Cloud SQL・Terraform）は、インフラの仕様で足す（AD-8〜AD-11）。
+ログインは account の領域が持つ（LINE の ID トークンを API が LINE の verify で確かめ、自前のセッション〈DB の `session` の表と `HttpOnly; SameSite=Lax` のクッキー〉を出す。構成の決めごと AD-4・AD-12。地図は [apps/account.md](./apps/account.md)）。交流会ごとの権限（主催者・受付係）と、参加者に見せてよい交流会の要約は event の領域が持ち、要求のたびに引く（AD-5。地図は [apps/event.md](./apps/event.md)）。アプリ（売る・公開する単位。領域の束）は `packages/contracts/src/core/apps.list.ts` に1行ずつ登録し、どの領域もちょうど1つのアプリか、スイートの共通（account・suite）に属する。アプリが見えるか（台帳の公開の状態）は suite の領域が決め、組み立て（`app.ts`）がアプリに属する領域のすべての道に suite の `requireApp` を付ける（AD-15・AD-16。地図は [apps/suite.md](./apps/suite.md)）。チェックインと、そのときの名前と金額（AD-6）は reception の領域が持ち、survey は reception の入口から引く（地図は [apps/reception.md](./apps/reception.md)）。アンケートの回答はチェックインだけを指して survey の領域が持ち、開閉は書くたびに event の要約から読む（AD-13。地図は [apps/survey.md](./apps/survey.md)）。置き場所（Cloud Run と Cloud SQL・Terraform）は、下の[置き場所の構成図](#置き場所の構成図gcp)と [infra/README.md](../infra/README.md)（AD-8〜AD-11）。
+
+### 置き場所の構成図（GCP）
+
+![置き場所の構成図：Google Cloud の東京リージョンに、本番とステージングの Cloud Run、VPC、内部の IP だけの Cloud SQL を置く](./images/infra-architecture.svg)
+
+- 本番（`kanaeru`）とステージング（`kanaeru-stg`）の Cloud Run が、同じ Cloud SQL のサーバーの中の別の DB を使う。Cloud Run は Direct VPC egress で VPC に出て、内部の IP の Cloud SQL に TCP でつなぐ（core-018。構成の決めごと AD-8・AD-11）。
+- デプロイは GitHub Actions が Workload Identity Federation で鍵なしで入り、環境ごとのイメージの置き場所に押し込んで、DB の変更 → 新しい版の順に出す（`develop` → ステージング・`main` → 本番。デプロイの身分も置き場所も環境ごとなので、ステージングから本番は触れない）。
+- 本番とステージングの DB は、DB の変更を当てる job が毎回、その環境の利用者だけがつなげる形にそろえる（同じサーバーを共にするため）。
+- Cloud Scheduler は、夜間（0時〜8時）に Cloud SQL Admin API で DB を止め、8時〜23時台は環境ごとの共通の定期の仕事（`POST /api/v1/jobs/tick`。core-017）を5分ごとに呼ぶ（Threads か予約を入にした環境だけ）。
+- Cloudflare（独自ドメイン・CDN・WAF）は、一般に公開するときに中継として前に置く予定（[バックログ](./backlog.md) C1・C2）。
+- LINE と Meta は、Cloud Run から呼ぶほかに、Webhook で Cloud Run を呼ぶ（予約の LINE 公式アカウント・Threads の連携の解除とデータの削除）。
+- 資源の名前と手順の正本は [infra/README.md](../infra/README.md)、料金と比べた案は [置き場所の比べと料金の試算](./hosting-cost.md)。図のアイコンは Google Cloud 公式（<https://cloud.google.com/icons>）。ほかの会社は名前だけで表す。図は `docs/images/infra-architecture.py` で作る（使い方は台本の頭）。
 
 ### 設定（`apps/api/src/kernel/config.ts`）
 
@@ -148,7 +160,7 @@ sequenceDiagram
 
 ## 5. データベースの全体
 
-- PostgreSQL 18 の DB を1つ使い、読み書きするのは API だけ。つなぐ時間と1つの命令の時間に上限があり（設定）、DB が答えないときは待ち続けずに `503 DB_UNAVAILABLE` で失敗する。本番の DB は夜間（0時〜8時）に止まる（AD-10）。動いているかの窓口（`GET /api/v1/health`）は DB に触るので、置き場所の起動の確かめ（probe）には使わない（Cloud Run の既定の TCP の確かめのまま）。接続先と DB の名前は設定の `DATABASE_URL` で決める（手元は Docker の `postgres:18` を1つ共通に使い、作業場所ごとに DB の名前で分ける。[並行開発の決まり](./rules/parallel-development.md) 1）。
+- PostgreSQL 18 の DB を1つ使い、読み書きするのは API だけ。つなぐ時間と1つの命令の時間に上限があり（設定）、DB が答えないときは待ち続けずに `503 DB_UNAVAILABLE` で失敗する。置き場所の DB は夜間（0時〜8時）に止まる（本番とステージングは同じ Cloud SQL のサーバーなので、一緒に止まる。AD-10）。動いているかの窓口（`GET /api/v1/health`）は DB に触るので、置き場所の起動の確かめ（probe）には使わない（Cloud Run の既定の TCP の確かめのまま）。接続先と DB の名前は設定の `DATABASE_URL` で決める（手元は Docker の `postgres:18` を1つ共通に使い、作業場所ごとに DB の名前で分ける。[並行開発の決まり](./rules/parallel-development.md) 1）。
 - アプリの表は `public` スキーマ、DB の変更の記録は `drizzle` スキーマにある。DB の変更は `apps/api/drizzle/` の1列の SQL で、`meta/_journal.json` の順に当てる。当てた記録が残り、もう一度当てても何もしない。
 - 表の名前は単数の snake_case。主キーは `uuid`（既定値 `uuidv7()`）、時刻は `timestamptz`（[コードの書き方の決まり](./rules/coding.md) 6-4）。
 - 今あるアプリの表は account の `account`・`session`（[apps/account.md](./apps/account.md)）と、suite の `app_setting`（[apps/suite.md](./apps/suite.md)）と、event の `event`・`event_staff`・`staff_invite`・`event_discount`（[apps/event.md](./apps/event.md)）と、reception の `checkin`（[apps/reception.md](./apps/reception.md)）と、survey の `survey_answer`（[apps/survey.md](./apps/survey.md)）。表は領域を足すときに、その領域の `schema.ts` で足す（見本の領域の `note` は core-001 の DB の変更で消した）。
