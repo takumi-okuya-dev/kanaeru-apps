@@ -51,7 +51,7 @@
 | P1：イメージの置き場所が共通で、ステージングのデプロイの身分が本番のタグを上書きできる | 置き場所を環境ごと（`kanaeru`・`kanaeru-stg`）にし、書く権限はその環境のデプロイの身分だけにした。押し込んだあと digest を読み、Cloud Run には `…@sha256:…` で渡す |
 | P2：デプロイのあとの確かめ（`/api/v1/health`）が、Direct VPC egress の立ち上がりで落ちうる | curl を最大4分（`--retry 20 --retry-delay 10 --retry-max-time 240`）待つ |
 | P2：プライベート サービス アクセスの範囲を自動で選ぶと、Cloud Run のサブネットとぶつかりうる | 範囲を `10.20.0.0/20` と書いて決めた |
-| P2：`staging = null` にすると、サービスの消す守りと、表を持った利用者で止まる | 変数 `deletion_protection`（環境ごと・既定 true）を足し、DB の利用者は `deletion_policy = "ABANDON"`。手順は `infra/README.md` 11章 |
+| P2：`staging = null` にすると、サービスの消す守りと、表を持った利用者で止まる | 変数 `deletion_protection`（環境ごと・既定 true）を足した。DB の利用者の `deletion_policy = "ABANDON"` は、R7 で消す順番を決めてやめた。手順は `infra/README.md` 11章 |
 | P2：`APP_NAME` がないのに確かめを通る | 既定の値を外し、変数の確かめに入れた |
 | P2：待っても直らない誤り（パスワード違い・DB がない）でも3分待つ | `28P01`・`28000`・`3D000` は待たずに止める |
 | P2：古いファイル（`infra/cloud_run.tf`）を指すコメント | `Dockerfile`・`.env.example`・`kernel/db.ts` を直した |
