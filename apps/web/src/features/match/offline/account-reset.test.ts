@@ -17,6 +17,8 @@ async function seedPrevious(store: OfflineStore): Promise<void> {
   await store.writeSnapshot({ tableId: "t1" } as never);
   await store.addChange({ tableId: "t1" } as never);
   window.localStorage.setItem("kanaeru.match.link.view.t1", "{}");
+  window.localStorage.setItem("kanaeru.match.view.tok", "{}");
+  window.localStorage.setItem("kanaeru.match.deviceId", "device-1");
   window.localStorage.setItem("kanaeru.other", "残す");
 }
 
@@ -41,6 +43,8 @@ describe("resetForAccount", () => {
     expect(await store.readMeta(OWNER_META_KEY)).toBeUndefined();
     expect(await store.readMeta(DEVICE_META_KEY)).toBe("device-1");
     expect(window.localStorage.getItem("kanaeru.match.link.view.t1")).toBeNull();
+    expect(window.localStorage.getItem("kanaeru.match.view.tok")).toBeNull();
+    expect(window.localStorage.getItem("kanaeru.match.deviceId")).toBe("device-1");
     expect(window.localStorage.getItem("kanaeru.other")).toBe("残す");
   });
 
@@ -51,6 +55,14 @@ describe("resetForAccount", () => {
     await resetForAccount("b2");
     expect(await store.readMeta("tableList")).toBeUndefined();
     expect(await store.readSnapshot("t1")).toBeUndefined();
+    expect(await store.readMeta(OWNER_META_KEY)).toBe("b2");
+  });
+
+  it("写しを置いた人がわからない（この仕組みの前の写し）ときも、ログインで消す", async () => {
+    await seedPrevious(store);
+    await store.writeMeta(OWNER_META_KEY, undefined);
+    await resetForAccount("b2");
+    expect(await store.readMeta("tableList")).toBeUndefined();
     expect(await store.readMeta(OWNER_META_KEY)).toBe("b2");
   });
 

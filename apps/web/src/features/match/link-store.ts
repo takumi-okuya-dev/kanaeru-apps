@@ -22,19 +22,10 @@ const memory = new Map<string, StoredLink>();
 const KEY_PREFIX = "kanaeru.match.link.";
 
 /**
- * 端末に置いたすべての札を消す（今の利用者が替わったとき。前の人の共有のリンクを残さない）。
+ * 画面を開いている間だけの置き場所の札を消す（今の利用者が替わったとき。localStorage の札は account-reset.ts が消す）。
  */
-export function clearAllLinks(): void {
-  try {
-    const keys: string[] = [];
-    for (let i = 0; i < window.localStorage.length; i += 1) {
-      const key = window.localStorage.key(i);
-      if (key?.startsWith(KEY_PREFIX)) keys.push(key);
-    }
-    for (const key of keys) window.localStorage.removeItem(key);
-  } catch {
-    // localStorage が使えない（プライベートの画面など）なら、置いてもいないので何もしない
-  }
+export function clearMemoryLinks(): void {
+  memory.clear();
 }
 
 /**
