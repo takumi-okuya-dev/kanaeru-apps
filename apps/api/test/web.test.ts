@@ -166,13 +166,17 @@ describe("画面のファイル", () => {
   });
 
   it("/.well-known の下も画面に戻さず、API の守り（core-021・AD-21）", async () => {
-    // まだ道のない /.well-known は、画面（HTML）に戻さず 404 にする（認可のメタデータの道は次の PR）
-    for (const path of ["/.well-known/oauth-protected-resource", "/.well-known/unknown-thing"]) {
+    // 認可のメタデータは API が答える（JSON・API の CSP。画面の HTML には戻らない）
+    for (const path of ["/.well-known/oauth-protected-resource", "/.well-known/oauth-authorization-server"]) {
       const response = await appWithWeb().request(path);
-      expect(response.status, path).toBe(404);
-      expect(response.headers.get("content-type") ?? "", path).not.toContain("text/html");
+      expect(response.status, path).toBe(200);
+      expect(response.headers.get("content-type"), path).toContain("application/json");
       expect(response.headers.get("content-security-policy"), path).toContain("default-src 'none'");
     }
+    // まだない /.well-known の道は、画面に戻さず 404
+    const unknown = await appWithWeb().request("/.well-known/unknown-thing");
+    expect(unknown.status).toBe(404);
+    expect(unknown.headers.get("content-type") ?? "").not.toContain("text/html");
     // 画面の道はそのまま（.well-known の名前の前だけ一致させない）
     const page = await appWithWeb().request("/.well-known-page");
     expect(page.status).toBe(200);
