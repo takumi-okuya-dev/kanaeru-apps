@@ -25,7 +25,8 @@
 ## Project Structure（想定。画面は作らない）
 
 ```text
-apps/api/src/platform/mcp/      # /api/mcp・ツールの一覧（merge=union の1行1ツール）
+apps/api/src/modules/account/oauth/mcp.ts   # /api/mcp（実装の配置。下の「実装の現状と配置の変更」）
+apps/api/src/modules/account/window-allowlist.ts  # 道具が呼べる窓口の一覧（merge=union の1行1窓口）
 apps/api/src/platform/web/      # /api・/.well-known の道の頭（既存の1つの関数に並べる）
 apps/api/src/modules/account/   # 認可サーバー（/api/oauth/*）・同意・接続の一覧と取り消し・Bearer を受ける requireSession
 apps/api/src/modules/suite/     # 設定の画面の接続の一覧（画面は suite の領域。core-005 の決め）
@@ -76,6 +77,16 @@ packages/contracts/src/account/ # 認可・接続の契約（zod）
 - 実機：Claude（ブラウザ）・Codex CLI・主催者が挙げるほかの CLI で、接続から1回のツール呼び出しまで。Codex Desktop は、ログインのあと新しい会話で試す（既知の問題：開いたままの会話では使えないことがある）。
 - 結果は、この表の「確かめ」の列に残す（この版では表の下に追記する）。
 
+## 実装の現状と配置の変更（2026-11-23 時点）
+
+実装を進めた結果、計画と違う所を次に書く（計画の本文はそのまま残す）。
+
+- **配置の変更**：`/api/mcp` は `platform/mcp` ではなく `account/oauth/mcp.ts` に置いた。認可の札の確かめが account の内部（`store.ts`）にあり、platform から account の内部を読まないため（並行開発の境界）。道具の型は `kernel/mcp-tool.ts`（共通）に置いた。
+- **窓口の呼び出し（仮決め）**：道具から窓口を呼ぶとき、利用者の札（Bearer）は流さない。札は `/api/mcp` 宛て（RFC 8707・FR-007）なので、窓口へ流すと宛先の決まりに反するため。代わりに、窓口を呼ぶ要求に「呼んだ利用者と範囲」を内側の印（`kernel/internal-auth.ts`。`Request` の実体に結ぶ。外からは作れない）で渡す。窓口は札を受けず、印があって許可リストに載った窓口だけ通す（`account/window-allowlist.ts`・既定は拒否）。
+- **SDK の使い方（A の方針）**：SDK は `WebStandardStreamableHTTPServerTransport` だけを使う。状態を持たず（要求ごとに道具の一覧を作る）、応答は JSON。道具が1つもないときは `tools/list` を空で答える（SDK は道具の登録のときにだけ一覧の道を作るため）。
+- **文書**：`/api/mcp` は `createRoute` ではなく `openAPIRegistry.registerPath` で文書に載せる（SDK が応答を作るため）。
+- **道具（最初の1つ）**：`reception_my_checkin`（範囲 `reception:read`）。本人のチェックインを読む。ほかの人の記録は返らない（試験あり）。
+
 ## Muse の審査に合わせた設計の前提（FR-035〜039）
 
 [Muse のコネクタの審査の要件](https://platform.muse.ai/docs)（2026-11-23 に確認）と、今の設計の対応：
@@ -120,7 +131,7 @@ packages/contracts/src/account/ # 認可・接続の契約（zod）
 
 **目的**：あとで書く権限（`<key>:write`）を足すとき、認可・同意・トークン・ツールの登録・記録・回数の制限を作り直さなくてよいようにする。書く操作の中身（どの記録を・どう書くか）は、その時の仕様で決める。
 
-**1. ツールの型**（`platform/mcp` の登録。spec FR-025）
+**1. ツールの型**（`kernel/mcp-tool.ts`。spec FR-025）
 
 ```ts
 // 形のイメージ（実装は P3 で zod にする）

@@ -20,28 +20,28 @@
 
 ## Phase 2: 認可（US1）
 
-- [ ] T020 CIMD の取得・検証（`client_id` の URL・`redirect_uris`・取りに行く先の制限）。テスト：不正な URL・取れない・大きすぎる JSON を断る
+- [X] T020 T020 CIMD の取得・検証（`client_id` の URL・`redirect_uris`・取りに行く先の制限）。テスト：不正な URL・取れない・大きすぎる JSON を断る  〔2026-11-23 実装（cimd.ts・試験あり）〕
 - [ ] T062 事前登録のクライアント（運営者だけが発行。シークレットは Secret Manager。FR-035）
 - [ ] T063 ツールの型に `sensitivity`（normal・sensitive）を足す。`sensitive` は毎回の確認で、常時許可の設定を作らない（FR-036）。テスト：常時許可の設定の入力は受けない
 - [ ] T067 Muse 用の許可リスト（`connector-allowlist`）：道・分類・範囲の1行1項目。テスト：許可リストにない道は Bearer があっても `401`（FR-040）
 - [ ] T068 `requireSession` の Bearer を許可リストの道だけに効かせる。テスト：許可リストの道で範囲がないと `403`、許可リストの外は `401`、クッキーの動きは変わらない（AD-12）
 - [ ] T069 OpenAPI の注釈（`access`・`scope`）から、Muse 向けの説明文を生成する。テスト：許可リストの道ごとに説明文があり、`write` は含まれない（FR-041）
-- [ ] T020b DCR（`/api/oauth/register`・RFC 7591）：登録の上限・期限・使われない登録を消す。テスト：上限を超えると断る、期限のあと消える（FR-009）
-- [ ] T020c 戻り先の確かめ（完全一致＋ループバックの任意のポート。`http` の別のホストは断る）。テスト：`http://127.0.0.1:1455/callback` は通り、`http://example.com/callback` は断る（FR-033）
-- [ ] T021 `/.well-known/oauth-protected-resource`・`/.well-known/oauth-authorization-server`（`client_id_metadata_document_supported` を含む）。テスト：RFC 9728・8414 の必須項目
-- [ ] T022 `/api/oauth/authorize`：PKCE S256 必須・`state` 必須・LINE ログインへ。テスト：PKCE なし・`state` なしは通らない（SC-005）
-- [ ] T023 `/api/oauth/token`：コードの1回使用・`resource` が `/api/mcp` でなければ断る・`iss` を返す。テスト：SC-002 の組（別の宛先・期限切れ・取り消し）
-- [ ] T024 同意の画面の API と画面（範囲と接続の名前を表示）。テスト：断ると接続が発行されない（US1-3）
-- [ ] T025 `requireSession` の Bearer 対応（クッキーは `/api/mcp` で受けない・`requireScope`）。テスト：AD-12 の既存のクッキーの道が変わらない
+- [~] T020b T020b DCR（`/api/oauth/register`・RFC 7591）：登録の上限・期限・使われない登録を消す。テスト：上限を超えると断る、期限のあと消える（FR-009）  〔DCR の登録と1日の上限は実装。期限切れの登録を消す仕事は未実装〕
+- [X] T020c T020c 戻り先の確かめ（完全一致＋ループバックの任意のポート。`http` の別のホストは断る）。テスト：`http://127.0.0.1:1455/callback` は通り、`http://example.com/callback` は断る（FR-033）  〔2026-11-23 実装（redirect.ts・試験あり）〕
+- [X] T021 T021 `/.well-known/oauth-protected-resource`・`/.well-known/oauth-authorization-server`（`client_id_metadata_document_supported` を含む）。テスト：RFC 9728・8414 の必須項目  〔2026-11-23 実装（/.well-known の2つ）〕
+- [X] T022 T022 `/api/oauth/authorize`：PKCE S256 必須・`state` 必須・LINE ログインへ。テスト：PKCE なし・`state` なしは通らない（SC-005）  〔2026-11-23 実装（同意の画面は画面側の作業。API の入口は実装）〕
+- [X] T023 T023 `/api/oauth/token`：コードの1回使用・`resource` が `/api/mcp` でなければ断る・`iss` を返す。テスト：SC-002 の組（別の宛先・期限切れ・取り消し）  〔2026-11-23 実装（コードの1回使用・使い回しの検出・iss・resource）〕
+- [~] T024 T024 同意の画面の API と画面（範囲と接続の名前を表示）。テスト：断ると接続が発行されない（US1-3）  〔API と同意の送信は実装。画面は未実装（フェーズ4）〕
+- [~] T025 T025 `requireSession` の Bearer 対応（クッキーは `/api/mcp` で受けない・`requireScope`）。テスト：AD-12 の既存のクッキーの道が変わらない  〔窓口の内側の印（kernel/internal-auth）で実装。窓口は札（Bearer）を受けない（FR-007 のため。下の「配置の変更」）〕
 
 ## Phase 3: 読むツール（US2）
 
-- [ ] T030 `platform/mcp`：`/api/mcp`（SDK 2.x・Streamable HTTP）・`Origin` の確かめ・トークンごとの回数の制限
-- [ ] T031 ツールの一覧（`merge=union`）と、各領域の `index.ts` からの登録。最初のツールは本人の記録を読む1つ（対象は FR-022 の決め）
-- [ ] T032 ツールは `app.request` で画面と同じ窓口を呼ぶ（AD-20）。テスト：領域の関数を直接呼んでいないこと（import の確かめ）
+- [X] T030 T030 `platform/mcp`：`/api/mcp`（SDK 2.x・Streamable HTTP）・`Origin` の確かめ・トークンごとの回数の制限  〔2026-11-23 実装（account/oauth/mcp.ts。配置は下の「配置の変更」）〕
+- [~] T031 T031 ツールの一覧（`merge=union`）と、各領域の `index.ts` からの登録。最初のツールは本人の記録を読む1つ（対象は FR-022 の決め）  〔道具の登録（index.ts の mcpTools）と受付の道具1つは実装。許可リストは merge=union の一覧として別に置く（window-allowlist.ts）〕
+- [X] T032 T032 ツールは `app.request` で画面と同じ窓口を呼ぶ（AD-20）。テスト：領域の関数を直接呼んでいないこと（import の確かめ）  〔2026-11-23 実装（窓口は app.request で呼ぶ。札ではなく印）〕
 - [ ] T033 2人分のデータでの確かめ：ほかの人の名前・記録が1件も出ない（SC-003）。ほかの人の id は `404`
 - [ ] T034 アプリが切のとき `404`、範囲が足りないとき `403`（US2-3・4）
-- [ ] T035 `mcp_tool_call` の記録（名前・アカウント・時刻・`access`・結果の種類だけ）。テスト：引数と返した中身が残らない（FR-018・FR-029）
+- [X] T035 T035 `mcp_tool_call` の記録（名前・アカウント・時刻・`access`・結果の種類だけ）。テスト：引数と返した中身が残らない（FR-018・FR-029）  〔2026-11-23 実装（記録は道具の名前と結果だけ。試験あり）〕
 - [ ] T036 ツールの型（`access`・`requiredScope`・`idempotent`・`confirmation`）と、起動のときの食い違いの検査。テスト：書くのに `:read` だけのツールは起動が失敗する（FR-025）
 - [ ] T037 試験用の書くツールを、テストの中だけに登録（本番の一覧には入れない）。テスト：読むだけのトークンは `403` で窓口に届かない（SC-007）
 - [ ] T038 回数の制限を read と write の2つの枠に分ける（FR-030）。テスト：read の枠を使い切っても write の枠は残る
