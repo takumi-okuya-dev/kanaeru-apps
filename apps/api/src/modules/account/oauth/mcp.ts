@@ -6,9 +6,9 @@
 // - クッキーのログインは受けない（Bearer だけ。FR-013）。宛先（resource）が /api/mcp でないトークンは断る（FR-007）。
 // 仮決め：道具はまだ登録しない（最初の読む道具は次の PR で、本人の記録を返すものを1つ足す）。回数の制限は、このプロセスの中で数える。
 import { McpServer, WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/server";
-import type { z } from "zod";
 import type { Context } from "hono";
 import { createCounter } from "../../../platform/rate-limit/index.ts";
+import type { McpTool } from "../../../kernel/mcp-tool.ts";
 import { AppError } from "../../../kernel/errors.ts";
 import type { ApiEnv, DomainRouteDeps } from "../../../kernel/http.ts";
 import type { OpenAPIHono } from "@hono/zod-openapi";
@@ -16,26 +16,7 @@ import { canonicalMcpResource } from "./resource.ts";
 import { findActiveToken, insertToolCall, touchGrant } from "./store.ts";
 import { hashOpaqueToken } from "./tokens.ts";
 
-/** 道具の定義（領域が自分の道具を1つずつ出す。窓口を呼ぶ中身は run の中に書く。AD-20）。 */
-export type McpTool = {
-  /** 道具の名前（例 reception_my_checkins） */
-  name: string;
-  /** AI に見せる説明 */
-  description: string;
-  /** 読むか書くか（書くは次の段階の仕組み。FR-025） */
-  access: "read" | "write";
-  /** 呼ぶのに要る範囲（例 reception:read） */
-  requiredScope: string;
-  /** 入力の形（zod 4 など Standard Schema） */
-  inputSchema: z.ZodType;
-  /**
-   * 道具の中身。利用者の資格は bearer（そのまま窓口に付ける。AD-20）。
-   * @param input 入力（inputSchema を通ったもの）
-   * @param ctx 呼んだ利用者の ID と札
-   * @returns 本文（テキスト）
-   */
-  run(input: unknown, ctx: { accountId: string; bearer: string }): Promise<string>;
-};
+export type { McpTool } from "../../../kernel/mcp-tool.ts";
 
 /** 回数の制限：トークンごとに、1分あたりの呼び出し（仮決め）。 */
 const MCP_RATE_LIMIT = { enabled: true, windowSeconds: 60, max: 120 } as const;
@@ -73,7 +54,11 @@ function unauthorized(c: Context, issuer: string, error?: string): Response {
  * @param tools 道具の一覧（最初は空。領域が足す）
  * @returns 同じ app
  */
-export function registerMcpRoute<T extends OpenAPIHono<ApiEnv>>(app: T, deps: DomainRouteDeps, tools: readonly McpTool[] = []): T {
+export function registerMcpRoute<T extends OpenAPIHono<ApiEnv>>(
+  app: T,
+  deps: DomainRouteDeps,
+  tools: readonly McpTool[] = deps.mcpTools ?? [],
+): T {
   const issuer = new URL(deps.config.webUrl).origin;
   const resource = canonicalMcpResource(deps.config.webUrl);
   const limiter = createCounter(MCP_RATE_LIMIT);
@@ -126,7 +111,17 @@ export function registerMcpRoute<T extends OpenAPIHono<ApiEnv>>(app: T, deps: Do
         async (input: unknown) => {
           let result = "ok";
           try {
-            const text = await tool.run(input, { accountId: row.accountId, bearer: token });
+            // 窓口は利用者の印つきで呼ぶ（札は /api/mcp 宛てなので窓口へは流さない。AD-20・FR-007）
+            const text = await tool.run(input, {
+              accountId: row.accountId,
+              request: (path, init) => {
+                if (!deps.internalFetch) throw new Error("窓口を呼ぶ道具がありません（組み立てが internalFetch を渡していない）");
+                return deps.internalFetch(new Request(new URL(path, issuer), init), {
+                  accountId: row.accountId,
+                  scopes: row.scopes,
+                });
+              },
+            });
             return { content: [{ type: "text" as const, text }] };
           } catch (error) {
             result = "error";
