@@ -1,4 +1,4 @@
-# kanaeru-apps Constitution
+# paletkit-apps Constitution
 
 ほかの文書と食い違ったら、この文書が正。材料は [プロダクトブリーフ](../../_bmad-output/brief-kanaeru-apps/brief-kanaeru-apps.md)・[PRD](../../_bmad-output/prd-kanaeru-reception/prd-kanaeru-reception.md)・[構成の決めごと](../../_bmad-output/architecture-kanaeru/architecture-kanaeru.md)。
 
