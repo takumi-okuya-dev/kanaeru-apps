@@ -36,7 +36,7 @@ flowchart LR
   approve -- Reject --> stop([本番には出ない])
 ```
 
-1. GitHub の **Actions** → いちばん上の `deploy` の流れを開く。`staging / deploy` が緑になるのを待つ（5〜10分）。
+1. GitHub の **Actions**（[`deploy` の流れの一覧](https://github.com/takumi-okuya-dev/paletkit-apps/actions/workflows/deploy.yml)）→ いちばん上の流れを開く。`staging / deploy` が緑になるのを待つ（5〜10分）。
 2. ステージングの画面で、直したところと、ログインできることを確かめる（3章の一覧）。
 3. 流れの画面の上に出る **Review deployments** → `production` に印を付ける → **Approve and deploy**。
    - 出したくないときは、必ず **Reject** を押す。放っておくと、承認を待ったまま最長30日残り、その間、同じブランチの次のデプロイが始まらない（順番を待つ流れが2つになると、先に並んでいた方が取り消される）。
@@ -46,7 +46,7 @@ flowchart LR
 - 承認を待っている間に `develop` へマージすると、ステージングは `develop` の中身に変わる。確かめと承認が済むまで、`develop` へのマージは待つ。
 - 本番のイメージは、ステージングで確かめたのと同じコミットから作り直す（画面に環境ごとの LIFF ID を埋めるため）。中身のコードは同じ。
 
-> 承認のボタンが出ないとき：Settings → Environments → `production` に自分が承認者（Required reviewers）として入っているかを見る（[infra/README.md](../infra/README.md) 5）。
+> 承認のボタンが出ないとき：Settings → [Environments](https://github.com/takumi-okuya-dev/paletkit-apps/settings/environments) → `production` に自分が承認者（Required reviewers）として入っているかを見る（[infra/README.md](../infra/README.md) 5）。
 
 ## 3. 確かめる一覧（ステージングと本番で同じ）
 
