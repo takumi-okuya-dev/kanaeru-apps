@@ -1,5 +1,6 @@
 // P2 アンケートの画面（参加者がチェックインの画面かアンケートQRから開く。EXPERIENCE.md の P2・UJ-2）。
 // 目的の案内（見出しは h1）→ 設問 → 「送る」（回答済みなら「送り直す」。この画面の主のボタン1つ）。
+// Googleフォームの URL があれば、「送る」の下に補助のリンクを出す（主のボタンは「送る」の1つのまま。survey-002）。
 // 送ったら同じ画面をお礼の状態に変え、お礼の文にフォーカスを移す。Googleフォームの URL があれば「続けて交流会のアンケートへ」、
 // LINE グループの招待リンクがあれば「交流会のLINEグループに参加する」（FR-10・FR-22・A20・A21）。
 // 状態の順：読めない → 閉じている → チェックインしていない → 入力 → お礼（research R9）。
@@ -208,6 +209,21 @@ function SurveyForm({ summary, answer, onSent }: FormProps) {
           ) : null}
         </div>
       </form>
+      {summary.googleFormUrl ? (
+        <section
+          aria-label="交流会のアンケート"
+          className="flex flex-col gap-x3s border-t border-border pt-s"
+        >
+          <p className="text-m">交流会のアンケート（Googleフォーム）もあります。</p>
+          <a
+            href={summary.googleFormUrl}
+            {...EXTERNAL_LINK}
+            className={cn(buttonVariants({ variant: "text" }), "min-h-l self-start")}
+          >
+            交流会のアンケート（Googleフォーム）を開く
+          </a>
+        </section>
+      ) : null}
     </Page>
   );
 }
