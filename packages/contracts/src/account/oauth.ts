@@ -87,3 +87,15 @@ export const AUTHORIZATION_CODE_TTL_SECONDS = 300;
 export const ACCESS_TOKEN_TTL_SECONDS = 3600;
 /** 更新トークンの期限（秒）。 */
 export const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 3600;
+
+/** 接続の1行（設定の画面に出す。FR-015）。 */
+export const ConnectionView = z.object({
+  id: z.string(),
+  clientName: z.string(),
+  scopes: z.array(z.string()),
+  lastUsedAt: z.string().nullable(),
+  createdAt: z.string(),
+});
+
+/** 接続の一覧の応答。 */
+export const ConnectionListView = z.object({ connections: z.array(ConnectionView) });
