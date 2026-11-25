@@ -1,4 +1,4 @@
-# kanaeru-apps で作業する Claude Code へ
+# paletkit-apps で作業する Claude Code へ
 
 **AIが守る決まりは、この文書と、ここからリンクする`docs/rules/`だけに置く**。ほかの文書（仕様・今の形の説明・手順書）には決まりを書かない。決まりを変えたら、同じPRでここか`docs/rules/`を直す（AIのメモリーだけに書かない。ほかのセッションから読めないため）。
 
