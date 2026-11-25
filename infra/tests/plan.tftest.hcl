@@ -31,7 +31,7 @@ variables {
     line_channel_ids       = "222"
     organizer_line_user_id = "U1"
     open_chat_url          = "https://line.me/x"
-    app_name               = "kanaeru（ステージング）"
+    app_name               = "PaletKit（ステージング）"
     threads_enabled        = true
     booking_enabled        = true
     booking_notify_mode    = "allowlist"
