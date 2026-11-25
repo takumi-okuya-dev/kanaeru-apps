@@ -74,7 +74,7 @@ test("manifest とアイコンを返す（名前・始まりと範囲・standalo
     icons: { src: string; purpose: string }[];
   };
   expect(manifest).toMatchObject({
-    name: "kanaeru 試合表",
+    name: "PaletKit 試合表",
     short_name: "試合表",
     start_url: "/match/",
     scope: "/match",

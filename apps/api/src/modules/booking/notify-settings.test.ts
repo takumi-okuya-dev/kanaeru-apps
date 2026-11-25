@@ -72,7 +72,7 @@ describe("公式アカウントとメールの設定", () => {
     const body = (await response.json()) as SettingsBody;
     expect(body.line).toBeNull();
     expect(body.holder).toEqual({ kind: "organization", id: organizationId, name: "飲食チーム" });
-    expect(body.mail).toEqual({ senderName: "飲食チーム（kanaeru）", replyToEmail: null });
+    expect(body.mail).toEqual({ senderName: "飲食チーム（PaletKit）", replyToEmail: null });
     expect(body.greetingPreview).toContain("飲食チーム");
     expect(body.deliveryMode).toBe("on");
     expect(body.myLink).toEqual({ linked: false });

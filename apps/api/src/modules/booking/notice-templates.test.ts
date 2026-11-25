@@ -84,7 +84,7 @@ describe("知らせの文面", () => {
 
   it("メールの題・送り主の名前・返信の案内", () => {
     expect(noticeSubject("confirmed", "11月の交流会")).toBe("【申込みの確定】11月の交流会");
-    expect(senderName("飲食チーム")).toBe("飲食チーム（kanaeru）");
+    expect(senderName("飲食チーム")).toBe("飲食チーム（PaletKit）");
     expect(noticeEmailText("confirmed", BASE, true)).toContain("返信すると、飲食チームに届きます");
     expect(noticeEmailText("confirmed", BASE, false)).toContain("返信できません");
   });

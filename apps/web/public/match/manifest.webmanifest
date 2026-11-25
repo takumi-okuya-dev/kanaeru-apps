@@ -1,6 +1,6 @@
 {
   "id": "/match/",
-  "name": "kanaeru 試合表",
+  "name": "PaletKit 試合表",
   "short_name": "試合表",
   "description": "名簿からレベル別の試合表を作り、当日の組み直しと印刷をします。電波のない体育館でも開けます。",
   "lang": "ja",

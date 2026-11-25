@@ -21,7 +21,8 @@ export const BOOKING_MODE_DESCRIPTIONS = {
   reception: "当日のチェックインだけ。今までと同じです。",
   roster: "申込みは Google フォームや掲載サイトで集め、名簿に入れて当日の受付に使います。",
   self_page:
-    "kanaeru の申込みページで LINE ログインかメールで申し込んでもらい、名簿に入れます。外で集めた申込みも同じ名簿に入れられます。",
+    // 名前は core の PRODUCT_NAME と同じ（約束どうしは読めない決まりなので、文字で持つ）
+    "PaletKit の申込みページで LINE ログインかメールで申し込んでもらい、名簿に入れます。外で集めた申込みも同じ名簿に入れられます。",
 } as const satisfies Record<BookingMode, string>;
 
 /**
