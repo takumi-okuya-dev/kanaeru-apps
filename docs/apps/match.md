@@ -80,7 +80,7 @@
 
 ## 5. 画面
 
-`apps/web/src/features/match/`。試合表の道は LIFF を始めないので、ログインは窓口の 401 で知り（`MatchGate`）、`/settings/account` でログインしてもらう。ナビの項目は試合表の画面の中だけ（`useNavItems`：試合表の一覧・名簿と設定・試合表・印刷・見るだけのページ・QR で受け付ける）。大きく映す画面・見るだけのページ・受付のページはナビのない外枠（`"bare"`）。見るだけのページと受付のページはログインを確かめない（`MatchGate` を使わない）。ほかの道（すべてのアプリなど）で開いた文書から画面の中で試合表の道へ入るときは、同じ URL でページを読み直す（カメラを許す Permissions-Policy と Service Worker は文書ごとに決まるため。今の文書の道は Navigation Timing で見る。`document-boundary.ts`。試合表の道の中の行き来は読み直さない）。
+`apps/web/src/features/match/`。試合表の道は LIFF を始めないので、ログインは窓口の 401 で知り（`MatchGate`）、`/settings/account` でログインしてもらう。ナビの項目は試合表の画面の中だけ（`useNavItems`：試合表の一覧・名簿と設定・試合表・印刷・見るだけのページ・QR で受け付ける）。**試合表の画面の中なら、一覧・作るの画面でも、いつも出す**（core-022）：試合表の中ではその試合表へ進み、一覧・作るでは直前に開いた試合表へ進む（`last-table.ts`：端末の localStorage の `kanaeru.match.last-table`。`kanaeru.match.` の頭なので、今の利用者が替わったときの写しの片付けが消す）。記録がなければ5つの項目は薄く出て（`NavItem.disabled`）、押すと「先に試合表を選んでください」と案内して一覧へ進む。大きく映す画面・見るだけのページ・受付のページはナビのない外枠（`"bare"`）。見るだけのページと受付のページはログインを確かめない（`MatchGate` を使わない）。ほかの道（すべてのアプリなど）で開いた文書から画面の中で試合表の道へ入るときは、同じ URL でページを読み直す（カメラを許す Permissions-Policy と Service Worker は文書ごとに決まるため。今の文書の道は Navigation Timing で見る。`document-boundary.ts`。試合表の道の中の行き来は読み直さない）。
 
 | 道 | 画面 |
 |---|---|
