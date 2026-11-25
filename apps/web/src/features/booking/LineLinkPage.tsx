@@ -13,6 +13,7 @@ import { ApiError, errorMessage } from "../../lib/api.ts";
 import { Page } from "../../lib/page.tsx";
 import { SessionGate } from "../account/index.ts";
 import { acceptLineLink, fetchLineLink } from "./notify-api.ts";
+import { PRODUCT_NAME } from "@workspace/contracts/core";
 
 /** 新しいリンクのもらい方。 */
 const RELINK_HINT =
@@ -99,7 +100,7 @@ function LineLink({ linkToken }: { linkToken: string }) {
   return (
     <Page
       title="LINE の紐づけ"
-      lead={`${preview.holderName}の LINE 公式アカウントと、あなたの kanaeru のアカウントを紐づけます。`}
+      lead={`${preview.holderName}の LINE 公式アカウントと、あなたの ${PRODUCT_NAME} のアカウントを紐づけます。`}
     >
       {preview.lineDisplayName ? (
         <p className="text-m">{`紐づける LINE：${preview.lineDisplayName}さん`}</p>

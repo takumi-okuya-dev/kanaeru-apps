@@ -3,7 +3,7 @@
 // - 版は名前の列に縦線を引き、余白を少なくし、選んだ紙1枚にちょうど収まるよう字の大きさと行の高さを自動で合わせる
 //   （print-layout.ts。試合が少ないときは大きく、多いときは小さく。小さすぎるときは大きい紙をすすめる）
 // - 見るだけのリンクをこの端末で作ってあれば、版の右上に見るだけのページの QR を入れる（FR-M19・R1。今の試合の印は入れない）。
-//   入口に貼る1枚（R2。A4 縦・大きな QR）も選んで刷れる（FR-M20。match-004）。下に「kanaeru で作った試合表」（FR-M25）
+//   入口に貼る1枚（R2。A4 縦・大きな QR）も選んで刷れる（FR-M20。match-004）。下に「PaletKit で作った試合表」（FR-M25）
 // - 版は SVG で描き、印刷では版だけを出す（print.css）
 import { MATCH_FORMAT_LABELS, PLAYERS_PER_GAME } from "@workspace/contracts/match";
 import type { MatchGroup, MatchGroupPlan, MatchTable } from "@workspace/contracts/match";
@@ -32,6 +32,7 @@ import { matchPaths } from "./paths.ts";
 import { QrGroup, qrPattern } from "./qr.tsx";
 import { TableFrame } from "./TableFrame.tsx";
 import "./print.css";
+import { PRODUCT_NAME } from "@workspace/contracts/core";
 
 /** Sheet が受け取るもの。 */
 type SheetProps = {
@@ -188,7 +189,7 @@ function Sheet({ table, group, plan, size, orientation, viewUrl }: SheetProps) {
           textAnchor="end"
           className="fill-text-sub"
         >
-          kanaeru で作った試合表
+          {PRODUCT_NAME} で作った試合表
         </text>
       </svg>
     </figure>
@@ -243,7 +244,7 @@ function EntranceSheet({ table, url }: { table: MatchTable; url: string }) {
           当日に組み直すことがあります。最新はスマホで見てください。
         </text>
         <text x={center} y={height - 3} fontSize={4} textAnchor="middle" className="fill-text-sub">
-          kanaeru で作った試合表・自分のサークルでも使えます
+          {PRODUCT_NAME} で作った試合表・自分のサークルでも使えます
         </text>
       </svg>
     </figure>

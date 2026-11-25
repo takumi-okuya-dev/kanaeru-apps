@@ -2,6 +2,7 @@
 // 文字は escape（\ ; , と改行）し、行は75オクテットで折り返す（続きの行は空白で始める）。行の終わりは CRLF。
 // 終わりの時刻は交流会にないので、始まりから決まった長さ（@workspace/contracts/booking の eventEndsAt）にする。
 import { calendarStamp, eventEndsAt } from "@workspace/contracts/booking";
+import { PRODUCT_NAME } from "@workspace/contracts/core";
 
 /** .ics に入れる中身。 */
 export type IcsEvent = {
@@ -71,7 +72,7 @@ export function buildIcs(event: IcsEvent, now: Date): string {
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//kanaeru//booking//JA",
+    `PRODID:-//${PRODUCT_NAME}//booking//JA`,
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "BEGIN:VEVENT",

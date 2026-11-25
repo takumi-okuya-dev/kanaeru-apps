@@ -6,7 +6,7 @@
 //   （最後に読んだ表はこの端末に置く。ページそのものは試合表の Service Worker がネットなしで開く。AD-27。match-005）
 // - つながらない間は、最後に読んだ表と1試合の長さから今の試合を見込んで出す（FR-M15【仮決め】。view-estimate.ts）
 // - 「QR を読む」（M4・FR-M24）：担当の端末が出した試合表の QR を読み、同じ試合表で今より新しい版のときだけ取り込む（AD-28）
-// - 下に「試合表は当日に参加者へ公開されます」と「kanaeru で作った試合表・自分のサークルでも使う」（FR-M25）
+// - 下に「試合表は当日に参加者へ公開されます」と「PaletKit で作った試合表・自分のサークルでも使う」（FR-M25）
 import type { MatchView } from "@workspace/contracts/match";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
@@ -35,6 +35,7 @@ import type { SavedView } from "./view-import.ts";
 import { useOnline } from "./online.ts";
 import { MATCH_ROUTE_PATTERNS } from "./paths.ts";
 import { useNoIndex } from "./no-index.ts";
+import { PRODUCT_NAME } from "@workspace/contracts/core";
 
 /** 版の番号を確かめる間（ミリ秒。AD-26【仮決め】）。 */
 const VERSION_CHECK_MS = 30_000;
@@ -272,7 +273,7 @@ function ViewBody({
       <footer className="flex flex-col items-center gap-x3s text-center text-s text-text-sub">
         <p>試合表は当日に参加者へ公開されます。当日に組み直すことがあります。</p>
         <p>
-          kanaeru で作った試合表・
+          {PRODUCT_NAME} で作った試合表・
           <a href="/match" className="text-text-link underline">
             自分のサークルでも使う
           </a>
@@ -447,7 +448,7 @@ export function ViewRoute() {
     return (
       <Page title="見られません" lead={failure.message}>
         <p className="text-s text-text-sub">
-          kanaeru で作った試合表・
+          {PRODUCT_NAME} で作った試合表・
           <a href="/match" className="text-text-link underline">
             自分のサークルでも使う
           </a>

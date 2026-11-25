@@ -111,7 +111,7 @@ export type SheetLayout = {
   fontSize: number;
   /** 試合の番号の字の大きさ */
   numberSize: number;
-  /** 下の「kanaeru で作った試合表」の字の大きさ */
+  /** 下の「PaletKit で作った試合表」の字の大きさ */
   footerSize: number;
   /** 名前の字が小さすぎて読みにくい（大きい紙をすすめる） */
   tooSmall: boolean;

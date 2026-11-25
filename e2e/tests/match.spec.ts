@@ -243,7 +243,7 @@ test("貼り付けた名簿から試合表を作り、進めて、印刷の版�
   await expect(page.getByRole("button", { name: "2枚を印刷する（A4 横）" })).toBeVisible();
   await expect(page.getByRole("figure")).toHaveCount(2);
   await expect(page.getByRole("figure", { name: "上級の印刷の版" })).toContainText(
-    "kanaeru で作った試合表",
+    "PaletKit で作った試合表",
   );
   await checkPage(page, "印刷");
   // 印刷では版だけを出し、版は紙（A4 横の刷る範囲）の大きさになる

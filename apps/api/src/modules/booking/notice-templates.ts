@@ -4,6 +4,7 @@
 import { ENTRY_STATUS_LABELS, NOTICE_KIND_LABELS } from "@workspace/contracts/booking";
 import type { EntryStatus, NoticeKind } from "@workspace/contracts/booking";
 import { LINE_LINK_TTL_DAYS } from "@workspace/contracts/booking";
+import { PRODUCT_NAME } from "@workspace/contracts/core";
 
 /** LINE のテキストの上限（文字）。 */
 export const NOTICE_TEXT_MAX = 5000;
@@ -75,7 +76,7 @@ export function greetingText(holderName: string, linkUrl: string): string {
       `受け取るには、次のリンクを開いて LINE でログインし、「紐づける」を押してください（${LINE_LINK_TTL_DAYS}日のあいだ使えます）。`,
       linkUrl,
       "",
-      "（kanaeru）",
+      `（${PRODUCT_NAME}）`,
     ].join("\n"),
   );
 }
@@ -83,17 +84,17 @@ export function greetingText(holderName: string, linkUrl: string): string {
 /**
  * 紐づけたことの知らせ（紐づけたその LINE に送る。リンクを他人に渡されて、別の人のアカウントと紐づいたときに気づけるように）。
  * @param holderName 公式アカウントの持ち主の名前
- * @param accountName 紐づけた kanaeru のアカウントの表示名
+ * @param accountName 紐づけた PaletKit のアカウントの表示名
  * @returns 文
  */
 export function linkedNoticeText(holderName: string, accountName: string): string {
   return clamp(
     [
-      `kanaeru の${accountName || "名前のない"}さんのアカウントと紐づきました。${holderName}の交流会の予約の知らせが、この LINE に届きます。`,
+      `${PRODUCT_NAME} の${accountName || "名前のない"}さんのアカウントと紐づきました。${holderName}の交流会の予約の知らせが、この LINE に届きます。`,
       "",
       "心当たりがなければ、このアカウントをブロックしてください（ブロックすると紐づけは外れます）。",
       "",
-      "（kanaeru）",
+      `（${PRODUCT_NAME}）`,
     ].join("\n"),
   );
 }
@@ -104,7 +105,7 @@ export function linkedNoticeText(holderName: string, accountName: string): strin
  * @returns 文
  */
 export function testMessageText(holderName: string): string {
-  return `確かめのメッセージです。${holderName}の交流会の予約の知らせは、この LINE に届きます。\n（kanaeru）`;
+  return `確かめのメッセージです。${holderName}の交流会の予約の知らせは、この LINE に届きます。\n（${PRODUCT_NAME}）`;
 }
 
 /**
@@ -219,7 +220,7 @@ export function noticeText(kind: EntryNoticeKind, context: NoticeContext): strin
       `あなたの状態：${statusLine(kind, context)}`,
       ...(links.length > 0 ? ["", ...links] : []),
       "",
-      "（kanaeru）",
+      `（${PRODUCT_NAME}）`,
     ].join("\n"),
   );
 }
@@ -249,7 +250,7 @@ export function noticeEmailText(
   const footer = hasReplyTo
     ? `このメールに返信すると、${context.holderName}に届きます。`
     : "このメールには返信できません。";
-  return `${noticeText(kind, context)}\n\n${footer}\nこのメールは、予約の知らせのために登録されたアドレスに kanaeru から送っています。`;
+  return `${noticeText(kind, context)}\n\n${footer}\nこのメールは、予約の知らせのために登録されたアドレスに ${PRODUCT_NAME} から送っています。`;
 }
 
 /**
@@ -258,7 +259,7 @@ export function noticeEmailText(
  * @returns 送り主の名前
  */
 export function senderName(holderName: string): string {
-  return `${holderName}（kanaeru）`;
+  return `${holderName}（${PRODUCT_NAME}）`;
 }
 
 /** 確認のメールに入れる中身（booking-003 research R10）。 */
@@ -304,6 +305,6 @@ export function emailConfirmText(context: EmailConfirmContext): string {
     "確定したあとも、同じリンクから申込みを見る・取り消すことができます。リンクはほかの人に教えないでください。",
     "心当たりがないときは、このメールを消してください。何もしなければ申込みにはなりません。",
     "",
-    "このメールには返信できません。このメールは、申込みのときに入れられたアドレスに kanaeru から送っています。",
+    `このメールには返信できません。このメールは、申込みのときに入れられたアドレスに ${PRODUCT_NAME} から送っています。`,
   ].join("\n");
 }
