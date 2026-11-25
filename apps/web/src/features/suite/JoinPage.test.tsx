@@ -86,6 +86,12 @@ describe("組織の招待", () => {
     expect(screen.getByText("3人")).toBeInTheDocument();
     expect(screen.getByText("組織の人どうしで、表示名と役割が見えます。")).toBeInTheDocument();
     expect(screen.getByText(/組織の管理者に引き継がれます/)).toBeInTheDocument();
+    // 利用規約とプライバシーポリシー（新しいタブ。suite-002）
+    expect(screen.getByRole("link", { name: "利用規約" })).toHaveAttribute("target", "_blank");
+    expect(screen.getByRole("link", { name: "プライバシーポリシー" })).toHaveAttribute(
+      "href",
+      "/privacy",
+    );
 
     await userEvent.click(screen.getByRole("button", { name: "入る" }));
     await vi.waitFor(() =>
