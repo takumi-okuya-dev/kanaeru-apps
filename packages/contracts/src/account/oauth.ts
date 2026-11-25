@@ -99,3 +99,16 @@ export const ConnectionView = z.object({
 
 /** 接続の一覧の応答。 */
 export const ConnectionListView = z.object({ connections: z.array(ConnectionView) });
+
+/** 同意の画面に出すもの（クライアントの名前と、要求の範囲の画面向けの名前。FR-014）。 */
+export const ConsentView = z.object({
+  clientName: z.string(),
+  scopes: z.array(z.object({ scope: z.string(), label: z.string(), description: z.string() })),
+});
+
+/** 認可の要求の項目（型）。 */
+export type AuthorizeQuery = z.infer<typeof AuthorizeParams>;
+/** 同意の送信の入力（型）。 */
+export type ConsentDecisionInput = z.infer<typeof ConsentInput>;
+/** 同意の画面に出すもの（型）。 */
+export type ConsentViewData = z.infer<typeof ConsentView>;

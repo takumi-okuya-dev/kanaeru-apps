@@ -31,7 +31,7 @@
 - [X] T021 T021 `/.well-known/oauth-protected-resource`・`/.well-known/oauth-authorization-server`（`client_id_metadata_document_supported` を含む）。テスト：RFC 9728・8414 の必須項目  〔2026-11-23 実装（/.well-known の2つ）〕
 - [X] T022 T022 `/api/oauth/authorize`：PKCE S256 必須・`state` 必須・LINE ログインへ。テスト：PKCE なし・`state` なしは通らない（SC-005）  〔2026-11-23 実装（同意の画面は画面側の作業。API の入口は実装）〕
 - [X] T023 T023 `/api/oauth/token`：コードの1回使用・`resource` が `/api/mcp` でなければ断る・`iss` を返す。テスト：SC-002 の組（別の宛先・期限切れ・取り消し）  〔2026-11-23 実装（コードの1回使用・使い回しの検出・iss・resource）〕
-- [~] T024 T024 同意の画面の API と画面（範囲と接続の名前を表示）。テスト：断ると接続が発行されない（US1-3）  〔API と同意の送信は実装。画面は未実装（フェーズ4）〕
+- [X] T024 T024 同意の画面の API と画面（範囲と接続の名前を表示）。テスト：断ると接続が発行されない（US1-3）  〔2026-11-26 実装：API は GET /api/oauth/authorize/consent（表示の中身）と decision。画面は apps/web の features/account（/oauth/consent・SessionGate・範囲は外せる・既定は全部許す）。試験：API 3件・画面 2件（断るの送信は画面の移動を伴うため未試験）〕
 - [~] T025 T025 `requireSession` の Bearer 対応（クッキーは `/api/mcp` で受けない・`requireScope`）。テスト：AD-12 の既存のクッキーの道が変わらない  〔窓口の内側の印（kernel/internal-auth）で実装。窓口は札（Bearer）を受けない（FR-007 のため。下の「配置の変更」）〕
 
 ## Phase 3: 読むツール（US2）

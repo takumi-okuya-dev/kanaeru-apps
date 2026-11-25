@@ -1,6 +1,12 @@
 // アカウントの窓口の呼び出し（型は apps/api/src/client.ts の ModuleRoutes["account"] から import type で読む）。
 // 読み書きはすべて lib/api.ts の request を通す（エラーの読み方と 401 の知らせをそろえる）。
-import type { TestLoginInput } from "@workspace/contracts/account";
+import { ConsentResponse as ConsentResponseSchema, ConsentView as ConsentViewSchema } from "@workspace/contracts/account";
+import type {
+  AuthorizeQuery,
+  ConsentViewData,
+  ConsentDecisionInput,
+  TestLoginInput,
+} from "@workspace/contracts/account";
 import type { ModuleRoutes } from "../../../../api/src/client.ts";
 import { createApiClient, request } from "../../lib/api.ts";
 
@@ -64,4 +70,35 @@ export function fetchWithdrawalPreview() {
  */
 export function deleteMe() {
   return request(() => api().api.v1.accounts.me.$delete());
+}
+
+/**
+ * 同意の画面に出すもの（クライアントの名前と、要求の範囲の説明）を読む。
+ * 同意の道（/api/oauth）は領域の型の外なので、fetch を直接呼び、形は contract で確かめる。
+ * @param query 認可の要求の項目（同意の道の問い合わせ）
+ * @returns 同意の画面に出すもの
+ */
+export async function fetchConsentView(query: AuthorizeQuery): Promise<ConsentViewData> {
+  const params = new URLSearchParams(query);
+  const body = await request(() =>
+    fetch(`/api/oauth/authorize/consent?${params.toString()}`, { credentials: "same-origin" }),
+  );
+  return ConsentViewSchema.parse(body);
+}
+
+/**
+ * 同意の決め（許す・断る）を送り、戻り先の URL を受け取る。
+ * @param input 認可の要求の項目と、決め・許した範囲
+ * @returns 戻り先の URL
+ */
+export async function decideConsent(input: ConsentDecisionInput): Promise<{ redirectTo: string }> {
+  const body = await request(() =>
+    fetch("/api/oauth/authorize/decision", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+  );
+  return ConsentResponseSchema.parse(body);
 }

@@ -26,3 +26,15 @@ export const devLoginRoute = createRoute({
     isSafeRedirect(search.redirect) ? { redirect: search.redirect } : {},
   component: lazyRouteComponent(() => import("./DevLoginRoute.tsx"), "DevLoginRoute"),
 });
+
+/**
+ * 同意の画面（/oauth/consent）。認可の要求の項目を、問い合わせのまま渡す（形は画面の中で確かめる）。
+ * 外枠のナビを出さない（ログインの前の画面と同じく、認可の途中の画面）。
+ */
+export const oauthConsentRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/oauth/consent",
+  staticData: { layout: "bare" },
+  validateSearch: (search: Record<string, unknown>): Record<string, unknown> => search,
+  component: lazyRouteComponent(() => import("./OAuthConsentRoute.tsx"), "OAuthConsentRoute"),
+});

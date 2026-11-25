@@ -313,3 +313,37 @@ describe("同意とトークン（全体の流れ）", () => {
     expect(((await response.json()) as { error: string }).error).toBe("invalid_client");
   });
 });
+
+describe("同意の画面に出すもの（FR-014）", () => {
+  it("ログインした利用者には、クライアントの名前と範囲の説明を返す（読むだけ）", async () => {
+    const app = makeApp();
+    const clientId = await registerClient(app);
+    const { cookie } = await loginAs(app, { lineUserId: testLineUserId() });
+
+    const response = await app.request(`/api/oauth/authorize/consent?${qs(params(clientId))}`, withCookie(cookie));
+    expect(response.status).toBe(200);
+    const view = (await response.json()) as { clientName: string; scopes: { scope: string; label: string }[] };
+    expect(view.clientName).toBe("テストの CLI");
+    expect(view.scopes.length).toBeGreaterThan(0);
+    for (const row of view.scopes) {
+      expect(row.scope.endsWith(":read")).toBe(true);
+      expect(row.label).toContain("の記録を読む");
+    }
+  });
+
+  it("ログインしていないと 401。要求が使えないと 400（戻り先へは送らない）", async () => {
+    const app = makeApp();
+    const clientId = await registerClient(app);
+
+    const anonymous = await app.request(`/api/oauth/authorize/consent?${qs(params(clientId))}`);
+    expect(anonymous.status).toBe(401);
+
+    const { cookie } = await loginAs(app, { lineUserId: testLineUserId() });
+    const wrongResource = await app.request(
+      `/api/oauth/authorize/consent?${qs(params(clientId, { resource: `${TEST_ORIGIN}/api/v1/x` }))}`,
+      withCookie(cookie),
+    );
+    expect(wrongResource.status).toBe(400);
+    expect(((await wrongResource.json()) as { error: string }).error).toBe("invalid_target");
+  });
+});

@@ -255,6 +255,20 @@ const consentRoute = createRoute({
   },
 });
 
+const consentViewRoute = createRoute({
+  method: "get",
+  path: "/api/oauth/authorize/consent",
+  tags: ["account"],
+  operationId: "accountOAuthConsentView",
+  summary: "同意の画面に出すもの（クライアントの名前と、範囲の説明）",
+  request: { query: authorizeQuery },
+  responses: {
+    200: { description: "同意の画面に出すもの", content: { "application/json": { schema: contract.ConsentView } } },
+    400: { description: "要求の形が違う・クライアントや範囲が使えない", content: { "application/json": { schema: oauthErrorSchema } } },
+    401: domainErrorResponse({ code: "UNAUTHENTICATED", status: 401, message: "ログインしていない" }, "ログインしていない"),
+  },
+});
+
 const tokenRoute = createRoute({
   method: "post",
   path: "/api/oauth/token",
@@ -369,6 +383,29 @@ export function registerOAuthRoutes<T extends OpenAPIHono<ApiEnv>>(app: T, deps:
     return next();
   });
   app.use("/api/oauth/authorize/decision", requireLogin(deps));
+
+  // 同意の画面に出すもの（ログインが要る。読むだけ）
+  app.use("/api/oauth/authorize/consent", requireLogin(deps));
+  app.openapi(consentViewRoute, async (c) => {
+    const checked = await validateAuthorize(deps, c.req.valid("query"));
+    if (!checked.ok) return oauthError(c, 400, checked.reason.error, checked.reason.description);
+    const { client, scopes } = checked.value;
+    c.header("Cache-Control", "no-store");
+    return c.json(
+      {
+        clientName: client.name,
+        scopes: scopes.map((scope) => {
+          const app = deps.apps.find((candidate) => `${candidate.key}:read` === scope);
+          return {
+            scope,
+            label: `${app?.name ?? scope}の記録を読む`,
+            description: app?.accountData ?? "",
+          };
+        }),
+      },
+      200,
+    );
+  });
 
   app.openapi(consentRoute, async (c) => {
     const body = c.req.valid("json");
