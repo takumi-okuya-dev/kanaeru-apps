@@ -59,9 +59,9 @@ export type LegalDocument = {
 export const TERMS: LegalDocument = {
   key: "terms",
   title: LEGAL_TITLES.terms,
-  lead: "kanaeru を使うときの決まりです。",
+  lead: "PaletKit を使うときの決まりです。",
   intro: [
-    "この規約は、〈運営者の名前〉（以下「運営者」）が提供するアプリのまとまり「kanaeru」（以下「本サービス」）の使い方を決めるものです。本サービスを使った方（以下「利用者」）は、この規約と{{privacy}}に同意したものとします。",
+    "この規約は、〈運営者の名前〉（以下「運営者」）が提供するアプリのまとまり「PaletKit」（以下「本サービス」）の使い方を決めるものです。本サービスを使った方（以下「利用者」）は、この規約と{{privacy}}に同意したものとします。",
   ],
   sections: [
     {
@@ -244,9 +244,9 @@ export const TERMS: LegalDocument = {
 export const PRIVACY: LegalDocument = {
   key: "privacy",
   title: LEGAL_TITLES.privacy,
-  lead: "kanaeru で、あなたの情報をどう集め、どう使うかです。",
+  lead: "PaletKit で、あなたの情報をどう集め、どう使うかです。",
   intro: [
-    "〈運営者の名前〉（以下「運営者」）は、アプリのまとまり「kanaeru」（以下「本サービス」）で、利用者の情報を次のとおり扱います。本サービスの使い方の決まりは{{terms}}にあります。",
+    "〈運営者の名前〉（以下「運営者」）は、アプリのまとまり「PaletKit」（以下「本サービス」）で、利用者の情報を次のとおり扱います。本サービスの使い方の決まりは{{terms}}にあります。",
   ],
   sections: [
     {
