@@ -70,7 +70,7 @@ variable "production" {
     # 独自ドメインにするときはその URL（LINE のミニアプリ・OAuth の戻り先に登録する前に決める）
     web_url = optional(string, "")
     # 画面に出すアプリの名前（設定 APP_NAME。GitHub の環境の変数 APP_NAME と同じにする）
-    app_name = optional(string, "kanaeru")
+    app_name = optional(string, "PaletKit")
     # IDトークンを確かめるときの LINE のチャネルID（カンマで並べる。秘密ではない。AD-4）。環境ごとの LINE ミニアプリのチャネル
     line_channel_ids = string
     # 主催者の LINE のユーザーID（秘密ではない。AD-5。同じプロバイダーなら環境で同じ値）
@@ -103,7 +103,7 @@ variable "staging" {
     # 独自ドメインにするときはその URL（LINE のミニアプリ・OAuth の戻り先に登録する前に決める）
     web_url = optional(string, "")
     # 画面に出すアプリの名前（設定 APP_NAME。GitHub の環境の変数 APP_NAME と同じにする）
-    app_name = optional(string, "kanaeru")
+    app_name = optional(string, "PaletKit")
     # IDトークンを確かめるときの LINE のチャネルID（カンマで並べる。秘密ではない。AD-4）。環境ごとの LINE ミニアプリのチャネル
     line_channel_ids = string
     # 主催者の LINE のユーザーID（秘密ではない。AD-5。同じプロバイダーなら環境で同じ値）

@@ -24,7 +24,7 @@ WORKDIR /app
 # ---- 画面を組み立てる（apps/web/dist）
 FROM base AS web
 ARG VITE_LIFF_ID=""
-ARG APP_NAME=kanaeru
+ARG APP_NAME=PaletKit
 COPY . .
 RUN pnpm install --frozen-lockfile --filter "web..."
 RUN VITE_LIFF_ID="${VITE_LIFF_ID}" APP_NAME="${APP_NAME}" pnpm --filter web build
