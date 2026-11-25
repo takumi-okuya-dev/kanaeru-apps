@@ -174,6 +174,10 @@ test("主催者がアンケートを開いたあと、参加者が答えてお�
       page.getByRole("radiogroup", { name: question }).getByRole("radio", { name: "答えない" }),
     ).toHaveAttribute("aria-checked", "true");
   }
+  // 入力の画面にも、Googleフォームへの補助のリンクが出る（外のページとして開く。survey-002）
+  const formLink = page.getByRole("link", { name: "交流会のアンケート（Googleフォーム）を開く" });
+  await expect(formLink).toHaveAttribute("href", GOOGLE_FORM_URL);
+  await expect(formLink).toHaveAttribute("target", "_blank");
   await expectNoA11yViolations(page, "アンケートの画面");
   await expectNoHorizontalScroll(page, "アンケートの画面");
 
@@ -190,6 +194,8 @@ test("主催者がアンケートを開いたあと、参加者が答えてお�
   });
   await expect(thanks).toBeVisible();
   await expect(thanks).toBeFocused();
+  // お礼の画面では入力用のリンクは消え、「続けて交流会のアンケートへ」だけが残る
+  await expect(formLink).toHaveCount(0);
   await expect(page.getByRole("link", { name: "続けて交流会のアンケートへ" })).toHaveAttribute(
     "href",
     GOOGLE_FORM_URL,
