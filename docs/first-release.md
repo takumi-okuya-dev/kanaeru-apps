@@ -23,6 +23,29 @@ flowchart LR
 - 交流会で使うなら、**2〜3日前までに 9 を終える**。9 の結果しだいで直しが要る（11章）。
 - **独自ドメイン**：一般に公開するときは独自ドメインを取り、Cloudflare を前に置く（[バックログ](./backlog.md) C1）。画面の URL は 4 の apply で決まり（tfvars の環境ごとの `web_url`）、5 で LINE に登録するので、取るなら 4 の前に決めて `web_url` に入れる。決めていなければ `run.app` のまま進め、取ったときに `web_url` を入れて apply し直し、LINE・Meta に登録し直す（[infra/README.md](../infra/README.md) 4章）。
 
+### リンク集（使う画面と資料）
+
+手順の番号は、下の章の番号。GCP の画面は、右上でプロジェクトを選んでから開く（URL の末尾に `?project=<プロジェクトID>` を付けると、そのプロジェクトで開く）。GitHub の設定の画面は、リポジトリの管理者でログインしているときだけ開ける（ログインしていないと 404 になる）。
+
+| 章 | 何をするか | リンク |
+|---|---|---|
+| 1 | Terraform を入れる | [Terraform のインストール](https://developer.hashicorp.com/terraform/install) |
+| 1 | gcloud を入れる | [Google Cloud CLI のインストール](https://cloud.google.com/sdk/docs/install) |
+| 1 | GitHub の CLI（`gh`）を入れる | [GitHub CLI](https://cli.github.com/) |
+| 2 | プロジェクトを作る | [プロジェクトの作成](https://console.cloud.google.com/projectcreate) |
+| 2 | 請求先アカウントにつなぐ・通貨を確かめる | [お支払い](https://console.cloud.google.com/billing) |
+| 2 | 最初の API を有効にする | [API ライブラリ](https://console.cloud.google.com/apis/library) |
+| 2 | Terraform の状態用バケットを作る | [Cloud Storage のバケット](https://console.cloud.google.com/storage/browser) |
+| 3 | LINE のプロバイダー・ミニアプリのチャネルを作る、チャネル ID と LIFF ID を見る | [LINE Developers コンソール](https://developers.line.biz/console/) |
+| 3 | ミニアプリ・LIFF の説明を読む | [LINE ミニアプリのドキュメント](https://developers.line.biz/ja/docs/line-mini-app/)・[LIFF のドキュメント](https://developers.line.biz/ja/docs/liff/) |
+| 3 | 公式LINE（Messaging API）を作る・友だち追加の相手にする | [LINE Official Account Manager](https://manager.line.biz/) |
+| 4 | apply のあとで、できたものを見る（動いているか・料金が出ていないか） | [Cloud Run](https://console.cloud.google.com/run)・[Cloud SQL](https://console.cloud.google.com/sql)・[Cloud Scheduler](https://console.cloud.google.com/cloudscheduler)・[Secret Manager](https://console.cloud.google.com/security/secret-manager) |
+| 6 | リポジトリの変数を入れる | [Variables（Actions）](https://github.com/takumi-okuya-dev/paletkit-apps/settings/variables/actions) |
+| 6 | 環境 `production`・`staging` を作る・承認者を入れる | [Environments](https://github.com/takumi-okuya-dev/paletkit-apps/settings/environments) |
+| 7 | 初めてのデプロイを流す・承認する | [deploy の流れ（Actions）](https://github.com/takumi-okuya-dev/paletkit-apps/actions/workflows/deploy.yml) |
+| 0 | 独自ドメインを取る | [Cloudflare Registrar](https://www.cloudflare.com/products/registrar/) など |
+| 0 | 名前の商標を確かめる（称呼検索） | [J-PlatPat](https://www.j-platpat.inpit.go.jp/)（確かめ方は、スキル `brand-name-research`） |
+
 ## 1. 道具とアカウント（初めての1回）
 
 - [ ] Terraform（1.11 以上）と gcloud を入れ、`gcloud auth login`・`gcloud auth application-default login` を流す（[infra/README.md](../infra/README.md) 1章）
