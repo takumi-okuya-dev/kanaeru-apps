@@ -163,6 +163,9 @@ describe("アンケートの画面", () => {
     expect(formLink).toHaveAttribute("href", "https://forms.gle/example");
     expect(formLink).toHaveAttribute("target", "_blank");
     expect(formLink).toHaveAttribute("rel", "noopener noreferrer");
+    // 長い名前のリンクが、スマホの幅を超えて横スクロールを出さない（折り返せる・縮められる）。E2E の横スクロールの確かめの原因（survey-002）
+    expect(formLink).toHaveClass("whitespace-normal", "max-w-full", "shrink");
+    expect(formLink).not.toHaveClass("whitespace-nowrap", "shrink-0");
     // 主のボタンは「送る」の1つのまま（リンクはボタンの下に並ぶ）
     expect(screen.getAllByRole("button", { name: /^送る$|^送り直す$/ })).toHaveLength(1);
     expect(

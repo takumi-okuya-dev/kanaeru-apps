@@ -218,7 +218,11 @@ function SurveyForm({ summary, answer, onSent }: FormProps) {
           <a
             href={summary.googleFormUrl}
             {...EXTERNAL_LINK}
-            className={cn(buttonVariants({ variant: "text" }), "min-h-l self-start")}
+            className={cn(
+              buttonVariants({ variant: "text" }),
+              // 文字が長いので、スマホの幅では折り返し、縮める（ボタンの見た目の nowrap・shrink-0 を上書きする）
+              "min-h-l max-w-full shrink self-start justify-start py-xxs text-left whitespace-normal",
+            )}
           >
             交流会のアンケート（Googleフォーム）を開く
           </a>
