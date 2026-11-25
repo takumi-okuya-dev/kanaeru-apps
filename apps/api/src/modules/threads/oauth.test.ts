@@ -249,6 +249,41 @@ describe("OAuth の接続と Meta の Webhook", () => {
     expect((await connection()).status).toBe("not_connected");
   });
 
+  it("連携の解除：接続を始めたあと・完了の前に出た知らせ（issued_at が完了より前）でも、接続を止める", async () => {
+    const pair = await authorize();
+    // 接続を始めたのを5分前にし、その1分後（完了より前）に連携を解いた知らせを受ける
+    await database.pool.query(
+      "UPDATE threads_oauth_state SET created_at = now() - interval '5 minutes'",
+    );
+    const revoked = signRequestForTest(APP_SECRET, {
+      algorithm: "HMAC-SHA256",
+      user_id: "9001",
+      issued_at: Math.floor(Date.now() / 1000) - 240,
+    });
+    expect((await webhook(`${BASE}/webhooks/uninstall`, revoked)).status).toBe(200);
+    const done = await call(app, cookie, `${BASE}/oauth/complete`, "POST", pair);
+    expect(((await done.json()) as { redirectTo: string }).redirectTo).toBe(
+      `/threads/accounts/${accountId}/settings?oauth=THREADS_AUTH_REVOKED`,
+    );
+    expect((await connection()).status).toBe("not_connected");
+  });
+
+  it("連携の解除：接続を始めたあとに出て、完了のあとに届いた知らせでも、接続し直しが要るにする", async () => {
+    const pair = await authorize();
+    await database.pool.query(
+      "UPDATE threads_oauth_state SET created_at = now() - interval '5 minutes'",
+    );
+    await call(app, cookie, `${BASE}/oauth/complete`, "POST", pair);
+    expect((await connection()).status).toBe("connected");
+    const late = signRequestForTest(APP_SECRET, {
+      algorithm: "HMAC-SHA256",
+      user_id: "9001",
+      issued_at: Math.floor(Date.now() / 1000) - 240,
+    });
+    expect((await webhook(`${BASE}/webhooks/uninstall`, late)).status).toBe(200);
+    expect((await connection()).status).toBe("needs_reconnect");
+  });
+
   it("データの削除の要求が終わっていない・接続を始めたあとに終わったなら、OAuth の接続を断る（threads-012）", async () => {
     await database.pool.query(
       `INSERT INTO threads_deletion_request (confirmation_code, request_fingerprint, threads_user_id, threads_user_hash, status, received_at, last_attempted_at)

@@ -1,14 +1,14 @@
 # syntax=docker/dockerfile:1
 # 本番のコンテナ（core-002。構成の決めごと AD-8・AD-11）。
 # 1つのコンテナが、画面の組み立てたファイル（apps/web/dist）と /api を同じ源で返す。
-# 同じコンテナを Cloud Run jobs で db:migrate としても動かす（infra/cloud_run.tf の job が args を
+# 同じコンテナを Cloud Run jobs で db:migrate としても動かす（infra/modules/environment/run.tf の job が args を
 # ["scripts/migrate.ts"] に差しかえる。中身は apps/api/scripts/migrate.ts）。
 #
 #   docker build --build-arg VITE_LIFF_ID=<LIFF ID> -t kanaeru .
 #
 # - VITE_LIFF_ID：LIFF ID（公開してよい値。AD-4）。画面の組み立てのときに埋める。
 # - APP_NAME：画面の題に埋める名前（Cloud Run の環境の値 APP_NAME と同じにする）。
-# 動かすときの設定は環境の値で渡す（値の意味は apps/api/src/kernel/config.ts。本番の値は infra/cloud_run.tf）。
+# 動かすときの設定は環境の値で渡す（値の意味は apps/api/src/kernel/config.ts。本番の値は infra/modules/environment/run.tf）。
 # TypeScript は組み立てずに、Node.js の型を取り除く仕組みでそのまま動かす（erasableSyntaxOnly の書き方だけを使うため）。
 
 # Node.js の版は package.json の devEngines・.node-version と同じ。指紋（digest）で固定する（Dependabot が新しくする）。
@@ -24,7 +24,7 @@ WORKDIR /app
 # ---- 画面を組み立てる（apps/web/dist）
 FROM base AS web
 ARG VITE_LIFF_ID=""
-ARG APP_NAME=kanaeru
+ARG APP_NAME=PaletKit
 COPY . .
 RUN pnpm install --frozen-lockfile --filter "web..."
 RUN VITE_LIFF_ID="${VITE_LIFF_ID}" APP_NAME="${APP_NAME}" pnpm --filter web build

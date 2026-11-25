@@ -4,7 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase } from "../src/kernel/db.ts";
-import { WEB_CSP_DIRECTIVES } from "../src/platform/web/index.ts";
+import {
+  EDGE_CACHE_HEADER,
+  EDGE_HTML_CACHE,
+  WEB_CSP_DIRECTIVES,
+  allowsCamera,
+} from "../src/platform/web/index.ts";
 import { buildApp, testConfig } from "./helpers/app.ts";
 
 /** 画面のフォルダの中身（組み立てた形を小さくまねたもの）。 */
@@ -22,6 +27,9 @@ beforeAll(() => {
   mkdirSync(join(distDir, "assets"), { recursive: true });
   writeFileSync(join(distDir, "index.html"), INDEX_HTML);
   writeFileSync(join(distDir, "assets", "app-abc123.js"), "console.log(1);");
+  // 試合表のオフラインの Service Worker（毎回確かめる。古い sw.js を持ち続けない）
+  mkdirSync(join(distDir, "match"), { recursive: true });
+  writeFileSync(join(distDir, "match", "sw.js"), "self.addEventListener('fetch', () => {});");
   // 画面のフォルダの外のファイル（読ませてはいけない）
   writeFileSync(join(root, "secret.txt"), "秘密");
 });
@@ -56,7 +64,9 @@ describe("画面のファイル", () => {
       expect(response.status, path).toBe(200);
       expect(response.headers.get("content-type"), path).toContain("text/html");
       expect(await response.text(), path).toContain("テストの画面");
+      // ブラウザは毎回確かめる。源（Cloud Run）が落ちたときは、前に置く Cloudflare が前の画面を出せる（core-020）
       expect(response.headers.get("cache-control"), path).toBe("no-cache");
+      expect(response.headers.get(EDGE_CACHE_HEADER), path).toBe(EDGE_HTML_CACHE);
       const csp = response.headers.get("content-security-policy") ?? "";
       expect(csp, path).toContain("script-src 'self' https://static.line-scdn.net");
       expect(csp, path).toContain("connect-src 'self' https://api.line.me");
@@ -68,6 +78,41 @@ describe("画面のファイル", () => {
       expect(response.headers.get("referrer-policy"), path).toBe("strict-origin-when-cross-origin");
       expect(response.headers.get("x-request-id"), path).toBeTruthy();
     }
+  });
+
+  it("カメラは試合表の道（/match・/match/…）だけで自分の源に許し、ほかの道と /api では止める（core-015）", async () => {
+    const app = appWithWeb();
+    for (const path of ["/match", "/match/", "/match/tables/x/join", "/match/view/abc"]) {
+      const response = await app.request(path);
+      expect(response.headers.get("permissions-policy"), path).toBe(
+        "camera=(self), microphone=(), geolocation=()",
+      );
+      expect(response.headers.get("content-security-policy"), path).toContain(
+        "frame-ancestors 'none'",
+      );
+    }
+    for (const path of ["/", "/matchfoo", "/Match", "/apps", "/e/x/checkin", "/api/v1/health"]) {
+      const response = await app.request(path);
+      expect(response.headers.get("permissions-policy"), path).toBe(
+        "camera=(), microphone=(), geolocation=()",
+      );
+    }
+    expect(allowsCamera("/match/sw.js")).toBe(true);
+    expect(allowsCamera("/matches")).toBe(false);
+  });
+
+  it("HTML のファイルは Cloudflare に源が落ちたときだけ前のものを出させ、HTML でないファイル（sw.js）には付けない（core-020）", async () => {
+    const app = appWithWeb();
+    const index = await app.request("/index.html");
+    expect(index.status).toBe(200);
+    expect(index.headers.get("cache-control")).toBe("no-cache");
+    expect(index.headers.get(EDGE_CACHE_HEADER)).toBe(EDGE_HTML_CACHE);
+    expect(EDGE_HTML_CACHE).toContain("stale-if-error=");
+    expect(EDGE_HTML_CACHE).not.toMatch(/no-cache|must-revalidate|no-store|public/);
+    const worker = await app.request("/match/sw.js");
+    expect(worker.status).toBe(200);
+    expect(worker.headers.get("cache-control")).toBe("no-cache");
+    expect(worker.headers.get(EDGE_CACHE_HEADER)).toBeNull();
   });
 
   it("中身の印つきのファイル（/assets/）は、そのまま返し、長く持たせる", async () => {

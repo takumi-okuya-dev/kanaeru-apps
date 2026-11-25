@@ -1,5 +1,6 @@
-// A4 準備（主催者だけ。EXPERIENCE.md）：受付QR・アンケートQRの表示と印刷・アンケートの開閉・
-// 受付係の招待のリンク（写す・作り直す）・受付係の一覧（外す）。
+// A4 準備（主催者だけ。EXPERIENCE.md）：持ち主と組織（event-002）・受付QR・アンケートQRの表示と印刷・アンケートの開閉・
+// 受付係の招待のリンク（写す・作り直す）・受付係の一覧（外す）。「持ち主と組織」のあとに、ほかの領域が差しこみの場所
+// （setup-slots.ts の registerSetupSection）から出す節を並べる（booking の「使い方」。booking-001）。
 // 送った結果は押したボタンの近く（ResponseMessage）、作り直す・外す前は確かめの枠（ConfirmDialog）。
 import type { EventView } from "@workspace/contracts/event";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,6 +14,7 @@ import { errorMessage } from "../../lib/api.ts";
 import { Page } from "../../lib/page.tsx";
 import { SessionGate } from "../account/index.ts";
 import { EventAccessGate, Loading } from "./EventAccessGate.tsx";
+import { OwnerOrganizationSection } from "./OwnerOrganizationSection.tsx";
 import { QrCode } from "./QrCode.tsx";
 import {
   createStaffInvite,
@@ -24,6 +26,7 @@ import {
 import { formatEventDateTime, formatJstDate } from "./format.ts";
 import { QR_DESCRIPTIONS, QR_TITLES, inviteLinkValue, qrValue, usesMiniAppUrl } from "./links.ts";
 import { EVENT_QUERY_KEYS } from "./queries.ts";
+import { setupSectionList } from "./setup-slots.ts";
 
 /** まとまりが受け取るもの。 */
 type SectionProps = {
@@ -364,6 +367,10 @@ function Setup({ event }: { event: EventView }) {
         </Link>
       }
     >
+      <OwnerOrganizationSection eventId={event.id} />
+      {setupSectionList().map(({ id, Component }) => (
+        <Component key={id} event={event} />
+      ))}
       <QrSection event={event} />
       <SurveySection event={event} />
       <InviteSection event={event} />

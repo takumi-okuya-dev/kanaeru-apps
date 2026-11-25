@@ -36,7 +36,7 @@ type AppSwitcherProps = {
 function currentOf(view: ShellAppsView): { label: string; icon: IconName; key?: string } {
   const place = view.place;
   if (place?.kind === "apps") return { label: "すべてのアプリ", icon: "apps" };
-  if (place?.kind === "settings") return { label: "設定", icon: "settings" };
+  if (place?.kind === "settings") return { label: "全体の設定", icon: "settings" };
   const app = place?.kind === "app" ? view.apps.find((item) => item.key === place.key) : undefined;
   return app
     ? { label: app.name, icon: app.icon, key: app.key }
@@ -219,7 +219,7 @@ export function MobileAppSwitcher({ view }: AppSwitcherProps) {
                   className={sheetItemClassName}
                 >
                   <Icon name="settings" />
-                  設定
+                  全体の設定
                 </Link>
               </li>
             ) : null}

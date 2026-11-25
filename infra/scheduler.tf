@@ -1,4 +1,4 @@
-# 夜間（0時〜8時。日本時間）に Cloud SQL を止める（core-002。AD-10）。
+# 夜間（0時〜8時。日本時間）に Cloud SQL を止める（core-002。AD-10）。サーバーを共にする本番とステージングの両方が止まる。
 # Cloud Scheduler が Cloud SQL Admin API に PATCH を送り、activationPolicy を NEVER（止める）・ALWAYS（動かす）にする。
 # Google の API（*.googleapis.com）を呼ぶので、OIDC ではなく OAuth のトークンを使う。間に関数を挟まない。
 # 交流会が0時を越える日は、主催者が `gcloud scheduler jobs pause kanaeru-db-stop --location=asia-northeast1` で止める。
@@ -47,3 +47,5 @@ resource "google_cloud_scheduler_job" "db" {
     google_project_iam_member.db_scheduler_sql_activation,
   ]
 }
+
+# 共通の定期の仕事（core-017。kanaeru-jobs-tick など）は、環境ごとの部品が作る（modules/environment/run.tf）。

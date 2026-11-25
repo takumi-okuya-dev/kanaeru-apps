@@ -89,6 +89,46 @@ describe("外枠", () => {
     expect(screen.getByRole("link", { name: APP_NAME })).toBeInTheDocument();
   });
 
+  it("薄い項目は、サイドバーとタブバーに出て、aria-disabled と補足を持ち、今の項目にならない。押すと移り先に知らせが出る（core-022）", async () => {
+    const items: readonly NavItem[] = [
+      { id: "list", label: "交流会の一覧", to: "/admin/events", icon: "list" },
+      {
+        id: "concerns",
+        label: "困りごと",
+        to: "/admin/events",
+        icon: "concerns",
+        disabled: { message: "先に交流会を選んでください" },
+      },
+    ];
+    const router = await renderShell("/sample", items);
+    const navs = screen.getAllByRole("navigation", { name: "メイン" });
+    expect(navs).toHaveLength(2);
+    for (const nav of navs) {
+      const dim = within(nav).getByRole("link", { name: /困りごと/ });
+      expect(dim).toHaveAttribute("aria-disabled", "true");
+      expect(dim).not.toHaveAttribute("aria-current");
+      expect(dim).toHaveAccessibleName(/先に交流会を選んでください/);
+      expect(within(nav).getByRole("link", { name: "交流会の一覧" })).not.toHaveAttribute(
+        "aria-disabled",
+      );
+    }
+    // 押すと、行き先（一覧）へ移り、知らせの帯が出る
+    const sidebar = navs[0] as HTMLElement;
+    await userEvent.click(within(sidebar).getByRole("link", { name: /困りごと/ }));
+    expect(router.state.location.pathname).toBe("/admin/events");
+    expect(await screen.findByText("先に交流会を選んでください")).toBeInTheDocument();
+    // 一覧が今の項目のまま
+    for (const nav of screen.getAllByRole("navigation", { name: "メイン" })) {
+      expect(within(nav).getByRole("link", { name: "交流会の一覧" })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+    }
+    // ほかの道へ移ると、知らせは消える
+    await router.navigate({ to: "/settings" });
+    expect(screen.queryByText("先に交流会を選んでください")).toBeNull();
+  });
+
   it("メニューのボタンでサイドバーを隠し、覚える（描き直しても隠れたまま）", async () => {
     await renderShell("/admin/events");
     const button = screen.getByRole("button", { name: "メニュー" });
@@ -223,7 +263,7 @@ describe("外枠のアプリの切り替え（core-005）", () => {
   it("見えるアプリが1つなら切り替えを出さず、設定の入口だけを出す。今のアプリを覚える", async () => {
     await renderShell("/admin/events", ITEMS, appsView());
     expect(screen.queryByRole("button", { name: /切り替える）$/ })).toBeNull();
-    expect(screen.getByRole("link", { name: "設定" })).toHaveAttribute("href", "/settings");
+    expect(screen.getByRole("link", { name: "全体の設定" })).toHaveAttribute("href", "/settings");
     expect(screen.getAllByRole("navigation", { name: "メイン" })).toHaveLength(2);
     expect(window.localStorage.getItem(LAST_APP_STORAGE_KEY)).toBe("reception");
   });
@@ -260,7 +300,7 @@ describe("外枠のアプリの切り替え（core-005）", () => {
       "受付交流会の受付・アンケート",
       "見本運営者だけ見本のアプリ",
       "すべてのアプリ",
-      "設定",
+      "全体の設定",
     ]);
   });
 
@@ -308,7 +348,10 @@ describe("外枠のアプリの切り替え（core-005）", () => {
       "aria-current",
       "page",
     );
-    expect(screen.getByRole("link", { name: "設定" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "全体の設定" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
     expect(screen.getByRole("link", { name: "設定の一覧へ" })).toHaveAttribute("href", "/settings");
   });
 

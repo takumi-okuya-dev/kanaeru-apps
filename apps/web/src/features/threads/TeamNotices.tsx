@@ -8,7 +8,7 @@ import { Link } from "@tanstack/react-router";
 import { NotificationBar } from "@workspace/ui/components/notification-bar";
 import { useEffect, useRef, useState } from "react";
 import { seeTeamNotices } from "./api.ts";
-import { useTeamNotices, useTeamOrganizations } from "./queries.ts";
+import { useTeamNotices } from "./queries.ts";
 
 /**
  * 知らせがあるか。
@@ -24,7 +24,6 @@ export function hasTeamNotices(notices: ThreadsTeamNotices | undefined): boolean
  * @returns 要素
  */
 export function TeamNotices() {
-  useTeamOrganizations();
   const query = useTeamNotices();
   // 一度読んだ知らせは、見たことにしたあとも、この画面にいる間は出しておく
   const [shown, setShown] = useState<ThreadsTeamNotices>();
@@ -47,6 +46,7 @@ export function TeamNotices() {
           <Link
             to="/threads/accounts/$accountId/settings"
             params={{ accountId: notice.threadsAccountId }}
+            hash="threads-connection"
             className="text-text-link underline"
           >
             Threads に接続し直してください

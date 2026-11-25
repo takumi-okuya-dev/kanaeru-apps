@@ -4,7 +4,7 @@
 // - /assets/ の下でファイルがなければ、返さずに次（API の 404）へ渡す（壊れた JS を HTML で返さない）
 // - ほかの道でファイルがなければ index.html（SPA。画面の道は画面の道具が決める。参加者の道に . があってもよい）
 // - キャッシュの見出しは、ファイルを返せた応答（200・206）だけに付ける（416 などに長いキャッシュを付けない）
-// 守りの見出しは、/api は API の CSP（app.ts）、ほかは画面の CSP（ここ）。
+// 守りの見出しは、/api は API の CSP（app.ts）、ほかは画面の CSP（ここ）。カメラは試合表の道だけで許す（core-015）。
 // 画面の CSP は、自分の源と、LINE の SDK（@line/liff 2.32）が使う源だけを許す
 // （どの源を何に使うかは specs/core/001-foundation/research.md R7。'unsafe-inline'・'unsafe-eval' は入れない）。
 import { readFileSync } from "node:fs";
@@ -22,8 +22,37 @@ const IMMUTABLE_PREFIX = "/assets/";
 /** 長く持ってよいファイルのキャッシュ。 */
 const IMMUTABLE_CACHE = "public, max-age=31536000, immutable";
 
-/** index.html など、毎回確かめるファイルのキャッシュ。 */
+/** index.html・sw.js など、毎回確かめるファイルのキャッシュ（ブラウザ向け）。 */
 const REVALIDATE_CACHE = "no-cache";
+
+/** 前に置く Cloudflare だけが読む見出し（Cloudflare は読んだあと外し、ブラウザには渡さない）。 */
+export const EDGE_CACHE_HEADER = "Cloudflare-CDN-Cache-Control";
+
+/**
+ * 画面のもと（index.html と画面の道）の、Cloudflare 向けのキャッシュ（core-020）。毎回確かめる（max-age=0）が、
+ * 源（Cloud Run）が 500〜504 を返したときは、前に覚えたものを1日まで出してよい（stale-if-error。Cloudflare が使う状態の番号）。
+ * ブラウザ向けの Cache-Control は no-cache のまま（Cloudflare の Browser Cache TTL は、数の入った max-age を
+ * 長く書きかえることがあり、デプロイのあとも古い画面を持ち続けるため）。no-cache・must-revalidate は Cloudflare に
+ * 古いものを出すのを禁じるので、こちらには付けない。
+ */
+export const EDGE_HTML_CACHE = "max-age=0, stale-if-error=86400";
+
+/**
+ * 見つかったファイルのキャッシュの見出しを付ける。中身の印つきは長く、ほか（index.html・sw.js など）は毎回確かめる。
+ * HTML には、源が落ちたときに Cloudflare が前のものを出せる見出しも付ける。
+ * @param path 道
+ * @param headers ファイルの応答の見出し（ここに付ける）
+ */
+function setCacheHeaders(path: string, headers: Headers): void {
+  if (path.startsWith(IMMUTABLE_PREFIX)) {
+    headers.set("Cache-Control", IMMUTABLE_CACHE);
+    return;
+  }
+  headers.set("Cache-Control", REVALIDATE_CACHE);
+  if (headers.get("content-type")?.startsWith("text/html")) {
+    headers.set(EDGE_CACHE_HEADER, EDGE_HTML_CACHE);
+  }
+}
 
 /** 画面の CSP（Hono の secureHeaders の形）。LINE の源は research.md R7。Threads の画像の源は core-008。 */
 export const WEB_CSP_DIRECTIVES = {
@@ -67,19 +96,43 @@ export function isApiPath(path: string): boolean {
 }
 
 /**
+ * カメラを自分の源に許す画面の道の頭（試合表の道。電波なしで渡す QR と、受付の QR をカメラで読む。AD-27・AD-30・core-015）。
+ * ほかの道は今までどおりカメラを止める。道の比べ方は lib/liff.ts の LIFF を始めない道と同じ（大文字と小文字を分ける）。
+ */
+export const CAMERA_PATH_PREFIXES: readonly string[] = ["/match"];
+
+/**
+ * カメラを許す画面の道か（/match そのものと /match/ の下だけ。/matchfoo は違う）。
+ * @param path 要求の道
+ * @returns カメラを許すなら true
+ */
+export function allowsCamera(path: string): boolean {
+  return CAMERA_PATH_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+}
+
+/**
  * 画面の守りの見出し。HSTS は、設定の WEB_URL が https のときだけ出す（環境の名前で分けない）。
+ * Permissions-Policy は、カメラを許す道（allowsCamera）だけ `camera=(self)`、ほかは `camera=()`。
  * @param webUrl 画面の源（設定の WEB_URL）
  * @returns middleware
  */
 export function webSecureHeaders(webUrl: string): MiddlewareHandler {
   const https = new URL(webUrl).protocol === "https:";
-  return secureHeaders({
+  const options = {
     contentSecurityPolicy: WEB_CSP_DIRECTIVES,
     xFrameOptions: "DENY",
     referrerPolicy: "strict-origin-when-cross-origin",
     strictTransportSecurity: https ? `max-age=${HSTS_MAX_AGE_SECONDS}; includeSubDomains` : false,
+  } as const;
+  const plain = secureHeaders({
+    ...options,
     permissionsPolicy: { camera: [], microphone: [], geolocation: [] },
   });
+  const withCamera = secureHeaders({
+    ...options,
+    permissionsPolicy: { camera: ["self"], microphone: [], geolocation: [] },
+  });
+  return (c, next) => (allowsCamera(c.req.path) ? withCamera(c, next) : plain(c, next));
 }
 
 /**
@@ -107,16 +160,14 @@ export function serveWeb(options: { distDir: string }): MiddlewareHandler {
     const found = await files(c, () => Promise.resolve());
     if (found) {
       if (found.status === 200 || found.status === 206) {
-        found.headers.set(
-          "Cache-Control",
-          c.req.path.startsWith(IMMUTABLE_PREFIX) ? IMMUTABLE_CACHE : REVALIDATE_CACHE,
-        );
+        setCacheHeaders(c.req.path, found.headers);
       }
       return found;
     }
     // /assets/ の下のないファイルは、index.html を返さず API の 404（no-store）にする
     if (c.req.path.startsWith(IMMUTABLE_PREFIX)) return next();
     c.header("Cache-Control", REVALIDATE_CACHE);
+    c.header(EDGE_CACHE_HEADER, EDGE_HTML_CACHE);
     if (c.req.method === "HEAD") {
       c.header("Content-Type", "text/html; charset=UTF-8");
       return c.body(null, 200);

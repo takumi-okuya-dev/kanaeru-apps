@@ -25,11 +25,13 @@ function isUnder(pathname: string, prefix: string): boolean {
 
 /**
  * 今の項目を決める。
- * @param items ナビの項目
+ * @param allItems ナビの項目（薄い項目は数えない）
  * @param pathname 今の道
  * @returns 今の項目（どれにも当たらなければ undefined）
  */
-export function currentNav(items: readonly NavItem[], pathname: string): CurrentNav | undefined {
+export function currentNav(allItems: readonly NavItem[], pathname: string): CurrentNav | undefined {
+  // 薄い項目は、行き先が一覧と同じで、今の項目にならない（core-022）
+  const items = allItems.filter((item) => !item.disabled);
   const exact = items.find((item) => item.to === pathname);
   if (exact) return { id: exact.id, ariaCurrent: "page" };
   let best: { id: string; length: number } | undefined;

@@ -6,8 +6,24 @@ import type { AnyRoute } from "@tanstack/react-router";
 import type { OrganizationExtension } from "./organization.ts";
 import type { SettingsSection } from "./settings.ts";
 
-/** ナビのアイコンの種類（線は lib/icon.tsx）。 */
-export type NavIcon = "list" | "people" | "concerns" | "setup" | "account" | "ledger";
+/** ナビのアイコンの種類（線は lib/icon.tsx）。同じナビの中では、項目ごとに違うアイコンを選ぶ（目で探しやすくする。core-011）。 */
+export type NavIcon =
+  | "list"
+  | "people"
+  | "concerns"
+  | "setup"
+  | "account"
+  | "ledger"
+  | "home"
+  | "at"
+  | "drafts"
+  | "pen"
+  | "target"
+  | "search"
+  | "heart"
+  | "chart"
+  | "globe"
+  | "sliders";
 
 /** ナビの項目（PC のサイドバーとスマホのタブバー）。 */
 export type NavItem = {
@@ -23,6 +39,14 @@ export type NavItem = {
   also?: readonly string[];
   /** まとまりの見出し（任意。設定のナビのように、見出しごとに分けて出すとき。同じ見出しの項目は続けて並べる） */
   group?: string;
+  /**
+   * 薄く出す印（任意。core-022）。行き先を決める交流会・試合表がまだ選ばれていないときに付ける。
+   * 外枠は薄い見た目と aria-disabled で描き、押すと message を知らせの帯に出して to（一覧）へ移る。「今の項目」にはならない。
+   */
+  disabled?: {
+    /** 押したときに出す案内の文（読み上げ用の補足にも使う） */
+    message: string;
+  };
 };
 
 /** 領域が出すもの。 */

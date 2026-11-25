@@ -24,7 +24,7 @@ import { writeLastApp } from "../lib/apps.ts";
 import type { ShellAppsView } from "../lib/apps.ts";
 import type { NavItem } from "../lib/feature.ts";
 import { Icon } from "../lib/icon.tsx";
-import { clearNotice, useNotice } from "../lib/notice.ts";
+import { clearNotice, showNotice, useNotice } from "../lib/notice.ts";
 import type { ShellLayout } from "../lib/router.ts";
 import { MobileAppSwitcher, SidebarAppSwitcher } from "./AppSwitcher.tsx";
 import { NavIcon } from "./NavIcon.tsx";
@@ -116,6 +116,37 @@ function useFocusHeadingOnNavigation(
   }, [resolvedPath, mainRef]);
 }
 
+/**
+ * 薄い項目の印（aria-disabled）。行き先は一覧のリンクのままなので、Enter・タップ・中クリックはふつうに動く（core-022 research R3）。
+ * @param item ナビの項目
+ * @returns Link に足す属性（薄くなければ空）
+ */
+function dimAttributes(item: NavItem): { "aria-disabled"?: true } {
+  return item.disabled ? { "aria-disabled": true } : {};
+}
+
+/**
+ * 薄い項目を押したとき、移る先（一覧）の上に案内の帯を出す。
+ * @param item ナビの項目
+ */
+function pressDim(item: NavItem): void {
+  if (item.disabled) showNotice({ tone: "info", message: item.disabled.message, path: item.to });
+}
+
+/**
+ * 項目の名前（薄い項目には、読み上げ用に案内の文を足す）。
+ * @param props 項目（item）
+ * @returns 要素
+ */
+function NavLabel({ item }: { item: NavItem }) {
+  return (
+    <>
+      <span>{item.label}</span>
+      {item.disabled ? <span className="sr-only">（{item.disabled.message}）</span> : null}
+    </>
+  );
+}
+
 /** ナビの項目の並びが受け取るもの。 */
 type NavListProps = {
   /** 項目 */
@@ -169,16 +200,19 @@ function SidebarItems({ items, current, className }: NavListProps & { className?
               to={item.to}
               activeOptions={{ exact: true }}
               aria-current={here}
+              {...dimAttributes(item)}
+              onClick={() => pressDim(item)}
               data-nav-item=""
               className={cn(
                 "flex min-h-xl items-center gap-xxs rounded-sm border-l-4 px-xs text-m text-text",
                 here
                   ? "border-primary bg-surface font-bold"
                   : "border-transparent hover:bg-surface-over",
+                item.disabled && "opacity-60",
               )}
             >
               <NavIcon name={item.icon} />
-              <span>{item.label}</span>
+              <NavLabel item={item} />
             </Link>
           </li>
         );
@@ -215,11 +249,13 @@ function TabBarList({ items, current }: NavListProps) {
                 to={item.to}
                 activeOptions={{ exact: true }}
                 aria-current={here}
+                {...dimAttributes(item)}
+                onClick={() => pressDim(item)}
                 data-nav-item=""
-                className={tabClassName(here !== undefined)}
+                className={cn(tabClassName(here !== undefined), item.disabled && "opacity-60")}
               >
                 <NavIcon name={item.icon} />
-                <span>{item.label}</span>
+                <NavLabel item={item} />
               </Link>
             </li>
           );
@@ -250,15 +286,20 @@ function TabBarList({ items, current }: NavListProps) {
                     to={item.to}
                     activeOptions={{ exact: true }}
                     aria-current={here}
+                    {...dimAttributes(item)}
                     data-nav-item=""
-                    onClick={() => setMoreOpen(false)}
+                    onClick={() => {
+                      pressDim(item);
+                      setMoreOpen(false);
+                    }}
                     className={cn(
                       "flex min-h-xl items-center gap-xs rounded-md px-xs text-m text-text hover:bg-surface-over",
                       here && "bg-primary-subtle font-bold",
+                      item.disabled && "opacity-60",
                     )}
                   >
                     <NavIcon name={item.icon} />
-                    {item.label}
+                    <NavLabel item={item} />
                   </Link>
                 </li>
               );
@@ -371,7 +412,7 @@ export function AppShell({ useNavItems, useApps = useNoApps }: AppShellProps) {
                     )}
                   >
                     <Icon name="settings" className="size-xs" />
-                    設定
+                    全体の設定
                   </Link>
                 ) : null}
                 {withSwitcher ? (

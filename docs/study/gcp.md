@@ -1,12 +1,12 @@
 # GCPの学び（kanaeru で使うところだけ）
 
 - 作成日：2026-11-19
-- 直した日：—（まだない）
+- 直した日：2026-11-22（core-018：Cloud SQL を内部の IP だけにした注記を足した。core-019：今のデプロイの流れの注記を足した）
 - 読む人：TypeScript で Web を作ってきて、GCP は初めての人（kanaeru の開発者）。
 - この文書は「学び」の文書。考え方と使い方の説明で、**今のシステムの正本でも、決まりの正本でもない**。
   - 置き場所の決めごと（台の型・台数・夜間の停止・バックアップ・予算）は[構成の決めごと](../../_bmad-output/architecture-kanaeru/architecture-kanaeru.md)の AD-8〜AD-11 が正本。
-  - デプロイの決まり（`main` のマージで出す・8時15分〜23時に始める）は[開発の流れの決まり](../rules/development-flow.md) 5章が正本。
-  - 資源の名前・権限の細部は、これから書く `infra/` の Terraform で決める。
+  - デプロイの決まり（`develop` のマージでステージング・`main` のマージで本番に出す・8時15分〜23時に始める）は[開発の流れの決まり](../rules/development-flow.md) 5章が正本。
+  - 資源の名前・権限の細部は `infra/` の Terraform（[infra/README.md](../../infra/README.md)）が正本。
 - 料金は2026-11-19に公式の文書で確かめた値。1ドル＝150円で円にした（税なし・為替は仮）。確かめられなかったものは（要確認）と書いた。
 - Terraform そのものの考え方は[Terraformの学び](./terraform.md)、LINE の側は[LINEの学び](./line.md)に分けた。
 
@@ -14,9 +14,9 @@
 
 ## 0. 3行でいうと
 
-1. kanaeru は、GCP の東京（`asia-northeast1`）で、**Cloud Run を1つ**（画面と `/api` を同じコンテナで返す）と **Cloud SQL を1つ**（PostgreSQL 18・いちばん小さい台）だけ使う。脇役は Artifact Registry・Secret Manager・Cloud Scheduler。
+1. kanaeru は、GCP の東京（`asia-northeast1`）で、**環境ごとに Cloud Run を1つ**（画面と `/api` を同じコンテナで返す。本番 `kanaeru`・ステージング `kanaeru-stg`）と、両方で共にする **Cloud SQL を1つ**（PostgreSQL 18・いちばん小さい台。中に環境ごとの DB）だけ使う。脇役は Artifact Registry・Secret Manager・Cloud Scheduler。
 2. お金の大半は Cloud SQL。だから **DB を夜間（0時〜8時）止める**。それでも保存の量と IP の料金は続くので、見込みは**月1,200〜1,800円ほど**。予算の知らせは月2,000円。
-3. デプロイは、`main` へのマージで GitHub Actions が**鍵を置かずに**（WIF で入り、デプロイ用のサービスアカウントになりすます）入り、**DB の変更（Cloud Run jobs）→ 新しい版**の順に出す。
+3. デプロイは、`develop`（ステージング）・`main`（本番）へのマージで GitHub Actions が**鍵を置かずに**（WIF で入り、デプロイ用のサービスアカウントになりすます）入り、**DB の変更（Cloud Run jobs）→ 新しい版**の順に出す。
 
 ---
 
@@ -24,7 +24,7 @@
 
 ### 1.1 プロジェクト・請求先アカウント・リージョン
 
-- **プロジェクト**：資源を入れるいちばん大事な箱。権限・APIの有効化・請求は、まずこの単位で考える。kanaeru は本番の1つだけ（ステージングは交流会のあと）。「プロジェクトID」は世界で1つで、**あとから変えられない**。AWS の「AWS アカウント1つ」にあたる。
+- **プロジェクト**：資源を入れるいちばん大事な箱。権限・APIの有効化・請求は、まずこの単位で考える。kanaeru は1つのプロジェクトに本番とステージングを置く（構成 B。利用者が増えたら別のプロジェクトに分ける。core-018）。「プロジェクトID」は世界で1つで、**あとから変えられない**。AWS の「AWS アカウント1つ」にあたる。
 - **請求先アカウント**：クレジットカードと結びつく財布。複数のプロジェクトが1つの財布を使える。**無料の枠やクレジットの多くは、この単位で数える**。
 - **リージョン**：データセンターのある地域。kanaeru は**`asia-northeast1`（東京）**（AD-8）。中に「ゾーン」（建物の単位）があり、Cloud SQL は1つのゾーンだけに置く（高可用〈HA〉にしない）。AWS の `ap-northeast-1` と AZ にあたる。
 
@@ -35,13 +35,13 @@ IAM は「誰に、何をしてよいか」を決める仕組み。**プリン�
 - **サービスアカウント**は、人ではなく**プログラムのためのアカウント**。Cloud Run のコンテナは決めたサービスアカウントとして動き、付いたロールの範囲でだけほかのサービスを使える。AWS の IAM ロール（ECS のタスクロール）に近い。
 - 要るロールだけを、要る資源にだけ付ける。Cloud Run は何も決めないと権限の広い「Compute Engine の既定のサービスアカウント」で動くので、**専用のサービスアカウントを作って指定する**。
 
-kanaeru で考えられるサービスアカウントの例（最終は `infra/` の Terraform で決める）：
+kanaeru のサービスアカウント（core-002 で作り始め、core-018 で環境ごとにした。正本は `infra/`）：
 
 | 誰の | 使う場面 | 付けるロールの例 |
 |---|---|---|
-| 実行用 | Cloud Run のサービスと、`db:migrate` の jobs | Cloud SQL クライアント（`roles/cloudsql.client`）・使う秘密の値だけの読み取り（`roles/secretmanager.secretAccessor`） |
+| 実行用（環境ごと：`kanaeru-run`・`kanaeru-stg-run`） | Cloud Run のサービスと、`db:migrate` の jobs | 使う秘密の値だけの読み取り（`roles/secretmanager.secretAccessor`）。DB へは内部の IP とパスワードでつなぐので、Cloud SQL クライアント（`roles/cloudsql.client`）は付けない |
 | 夜間の停止用 | Cloud Scheduler が Cloud SQL を止める・動かす | `cloudsql.instances.update` を持つロール（例：`roles/cloudsql.editor`）。3.4 |
-| デプロイ（GitHub Actions）＝ `kanaeru-deployer` | GitHub のプールの身分に「`kanaeru-deployer` になりすましてよい」（`roles/iam.workloadIdentityUser`）だけを付け、ロールは `kanaeru-deployer` に付ける | Artifact Registry への書き込み・Cloud Run 開発者（`roles/run.developer`）・実行用のサービスアカウントとして振る舞う（`roles/iam.serviceAccountUser`）。4章 |
+| デプロイ（GitHub Actions。環境ごと：`kanaeru-deployer`・`kanaeru-stg-deployer`） | GitHub のプールの身分に「その環境のブランチ（`main`・`develop`）からならなりすましてよい」（`roles/iam.workloadIdentityUser`）だけを付け、ロールはデプロイの身分に付ける | Artifact Registry への書き込み・その環境のサービスと job だけの Cloud Run 開発者（`roles/run.developer`）・Cloud Run の閲覧（`roles/run.viewer`）・実行用のサービスアカウントとして振る舞う（`roles/iam.serviceAccountUser`）。4章 |
 
 ### 1.3 API を有効にする
 
@@ -59,17 +59,17 @@ kanaeru で考えられるサービスアカウントの例（最終は `infra/`
 flowchart LR
   user["参加者・受付係・主催者<br/>（LINEの中／PCのブラウザ）"]
   subgraph gcp["GCP（asia-northeast1）"]
-    run["Cloud Run（サービス）<br/>画面＋/api・最大2台・最小0台"]
+    run["Cloud Run（サービス。環境ごと）<br/>画面＋/api・本番は最大2台・最小0台"]
     job["Cloud Run jobs<br/>db:migrate"]
-    sql[("Cloud SQL<br/>PostgreSQL 18・db-f1-micro")]
+    sql[("Cloud SQL<br/>PostgreSQL 18・db-f1-micro<br/>内部の IP だけ")]
     sm["Secret Manager<br/>DB のパスワード"]
     ar["Artifact Registry<br/>コンテナのイメージ"]
-    sch["Cloud Scheduler<br/>0時に止める・8時に動かす"]
+    sch["Cloud Scheduler<br/>0時に止める・8時に動かす<br/>共通の定期の仕事"]
   end
-  gh["GitHub Actions<br/>main のマージ"]
+  gh["GitHub Actions<br/>develop・main のマージ"]
   user -- "https" --> run
-  run -- "Unix ソケット" --> sql
-  job -- "Unix ソケット" --> sql
+  run -- "Direct VPC egress・TCP" --> sql
+  job -- "Direct VPC egress・TCP" --> sql
   sm -. "起動のときに渡す" .-> run
   gh -- "WIF＋なりすましでイメージを押し込む" --> ar
   ar --> job
@@ -146,6 +146,7 @@ Google が PostgreSQL を動かし、更新・バックアップを受け持つ�
 
 **つなぎ方（Cloud Run の組み込みの接続）**：
 
+- **2026-11-22 から（core-018）、kanaeru は Cloud SQL を内部の IP だけにし、Cloud Run は Direct VPC egress で VPC に出て TCP でつなぐ形に変えた**（下の Unix ソケットの形は、公開の IP のときの道。今の形は [infra/README.md](../../infra/README.md) と [specs/core/018-staging-private-db/research.md](../../specs/core/018-staging-private-db/research.md) R2）。
 - Cloud Run の設定で Cloud SQL を指定すると、コンテナの中に `/cloudsql/<プロジェクト>:<リージョン>:<インスタンス>` という **Unix ソケット**（ファイルの形の入口）ができる。通信は自動で暗号化され、実行用のサービスアカウントの **Cloud SQL クライアント**のロールで守られる。
 - この仕組みは **Cloud SQL に公開 IP があることが前提**（私的な IP だけにすると VPC のつなぎ口が要る）。承認済みネットワーク（つないでよい IP の一覧）を空にしておけば、外から直接はつなげない。
 - `pg` は `host` にソケットのフォルダを渡すとつながる。`DATABASE_URL` 1本の形（`?host=/cloudsql/...`）が通るかは作り始めに試す（要確認）。
@@ -234,6 +235,8 @@ sequenceDiagram
 ### 4.3 デプロイの流れ（例）
 
 順番は「コンテナを作る → 同じコンテナで `db:migrate` → 成功したときだけ新しい版を出す」（AD-11）。決まりの正本は[開発の流れの決まり](../rules/development-flow.md) 5章。
+
+- **今の kanaeru の流れ（core-019）は、下の例より段が多い**：1つの環境へのデプロイを `deploy-environment.yml` にまとめ、`deploy.yml` が `develop` ならステージングだけ、`main` ならステージング → GitHub の環境 `production` の承認 → 本番の順に呼ぶ。環境ごとの値（デプロイの身分・サービス・LIFF ID など）は GitHub の環境（Environments）の変数に置く。夜は DB を一時的に起こして出す道もある。使い方は[本番に出す手順](../release-guide.md)。
 
 ```yaml
 # 学びのための例。実際のワークフロー（.github/workflows/deploy.yml）は infra と一緒に作る。

@@ -127,6 +127,9 @@ function stubDbUnavailable(): void {
   });
 }
 
+/** 入力の画面に出す、Googleフォームへの補助のリンクの名前（survey-002）。 */
+const FORM_LINK_NAME = "交流会のアンケート（Googleフォーム）を開く";
+
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.useRealTimers();
@@ -155,6 +158,20 @@ describe("アンケートの画面", () => {
       const group = screen.getByRole("radiogroup", { name });
       expect(group.querySelector('[aria-checked="true"]')).toHaveTextContent("答えない");
     }
+    // 入力の画面にも、Googleフォームへの補助のリンクが出る（外のページとして開く。survey-002）
+    const formLink = screen.getByRole("link", { name: FORM_LINK_NAME });
+    expect(formLink).toHaveAttribute("href", "https://forms.gle/example");
+    expect(formLink).toHaveAttribute("target", "_blank");
+    expect(formLink).toHaveAttribute("rel", "noopener noreferrer");
+    // 長い名前のリンクが、スマホの幅を超えて横スクロールを出さない（折り返せる・縮められる）。E2E の横スクロールの確かめの原因（survey-002）
+    expect(formLink).toHaveClass("whitespace-normal", "max-w-full", "shrink");
+    expect(formLink).not.toHaveClass("whitespace-nowrap", "shrink-0");
+    // 主のボタンは「送る」の1つのまま（リンクはボタンの下に並ぶ）
+    expect(screen.getAllByRole("button", { name: /^送る$|^送り直す$/ })).toHaveLength(1);
+    expect(
+      screen.getByRole("button", { name: "送る" }).compareDocumentPosition(formLink) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     await expectNoAxeViolations(container);
 
     await userEvent.click(screen.getByRole("button", { name: "送る" }));
@@ -163,6 +180,8 @@ describe("アンケートの画面", () => {
       name: "あなたの困りごとが、解決する企画やアプリにつながります",
     });
     await waitFor(() => expect(thanks).toHaveFocus());
+    // お礼の画面では、入力用のリンクは消え、「続けて交流会のアンケートへ」だけが残る
+    expect(screen.queryByRole("link", { name: FORM_LINK_NAME })).toBeNull();
     expect(screen.getByRole("link", { name: "続けて交流会のアンケートへ" })).toHaveAttribute(
       "href",
       "https://forms.gle/example",
@@ -185,6 +204,8 @@ describe("アンケートの画面", () => {
     const sent = stubApi({ summary: { googleFormUrl: null, lineGroupUrl: null } });
     renderWithRouter(<SurveyPage eventId={EVENT_ID} />);
     await userEvent.type(await screen.findByRole("textbox", { name: "困りごと" }), "議事録が大変");
+    // URL がなければ、入力の画面にもリンクは出ない
+    expect(screen.queryByRole("link", { name: FORM_LINK_NAME })).toBeNull();
     await userEvent.click(screen.getByRole("radio", { name: "3,000円以上" }));
     await userEvent.click(screen.getByRole("radio", { name: "はい" }));
     await userEvent.click(screen.getByRole("radio", { name: "企画・PM" }));
@@ -226,6 +247,11 @@ describe("アンケートの画面", () => {
     expect(screen.getByRole("radio", { name: "管理職" })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByText(/回答済みです/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "送り直す" })).toBeInTheDocument();
+    // 回答済みの入力の画面にも、Googleフォームへのリンクが出る
+    expect(screen.getByRole("link", { name: FORM_LINK_NAME })).toHaveAttribute(
+      "href",
+      "https://forms.gle/example",
+    );
   });
 
   it("閉じていれば「アンケートは閉じています」で、設問を出さない", async () => {

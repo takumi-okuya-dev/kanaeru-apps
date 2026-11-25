@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- kanaeru 試合表のアイコン（match-007）。墨の地に、白い表。名前の枠が4つずつ並んだ行のうち、1行（いまの試合）を墨にする。
+       2つ目と3つ目の枠の間を広くして、2人ずつの組を表す（競技を選ばない形）。文字は入れない（小さくすると読めないため）。
+       色は tokens.css の primary（墨）・surface（白）・text-disabled。PNG は e2e/scripts/render-match-icons.ts で作る -->
+  <rect width="512" height="512" fill="#3b3833"/>
+  <g>
+    <rect x="88" y="108" width="336" height="296" rx="36" fill="#ffffff"/>
+    <g fill="#c1bdb7">
+      <rect x="120" y="154" width="56" height="36" rx="8"/>
+      <rect x="188" y="154" width="56" height="36" rx="8"/>
+      <rect x="268" y="154" width="56" height="36" rx="8"/>
+      <rect x="336" y="154" width="56" height="36" rx="8"/>
+      <rect x="120" y="266" width="56" height="36" rx="8"/>
+      <rect x="188" y="266" width="56" height="36" rx="8"/>
+      <rect x="268" y="266" width="56" height="36" rx="8"/>
+      <rect x="336" y="266" width="56" height="36" rx="8"/>
+      <rect x="120" y="322" width="56" height="36" rx="8"/>
+      <rect x="188" y="322" width="56" height="36" rx="8"/>
+      <rect x="268" y="322" width="56" height="36" rx="8"/>
+      <rect x="336" y="322" width="56" height="36" rx="8"/>
+    </g>
+    <g fill="#3b3833">
+      <rect x="120" y="210" width="56" height="36" rx="8"/>
+      <rect x="188" y="210" width="56" height="36" rx="8"/>
+      <rect x="268" y="210" width="56" height="36" rx="8"/>
+      <rect x="336" y="210" width="56" height="36" rx="8"/>
+    </g>
+  </g>
+</svg>

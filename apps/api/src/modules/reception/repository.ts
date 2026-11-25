@@ -80,6 +80,55 @@ export function listCheckins(
     .orderBy(...(order === "newest" ? NEWEST_FIRST : OLDEST_FIRST));
 }
 
+/** その交流会でチェックインした人（ほかの領域・ほかのアプリも index.ts から使う。booking-001 FR-B103）。 */
+export type EventAttendee = {
+  /** チェックインの ID */
+  checkinId: string;
+  /** 名前（チェックインのときに写したもの。AD-6） */
+  name: string;
+  /** LINE のチェックインの本人の account（手なら null） */
+  accountId: string | null;
+  /** 入れ方（LINE・手） */
+  method: "line" | "manual";
+  /** チェックインの時刻 */
+  checkedInAt: Date;
+};
+
+/**
+ * その交流会でチェックインした人（古い順。ほかの領域・ほかのアプリも index.ts から使う）。
+ * @param db DB
+ * @param eventId 交流会の ID
+ * @returns チェックインした人の並び
+ */
+export async function listEventAttendees(db: Executor, eventId: string): Promise<EventAttendee[]> {
+  const rows = await db
+    .select({
+      checkinId: checkin.id,
+      name: checkin.name,
+      accountId: checkin.accountId,
+      checkedInAt: checkin.createdAt,
+    })
+    .from(checkin)
+    .where(eq(checkin.eventId, eventId))
+    .orderBy(...OLDEST_FIRST);
+  return rows.map((row) => ({ ...row, method: row.accountId === null ? "manual" : "line" }));
+}
+
+/**
+ * その人がその交流会にチェックインしたか（ほかの領域・ほかのアプリも index.ts から使う）。
+ * @param db DB
+ * @param eventId 交流会の ID
+ * @param accountId account の ID
+ * @returns チェックインしていれば true
+ */
+export async function hasCheckedIn(
+  db: Executor,
+  eventId: string,
+  accountId: string,
+): Promise<boolean> {
+  return (await findCheckin(db, eventId, accountId)) !== null;
+}
+
 /** 同じ名前の候補の行（同じ名前の印に要る列だけ）。 */
 export type SameNameCandidate = Pick<CheckinRecord, "id" | "name" | "accountId">;
 

@@ -1,7 +1,9 @@
 # Terraformの学び（kanaeru で使うところだけ）
 
+> 2026-11-22（core-018）から、`infra/` は「共通の資源」と「環境ごとの部品（`infra/modules/environment`）」に分かれ、本番とステージングを同じ部品で作る。Cloud SQL は内部の IP だけになった。この文書の例（`kanaeru/prod` の state・Unix ソケットの `DATABASE_URL`・`roles/cloudsql.client`）は作り始めのころの形で、今の形は [infra/README.md](../../infra/README.md) が正本。
+
 - 作成日：2026-11-19
-- 直した日：—（まだない）
+- 直した日：2026-11-22（core-018：今の infra の形への注記を頭に足した）
 - 読む人：TypeScript で Web を作ってきて、Terraform（インフラをコードで書く道具）は初めての人。GCP のサービスそのもの（Cloud Run・Cloud SQL など）は[GCPの学び](./gcp.md)で先に読むと分かりやすい。
 - この文書は「学び」の文書。考え方と使い方の説明で、**今のシステムの正本でも、決まりの正本でもない**。
   - 何を Terraform で持つか・Cloud SQL の型・夜間の停止などの決めごとは、[構成の決めごと](../../_bmad-output/architecture-kanaeru/architecture-kanaeru.md)（AD-8〜AD-11）が正本。
@@ -66,7 +68,7 @@ Terraform のファイルは `.tf` で終わり、**HCL**（HashiCorp Configurat
 | **variable**（変数） | 外から渡す値。関数の引数のようなもの | プロジェクトID・請求先アカウントID・GitHub のリポジトリ名 |
 | **output**（出力） | apply のあとに表に出す値。関数の戻り値のようなもの | Cloud Run の URL・GitHub Actions に渡す WIF のプロバイダ名 |
 | **locals**（ローカル） | ファイルの中だけで使う名前つきの値。同じ式を何度も書かないため | `local.name = "kanaeru"` |
-| **module**（モジュール） | `.tf` をまとめて部品にしたもの | 環境が本番の1つだけなので、最初は使わない（ステージングを足すときに考える） |
+| **module**（モジュール） | `.tf` をまとめて部品にしたもの | 本番とステージングを同じ部品で作る `infra/modules/environment`（core-018。環境ごとの名前・台数・値を渡して2回呼ぶ） |
 | **state**（状態） | Terraform が「自分が作った物」と「実物のID」の対応を覚えておくファイル | GCS のバケットに置く（4章） |
 | **backend**（バックエンド） | state をどこに置くかの設定 | `gcs`（Cloud Storage） |
 
@@ -372,7 +374,7 @@ resource "google_secret_manager_secret_version" "database_url" {
 
 ### 6.1 ファイルの分け方の案
 
-kanaeru は環境が本番の1つだけ（AD-11）なので、モジュールを作らず、**1つのフォルダに資源の種類ごとのファイル**を置く形が分かりやすい。最終の形は `infra/` の仕様で決める。
+作り始めのころ（環境が本番の1つだけ）は、モジュールを作らず、**1つのフォルダに資源の種類ごとのファイル**を置く形にした。2026-11-22（core-018）にステージングを足したので、今は共通の資源を `infra/` に、環境ごとの資源を `infra/modules/environment` に分けている（下の案は作り始めのころの形。今の形は [infra/README.md](../../infra/README.md) 0章）。
 
 ```text
 infra/

@@ -1,6 +1,6 @@
 # スイート（suite）の地図
 
-2026-11-20 作成（core-005。決めた理由と仮決めは [specs/core/005-app-switcher/spec.md](../../specs/core/005-app-switcher/spec.md)、範囲は [PRD](../../_bmad-output/prd-kanaeru-suite/prd-kanaeru-suite.md)）。同じ日に suite-001（組織と退会の手順の組み立て。[specs/suite/001-organization](../../specs/suite/001-organization/spec.md)・[PRD 組織](../../_bmad-output/prd-kanaeru-org/prd-kanaeru-org.md)・AD-22）を足した。同じ日に suite-002（利用規約とプライバシーポリシーのページ。[specs/suite/002-legal-pages](../../specs/suite/002-legal-pages/spec.md)）を足した。
+2026-11-20 作成（core-005。決めた理由と仮決めは [specs/core/005-app-switcher/spec.md](../../specs/core/005-app-switcher/spec.md)、範囲は [PRD](../../_bmad-output/prd-kanaeru-suite/prd-kanaeru-suite.md)）。同じ日に suite-001（組織と退会の手順の組み立て。[specs/suite/001-organization](../../specs/suite/001-organization/spec.md)・[PRD 組織](../../_bmad-output/prd-kanaeru-org/prd-kanaeru-org.md)・AD-22）を足した。同じ日に event-002 で、組織を使う領域と退会の手順を出す領域に event を足した。同じ日に suite-002（利用規約とプライバシーポリシーのページ。[specs/suite/002-legal-pages](../../specs/suite/002-legal-pages/spec.md)）を足した。
 
 スイートの共通の領域（どのアプリにも属さない）。アプリの台帳（公開の状態）を持ち、アプリが見えるかを決める1か所（構成の決めごと AD-15・AD-16）。組織（人と役割・招待）と、契約の持ち主の形（`entitlement`。払うしくみと売り方は売り始めるときに足す）も持つ（AD-22）。画面では、すべてのアプリ・設定（一覧・アカウント・組織・アプリの台帳）・組織の招待の確かめの画面・利用規約とプライバシーポリシーのページを持つ。
 
@@ -18,7 +18,7 @@
 | `uses` | 使ってよいほかのアプリの key |
 | `accountData` | 退会で消える、そのアプリの本人の記録（退会の確かめの枠に出す） |
 
-今のアプリ：`reception`（受付。`event`・`reception`・`survey`）。
+今のアプリ：`reception`（受付。`event`・`reception`・`survey`・`booking`）・`threads`（Threads。`threads`）・`match`（試合表。`match`。`reception` を使う）。一覧の正本は `packages/contracts/src/core/apps.list.ts`。
 
 確かめ：`appRegistryProblems`（key・領域・道の頭）と `unassignedDomains`（どこにも属さない領域）。`packages/contracts/src/core/apps.test.ts`・`apps/api/test/apps-registry.test.ts`（API の領域）・`apps/web/src/router.test.tsx`（画面の領域）。API は、決まりに合わないと起動しない。
 
@@ -41,7 +41,9 @@
 |---|---|---|
 | `app_setting` | `id`（uuid）・`app_key`（text）・`visibility`（text）・`created_at`・`updated_at` | `app_key` は一意（`app_setting_app_key_unique`）。`visibility` は `off`・`operator_only`・`public`（CHECK）。行がないアプリは `operator_only`。DB の変更（`0008_suite.sql`）が受付アプリを `public` で入れる。書くのは suite だけ |
 | `organization` | `id`・`name`（1〜50文字の CHECK）・`admin_seen_at`（管理者が組織の画面を最後に見た日時）・`created_at`・`updated_at` | suite-001（`0012_suite_organization.sql`） |
-| `organization_member` | `organization_id`・`account_id`（主キーはこの組）・`role`（`admin`・`editor`・`member`）・`joined_at`・`demoted_at`（最後にメンバーに下げた日時） | 管理者は1組織に1人（`organization_member_admin_unique`。部分の一意）。どちらの外部キーも CASCADE。アプリの「組織に入れる」・担当の表は、この組を指す複合の外部キーを CASCADE で持つ |
+| `organization_member` | `organization_id`・`account_id`（主キーはこの組）・`role`（`admin`・`editor`・`member`）・`joined_at`・`demoted_at`（最後にメンバーに下げた日時） | 管理者は1組織に1人（`organization_member_admin_unique`。部分の一意）。どちらの外部キーも CASCADE。アプリの「チームに入れる」・担当の表は、この組を指す複合の外部キーを CASCADE で持つ |
+| `team` | `id`・`organization_id`・`name`（1〜30文字の CHECK）・`created_at`・`updated_at` | suite-003（組織の中のチーム。`0014_suite_team.sql`）。`(organization_id, name)` と `(id, organization_id)` が一意。組織が消えると消える。1つの組織に20まで（窓口が数える） |
+| `team_member` | `team_id`・`account_id`（主キーはこの組）・`organization_id`・`leader`（リーダー）・`joined_at` | `team(id, organization_id)` と `organization_member(organization_id, account_id)` を指す複合の外部キーを CASCADE（チームが消える・組織から抜けると消える）。アプリの「チームに入れる」・担当の表は、この組を指す外部キーを CASCADE で持つ |
 | `organization_invite` | `organization_id`（主キー）・`token_hash`（一意）・`token_ciphertext`・`token_iv`・`key_version`・`created_at` | 照らし合わせは SHA-256 だけ。出し直すための写しを秘密の箱で包む（箱がなければ空） |
 | `entitlement` | `id`・`app_key`・`holder_account_id`・`holder_organization_id`・`created_at`・`updated_at` | 持ち主はどちらか1つ（`entitlement_holder_check`）。どちらも CASCADE。売り始めるまで使わない（料金などの列はそのときに足す） |
 
@@ -56,7 +58,10 @@
 | GET | `/api/v1/suite/organizations/{id}` | 組織の画面（人の表示名・役割・入った日・あなた・新しい人〈管理者だけ〉）。組織の人の全員 | 401・404 `ORGANIZATION_NOT_FOUND` |
 | PATCH・DELETE | `/api/v1/suite/organizations/{id}` | 名前を直す・組織を消す（管理者だけ） | 403 `ORGANIZATION_ADMIN_ONLY`・404 |
 | GET・POST | `/api/v1/suite/organizations/{id}/invite` | 招待の札を読む（なければ・出し直せなければ `null`）・作り直す（管理者だけ） | 403・404 |
-| PUT・DELETE | `/api/v1/suite/organizations/{id}/members/{accountId}` | 役割をメンバー⇔編集者に切り替える（編集者は10人まで）・外す（管理者だけ。自分と管理者は不可） | 403・404・409 |
+| PUT・DELETE | `/api/v1/suite/organizations/{id}/members/{accountId}` | 役割をメンバー⇔編集者に切り替える（編集者は10人まで）・外す（管理者だけ。自分と管理者は不可。招待の札があれば同じトランザクションで作り直し、外した人が古いリンクで入り直せないようにする） | 403・404・409 |
+| POST | `/api/v1/suite/organizations/{id}/teams` | チームを作る（管理者だけ。1つの組織に20まで。組織の画面の `teams` に出る） | 403・404・409 `TEAM_LIMIT`・`TEAM_NAME_TAKEN` |
+| PATCH・DELETE | `/api/v1/suite/organizations/{id}/teams/{teamId}` | チームの名前を直す・消す（管理者だけ。消すとアプリの「チームに入れる」・担当が外れる） | 403・404 `TEAM_NOT_FOUND`・409 |
+| PUT・DELETE | `/api/v1/suite/organizations/{id}/teams/{teamId}/members/{accountId}` | 組織の人をチームに足す・リーダーを切り替える（`{ leader }`）・外す（管理者だけ） | 403・404 `TEAM_MEMBER_NOT_FOUND` |
 | POST | `/api/v1/suite/organizations/{id}/transfer` | 管理者を引き継ぐ（前の管理者は編集者） | 403・404・409 |
 | POST | `/api/v1/suite/organizations/{id}/leave` | 抜ける（管理者は `successorAccountId` が要る） | 404・409 `ORGANIZATION_SUCCESSOR_REQUIRED` |
 | GET・POST | `/api/v1/suite/organization-invites/{token}` | 招待の確かめの中身（名前・管理者・人数・すでに入っているか・満員か）・メンバーとして入る（同じ人は1回だけ） | 404 `ORGANIZATION_INVITE_INVALID`・409 `ORGANIZATION_FULL` |
@@ -89,7 +94,7 @@ API（`apps/api/src/modules/suite/index.ts`）：
 | `withdrawal` | suite の退会の手順（管理者の組織をいちばん長くいる人に引き継ぐ・誰もいなければ消す）。組み立てがアプリより先に流す。アカウントを消すトランザクションの中の最後の確かめ（`finalize`）でも、同じことをもう一度確かめる。人ごとの鍵（組織を作る・管理者を引き継ぐ・最後の確かめで同じ鍵。順は「人 → 組織」）で、消える直前に管理者にされることを防ぐ |
 | `hasEntitlement(db, { ownerAccountId, organizationId }, appKey)`・`ENTITLEMENTS_ENFORCED` | 契約があるか（持ち主の個人の契約か、記録を入れた組織の契約）。売り始めるまで `ENTITLEMENTS_ENFORCED = false` で、いつも true。どの窓口もまだ呼ばない |
 
-退会の手順の組み立て（AD-22）：各領域の `index.ts` の `withdrawal`（`kernel/withdrawal.ts` の形）を、`app.ts` の `orderWithdrawalSteps` が共通（`COMMON_DOMAINS` の順）→ アプリの一覧の順に並べ、`DomainRouteDeps.withdrawalSteps` で account に渡す（account の地図 2章）。
+退会の手順の組み立て（AD-22）：各領域の `index.ts` の `withdrawal`（`kernel/withdrawal.ts` の形）を、`app.ts` の `orderWithdrawalSteps` が共通（`COMMON_DOMAINS` の順）→ アプリの一覧の順に並べ、`DomainRouteDeps.withdrawalSteps` で account に渡す（account の地図 2章）。手順を出している領域は suite・event（組織に入れた交流会の引き継ぎ・個人の交流会を消す。event の地図）・threads。組織の役割を読んで判定するアプリは threads（`access.ts`）と event（交流会の主催者・部員。`access.ts`）。
 
 テスト：`apps/api/test/helpers/suite.ts` の見本のアプリ（`DEMO_APP`・`DEMO_MODULE`。key `demo`・道 `GET /api/v1/demo/ping`）を `buildApp(database, config, { extraApps: [DEMO_APP], extraModules: { demo: DEMO_MODULE } })` に渡す。E2E の API（`apps/api/test/e2e-server.ts`）も見本のアプリを足し、立ち上げのときに見本のアプリを切・受付アプリを公開に戻す。
 

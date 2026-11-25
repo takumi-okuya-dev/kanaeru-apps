@@ -30,6 +30,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link, getRouteApi } from "@tanstack/react-router";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
+import { Disclosure } from "@workspace/ui/components/disclosure";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { Dialog } from "@workspace/ui/components/dialog";
 import { Field } from "@workspace/ui/components/field";
@@ -111,9 +112,8 @@ function SummarySection({ view }: { view: AnalysisView }) {
       {view.needMore !== null ? (
         <p className="text-m">{`確定した投稿が、あと${view.needMore}件たまると見られます。`}</p>
       ) : null}
-      <details>
-        <summary className="cursor-pointer text-m font-bold">見方</summary>
-        <ul className="mt-xxs flex list-disc flex-col gap-x3s pl-m text-s text-text-sub">
+      <Disclosure summary="見方" variant="heading">
+        <ul className="flex list-disc flex-col gap-x3s pl-m text-s text-text-sub">
           <li>投稿から7日で確定した投稿だけを使います（遅れて確定・計れないものは使いません）。</li>
           <li>平均ではなく中央値で比べます（数件だけ極端に伸びるため）。</li>
           <li>
@@ -128,7 +128,7 @@ function SummarySection({ view }: { view: AnalysisView }) {
             から表示の順位は取れないため、「おすすめに乗った目安」は、投稿した時点のフォロワーの数と閲覧から推し量っています。
           </li>
         </ul>
-      </details>
+      </Disclosure>
     </section>
   );
 }
@@ -948,7 +948,7 @@ function AnalysisContent({ account }: { account: ThreadsAccount }) {
     <ThreadsPage
       wide
       title="分析"
-      lead={`${account.name}：確定した投稿の反応から、伸びやすい時間帯・長さ・書き出しを見つけます。`}
+      lead={`${account.name}：伸びやすい時間帯・長さ・書き出しを見つけます`}
     >
       <SummarySection view={view} />
       <ChoiceChips

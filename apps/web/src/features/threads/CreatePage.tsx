@@ -28,6 +28,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useBlocker } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
+import { Disclosure } from "@workspace/ui/components/disclosure";
 import { Field } from "@workspace/ui/components/field";
 import { Input } from "@workspace/ui/components/input";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
@@ -176,14 +177,13 @@ function SettingsForm({ accountId, settings }: SettingsFormProps) {
           }
         />
       </Field>
-      <details className="flex flex-col gap-s">
-        <summary className="cursor-pointer text-m font-bold">文字数と長さの割合</summary>
-        <p className="mt-xs text-s text-text-sub" aria-live="polite">
+      <Disclosure summary="文字数と長さの割合" variant="heading">
+        <p className="text-s text-text-sub" aria-live="polite">
           {mix
             ? `${toNumber(values.count)}件の内訳：短文 ${mix[0]}件（${values.shortLength}文字）・中文 ${mix[1]}件（${values.mediumLength}文字）・長文 ${mix[2]}件（${values.longLength}文字）`
             : `割合の合計を100にすると、内訳を出します（今は${ratioSum}）。`}
         </p>
-        <div className="mt-xs grid grid-cols-1 gap-s wide:grid-cols-2">
+        <div className="grid grid-cols-1 gap-s wide:grid-cols-2">
           {LENGTH_FIELDS.map(({ key, label, description }) => (
             <Field
               key={key}
@@ -206,7 +206,7 @@ function SettingsForm({ accountId, settings }: SettingsFormProps) {
         <Button
           type="button"
           size="small"
-          className="mt-xs"
+          className="self-start"
           onClick={() =>
             setValues((current) => ({
               ...current,
@@ -218,7 +218,7 @@ function SettingsForm({ accountId, settings }: SettingsFormProps) {
         >
           文字数と割合をはじめの値に戻す（保存はまだ）
         </Button>
-      </details>
+      </Disclosure>
       <div className="flex flex-col items-start gap-xxs">
         <Button type="submit" aria-disabled={pending || undefined}>
           {pending ? "保存しています…" : "設定を保存"}
@@ -252,11 +252,12 @@ function PromptMaterials({ accountId, prompt }: PromptMaterialsProps) {
   const params = { accountId };
   const linkClass = "text-s text-text-link underline";
   return (
-    <details className="flex flex-col gap-xs rounded-sm border border-border bg-surface p-xs">
-      <summary className="min-h-l cursor-pointer text-m font-bold">
-        プロンプトに入っている情報
-      </summary>
-      <div className="mt-xs grid grid-cols-1 gap-xs wide:grid-cols-2">
+    <Disclosure
+      summary="プロンプトに入っている情報"
+      variant="heading"
+      className="rounded-sm border border-border bg-surface p-xs"
+    >
+      <div className="grid grid-cols-1 gap-xs wide:grid-cols-2">
         <section aria-label="戦略" className="flex flex-col gap-x3s">
           <div className="flex items-center justify-between gap-xxs">
             <h3 className="text-m font-bold">
@@ -299,7 +300,12 @@ function PromptMaterials({ accountId, prompt }: PromptMaterialsProps) {
             <p>
               投稿のルール：{summary.coreRuleCount}行／NGワード：{summary.ngWordCount}個
             </p>
-            <Link to="/threads/accounts/$accountId/settings" params={params} className={linkClass}>
+            <Link
+              to="/threads/accounts/$accountId/settings"
+              params={params}
+              hash="threads-core-rules"
+              className={linkClass}
+            >
               設定で直す
             </Link>
           </div>
@@ -334,7 +340,7 @@ function PromptMaterials({ accountId, prompt }: PromptMaterialsProps) {
           <p>1日の投稿の数：{summary.dailyPostCount}件</p>
         </section>
       </div>
-    </details>
+    </Disclosure>
   );
 }
 
@@ -398,9 +404,8 @@ function PromptSection({ accountId }: PromptSectionProps) {
       <h2 id="threads-prompt" className="text-l font-bold">
         2. プロンプトをコピーして、外の AI に貼る
       </h2>
-      <p className="text-m">
-        戦略・投稿のルール・NGワード・最近の案・却下の理由から作ります。アプリから AI
-        には何も送りません。
+      <p className="text-s text-text-sub">
+        戦略・NGワード・最近の案などから作ります。アプリから AI には何も送りません。
       </p>
       <div className="flex flex-col items-start gap-xxs">
         <Button
@@ -414,14 +419,16 @@ function PromptSection({ accountId }: PromptSectionProps) {
       </div>
       {prompt ? (
         <div className="flex flex-col gap-s">
-          <p className="text-m text-text-sub">
-            {prompt.count}件を作るプロンプトです（戦略 {prompt.summary.strategyFilledCount}
+          <p className="text-m">
+            {prompt.count}件を作るプロンプトです。
+            {parts.length > 1 ? "長いので、2回に分けて順に貼ってください。" : null}
+          </p>
+          <p className="text-s text-text-sub">
+            入れたもの：戦略 {prompt.summary.strategyFilledCount}
             項目・投稿のルール {prompt.summary.coreRuleCount}行・NGワード{" "}
             {prompt.summary.ngWordCount}個・却下の案 {prompt.summary.rejectedCount}
             件・宣伝 {prompt.summary.promotionCount}件・参考の投稿{" "}
-            {prompt.summary.referencePostCount}件・低調の投稿 {prompt.summary.poorPostCount}
-            件を入れました）。
-            {parts.length > 1 ? "長いので、2回に分けて順に貼ってください。" : null}
+            {prompt.summary.referencePostCount}件・低調の投稿 {prompt.summary.poorPostCount}件
           </p>
           <PromptMaterials accountId={accountId} prompt={prompt} />
           {parts.map((part, index) => {
@@ -429,9 +436,11 @@ function PromptSection({ accountId }: PromptSectionProps) {
               parts.length > 1 ? `プロンプト（${index + 1}／${parts.length}）` : "プロンプト";
             return (
               <div key={label} className="flex flex-col gap-xxs">
-                <Field label={label}>
-                  <Textarea readOnly rows={8} value={part} />
-                </Field>
+                <Disclosure summary={`${label}の中身を見る`}>
+                  <Field label={label}>
+                    <Textarea readOnly rows={8} value={part} />
+                  </Field>
+                </Disclosure>
                 <div className="flex flex-col items-start gap-xxs">
                   <Button variant="primary" onClick={() => void copy(part, index)}>
                     {parts.length > 1 ? `${index + 1}つ目をコピー` : "コピー"}

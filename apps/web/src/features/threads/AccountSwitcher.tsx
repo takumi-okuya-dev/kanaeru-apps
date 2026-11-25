@@ -1,6 +1,6 @@
 // 運用アカウントの切り替え（threads-012。めぐるの sidebar/AccountSwitcher.tsx を kanaeru の部品で作り直したもの）。
 // 運用アカウントの画面（AccountGate の中）のページの題の上に、今の運用アカウントのボタンを出す（外枠には置かない）。
-// 押すとメニュー：自分の運用アカウント（名前・@ユーザー名か未接続・承認待ちの数・要再接続・今のものに「表示中」とチェック）、
+// 押すとメニュー：自分の運用アカウント（名前・@ユーザー名か未接続・入っているチーム〈threads-021〉・承認待ちの数・要再接続・今のものに「表示中」とチェック）、
 // 担当している運用アカウント（持ち主の表示名つき。threads-013）、区切り、「アカウントを作る」。一覧はメニューを開いたときに読む（開かなければ問い合わせない）。
 // Threads のプロフィールの画像は、画面の CSP（img-src。core-008）が許す Meta の画像の置き場所のものだけ出し、
 // ないとき・読めないとき・ほかの置き場所のときは名前の頭文字の箱にする。
@@ -110,13 +110,24 @@ export function AccountInitial({
  * @param props 運用アカウント（account）・今のものか（current）
  * @returns 行の中身
  */
-function AccountRow({ account, current }: { account: ThreadsAccount; current: boolean }) {
+function AccountRow({
+  account,
+  current,
+  teamName,
+}: {
+  account: ThreadsAccount;
+  current: boolean;
+  teamName?: string;
+}) {
   return (
     <>
       <AccountInitial account={account} selected={current} />
       <span className="flex min-w-0 flex-1 flex-col py-x3s leading-tight">
         <span className="truncate font-bold">{account.name}</span>
-        <span className="truncate text-xs text-text">{accountSecondary(account)}</span>
+        <span className="truncate text-xs text-text">
+          {accountSecondary(account)}
+          {teamName ? `・チーム：${teamName}` : null}
+        </span>
         <span className="flex flex-wrap items-center gap-x-xxs text-xs text-text">
           <span className="tabular-nums">承認待ち {account.counts.needsReview}件</span>
           {account.connectionStatus === "needs_reconnect" ? (
@@ -151,6 +162,10 @@ function AccountMenuList({ currentId }: { currentId: string }) {
       </p>
     );
   }
+  // 入っているチームの名前（threads-021）
+  const teamOf = new Map(
+    (query.data.placements ?? []).map((row) => [row.threadsAccountId, row.teamName]),
+  );
   /**
    * 1行。
    * @param account 運用アカウント
@@ -165,7 +180,7 @@ function AccountMenuList({ currentId }: { currentId: string }) {
         aria-current={here ? "page" : undefined}
         data-current={here ? "" : undefined}
       >
-        <AccountRow account={account} current={here} />
+        <AccountRow account={account} current={here} teamName={teamOf.get(account.id)} />
       </MenuLinkItem>
     );
   };

@@ -1,5 +1,5 @@
 // 定期の仕事（threads-002。めぐるの publish/auto-post-runner.ts と日次の片付けを写した）。
-// Cloud Scheduler が5分おき（日本時間 8時〜23時台。DB の夜間の停止の外）に窓口を呼び、1回で次を行う（PRD B9）：
+// 共通の定期の仕事の窓口（core-017）が5分おき（日本時間 8時〜23時台。DB の夜間の停止の外）に scheduledJob として動かし、1回で次を行う（PRD B9）：
 //   1. 続きの処理（結果を確かめる途中・やり直し待ち）
 //   2. 来ている時刻の試みを作り、公開する（1回で進める公開は AUTOPOST_MAX_PER_TICK まで）
 //   2b. 時間差のメンションの返信（threads-007。1回 MENTION_MAX_PER_TICK 件まで）

@@ -93,7 +93,10 @@ test("戦略の進み・活動の軸・変更の守り・上書き（threads-012
   await expect(page.getByRole("heading", { level: 1, name: "戦略" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "進み" })).toBeVisible();
   await expect(page.getByText("まだ保存していません")).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "区分へ移る" })).toContainText("目的（0/5）");
+  // 区分のタブ（上に固定。1区分ずつ見せる。threads-017）
+  await expect(
+    page.getByRole("navigation", { name: "区分" }).getByRole("button", { name: "目的 0/5" }),
+  ).toHaveAttribute("aria-current", "true");
   await checkPage(page, "戦略（進み）");
   await page.getByRole("button", { name: /^次におすすめ：Q1/ }).click();
   const q1 = page.getByRole("textbox", { name: /Q1：なぜ、この活動を始めようと思いましたか？/ });
@@ -130,25 +133,28 @@ test("戦略の進み・活動の軸・変更の守り・上書き（threads-012
   await discardAnswer.getByRole("button", { name: "捨てて閉じる" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 
-  // 壁打ち：すべて選ぶ・すべて外すと「n件中m件」
-  await page.getByText("AI と壁打ちして、まとめて埋める").click();
-  await page
-    .getByRole("textbox", { name: /AI の壁打ちの答え/ })
+  // 区分の「AI と考える」：すべて選ぶ・すべて外すと「n件中m件」。入れると枠が閉じる（threads-017）
+  await page.getByRole("button", { name: "AI と考える（目的）" }).click();
+  const think = page.getByRole("dialog", { name: "AI と考える（目的）" });
+  await think
+    .getByRole("textbox", { name: /AI の答え/ })
     .fill(
       "【項目：Q2】\n人の役に立つ自分でいたい。\n【項目ここまで】\n【項目：Q3】\n気軽に話せる仲間ができてほしい。\n【項目ここまで】",
     );
-  await expect(page.getByText("2件中2件を選んでいます")).toBeVisible();
-  await page.getByRole("button", { name: "すべて外す" }).click();
-  await expect(page.getByText("2件中0件を選んでいます")).toBeVisible();
-  await page.getByRole("button", { name: "すべて選ぶ" }).click();
-  await expect(page.getByText("2件中2件を選んでいます")).toBeVisible();
-  await page.getByRole("button", { name: "選んだ項目に入れる" }).click();
-  await expect(
-    page.getByText("2個の項目に入れました。確かめて「保存」を押してください。"),
-  ).toBeVisible();
+  await expect(think.getByText("2件中2件を選んでいます")).toBeVisible();
+  await think.getByRole("button", { name: "すべて外す" }).click();
+  await expect(think.getByText("2件中0件を選んでいます")).toBeVisible();
+  await think.getByRole("button", { name: "すべて選ぶ" }).click();
+  await expect(think.getByText("2件中2件を選んでいます")).toBeVisible();
+  await checkPage(page, "AI と考える（目的）");
+  await think.getByRole("button", { name: "選んだ項目に入れる" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: /Q2：この活動を通して/ })).toHaveValue(
+    "人の役に立つ自分でいたい。",
+  );
 
   // 保存していない変更があるまま離れようとすると確かめる
-  await expect(page.getByText("保存していない変更があります。")).toBeVisible();
+  await expect(page.getByText("保存していない変更があります")).toBeVisible();
   await clickNavLink(page, "設定");
   const leave = page.getByRole("alertdialog", { name: "保存していない変更があります" });
   await expect(leave).toBeVisible();
@@ -159,15 +165,34 @@ test("戦略の進み・活動の軸・変更の守り・上書き（threads-012
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect(page.getByText("戦略を保存しました。")).toBeVisible();
   await expect(page.getByText(/最後に保存：/)).toBeVisible();
-  await expect(page.getByText("変更はすべて保存しています。")).toBeVisible();
+  await expect(page.getByText("保存済み")).toBeVisible();
 
-  // 変更を捨てる：最後に保存した内容に戻る
+  // 変更を捨てる：最後に保存した内容に戻る（「その他」の区分を開く。threads-017）
+  await page
+    .getByRole("navigation", { name: "区分" })
+    .getByRole("button", { name: /^その他 / })
+    .click();
   const differentiation = page.getByRole("textbox", { name: /競合・他アカウントとの違い/ });
   await differentiation.fill("実際に会える場がある");
   await page.getByRole("button", { name: "変更を捨てる" }).click();
   const discard = page.getByRole("alertdialog", { name: "保存していない変更を捨てますか" });
   await discard.getByRole("button", { name: "変更を捨てる" }).click();
   await expect(differentiation).toHaveValue("");
+
+  // 保存の誤りの欄へ移ったあとも、ほかの区分へ切り替えられる（threads-017）
+  await differentiation.fill("あ".repeat(2001));
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(differentiation).toBeFocused();
+  await page
+    .getByRole("navigation", { name: "区分" })
+    .getByRole("button", { name: /^目的 / })
+    .click();
+  await expect(page.getByRole("heading", { level: 2, name: "活動の目的・在り方" })).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "区分" })
+    .getByRole("button", { name: /^その他 / })
+    .click();
+  await differentiation.fill("");
 
   // ほかの画面で先に保存された：上書きする
   const current = await page.request.get(`/api/v1/threads/accounts/${accountId}/strategy`);

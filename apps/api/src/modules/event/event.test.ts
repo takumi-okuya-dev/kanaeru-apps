@@ -82,14 +82,19 @@ describe("交流会の窓口", () => {
       expect(await countRows("event")).toBe(0);
     });
 
-    it("主催者でなければ作れず（403）、未ログインは 401", async () => {
-      const other = await loginAs(app);
-      expect((await call(app, other.cookie, "/api/v1/events", "POST", SAMPLE_EVENT)).status).toBe(
-        403,
-      );
+    it("運営者でなくても作れて持ち主になり（event-002）、未ログインは 401", async () => {
+      const other = await loginAs(app, { displayName: "高橋" });
+      const created = await call(app, other.cookie, "/api/v1/events", "POST", SAMPLE_EVENT);
+      expect(created.status).toBe(201);
+      expect(await created.json()).toMatchObject({
+        myRole: "organizer",
+        isOwner: true,
+        owner: { accountId: other.account.id, displayName: "高橋" },
+        organization: null,
+      });
       const anonymous = await app.request("/api/v1/events");
       expect(anonymous.status).toBe(401);
-      expect(await countRows("event")).toBe(0);
+      expect(await countRows("event")).toBe(1);
     });
 
     it("主催者は直せて、受付係は読めるが直せない。ほかの人は読めない", async () => {
@@ -129,7 +134,7 @@ describe("交流会の窓口", () => {
   });
 
   describe("一覧", () => {
-    it("主催者はすべてを日時の新しい順、受付係は自分の交流会だけ、ほかは空", async () => {
+    it("持ち主は自分の交流会を日時の新しい順、受付係は自分の交流会だけ、ほかは空", async () => {
       const older = await createEvent(app, organizer, {
         name: "前の交流会",
         startsAt: new Date(Date.now() - 30 * DAY_MS).toISOString(),

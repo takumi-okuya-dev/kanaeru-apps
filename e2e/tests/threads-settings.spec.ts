@@ -7,6 +7,7 @@ import type { APIRequest, Page } from "@playwright/test";
 import { E2E_FAKE_THREADS_URL, E2E_ORGANIZER_LINE_USER_ID, E2E_WEB_URL } from "../env.ts";
 import { expectNoA11yViolations } from "../helpers/axe.ts";
 import { collectCspViolations } from "../helpers/csp.ts";
+import { openSettingsTab } from "../helpers/threads-settings.ts";
 
 /** 書く要求に付ける見出し（画面の源）。 */
 const ORIGIN = { origin: E2E_WEB_URL };
@@ -80,6 +81,11 @@ test("設定：規約への備え・投稿できるかの確かめ・保存の�
   // 規約への備え：読むだけの枠
   await page.goto(`/threads/accounts/${id}/settings`);
   await expect(page.getByRole("heading", { level: 1, name: "設定" })).toBeVisible();
+  // 区分のタブ（threads-019）：はじめは「接続」
+  await expect(
+    page.getByRole("navigation", { name: "設定の区分" }).getByRole("button", { name: "接続" }),
+  ).toHaveAttribute("aria-current", "true");
+  await openSettingsTab(page, "投稿のルール");
   await page.getByRole("button", { name: "規約への備えを見る" }).click();
   const policy = page.getByRole("dialog", { name: "Threads の規約への備え" });
   await expect(policy.getByText("プロンプトに入れるルール")).toBeVisible();
@@ -89,6 +95,7 @@ test("設定：規約への備え・投稿できるかの確かめ・保存の�
   await expect(policy).toBeHidden();
 
   // 未接続：確かめると、つなぐと確かめられると出す
+  await openSettingsTab(page, "自動投稿");
   await page.getByRole("button", { name: "投稿できるかを確かめる" }).click();
   await expect(page.getByText("Threads につなぐと確かめられます。")).toBeVisible();
 
@@ -107,7 +114,9 @@ test("設定：規約への備え・投稿できるかの確かめ・保存の�
     headers: ORIGIN,
   });
   expect(connected.status()).toBe(200);
-  await page.reload();
+  // # で開くと、その区分のタブが開く（ほかの画面のリンクの形。threads-019）
+  await page.goto(`/threads/accounts/${id}/settings#threads-schedule`);
+  await expect(page.getByRole("heading", { level: 2, name: "自動投稿" })).toBeVisible();
 
   // 投稿できる：直近24時間の投稿の数を出す
   await page.getByRole("button", { name: "投稿できるかを確かめる" }).click();
@@ -123,6 +132,7 @@ test("設定：規約への備え・投稿できるかの確かめ・保存の�
   await checkPage(page, "設定（確かめと保存のあと）");
 
   // 消す：名前が違えば欄のそばに誤り。合えば消して一覧へ
+  await openSettingsTab(page, "アカウント");
   await page.getByRole("button", { name: "このアカウントを消す" }).click();
   const confirm = page.getByRole("alertdialog");
   await expect(confirm.getByText("「設定部」を消します")).toBeVisible();

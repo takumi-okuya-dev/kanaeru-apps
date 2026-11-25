@@ -236,4 +236,35 @@ describe("設定", () => {
       [],
     );
   });
+
+  it("知らせの送り方と許可リストを読む（既定は off。手元とテストは偽の送り手だけ。booking-002）", () => {
+    expect(loadConfig(LOCAL).notify).toEqual({ mode: "off", allowlist: [], fakeOnly: true });
+    expect(loadConfig({ ...LOCAL, APP_ENV: "test" }).notify.fakeOnly).toBe(true);
+    const lineUser = `U${"0123456789abcdef".repeat(2)}`;
+    const config = loadConfig({
+      ...STAGING,
+      NOTIFY_MODE: "allowlist",
+      NOTIFY_ALLOWLIST: ` ${lineUser}, Hanako@Example.com ,,`,
+    });
+    expect(config.notify).toEqual({
+      mode: "allowlist",
+      allowlist: [lineUser, "hanako@example.com"],
+      fakeOnly: false,
+    });
+    expect(
+      loadConfig({ ...STAGING, APP_ENV: "production", OPENAPI_DOC_ENABLED: "false" }).notify,
+    ).toEqual({
+      mode: "off",
+      allowlist: [],
+      fakeOnly: false,
+    });
+    expect(problemKeys({ ...LOCAL, NOTIFY_MODE: "always" })).toEqual(["NOTIFY_MODE"]);
+    expect(problemKeys({ ...LOCAL, NOTIFY_ALLOWLIST: "U123,not-an-address" })).toEqual([
+      "NOTIFY_ALLOWLIST",
+    ]);
+    // 合わない値は文に出さない
+    expect(() => loadConfig({ ...LOCAL, NOTIFY_ALLOWLIST: "secret-person" })).toThrow(
+      expect.objectContaining({ message: expect.not.stringContaining("secret-person") as string }),
+    );
+  });
 });

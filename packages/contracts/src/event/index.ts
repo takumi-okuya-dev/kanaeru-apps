@@ -15,6 +15,10 @@ export {
   EventDiscountsInput,
   EventInput,
   EventList,
+  EventOrganizationInput,
+  EventOrganizationState,
+  EventOrganizationView,
+  EventOwnerView,
   EventRoleSchema,
   EventSummary,
   EventView,
@@ -28,5 +32,10 @@ export {
   SurveyState,
   SurveyStateInput,
 } from "./event.ts";
-export { EVENT_ROLES, EVENT_ROLE_LABELS } from "./roles.ts";
-export type { EventRole } from "./roles.ts";
+export {
+  EVENT_ACCESS_ROLES,
+  EVENT_ACCESS_ROLE_LABELS,
+  EVENT_ROLES,
+  EVENT_ROLE_LABELS,
+} from "./roles.ts";
+export type { EventAccessRole, EventRole } from "./roles.ts";

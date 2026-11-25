@@ -15,6 +15,7 @@ import {
 } from "../env.ts";
 import { expectNoA11yViolations } from "../helpers/axe.ts";
 import { collectCspViolations } from "../helpers/csp.ts";
+import { openSettingsTab } from "../helpers/threads-settings.ts";
 import { clickNavLink } from "../helpers/nav.ts";
 
 /** 書く要求に付ける見出し（画面の源）。 */
@@ -111,7 +112,11 @@ test("運用アカウントを作り、案をためて承認・却下する", as
   await expect(page.getByRole("heading", { level: 1, name: "戦略" })).toBeVisible();
   await checkPage(page, "戦略");
 
-  // 戦略：口調を選んで保存
+  // 戦略：口調を選んで保存（区分は開け閉め。threads-017）
+  await page
+    .getByRole("navigation", { name: "区分" })
+    .getByRole("button", { name: /^人柄 / })
+    .click();
   await page.getByRole("radio", { name: "丁寧・温かい" }).click();
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect(page.getByText("戦略を保存しました。")).toBeVisible();
@@ -119,6 +124,7 @@ test("運用アカウントを作り、案をためて承認・却下する", as
   // 設定：NG ワードを足す
   await clickNavLink(page, "設定");
   await expect(page.getByRole("heading", { level: 1, name: "設定" })).toBeVisible();
+  await openSettingsTab(page, "投稿のルール");
   await page.getByRole("textbox", { name: /足すNGワード/ }).fill("必ず儲かる");
   await page.getByRole("button", { name: "NGワードを足す" }).click();
   await expect(page.getByText("「必ず儲かる」を足しました。")).toBeVisible();
@@ -257,6 +263,7 @@ test("Threads につなぎ、自動投稿の時刻を決める（threads-002）"
   await checkPage(page, "設定（接続済み）");
 
   // 自動投稿：夜間の時刻は欄のそばに誤り。昼の時刻でオンにする
+  await openSettingsTab(page, "自動投稿");
   await page.getByRole("checkbox", { name: "自動投稿をオンにする" }).check();
   await page.getByLabel("1つ目の時刻", { exact: true }).fill("07:00");
   await page.getByRole("button", { name: "自動投稿の設定を保存" }).click();
@@ -267,6 +274,7 @@ test("Threads につなぎ、自動投稿の時刻を決める（threads-002）"
   await page.getByRole("button", { name: "自動投稿の設定を保存" }).click();
   await expect(page.getByText("自動投稿をオンにしました（1日2回）。")).toBeVisible();
   // 操作の記録（threads-005）に、接続と自動投稿の設定が残る
+  await openSettingsTab(page, "記録");
   const activity = page.getByRole("list", { name: "操作の記録" });
   await expect(activity.getByText("自動投稿の設定を保存した")).toBeVisible();
   await expect(activity.getByText("Threads につないだ")).toBeVisible();
@@ -446,6 +454,7 @@ test("分析の画面で、テーマと傾向の設定を保存する（threads-
 
   // 操作の記録に残る
   await clickNavLink(page, "設定");
+  await openSettingsTab(page, "記録");
   await expect(
     page.getByRole("list", { name: "操作の記録" }).getByText("分析の設定を保存した"),
   ).toBeVisible();
@@ -465,6 +474,7 @@ test("時間差のメンションの人を足し、案に付けて承認する�
 
   // 設定：ひとことと時間差・メンションする人（形が違えば欄のそばに誤り）
   await clickNavLink(page, "設定");
+  await openSettingsTab(page, "メンション");
   await expect(page.getByRole("heading", { level: 2, name: "時間差のメンション" })).toBeVisible();
   await page.getByRole("textbox", { name: /ひとこと/ }).fill("よければシェアお願いします");
   await page.getByRole("radio", { name: "1時間後" }).click();
@@ -595,12 +605,17 @@ test("戦略をヒントと AI の答えで埋める（threads-009）", async ({
   await clickNavLink(page, "戦略");
   await expect(page.getByRole("heading", { level: 1, name: "戦略" })).toBeVisible();
   await expect(page.getByRole("button", { name: /^次におすすめ：/ })).toBeVisible();
-  await page.getByText("「どんな人に投稿を届けたいか」の考えるヒント").click();
-  await expect(
-    page
-      .locator("details", { hasText: "「どんな人に投稿を届けたいか」の考えるヒント" })
-      .getByText("悪い例"),
-  ).toBeVisible();
+  // 区分のタブで営業導線へ。項目の行の「考えるヒント」を開く（threads-017）
+  await page
+    .getByRole("navigation", { name: "区分" })
+    .getByRole("button", { name: /^営業導線 / })
+    .click();
+  const hintToggle = page.getByRole("button", {
+    name: "「どんな人に投稿を届けたいか」の考えるヒント",
+  });
+  await hintToggle.click();
+  await expect(hintToggle).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByText("悪い例")).toBeVisible();
   await checkPage(page, "戦略（ヒント）");
 
   // 1つの項目を AI と深める：完成版の目印のあいだを入れる
@@ -618,18 +633,21 @@ test("戦略をヒントと AI の答えで埋める（threads-009）", async ({
     "30歳を前に転職を迷っている会社員",
   );
 
-  // 壁打ち：項目ごとの答えを貼り、選んで入れる
-  await page.getByText("AI と壁打ちして、まとめて埋める").click();
-  await expect(page.getByRole("button", { name: "壁打ちのプロンプトをコピー" })).toBeVisible();
+  // 区分の「AI と考える」：項目ごとの答えを貼り、選んで入れる（threads-017）
   await page
-    .getByRole("textbox", { name: /AI の壁打ちの答え/ })
+    .getByRole("navigation", { name: "区分" })
+    .getByRole("button", { name: /^目的 / })
+    .click();
+  await page.getByRole("button", { name: "AI と考える（目的）" }).click();
+  const think = page.getByRole("dialog", { name: "AI と考える（目的）" });
+  await expect(think.getByRole("button", { name: "プロンプトをコピー" })).toBeVisible();
+  await think
+    .getByRole("textbox", { name: /AI の答え/ })
     .fill("【項目：Q1】\n上京して、話せる人がいなかったから。\n【項目ここまで】");
-  await expect(page.getByRole("checkbox", { name: /Q1：なぜ/ })).toBeChecked();
-  await checkPage(page, "戦略（壁打ち）");
-  await page.getByRole("button", { name: "選んだ項目に入れる" }).click();
-  await expect(
-    page.getByText("1個の項目に入れました。確かめて「保存」を押してください。"),
-  ).toBeVisible();
+  await expect(think.getByRole("checkbox", { name: /Q1：なぜ/ })).toBeChecked();
+  await checkPage(page, "戦略（AI と考える）");
+  await think.getByRole("button", { name: "選んだ項目に入れる" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(
     page.getByRole("textbox", { name: /Q1：なぜ、この活動を始めようと思いましたか？/ }),
   ).toHaveValue("上京して、話せる人がいなかったから。");

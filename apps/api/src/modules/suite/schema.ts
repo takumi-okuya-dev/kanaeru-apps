@@ -7,8 +7,10 @@
 // organization_member(organization_id, account_id) を指す複合の外部キーを CASCADE で持つ（人が抜けると、その人の分が消える）。
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   customType,
+  foreignKey,
   index,
   pgTable,
   primaryKey,
@@ -84,6 +86,58 @@ export const organizationMember = pgTable(
       .on(table.organizationId)
       .where(sql`${table.role} = 'admin'`),
     check("organization_member_role_check", sql`${table.role} in ('admin', 'editor', 'member')`),
+  ],
+);
+
+/**
+ * 組織の中のチーム（suite-003）。名前だけを持ち、人とリーダーは team_member。組織が消えると消える。
+ * (id, organization_id) の一意は、team_member とアプリの表が「同じ組織のチーム」を外部キーで指すため。
+ */
+export const team = pgTable(
+  "team",
+  {
+    id: primaryId(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    /** 名前（前後の空白を除いて1〜30文字。同じ組織の中で重ならない） */
+    name: text("name").notNull(),
+    ...timestamps(),
+  },
+  (table) => [
+    uniqueIndex("team_id_organization_id_unique").on(table.id, table.organizationId),
+    uniqueIndex("team_organization_id_name_unique").on(table.organizationId, table.name),
+    check("team_name_length", sql`char_length(${table.name}) BETWEEN 1 AND 30`),
+  ],
+);
+
+/**
+ * チームの人（チームと組織の人の組。リーダーの印）。組織から抜けると organization_member への外部キーで消え、
+ * チームが消えると team への外部キーで消える。アプリの「チームに入れる」・担当は、この表を指す外部キーを CASCADE で持つ。
+ */
+export const teamMember = pgTable(
+  "team_member",
+  {
+    teamId: uuid("team_id").notNull(),
+    organizationId: uuid("organization_id").notNull(),
+    accountId: uuid("account_id").notNull(),
+    /** リーダー（アプリの中で、このチームの担当の付け外しと運用状況を見られる。何人でもよい） */
+    leader: boolean("leader").notNull().default(false),
+    joinedAt: timestamptz("joined_at").defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.teamId, table.accountId] }),
+    foreignKey({
+      name: "team_member_team_fk",
+      columns: [table.teamId, table.organizationId],
+      foreignColumns: [team.id, team.organizationId],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "team_member_organization_member_fk",
+      columns: [table.organizationId, table.accountId],
+      foreignColumns: [organizationMember.organizationId, organizationMember.accountId],
+    }).onDelete("cascade"),
+    index("team_member_organization_id_account_id_idx").on(table.organizationId, table.accountId),
   ],
 );
 

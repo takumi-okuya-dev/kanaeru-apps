@@ -2,9 +2,13 @@
 import { describe, expect, it } from "vitest";
 import {
   EVENT_ERRORS,
+  EVENT_ACCESS_ROLES,
+  EVENT_ACCESS_ROLE_LABELS,
   EVENT_ROLES,
   EVENT_ROLE_LABELS,
   EventInput,
+  EventOrganizationInput,
+  EventOrganizationState,
   EventSummary,
   STAFF_INVITE_TOKEN_FORMAT,
   SurveyStateInput,
@@ -179,7 +183,41 @@ describe("交流会のほかの形", () => {
     for (const role of EVENT_ROLES) expect(EVENT_ROLE_LABELS[role]).toMatch(/[ぁ-んァ-ン一-龠]/);
   });
 
+  it("判定の役目は主催者・受付係・部員で、画面の言葉を持つ（event-002）", () => {
+    expect([...EVENT_ACCESS_ROLES]).toEqual(expect.arrayContaining([...EVENT_ROLES, "member"]));
+    expect(EVENT_ACCESS_ROLE_LABELS.member).toBe("部員");
+    for (const role of EVENT_ACCESS_ROLES) {
+      expect(EVENT_ACCESS_ROLE_LABELS[role]).toMatch(/[ぁ-んァ-ン一-龠]/);
+    }
+  });
+
+  it("組織に入れるの入力は uuid か null だけ（event-002）", () => {
+    const id = "0193a1b2-0000-7000-8000-000000000001";
+    expect(EventOrganizationInput.parse({ organizationId: id })).toEqual({ organizationId: id });
+    expect(EventOrganizationInput.parse({ organizationId: null })).toEqual({
+      organizationId: null,
+    });
+    expect(EventOrganizationInput.safeParse({ organizationId: "x" }).success).toBe(false);
+    expect(EventOrganizationInput.safeParse({}).success).toBe(false);
+    expect(EventOrganizationInput.safeParse({ organizationId: null, extra: true }).success).toBe(
+      false,
+    );
+  });
+
+  it("持ち主と組織の状態は、持ち主・組織・持ち主か・選べる組織を持つ（event-002）", () => {
+    const state = {
+      owner: { accountId: "0193a1b2-0000-7000-8000-000000000001", displayName: "高橋" },
+      organization: null,
+      isOwner: true,
+      options: [{ id: "0193a1b2-0000-7000-8000-000000000002", name: "バドミントンの部" }],
+    };
+    expect(EventOrganizationState.parse(state)).toEqual(state);
+    expect(EventOrganizationState.parse({ ...state, owner: null }).owner).toBeNull();
+  });
+
   it("エラーは code・状態の番号・日本語の文を持ち、403・404 は土台と同じ code", () => {
+    expect(EVENT_ERRORS.EVENT_OWNER_ONLY).toMatchObject({ status: 403 });
+    expect(EVENT_ERRORS.EVENT_ORGANIZATION_NOT_FOUND).toMatchObject({ status: 404 });
     expect(EVENT_ERRORS.FORBIDDEN).toMatchObject({ code: "FORBIDDEN", status: 403 });
     expect(EVENT_ERRORS.NOT_FOUND).toMatchObject({ code: "NOT_FOUND", status: 404 });
     expect(EVENT_ERRORS.STAFF_INVITE_EXPIRED).toMatchObject({ status: 410 });

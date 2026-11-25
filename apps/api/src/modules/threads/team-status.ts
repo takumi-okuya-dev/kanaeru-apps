@@ -9,10 +9,10 @@ import {
   teamGrowthOf,
 } from "@workspace/contracts/threads";
 import type { ThreadsTeamStatus } from "@workspace/contracts/threads";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import type { Executor } from "../../kernel/db.ts";
-import { listMembers } from "../suite/index.ts";
+import { listMembers, listTeams } from "../suite/index.ts";
 import {
   threadsAccount,
   threadsActivityLog,
@@ -25,7 +25,10 @@ import {
 const DAY_MS = 86_400_000;
 
 /** 運用状況を見る範囲。 */
-export type TeamStatusScope = { kind: "all" } | { kind: "assigned"; accountIds: string[] };
+export type TeamStatusScope =
+  | { kind: "all" }
+  | { kind: "team"; teamIds: string[]; accountIds: string[] }
+  | { kind: "assigned"; accountIds: string[] };
 
 /**
  * 値の並びを、問い合わせの IN の中身にする（値は引数で渡す）。
@@ -61,7 +64,11 @@ export async function getTeamStatus(
 
   // ---- 運用アカウント（範囲の中だけ）----
   const placed = await db
-    .select({ account: threadsAccount, placedAt: threadsOrganizationAccount.placedAt })
+    .select({
+      account: threadsAccount,
+      teamId: threadsOrganizationAccount.teamId,
+      placedAt: threadsOrganizationAccount.placedAt,
+    })
     .from(threadsOrganizationAccount)
     .innerJoin(threadsAccount, eq(threadsAccount.id, threadsOrganizationAccount.threadsAccountId))
     .where(
@@ -69,15 +76,24 @@ export async function getTeamStatus(
         eq(threadsOrganizationAccount.organizationId, organizationId),
         scope.kind === "assigned"
           ? inArray(threadsOrganizationAccount.threadsAccountId, scope.accountIds)
-          : undefined,
+          : scope.kind === "team"
+            ? or(
+                inArray(threadsOrganizationAccount.teamId, scope.teamIds),
+                scope.accountIds.length > 0
+                  ? inArray(threadsOrganizationAccount.threadsAccountId, scope.accountIds)
+                  : undefined,
+              )
+            : undefined,
       ),
     )
     .orderBy(asc(threadsOrganizationAccount.placedAt), asc(threadsAccount.id));
   const members = await listMembers(db, organizationId);
   const memberById = new Map(members.map((row) => [row.accountId, row]));
+  const teams = await listTeams(db, organizationId);
+  const teamNames = new Map(teams.map((row) => [row.id, row.name]));
 
   const accounts: (ThreadsTeamStatus["accounts"][number] & { origin: number })[] = [];
-  for (const { account, placedAt } of placed) {
+  for (const { account, teamId, placedAt } of placed) {
     // 組織に入れた日より前は数えない（FR-T43）
     const since = placedAt > stoppedBefore ? placedAt : stoppedBefore;
     const [counts] = await db
@@ -120,6 +136,7 @@ export async function getTeamStatus(
     accounts.push({
       threadsAccountId: account.id,
       name: account.name,
+      teamName: teamNames.get(teamId) ?? "",
       ownerName: memberById.get(account.accountId)?.displayName ?? "",
       ownerIsMe: account.accountId === viewerAccountId,
       connectionStatus: account.connectionStatus,
@@ -136,8 +153,20 @@ export async function getTeamStatus(
   // ---- 人（範囲が担当なら、担当の運用アカウントの持ち主だけ。動きは範囲の運用アカウントでの動きだけ数える）----
   const scopeIds = placed.map((row) => row.account.id);
   const owners = new Set(placed.map((row) => row.account.accountId));
+  // リーダーは、リーダーのチームの人と、担当の運用アカウントの持ち主（threads-016）
+  const teamPeople = new Set(
+    scope.kind === "team"
+      ? teams
+          .filter((row) => scope.teamIds.includes(row.id))
+          .flatMap((row) => row.members.map((member) => member.accountId))
+      : [],
+  );
   const peopleRows =
-    scope.kind === "assigned" ? members.filter((row) => owners.has(row.accountId)) : members;
+    scope.kind === "assigned"
+      ? members.filter((row) => owners.has(row.accountId))
+      : scope.kind === "team"
+        ? members.filter((row) => teamPeople.has(row.accountId) || owners.has(row.accountId))
+        : members;
   const people: (ThreadsTeamStatus["people"][number] & { origin: number })[] = [];
   for (const member of peopleRows) {
     const [activity] =
@@ -196,4 +225,102 @@ export async function getTeamStatus(
     people: people.map(strip),
     accounts: accounts.map(strip),
   };
+}
+
+/**
+ * チームごとの止まっている数だけを、まとめて数える（チームの一覧の要約。threads-020）。
+ * getTeamStatus を範囲「そのチーム」で数えたときの stoppedCount と同じ数になる（伸びや並びは数えない）。
+ * 問い合わせは、運用アカウントの最後の投稿と、人の最後の動きの2つだけ（チームの数によらない）。
+ * @param db DB
+ * @param organizationId 組織の ID
+ * @param teams 数えるチーム（ID と、チームの人の ID）
+ * @param now 今
+ * @returns チームの ID → 止まっている人と運用アカウントの数
+ */
+export async function countStoppedByTeam(
+  db: Executor,
+  organizationId: string,
+  teams: readonly { id: string; memberIds: readonly string[] }[],
+  now: Date = new Date(),
+): Promise<Map<string, number>> {
+  const result = new Map(teams.map((row) => [row.id, 0]));
+  if (teams.length === 0) return result;
+  const stoppedBefore = now.getTime() - TEAM_STATUS_STOPPED_DAYS * DAY_MS;
+  const teamIds = teams.map((row) => row.id);
+
+  // 運用アカウント：組織に入れた日のあとの最後の投稿（なければ入れた日）が7日より前なら止まっている
+  const placed = await db
+    .select({
+      teamId: threadsOrganizationAccount.teamId,
+      ownerId: threadsAccount.accountId,
+      placedAt: threadsOrganizationAccount.placedAt,
+      lastPostedAt: sql<
+        Date | string | null
+      >`max(${threadsPostDraft.publishedAt}) FILTER (WHERE ${threadsPostDraft.status} = 'published' AND ${threadsPostDraft.publishedAt} >= ${threadsOrganizationAccount.placedAt})`,
+    })
+    .from(threadsOrganizationAccount)
+    .innerJoin(threadsAccount, eq(threadsAccount.id, threadsOrganizationAccount.threadsAccountId))
+    .leftJoin(threadsPostDraft, eq(threadsPostDraft.threadsAccountId, threadsAccount.id))
+    .where(
+      and(
+        eq(threadsOrganizationAccount.organizationId, organizationId),
+        inArray(threadsOrganizationAccount.teamId, teamIds),
+      ),
+    )
+    .groupBy(
+      threadsOrganizationAccount.teamId,
+      threadsAccount.id,
+      threadsAccount.accountId,
+      threadsOrganizationAccount.placedAt,
+    );
+  for (const row of placed) {
+    const last = row.lastPostedAt ? new Date(row.lastPostedAt).getTime() : 0;
+    if (Math.max(last, row.placedAt.getTime()) < stoppedBefore) {
+      result.set(row.teamId, (result.get(row.teamId) ?? 0) + 1);
+    }
+  }
+
+  // 人：チームの人と、チームの運用アカウントの持ち主。そのチームの運用アカウントで、入れたあとの動きだけを数える
+  const activity = await db
+    .select({
+      teamId: threadsOrganizationAccount.teamId,
+      actorId: threadsActivityLog.actorAccountId,
+      lastActiveAt: sql<Date | string | null>`max(${threadsActivityLog.createdAt})`,
+    })
+    .from(threadsActivityLog)
+    .innerJoin(
+      threadsOrganizationAccount,
+      eq(threadsOrganizationAccount.threadsAccountId, threadsActivityLog.threadsAccountId),
+    )
+    .where(
+      and(
+        eq(threadsOrganizationAccount.organizationId, organizationId),
+        inArray(threadsOrganizationAccount.teamId, teamIds),
+        sql`${threadsActivityLog.createdAt} >= ${threadsOrganizationAccount.placedAt}`,
+        sql`${threadsActivityLog.action} IN (${sqlList(TEAM_STATUS_ACTIVITY_ACTIONS)})`,
+      ),
+    )
+    .groupBy(threadsOrganizationAccount.teamId, threadsActivityLog.actorAccountId);
+  const lastActive = new Map(
+    activity.map((row) => [
+      `${row.teamId}:${row.actorId ?? ""}`,
+      row.lastActiveAt ? new Date(row.lastActiveAt).getTime() : 0,
+    ]),
+  );
+  const members = await listMembers(db, organizationId);
+  for (const team of teams) {
+    const ids = new Set([
+      ...team.memberIds,
+      ...placed.filter((row) => row.teamId === team.id).map((row) => row.ownerId),
+    ]);
+    for (const member of members) {
+      if (!ids.has(member.accountId)) continue;
+      const last = lastActive.get(`${team.id}:${member.accountId}`) ?? 0;
+      // 一度も動いていない人は、入った日から数える（getTeamStatus と同じ）
+      if (Math.max(last, member.joinedAt.getTime()) < stoppedBefore) {
+        result.set(team.id, (result.get(team.id) ?? 0) + 1);
+      }
+    }
+  }
+  return result;
 }

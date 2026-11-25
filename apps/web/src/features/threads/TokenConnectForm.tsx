@@ -16,6 +16,7 @@ import {
 } from "@workspace/contracts/threads";
 import type { ConnectResult } from "@workspace/contracts/threads";
 import { Link } from "@tanstack/react-router";
+import { Disclosure } from "@workspace/ui/components/disclosure";
 import { Button } from "@workspace/ui/components/button";
 import { Field } from "@workspace/ui/components/field";
 import { Input } from "@workspace/ui/components/input";
@@ -141,19 +142,21 @@ export function TokenConnectForm({
     >
       <div className="flex flex-col gap-xxs">
         <p className="text-m font-bold">自分の Meta のアプリのトークンでつなぐ</p>
-        <ol className="list-decimal pl-s text-s">
-          {TOKEN_STEPS.map((step) => (
-            <li key={step}>{step}</li>
-          ))}
-        </ol>
-        <a
-          className="text-s text-text-link underline"
-          href={threadsPaths.tokenGuide()}
-          target="_blank"
-          rel="noreferrer"
-        >
-          詳しい手順を見る（新しいタブ）
-        </a>
+        <Disclosure summary={`トークンの作り方（${TOKEN_STEPS.length}つの手順）`}>
+          <ol className="list-decimal pl-s text-s">
+            {TOKEN_STEPS.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+          <a
+            className="text-s text-text-link underline"
+            href={threadsPaths.tokenGuide()}
+            target="_blank"
+            rel="noreferrer"
+          >
+            詳しい手順を見る（新しいタブ）
+          </a>
+        </Disclosure>
       </div>
       <Field
         label="長期のアクセストークン"
@@ -192,10 +195,12 @@ export function TokenConnectForm({
           </Button>
         </div>
       </Field>
-      <p className="text-s text-text-sub">
-        トークンは暗号にして持ち、画面には二度と出しません。この Threads
-        のアカウントの投稿と、プロフィール・反応の数を読むためだけに使います。
-      </p>
+      <Disclosure summary="トークンの扱い">
+        <p className="text-s text-text-sub">
+          トークンは暗号にして持ち、画面には二度と出しません。この Threads
+          のアカウントの投稿と、プロフィール・反応の数を読むためだけに使います。
+        </p>
+      </Disclosure>
       <p className="text-s text-text-sub">
         トークンと投稿の扱いは、
         <LegalLink to="terms" newTab />と<LegalLink to="privacy" newTab />

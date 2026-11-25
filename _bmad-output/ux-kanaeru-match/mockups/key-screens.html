@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>kanaeru 試合表 主な画面の見本 1</title>
+<style>
+/* ===== 試合表 主な画面の見本 1（key screens）=====
+   見た目は受付アプリと同じ（_bmad-output/ux-kanaeru-reception/DESIGN.md・packages/ui/src/styles/tokens.css）。
+   色は墨（primary #3B3833）、地 #F8F7F6、文字 #23221E。新しい色は足さない。
+   この見本が描く決めごと（2026-11-21。持ち主が決めた）:
+   - 試合はレベル別（上級・中級・初級・入門）に組んで、レベル別に進める。コートの番号は区別しない
+   - 試合表はレベル別に、名前を4列に並べるだけ（ペアは決めない。コートに入るときに2と2に分ける）
+   - PC もスマホも、レベルを選んで1つずつ表示する。印刷もレベルごとに1枚ずつ
+   - 試合の形（ダブルス・シングルス）とレベルの分け方（分けないも選べる）は運営が決め、あとから変えられる
+   - 名簿は、受付の交流会を選んで入れるか、Google フォームの回答の CSV（氏名とレベルだけ）か、QR から参加者が名前とレベルを答えるか、手で入れる
+   - 名前は架空。画面ごとの見出し（.lbl）は見本の説明で、画面の中の文字ではない。 */
+:root{
+  --primary:#3B3833;--primary-hover:#34312D;--on-primary:#FFFFFF;--primary-subtle:#EFEFEF;
+  --text:#23221E;--text-sub:#706D65;--text-disabled:#C1BDB7;
+  --background:#F8F7F6;--surface:#FFFFFF;--surface-sunken:#F5F4F3;--surface-over:#F2F1F0;--head:#EDEBE8;
+  --border:#D6D3D0;--border-input:#8A867F;
+  --warning:#FFCC17;
+  --fs-xs:12px;--fs-s:13.71px;--fs-m:16px;--fs-l:17px;--fs-xl:20px;
+  --r-s:4px;--r-m:6px;--r-l:8px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#E9E7E4;color:var(--text);font-family:system-ui,"Hiragino Sans","Noto Sans JP",sans-serif;font-size:16px;line-height:1.5}
+a{color:var(--text);text-decoration:underline;text-underline-offset:3px}
+.wrap{max-width:1660px;margin:0 auto;padding:32px 16px 64px}
+.top h1{font-size:var(--fs-xl);line-height:1.25;margin:0 0 8px}
+.top p{margin:0;color:var(--text-sub);font-size:var(--fs-s);max-width:90ch}
+.row{display:flex;flex-wrap:wrap;gap:32px;margin-top:40px;align-items:flex-start}
+.col{display:flex;flex-direction:column;gap:12px}
+.lbl{font-size:var(--fs-s);line-height:1.4}
+.lbl b{display:inline-block;background:var(--primary);color:var(--on-primary);border-radius:var(--r-s);padding:1px 8px;margin-right:8px;font-size:var(--fs-xs)}
+.lbl span{display:block;color:var(--text-sub);font-size:var(--fs-xs);margin-top:2px}
+
+/* PC（アプリの骨格：上の帯・サイドバー 240px） */
+.browser{width:1280px;max-width:100%;background:var(--background);border:1px solid #BDB9B3;border-radius:var(--r-l);overflow:hidden;box-shadow:0 8px 24px rgba(3,3,2,.12)}
+.chrome{height:40px;display:flex;align-items:center;gap:12px;padding:0 12px;background:var(--surface-over);border-bottom:1px solid var(--border)}
+.dots{display:flex;gap:6px}.dots i{width:10px;height:10px;border-radius:50%;background:#C1BDB7;display:block}
+.url{flex:1;max-width:520px;height:26px;border-radius:9999px;background:var(--surface);border:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-sub);display:flex;align-items:center;padding:0 12px}
+.bar{height:48px;display:flex;align-items:center;gap:8px;padding:0 16px 0 0;background:var(--surface);border-bottom:1px solid var(--border)}
+.bar .tg{width:48px;height:48px;display:grid;place-items:center;font-size:20px}
+.bar strong{font-size:var(--fs-m)}
+.bar .sp{flex:1}
+.shell{display:flex;min-height:600px}
+.side{width:240px;flex:none;background:var(--surface-sunken);border-right:1px solid var(--border);padding:8px 0}
+.side .it{min-height:48px;display:flex;align-items:center;gap:8px;padding:0 16px;font-size:var(--fs-m)}
+.side .it.on{background:var(--surface);font-weight:700;box-shadow:inset 4px 0 0 var(--primary)}
+.main{flex:1;min-width:0;padding:24px 32px 32px;display:flex;flex-direction:column;gap:16px}
+.crumb{font-size:var(--fs-s)}
+.pchead{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;flex-wrap:wrap}
+.pchead h2{margin:0;font-size:var(--fs-xl);line-height:1.25}
+.pchead p{margin:4px 0 0;color:var(--text-sub);font-size:var(--fs-s)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{min-height:44px;padding:0 20px;display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:var(--r-s);font-size:var(--fs-m);font-weight:700;border:1px solid transparent;white-space:nowrap}
+.btn.primary{background:var(--primary);color:var(--on-primary)}
+.btn.secondary{background:var(--surface);color:var(--text);border-color:var(--border-input)}
+.btn.sm{min-height:36px;padding:0 12px;font-size:var(--fs-s)}
+.btn.full{width:100%}
+.tag{display:inline-flex;align-items:center;height:22px;padding:0 6px;border-radius:var(--r-s);font-size:var(--fs-xs);font-weight:700;white-space:nowrap}
+.tag.warn{background:var(--warning);color:var(--text)}
+.tag.line{border:1px solid var(--border-input);background:var(--surface);color:var(--text)}
+.offline{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:9999px;background:var(--surface-over);border:1px solid var(--border);font-size:var(--fs-xs);color:var(--text)}
+.note{font-size:var(--fs-s);color:var(--text-sub);margin:0}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-m);padding:16px}
+.toolbar{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.field{display:flex;flex-direction:column;gap:8px}
+.field>.fl{font-weight:700}
+.input{height:44px;border:1px solid var(--border-input);border-radius:var(--r-s);background:var(--surface);padding:0 12px;display:flex;align-items:center;font-size:var(--fs-m)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.split{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;align-items:start}
+.groups{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--r-s)}
+.groups .r{display:flex;justify-content:space-between;align-items:center;min-height:44px;padding:0 12px;border-top:1px solid var(--border);font-size:var(--fs-m)}
+.groups .r:first-child{border-top:0}
+.groups .r span{font-size:var(--fs-s);color:var(--text-sub)}
+.chip{min-height:36px;padding:0 14px;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border-input);border-radius:9999px;background:var(--surface);font-size:var(--fs-s)}
+.chip.on{background:var(--primary-subtle);border:2px solid var(--primary);padding:0 13px;font-weight:700}
+.chip.on::before{content:"✓";font-weight:700}
+.check{display:flex;align-items:center;gap:10px;min-height:40px;font-size:var(--fs-m)}
+.box{width:20px;height:20px;border-radius:var(--r-s);background:var(--primary);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:700}
+
+/* レベルのタブ（PC・スマホ共通） */
+.tabs{display:flex;background:var(--surface);border-bottom:1px solid var(--border)}
+.tab{flex:1;min-height:48px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:var(--fs-m);color:var(--text-sub);border-bottom:3px solid transparent;margin-bottom:-1px}
+.tab small{font-size:var(--fs-xs)}
+.tab.on{color:var(--text);font-weight:700;border-bottom-color:var(--primary)}
+.pctabs{border:1px solid var(--border);border-radius:var(--r-m) var(--r-m) 0 0}
+
+/* 名簿の表（受付の table.t と同じ） */
+table.t{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-m);font-size:var(--fs-s)}
+table.t th{background:var(--head);text-align:left;font-weight:700;padding:10px 12px;white-space:nowrap}
+table.t td{padding:8px 12px;border-top:1px solid var(--border);vertical-align:middle}
+table.t td.nm{font-size:var(--fs-m);font-weight:700}
+table.t tr.warnbg td{background:#FFFBEA}
+
+/* 試合表（レベル別。名前を4列。ペアの間に太い線） */
+table.mt{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);table-layout:fixed}
+table.mt th{background:var(--head);font-weight:700;font-size:var(--fs-xs);padding:6px 8px;text-align:left}
+table.mt th.no,table.mt td.no{width:36px;text-align:right;color:var(--text-sub);font-weight:400;font-size:var(--fs-xs)}
+table.mt tr:first-child td{border-top:0}
+table.mt td{border-top:1px solid var(--border);padding:7px 8px;font-size:var(--fs-m);font-weight:700;white-space:nowrap;overflow:hidden}
+table.mt td.p2,table.mt th.p2{border-right:2px solid var(--text-sub)}
+table.mt tr.done td{color:var(--text-sub);font-weight:400}
+table.mt tr.now td{background:var(--primary);color:var(--on-primary)}
+table.mt tr.next td{background:var(--primary-subtle)}
+table.mt td .me{background:var(--warning);color:var(--text);border-radius:var(--r-s);padding:0 3px}
+.pc table.mt{border-top:0}
+.pc table.mt th{font-size:var(--fs-s);padding:8px 14px}
+.pc table.mt th.no,.pc table.mt td.no{width:56px;font-size:var(--fs-s);padding-right:14px}
+.pc table.mt td{font-size:20px;padding:8px 12px}
+.stat{display:flex;flex-direction:column;gap:12px}
+.stat dl{margin:0;display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:var(--fs-m)}
+.stat dt{color:var(--text-sub)}
+.stat dd{margin:0;font-weight:700;text-align:right}
+
+/* 大きく映す画面 */
+.big table.mt th{font-size:18px;padding:10px 16px}
+.big table.mt th.no,.big table.mt td.no{width:96px;font-size:22px;padding-right:16px}
+.big table.mt td{font-size:56px;padding:16px 16px}
+
+/* スマホ */
+.phone{width:375px;background:var(--background);border:1px solid #BDB9B3;border-radius:32px;overflow:hidden;box-shadow:0 8px 24px rgba(3,3,2,.12)}
+.status{height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:13px;font-weight:700;background:var(--surface)}
+.appbar{height:56px;display:flex;align-items:center;gap:8px;padding:0 8px 0 16px;background:var(--surface);border-bottom:1px solid var(--border)}
+.appbar .t{flex:1;min-width:0;line-height:1.25}
+.appbar .t strong{display:block;font-size:var(--fs-m)}
+.appbar .t small{display:block;font-size:var(--fs-xs);color:var(--text-sub)}
+.phone .tab{font-size:var(--fs-s);min-height:44px}
+.scr{padding:12px;display:flex;flex-direction:column;gap:12px;min-height:560px}
+.homebar{height:24px;display:grid;place-items:center;background:var(--background)}
+.homebar::after{content:"";width:120px;height:4px;border-radius:9999px;background:#23221E;opacity:.7}
+.ban{display:flex;align-items:center;gap:8px;background:var(--surface-over);border:1px solid var(--border);border-radius:var(--r-m);padding:8px 8px 8px 12px;font-size:var(--fs-s)}
+.ban span{flex:1}
+
+/* 印刷（A3 横・レベルごとに1枚） */
+.paper{width:1123px;max-width:100%;height:1587px;background:#FFFFFF;border:1px solid #BDB9B3;box-shadow:0 8px 24px rgba(3,3,2,.12);padding:48px 64px;color:#111111;display:flex;flex-direction:column}
+.paper .ph{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #111;padding-bottom:12px;margin-bottom:24px}
+.paper .ph h3{margin:0;font-size:64px;line-height:1.1}
+.paper:not(.a4) table.mt{width:100%}
+.paper:not(.a4) table.mt td{font-size:68px;padding:22px 18px}
+.paper:not(.a4) table.mt td.no{font-size:24px}
+.paper.a4{width:794px;height:1123px;padding:40px 48px}
+.paper.a4 .ph h3{font-size:36px}
+.paper.a4 .ph p{font-size:13px}
+.paper.a4 table.mt td{font-size:22px;padding:4px 12px}
+.paper.a4 table.mt td.no{font-size:13px;width:40px;padding:4px 8px}
+.paper .ph p{margin:6px 0 0;font-size:18px}
+.paper table.mt{border:2px solid #111;width:auto;table-layout:auto}
+.paper table.mt th{background:#EDEBE8;color:#111;font-size:16px;padding:8px 16px}
+.paper table.mt th.no,.paper table.mt td.no{width:56px;font-size:20px;color:#111;padding:8px 12px}
+.paper table.mt td{font-size:48px;color:#111;border-top:1px solid #777;padding:8px 16px}
+.paper table.mt td.p2,.paper table.mt th.p2{border-right:3px solid #111}
+.thumbs{display:flex;gap:16px}
+.thumb{width:240px;height:170px;background:#fff;border:1px solid #BDB9B3;box-shadow:0 4px 12px rgba(3,3,2,.1);padding:12px;display:flex;flex-direction:column;gap:6px}
+.thumb strong{font-size:20px;color:#111;border-bottom:2px solid #111}
+.thumb i{display:block;height:9px;background:#EDEBE8;border-radius:2px}
+.qr{display:grid;background:#fff}
+.qr i{display:block;aspect-ratio:1/1}
+.qrbox{display:flex;align-items:center;gap:12px;font-size:14px;text-align:right}
+table.mt tr:first-child td{border-top:0}
+table.mt td+td:not(.no){border-left:1px solid var(--border)}
+table.mt td.no+td{border-left:1px solid var(--border)}
+.paper table.mt td+td:not(.no),.paper table.mt td.no+td{border-left:1px solid #111}
+table.mt td.ck{width:56px;padding-left:14px}
+.cb{width:28px;height:28px;border:2px solid var(--border-input);border-radius:var(--r-s);background:var(--surface);display:grid;place-items:center;font-size:16px;font-weight:700;color:var(--on-primary)}
+.cb.on{background:var(--text-sub);border-color:var(--text-sub)}
+tr.now .cb{border-color:var(--on-primary)}
+</style></head>
+<body><div class="wrap">
+
+<div class="top">
+  <h1>kanaeru 試合表　主な画面の見本 1</h1>
+  <p>見た目は受付アプリと同じ（墨・地 #F8F7F6・上の帯とサイドバー）。試合はレベル別（上級・中級・初級・入門）に組んで進める。試合表はレベル別に名前を4列に並べるだけ。PC もスマホも、レベルを選んで1つずつ表示する。印刷もレベルごとに1枚ずつ。名前は架空。</p>
+</div>
+
+<!-- ========== M0 受付の交流会から作る ========== -->
+<div class="row"><div class="col">
+  <div class="lbl"><b>M0</b>試合表を作る：受付の交流会を選ぶ（運営）<span>名簿の入れ方は「受付の交流会から」「フォームの CSV」「QR で受け付ける」「手で入れる」の4つ。交流会を選ぶと、その参加者（当日はチェックインした人、前もっては予約の申込みの名簿）を名簿に入れる。レベルは、前にこの運営の試合表で入れた値を使い、ない人は名簿で入れる【仮決め】</span></div>
+  <div class="browser">
+    <div class="chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">kanaeru-xxxxxxxx.asia-northeast1.run.app/match/new</div></div>
+    <div class="bar"><span class="tg" aria-label="メニュー">☰</span><strong>kanaeru</strong><span class="sp"></span></div>
+    <div class="shell">
+      <nav class="side"><div class="it">ホーム</div><div class="it">受付</div><div class="it on">試合表</div><div class="it">設定</div></nav>
+      <div class="main">
+        <div class="crumb"><a href="#">試合表の一覧</a></div>
+        <div class="pchead"><div><h2>試合表を作る</h2><p>名簿の入れ方を選んでください</p></div></div>
+        <div style="display:flex;gap:8px"><span class="chip on">受付の交流会から</span><span class="chip">フォームから貼り付け・CSV</span><span class="chip">QR で受け付ける</span><span class="chip">手で入れる</span></div>
+        <div class="split">
+          <div class="col">
+            <table class="t">
+              <thead><tr><th></th><th>交流会</th><th>日時</th><th>入れられる人</th></tr></thead>
+              <tbody>
+                <tr><td style="width:40px"><span class="box">✓</span></td><td class="nm">12/13(日) 練習会</td><td>12/13(日) 12:00</td><td>チェックイン 18人・申込み 22人</td></tr>
+                <tr><td><span class="box" style="background:#fff;border:1px solid var(--border-input)"></span></td><td class="nm">12/20(日) 練習会</td><td>12/20(日) 12:00</td><td>申込み 15人</td></tr>
+                <tr><td><span class="box" style="background:#fff;border:1px solid var(--border-input)"></span></td><td class="nm">12/6(日) 練習会</td><td>12/6(日) 18:00</td><td>チェックイン 20人</td></tr>
+              </tbody>
+            </table>
+            <p class="note">自分が主催者の交流会だけが出ます（持ち主・組織の管理者と編集者）。</p>
+          </div>
+          <div class="card col" style="gap:12px">
+            <strong style="font-size:var(--fs-l)">12/13(日) 練習会</strong>
+            <div class="field"><div class="fl">入れる人</div>
+              <div class="check"><span class="box">✓</span>申込みの名簿（22人）</div>
+              <div class="check"><span class="box" style="background:#fff;border:1px solid var(--border-input)"></span>チェックインした人だけ（18人）</div>
+            </div>
+            <p class="note">レベル：20人は前の試合表から入ります。2人はまだないので、次の画面で入れてください。</p>
+            <span class="btn primary full">22人を名簿に入れる</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ========== M7・P2・P3 QR で受け付ける ========== -->
+<div class="row">
+<div class="col">
+  <div class="lbl"><b>M7</b>QR で受け付ける（運営・タブレットかPC）<span>交流会も CSV もないとき。この QR を入口に出すか、リンクをオープンチャットに載せる。参加者が名前とレベルを答えると、名簿に入る（名簿の画面で直せる・消せる）。リンクは試合表ごと・その日の終わりまで【仮決め】</span></div>
+  <div class="browser" style="width:760px">
+    <div class="bar"><span class="tg" aria-label="メニュー">☰</span><strong>kanaeru</strong><span class="sp"></span><span class="offline">電波あり</span></div>
+    <div style="padding:24px 32px;display:flex;gap:32px;align-items:flex-start">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+        <div class="qr" id="qr4" style="width:220px;height:220px;grid-template-columns:repeat(25,1fr);box-shadow:0 0 0 12px #fff,0 0 0 13px var(--border)"></div>
+        <span class="btn secondary sm">リンクをコピー</span>
+        <span class="btn secondary sm">この QR を印刷</span>
+      </div>
+      <div class="col" style="flex:1;gap:12px">
+        <h2 style="margin:0;font-size:var(--fs-xl)">受付中　12/13(日) 練習会</h2>
+        <p class="note">受け付けた人：<b style="color:var(--text)">14人</b>（上級 3・中級 5・初級 4・入門 2）</p>
+        <table class="t"><tbody>
+          <tr><td class="nm">高橋</td><td><span class="tag line">上級</span></td><td class="note">12:21</td></tr>
+          <tr><td class="nm">山本</td><td><span class="tag line">中級</span></td><td class="note">12:20</td></tr>
+          <tr><td class="nm">石川</td><td><span class="tag line">入門</span></td><td class="note">12:20</td></tr>
+        </tbody></table>
+        <div class="toolbar"><span class="btn secondary sm">受付を締める</span><span class="btn primary sm">この名簿で試合表を作る</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="col">
+  <div class="lbl"><b>P2</b>受付（参加者のスマホ）<span>QR から開く。ログインは要らない。名前（試合表に出る名前）とレベルを答えるだけ</span></div>
+  <div class="phone">
+    <div class="status">12:20<i></i></div>
+    <div class="appbar"><div class="t"><strong>12/13(日) 練習会</strong><small>試合表の受付</small></div></div>
+    <div class="scr" style="min-height:520px">
+      <div class="field"><div class="fl">名前<small style="font-weight:400;color:var(--text-sub);margin-left:8px">試合表に出ます</small></div><div class="input">高橋</div></div>
+      <div class="field"><div class="fl">レベル</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px"><span class="chip">入門</span><span class="chip">初級</span><span class="chip">中級</span><span class="chip on">上級</span></div>
+      </div>
+      <span class="btn primary full">受付する</span>
+      <p class="note">名前とレベルは、その日の試合表のためだけに使います。</p>
+    </div>
+    <div class="homebar"></div>
+  </div>
+</div>
+
+<div class="col">
+  <div class="lbl"><b>P3</b>受付できた／電波がないとき<span>受付できたら、そのまま試合表を見られる。電波がなくて送れないときは、名前とレベルを入れた QR を出し、運営のタブレットのカメラで読んでもらう【仮決め】</span></div>
+  <div class="phone">
+    <div class="status">12:21<i></i></div>
+    <div class="appbar"><div class="t"><strong>12/13(日) 練習会</strong><small>試合表の受付</small></div></div>
+    <div class="scr" style="min-height:520px;align-items:center;text-align:center">
+      <div class="ban" style="width:100%"><span>電波がないため、まだ送れていません</span></div>
+      <strong style="font-size:var(--fs-l)">この QR を運営に見せてください</strong>
+      <div class="qr" id="qr5" style="width:200px;height:200px;grid-template-columns:repeat(21,1fr);box-shadow:0 0 0 10px #fff,0 0 0 11px var(--border)"></div>
+      <p style="margin:0;font-size:var(--fs-m)"><b>高橋</b>・上級</p>
+      <p class="note">つながったら、自動で送ります。</p>
+    </div>
+    <div class="homebar"></div>
+  </div>
+</div>
+</div>
+
+<!-- ========== M1 名簿 ========== -->
+<div class="row"><div class="col">
+  <div class="lbl"><b>M1</b>名簿（運営・タブレットかPC）<span>Google フォームの回答を、スプレッドシートからコピーして貼り付けたところ（CSV のファイルも読める）。氏名とレベルだけを読み、メールアドレス・ラケット・きっかけ・要望は入れない。呼び名は姓（同じ姓は名の1字を足す）【仮決め】。試合の形（ダブルス・シングルス）とレベルの分け方（分けないも選べる）は運営が決め、あとから変えられる。レベルは CSV から入り、1人ずつ直せる</span></div>
+  <div class="browser">
+    <div class="chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">kanaeru-xxxxxxxx.asia-northeast1.run.app/match</div></div>
+    <div class="bar"><span class="tg" aria-label="メニュー">☰</span><strong>kanaeru</strong><span class="sp"></span><span class="offline">電波なし・この端末に保存しました</span></div>
+    <div class="shell">
+      <nav class="side"><div class="it">ホーム</div><div class="it">受付</div><div class="it on">試合表</div><div class="it">設定</div></nav>
+      <div class="main">
+        <div class="crumb"><a href="#">試合表の一覧</a></div>
+        <div class="pchead">
+          <div><h2>12/13(日) 練習会</h2><p>さくら小 体育館・12:00〜15:00</p></div>
+          <div class="actions"><span class="btn secondary sm">フォームから貼り付ける</span><span class="btn secondary sm">CSV を読む</span><span class="btn secondary sm">チェックインから読む</span><span class="btn secondary sm">1人足す</span></div>
+        </div>
+        <div class="split">
+          <div class="col">
+            <div class="toolbar"><span class="note"><b style="color:var(--text)">22人</b>（上級 5・中級 8・初級 5・入門 4）</span><span class="note">確かめる所 1件</span></div>
+            <table class="t">
+              <thead><tr><th>氏名（CSV）</th><th>呼び名（試合表に出る）</th><th>レベル</th><th>当日</th></tr></thead>
+              <tbody id="roster"></tbody>
+            </table>
+            <p class="note">ほか 12人。レベルは押すと変えられます（CSV にレベルの列がないときは、ここで入れます）。</p>
+          </div>
+          <div class="card col" style="gap:16px">
+            <div class="grid2">
+              <div class="field"><div class="fl">1試合</div><div class="input">15分</div></div>
+              <div class="field"><div class="fl">試合の時間</div><div class="input">12:30〜14:30</div></div>
+            </div>
+            <div class="field"><div class="fl">試合の形</div>
+              <div style="display:flex;gap:8px"><span class="chip on">ダブルス</span><span class="chip">シングルス</span></div>
+            </div>
+            <div class="field"><div class="fl">レベルの分け方</div>
+              <div class="col" style="gap:8px">
+                <span class="chip on" style="align-self:flex-start">上級・中級・初級・入門</span>
+                <span class="chip" style="align-self:flex-start">上級・中級・初級＆入門</span>
+                <span class="chip" style="align-self:flex-start">上級＆中級・初級＆入門</span>
+                <span class="chip" style="align-self:flex-start">分けない（全員で1つ・レベルの差をならす）</span>
+              </div>
+              <p class="note">あとから（当日でも）変えられます。変えると、まだの試合だけ組み直します。</p>
+            </div>
+            <div class="field"><div class="fl">レベル別の試合</div>
+              <div class="groups">
+                <div class="r"><b>上級</b><span>5人・8試合</span></div>
+                <div class="r"><b>中級</b><span>7人・8試合</span></div>
+                <div class="r"><b>初級</b><span>5人・8試合</span></div>
+                <div class="r"><b>入門</b><span>4人・8試合</span></div>
+              </div>
+            </div>
+            <span class="btn primary full">試合表を作る</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ========== M2 試合表（運営・当日） ========== -->
+<div class="row"><div class="col">
+  <div class="lbl"><b>M2</b>試合表（運営・当日の担当の端末）<span>スマホと同じく、レベルを選んで1つずつ表示する。名前を4列（ペアは決めない）。墨が今の試合、薄い地が次の試合。終わった試合の左にチェックを付けると進む（チェックのない最初の試合が今）。人を選んで「来なかった・来た・帰る」→ そのレベルの先の試合だけ組み直す。組み直せるのは担当の端末1台【仮決め】</span></div>
+  <div class="browser pc">
+    <div class="chrome"><div class="dots"><i></i><i></i><i></i></div><div class="url">kanaeru-xxxxxxxx.asia-northeast1.run.app/match/…</div></div>
+    <div class="bar"><span class="tg" aria-label="メニュー">☰</span><strong>kanaeru</strong><span class="sp"></span><span class="offline">電波なし・13:02 に保存（つながったら送ります）</span></div>
+    <div class="shell">
+      <nav class="side"><div class="it">ホーム</div><div class="it">受付</div><div class="it on">試合表</div><div class="it">設定</div></nav>
+      <div class="main">
+        <div class="pchead">
+          <div><h2>12/13(日) 練習会</h2><p>1試合15分・21人（来なかった 1人）</p></div>
+          <div class="actions"><span class="btn secondary sm">人を選んで直す</span><span class="btn secondary sm">レベルの分け方</span><span class="btn secondary sm">大きく映す</span><span class="btn secondary sm">電波なしで渡す</span><span class="btn secondary sm">印刷</span></div>
+        </div>
+        <div class="card" style="background:#FFFBEA;border-color:var(--warning);padding:10px 16px;font-size:var(--fs-s)">組み直しました。斎藤：12:58 に来た（初級の第4試合から）・加藤：来なかった（始まる前に外しました）</div>
+        <div>
+          <div class="tabs pctabs" id="m2tabs"></div>
+          <div id="m2"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- ========== M3 大きく映す ========== -->
+<div class="row"><div class="col">
+  <div class="lbl"><b>M3</b>大きく映す（コートの横のタブレット・ノートPC）<span>M2 の「大きく映す」。選んだレベルの今の試合と次の試合を大きな字で出す（レベルの数だけ端末を置くか、タブで切り替える）</span></div>
+  <div class="browser big">
+    <div class="bar" style="padding-left:16px"><strong>12/13(日) 練習会</strong><span class="sp"></span><span class="offline">電波なし</span><span class="btn secondary sm">戻る</span></div>
+    <div class="tabs" id="m3tabs"></div>
+    <div style="padding:32px"><div id="m3"></div></div>
+  </div>
+</div></div>
+
+<!-- ========== P1 スマホ・M4・R2 ========== -->
+<div class="row">
+<div class="col">
+  <div class="lbl"><b>P1</b>試合表（参加者・声をかける係のスマホ）<span>ログインなしの見るだけのページ（ふつうのブラウザ・その日の終わりまで）。入口の QR（R2）から開く。レベルを選ぶと、そのレベルの表。選んだ自分の名前に印</span></div>
+  <div class="phone">
+    <div class="status">13:06<i></i></div>
+    <div class="appbar"><div class="t"><strong>12/13(日) 練習会</strong><small>レベル別の試合表</small></div></div>
+    <div class="tabs" id="p1tabs"></div>
+    <div class="scr">
+      <div class="ban"><span>電波なし・13:02 の表</span><span class="btn secondary sm" style="flex:none">QR を読む</span></div>
+      <div class="toolbar"><span class="note">今 第4試合・次 第5試合</span><span class="chip on">高橋</span></div>
+      <div id="p1"></div>
+      <p class="note" style="text-align:center">試合表は当日に参加者へ公開されます<br>kanaeru で作った試合表・<a href="#">自分のサークルでも使う</a></p>
+    </div>
+    <div class="homebar"></div>
+  </div>
+</div>
+
+<div class="col">
+  <div class="lbl"><b>M4</b>電波なしで渡す（M2 から）<span>運営の端末に、今の表を入れた QR を出す。スマホ（P1 の「QR を読む」）で読むと、ネットなしで表が入る。入るのは呼び名と組み合わせだけ</span></div>
+  <div class="card" style="width:420px;display:flex;flex-direction:column;align-items:center;gap:12px;padding:24px">
+    <strong style="font-size:var(--fs-l)">スマホで読むと、今の試合表が入ります</strong>
+    <div class="qr" id="qr1" style="width:260px;height:260px;grid-template-columns:repeat(29,1fr);box-shadow:0 0 0 12px #fff,0 0 0 13px var(--border)"></div>
+    <span class="note">13:02 の表・組み直したら読み直してもらう</span>
+    <span class="btn secondary full">閉じる</span>
+  </div>
+</div>
+
+<div class="col">
+  <div class="lbl"><b>M5</b>印刷（M2 の「印刷」）<span>レベルごとに1枚ずつ出す。刷るレベルと紙の大きさを選ぶ</span></div>
+  <div class="card" style="width:360px;display:flex;flex-direction:column;gap:12px;padding:20px">
+    <strong style="font-size:var(--fs-l)">印刷</strong>
+    <div class="field"><div class="fl">刷るレベル（1レベル1枚）</div>
+      <div class="check"><span class="box">✓</span>上級</div>
+      <div class="check"><span class="box">✓</span>中級</div>
+      <div class="check"><span class="box">✓</span>初級</div>
+      <div class="check"><span class="box">✓</span>入門</div>
+    </div>
+    <div class="field"><div class="fl">紙の大きさ</div><div style="display:flex;flex-wrap:wrap;gap:8px"><span class="chip">A5</span><span class="chip">B5</span><span class="chip">A4</span><span class="chip">B4</span><span class="chip on">A3</span><span class="chip">B3</span><span class="chip">A2</span></div></div>
+    <div class="field"><div class="fl">向き</div><div style="display:flex;gap:8px"><span class="chip on">縦</span><span class="chip">横</span></div></div>
+    <p class="note">選んだ紙1枚に収まるよう、字の大きさを自動で合わせます（試合が少ないときは大きく、多いときは小さく）。小さくなりすぎるときは、大きい紙をすすめます。</p>
+    <span class="btn primary full">4枚を印刷する（A3 縦）</span>
+  </div>
+</div>
+</div>
+
+<div class="row"><div class="col">
+  <div class="lbl"><b>M6</b>シングルスのとき（M2 と同じ画面）<span>試合の形をシングルスにすると、名前を2列（1人 対 1人）に並べる。レベルを分けないときは、タブを出さずに全員の表を1つ出す</span></div>
+  <div class="card" style="width:420px;padding:0;overflow:hidden">
+    <table class="mt" style="border:0"><tbody>
+      <tr class="done"><td class="no">1</td><td class="p2">高橋</td><td>佐藤美</td></tr>
+      <tr class="done"><td class="no">2</td><td class="p2">佐藤健</td><td>伊藤</td></tr>
+      <tr class="now"><td class="no">3</td><td class="p2">渡辺</td><td>高橋</td></tr>
+      <tr class="next"><td class="no">4</td><td class="p2">佐藤美</td><td>佐藤健</td></tr>
+      <tr><td class="no">5</td><td class="p2">伊藤</td><td>渡辺</td></tr>
+    </tbody></table>
+  </div>
+</div></div>
+
+<!-- ========== R1 印刷 ========== -->
+<div class="row"><div class="col">
+  <div class="lbl"><b>R1</b>印刷の版（A3 縦・レベルごとに1枚）<span>1枚に1つのレベル。名前の列に縦線を引き、余白を少なくして縦で刷る。選んだ紙1枚に収まるよう、字の大きさを自動で合わせる（8試合なら大きく）。紙は A5〜A2 と B5〜B3、向きは縦・横から選ぶ（既定は A3 縦【仮決め】）。下は残りのレベルの紙（同じ形）</span></div>
+  <div class="paper">
+    <div class="ph">
+      <div><h3>上級</h3><p>12/13(日) 練習会・さくら小 体育館・1試合15分・試合 12:30〜14:30</p></div>
+      <div class="qrbox"><div><b>最新はスマホで</b><br>当日に組み直すことがあります<br>13:02 に作った表</div><div class="qr" id="qr3" style="width:96px;height:96px;grid-template-columns:repeat(21,1fr);box-shadow:0 0 0 5px #fff,0 0 0 6px #111"></div></div>
+    </div>
+    <div id="r1"></div>
+    <p style="margin:auto 0 0;text-align:right;font-size:13px;color:#444">kanaeru で作った試合表</p>
+  </div>
+  <div class="thumbs" id="thumbs"></div>
+</div>
+
+<div class="col">
+  <div class="lbl"><b>R3</b>印刷の版（A4 縦・分けないとき）<span>レベルを分けない21人・24試合でも、字の大きさを自動で合わせて1枚に収める</span></div>
+  <div class="paper a4">
+    <div class="ph"><div><h3>全員</h3><p>12/13(日) 練習会・1試合15分</p></div></div>
+    <div id="r3"></div>
+    <p style="margin:auto 0 0;text-align:right;font-size:11px;color:#444">kanaeru で作った試合表</p>
+  </div>
+</div>
+
+<div class="col">
+  <div class="lbl"><b>R2</b>入口に貼る1枚（A4）<span>試合表ごとに1枚（見るだけのリンクが試合表ごとに変わるため）。印刷と一緒に出せる</span></div>
+  <div style="width:397px;height:561px;background:#fff;border:1px solid #BDB9B3;box-shadow:0 8px 24px rgba(3,3,2,.12);padding:36px 32px;display:flex;flex-direction:column;align-items:center;gap:20px">
+    <span style="font-size:13px">12/13(日) 練習会</span>
+    <strong style="font-size:44px;line-height:1.15;text-align:center">試合表は<br>こちら</strong>
+    <div class="qr" id="qr2" style="width:190px;height:190px;grid-template-columns:repeat(25,1fr);box-shadow:0 0 0 10px #fff,0 0 0 11px #111"></div>
+    <p style="margin:0;font-size:14px;line-height:1.6">スマホのカメラで読んでください。<br>電波が弱いときは、運営のタブレットの QR も読めます。</p>
+    <span style="margin-top:auto;font-size:11px;color:#555">kanaeru で作った試合表</span>
+  </div>
+</div>
+</div>
+
+</div>
+<script>
+// 見本の中身を描くだけ（架空の名前。組み合わせは見本用に作ったもの）
+var L=[{"lv":"上級","now":4,"m":[[["佐藤健","佐藤美"],["高橋","渡辺"]],[["伊藤","佐藤健"],["高橋","佐藤美"]],[["渡辺","佐藤美"],["伊藤","高橋"]],[["佐藤健","高橋"],["伊藤","渡辺"]],[["佐藤美","伊藤"],["渡辺","佐藤健"]],[["高橋","佐藤美"],["伊藤","渡辺"]],[["佐藤健","佐藤美"],["高橋","渡辺"]],[["伊藤","高橋"],["佐藤健","渡辺"]]]},
+{"lv":"中級","now":3,"m":[[["小林","吉田"],["中村","山田"]],[["山本","井上"],["松本","中村"]],[["小林","山田"],["吉田","松本"]],[["山本","中村"],["井上","吉田"]],[["松本","小林"],["山田","井上"]],[["山本","山田"],["中村","吉田"]],[["小林","井上"],["松本","山本"]],[["吉田","山田"],["中村","井上"]]]},
+{"lv":"初級","now":5,"m":[[["清水","木村"],["林","山口"]],[["木村","林"],["山口","清水"]],[["木村","山口"],["清水","林"]],[["清水","木村"],["山口","林"]],[["斎藤","清水"],["山口","木村"]],[["林","清水"],["斎藤","木村"]],[["山口","清水"],["林","斎藤"]],[["木村","林"],["山口","斎藤"]]]},
+{"lv":"入門","now":4,"m":[[["橋本","森"],["池田","石川"]],[["森","池田"],["石川","橋本"]],[["森","石川"],["橋本","池田"]],[["池田","森"],["石川","橋本"]],[["橋本","森"],["石川","池田"]],[["石川","森"],["池田","橋本"]],[["橋本","森"],["石川","池田"]],[["石川","橋本"],["池田","森"]]]}];
+function nm(n,me){return me&&n===me?'<span class="me">'+n+'</span>':n}
+function table(lv,o){
+  o=o||{};var h='<table class="mt"><tbody>';
+  var from=o.window?lv.now-1:0,to=o.window?lv.now+1:lv.m.length;
+  for(var i=from;i<to;i++){var c=lv.m[i];var st=o.plain?'':(i+1<lv.now?'done':i+1===lv.now?'now':i+1===lv.now+1?'next':'');
+    h+='<tr class="'+st+'">'+(o.check?'<td class="ck"><span class="cb'+(i+1<lv.now?' on':'')+'" role="checkbox" aria-checked="'+(i+1<lv.now)+'" aria-label="第'+(i+1)+'試合を終えた">'+(i+1<lv.now?'✓':'')+'</span></td>':'')+'<td class="no">'+(i+1)+'</td><td>'+nm(c[0][0],o.me)+'</td><td>'+nm(c[0][1],o.me)+'</td><td>'+nm(c[1][0],o.me)+'</td><td>'+nm(c[1][1],o.me)+'</td></tr>';}
+  return h+'</tbody></table>';
+}
+function tabs(on,counts){return L.map(function(l,i){return '<span class="tab'+(i===on?' on':'')+'">'+l.lv+(counts?' <small>第'+l.now+'試合</small>':'')+'</span>'}).join('')}
+function games(lv){var g={};lv.m.forEach(function(c){c[0].concat(c[1]).forEach(function(n){g[n]=(g[n]||0)+1})});return g}
+document.getElementById('m2tabs').innerHTML=tabs(0,true);
+document.getElementById('m2').innerHTML=table(L[0],{check:true});
+document.getElementById('m3tabs').innerHTML=tabs(0,true);
+document.getElementById('m3').innerHTML=table(L[0],{window:true});
+document.getElementById('p1tabs').innerHTML=tabs(0);
+document.getElementById('p1').innerHTML=table(L[0],{me:'高橋'});
+document.getElementById('r1').innerHTML=table(L[0],{plain:true});
+var ALL=[["高橋","佐藤美","佐藤健","伊藤"],["渡辺","山本","中村","小林"],["吉田","山田","松本","井上"],["木村","林","斎藤","清水"],["山口","森","池田","橋本"],["石川","山本","吉田","木村"],["高橋","佐藤美","渡辺","山田"],["佐藤健","中村","松本","林"],["伊藤","小林","井上","斎藤"],["清水","山口","森","石川"],["池田","橋本","山本","山田"],["吉田","渡辺","林","伊藤"],["木村","高橋","中村","井上"],["佐藤美","松本","小林","清水"],["斎藤","山口","石川","池田"],["佐藤健","森","橋本","渡辺"],["山本","林","井上","佐藤美"],["山田","伊藤","中村","清水"],["吉田","高橋","小林","山口"],["木村","松本","斎藤","森"],["池田","石川","佐藤健","橋本"],["渡辺","山本","井上","清水"],["佐藤美","中村","吉田","山口"],["林","山田","小林","森"]];
+document.getElementById('r3').innerHTML=table({lv:'全員',now:1,m:ALL.map(function(g){return [[g[0],g[1]],[g[2],g[3]]]})},{plain:true});
+document.getElementById('thumbs').innerHTML=L.slice(1).map(function(l){return '<div class="thumb"><strong>'+l.lv+'</strong>'+'<i></i>'.repeat(8)+'</div>'}).join('');
+// 名簿（M1）
+var R=[["高橋 拓真","高橋","上級","来た",""],["佐藤 美咲","佐藤美","上級","来た",""],["佐藤 健司","佐藤健","上級","来た",""],["伊藤 結衣","伊藤","上級","来た",""],["渡辺 颯太","渡辺","上級","来た",""],["山本 彩","山本","中級","来た",""],["加藤 駿","加藤","中級","来ない",""],["林優斗","林優斗","初級","来た","warn"],["斎藤 咲","斎藤","初級","遅れて来る",""],["石川 海","石川","入門","来た",""]];
+document.getElementById('roster').innerHTML=R.map(function(p){return '<tr class="'+(p[4]?'warnbg':'')+'"><td>'+p[0]+'</td><td class="nm">'+p[1]+(p[4]?' <span class="tag warn">姓と名の間に空白がありません</span>':'')+'</td><td><span class="tag line">'+p[2]+' ▾</span></td><td>'+(p[3]!=='来た'?'<b>'+p[3]+'</b>':p[3])+'</td></tr>'}).join('');
+// QR（見本の模様）
+function qr(id,N,seed){var el=document.getElementById(id),h='';function rnd(){seed=(seed*1103515245+12345)%2147483648;return seed/2147483648}
+  for(var y=0;y<N;y++)for(var x=0;x<N;x++){var on=rnd()<.5;[[0,0],[N-7,0],[0,N-7]].forEach(function(p){var cx=x-p[0],cy=y-p[1];if(cx>=0&&cx<7&&cy>=0&&cy<7)on=(cx===0||cy===0||cx===6||cy===6||(cx>=2&&cx<=4&&cy>=2&&cy<=4))});h+='<i style="background:'+(on?'#23221E':'#fff')+'"></i>'}el.innerHTML=h}
+qr('qr1',29,7);qr('qr2',25,11);qr('qr3',21,13);qr('qr4',25,17);qr('qr5',21,19);
+</script>
+</body></html>

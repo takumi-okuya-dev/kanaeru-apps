@@ -16,6 +16,11 @@ describe("参加者が開く道", () => {
     expect(participantPaths.survey(EVENT_ID)).toBe(`/e/${EVENT_ID}/survey`);
     expect(participantPaths.invite("a b/c")).toBe("/invite/a%20b%2Fc");
     expect(participantPaths.join("t_1")).toBe("/join/t_1");
+    expect(participantPaths.lineLink("t-1_x")).toBe("/line-link/t-1_x");
+    expect(participantPaths.apply(EVENT_ID)).toBe(`/e/${EVENT_ID}`);
+    expect(participantPaths.entry(EVENT_ID, "t-1_x")).toBe(`/e/${EVENT_ID}/entry/t-1_x`);
+    expect(participantPaths.myBookings()).toBe("/my-bookings");
+    expect(() => participantPaths.entry(EVENT_ID, "")).toThrow(RangeError);
     expect(() => participantPaths.checkin("")).toThrow(RangeError);
   });
 
@@ -32,6 +37,16 @@ describe("参加者が開く道", () => {
     expect(PARTICIPANT_ROUTE_PATTERNS.join.replace("$joinToken", "abc")).toBe(
       participantPaths.join("abc"),
     );
+    expect(PARTICIPANT_ROUTE_PATTERNS.lineLink.replace("$linkToken", "abc")).toBe(
+      participantPaths.lineLink("abc"),
+    );
+    expect(PARTICIPANT_ROUTE_PATTERNS.apply.replace("$eventId", EVENT_ID)).toBe(
+      participantPaths.apply(EVENT_ID),
+    );
+    expect(
+      PARTICIPANT_ROUTE_PATTERNS.entry.replace("$eventId", EVENT_ID).replace("$entryToken", "abc"),
+    ).toBe(participantPaths.entry(EVENT_ID, "abc"));
+    expect(PARTICIPANT_ROUTE_PATTERNS.myBookings).toBe(participantPaths.myBookings());
   });
 });
 

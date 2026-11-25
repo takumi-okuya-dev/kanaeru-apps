@@ -9,10 +9,20 @@ import { DB_UNAVAILABLE_MESSAGES } from "@workspace/contracts/core";
 import { describe, expect, it, vi } from "vitest";
 import { createDatabase } from "../src/kernel/db.ts";
 import { uuidParam } from "../src/kernel/http.ts";
-import { OPENAPI_DOC_PATH, orderWithdrawalSteps, toFieldErrors } from "../src/app.ts";
+import {
+  BOOKING_WEBHOOK_RATE_LIMIT,
+  OPENAPI_DOC_PATH,
+  PUBLIC_READ_RATE_LIMIT,
+  collectEventLinkRestrictions,
+  collectPublicReadPaths,
+  isPublicReadPath,
+  orderWithdrawalSteps,
+  toFieldErrors,
+} from "../src/app.ts";
 import type { AppEnv, DomainModule, DomainRouteDeps } from "../src/app.ts";
 import { TEST_ORIGIN, buildApp, jsonRequest, testConfig } from "./helpers/app.ts";
 import { loginAs, withCookie } from "./helpers/account.ts";
+import { DEMO_APP } from "./helpers/suite.ts";
 import { truncateAllTables, useTestDatabase } from "./helpers/db.ts";
 import type { AppDefinition } from "@workspace/contracts/core";
 import type { WithdrawalStep } from "../src/kernel/withdrawal.ts";
@@ -105,15 +115,20 @@ describe("組み立て", () => {
       "apps",
       "config",
       "db",
+      "eventLinkRestrictions",
       "features",
       "fetch",
       "isJobRequest",
       "logger",
       "metaApp",
+      "notifier",
       "secretBox",
       "withdrawalSteps",
     ]);
     expect(received?.secretBox).toBeUndefined();
+    // 知らせを送る道具は、許可リストの値を持たず、テストでは偽の送り手で既定は止めている（booking-002）
+    expect(received?.notifier?.fake).toBe(true);
+    expect(received?.notifier?.mode).toBe("off");
     expect(received?.isJobRequest("Bearer ")).toBe(false);
     // Meta のアプリの設定がなければ、その道具もない
     expect(received?.metaApp).toBeUndefined();
@@ -295,6 +310,78 @@ describe("組み立て", () => {
     expect(statuses).toEqual([200, 200, 429]);
   });
 
+  /** テストだけの Webhook の道（threads と booking の道の形。組み立ての回数の制限だけを見る）。 */
+  const webhookModule: DomainModule = {
+    routes: () =>
+      new OpenAPIHono<AppEnv>()
+        .openapi(
+          createRoute({
+            method: "post",
+            path: "/api/v1/threads/webhooks/test-only-ping",
+            responses: { 200: { description: "受け取った" } },
+          }),
+          (c) => c.json({}, 200),
+        )
+        .openapi(
+          createRoute({
+            method: "post",
+            path: "/api/v1/booking/webhooks/test-only-ping",
+            responses: { 200: { description: "受け取った" } },
+          }),
+          (c) => c.json({}, 200),
+        ),
+  };
+
+  it("booking 以外の Webhook の道（threads の Meta など）は、今までどおり IP ごとのふつうの上限で数える", async () => {
+    const config = testConfig({ rateLimit: { enabled: true, windowSeconds: 60, max: 2 } });
+    const app = buildApp(database, config, { extraModules: [webhookModule, testModule] });
+    const hook = () =>
+      app.request("/api/v1/threads/webhooks/test-only-ping", jsonRequest("POST", { events: [] }));
+    expect([(await hook()).status, (await hook()).status, (await hook()).status]).toEqual([
+      200, 200, 429,
+    ]);
+    // ほかの書く道と同じ数を使う
+    const echo = await app.request("/api/v1/test-only/echo", jsonRequest("POST", { value: "x" }));
+    expect(echo.status).toBe(429);
+  });
+
+  it("booking の Webhook の道は、ふつうの上限で数えず、IP ごとの別の高めの上限で数える", async () => {
+    const config = testConfig({ rateLimit: { enabled: true, windowSeconds: 60, max: 2 } });
+    const app = buildApp(database, config, { extraModules: [webhookModule, testModule] });
+    const hook = () =>
+      app.request("/api/v1/booking/webhooks/test-only-ping", jsonRequest("POST", { events: [] }));
+    const statuses: number[] = [];
+    for (let index = 0; index < 5; index += 1) statuses.push((await hook()).status);
+    expect(statuses).toEqual([200, 200, 200, 200, 200]);
+    // ふつうの上限の数を使わない（ほかの書く道は、今までどおり数える）
+    const echo = () => app.request("/api/v1/test-only/echo", jsonRequest("POST", { value: "x" }));
+    expect([(await echo()).status, (await echo()).status, (await echo()).status]).toEqual([
+      200, 200, 429,
+    ]);
+    // 別の上限（BOOKING_WEBHOOK_RATE_LIMIT）を超えたら 429 と Retry-After
+    for (let index = 5; index < BOOKING_WEBHOOK_RATE_LIMIT.max; index += 1) {
+      expect((await hook()).status).toBe(200);
+    }
+    const over = await hook();
+    expect(over.status).toBe(429);
+    expect(over.headers.get("retry-after")).toBeTruthy();
+  });
+
+  it("booking の Webhook の道の別の上限も、RATE_LIMIT_ENABLED が切なら数えない", async () => {
+    const config = testConfig({ rateLimit: { enabled: false, windowSeconds: 60, max: 2 } });
+    const app = buildApp(database, config, { extraModules: [webhookModule] });
+    for (let index = 0; index <= BOOKING_WEBHOOK_RATE_LIMIT.max; index += 1) {
+      expect(
+        (
+          await app.request(
+            "/api/v1/booking/webhooks/test-only-ping",
+            jsonRequest("POST", { events: [] }),
+          )
+        ).status,
+      ).toBe(200);
+    }
+  });
+
   it("窓口の文書は OPENAPI_DOC_ENABLED のときだけ出し、すべての道が載る", async () => {
     const enabled = buildApp(database, testConfig({ openApiDocEnabled: true }));
     const response = await enabled.request(OPENAPI_DOC_PATH);
@@ -351,6 +438,138 @@ describe("組み立て", () => {
       expect(response.status).toBe(status);
       expect(((await response.json()) as { error: { code: string } }).error.code).toBe(code);
     }
+  });
+
+  /** テストだけの、ログインなしで読める道（見るだけのページの形：札の道と、その版の道）を持つ領域（core-016）。 */
+  const publicReadModule: DomainModule = {
+    publicReadPaths: ["/api/v1/test-only/views/"],
+    routes: () =>
+      new OpenAPIHono<AppEnv>()
+        .openapi(
+          createRoute({
+            method: "get",
+            path: "/api/v1/test-only/views/{token}",
+            request: { params: z.object({ token: z.string() }) },
+            responses: { 200: { description: "見るだけの中身" } },
+          }),
+          (c) => c.json({ ok: true }, 200),
+        )
+        .openapi(
+          createRoute({
+            method: "get",
+            path: "/api/v1/test-only/views/{token}/version",
+            request: { params: z.object({ token: z.string() }) },
+            responses: { 200: { description: "版の番号" } },
+          }),
+          (c) => c.json({ version: 1 }, 200),
+        ),
+  };
+
+  it("ログインなしで読める道の頭は、自分の領域の道の下で、形の合うものだけ集める（core-016）", () => {
+    const module = (paths: string[]): DomainModule => ({ publicReadPaths: paths });
+    expect(
+      collectPublicReadPaths([
+        ["demo", module(["/api/v1/demo/views/", "/api/v1/demo/joins/"])],
+        ["other", {}],
+        ["extra:0", module(["/api/v1/test-only/views/", "/api/v1/demo/views/"])],
+      ]),
+    ).toEqual(["/api/v1/demo/views/", "/api/v1/demo/joins/", "/api/v1/test-only/views/"]);
+    for (const bad of [
+      "/api/v1/other/views/", // ほかの領域の道
+      "/api/v1/demo/", // 領域全体
+      "/api/v1/demo/views", // "/" で終わらない（"/api/v1/demo/viewsx" まで入る）
+      "/api/v1/demo/../other/", // 形の外
+      "/api/v1/demo/Views/",
+      "/api/v2/demo/views/",
+      "",
+    ]) {
+      expect(() => collectPublicReadPaths([["demo", module([bad])]]), bad).toThrow(
+        "ログインなしで読める道の頭",
+      );
+    }
+  });
+
+  it("道が、ログインなしで読める道の頭で始まるかを見る（頭の外・似た名前の道は入らない）", () => {
+    const prefixes = ["/api/v1/demo/views/", "/api/v1/demo/joins/"];
+    expect(isPublicReadPath("/api/v1/demo/views/abc", prefixes)).toBe(true);
+    expect(isPublicReadPath("/api/v1/demo/views/abc/version", prefixes)).toBe(true);
+    expect(isPublicReadPath("/api/v1/demo/joins/abc", prefixes)).toBe(true);
+    expect(isPublicReadPath("/api/v1/demo/views", prefixes)).toBe(false);
+    expect(isPublicReadPath("/api/v1/demo/viewsx/abc", prefixes)).toBe(false);
+    expect(isPublicReadPath("/api/v1/demo/tables/abc", prefixes)).toBe(false);
+    expect(isPublicReadPath("/api/v1/other/views/abc", prefixes)).toBe(false);
+    expect(isPublicReadPath("/api/v1/demo/views/abc", [])).toBe(false);
+  });
+
+  it("ログインなしで読める道の読む要求は、書く操作と別の上限（PUBLIC_READ_RATE_LIMIT）で IP ごとに数える", async () => {
+    const config = testConfig({ rateLimit: { enabled: true, windowSeconds: 60, max: 2 } });
+    const app = buildApp(database, config, { extraModules: [publicReadModule, testModule] });
+    // 体育館の1つの IP の後ろの30人が、30秒おきに版を確かめる1分ぶん（60回）と、版が変わるたびの読み直し（30回）は通る
+    for (let index = 0; index < 60; index += 1) {
+      expect((await app.request(`/api/v1/test-only/views/t${index % 30}/version`)).status).toBe(
+        200,
+      );
+    }
+    for (let index = 0; index < 30; index += 1) {
+      expect((await app.request(`/api/v1/test-only/views/t${index}`)).status).toBe(200);
+    }
+    // ふつうの上限（書く操作の2回）とは別に数える：見る要求が多くても、書く操作は止まらない
+    const echo = () => app.request("/api/v1/test-only/echo", jsonRequest("POST", { value: "x" }));
+    expect([(await echo()).status, (await echo()).status, (await echo()).status]).toEqual([
+      200, 200, 429,
+    ]);
+    // 札の道と版の道は、同じ数を使う。上限を超えたら 429 と Retry-After
+    for (let index = 90; index < PUBLIC_READ_RATE_LIMIT.max; index += 1) {
+      expect((await app.request("/api/v1/test-only/views/t1")).status).toBe(200);
+    }
+    const over = await app.request("/api/v1/test-only/views/t1/version");
+    expect(over.status).toBe(429);
+    expect(over.headers.get("retry-after")).toBeTruthy();
+    expect(((await over.json()) as { error: { code: string } }).error.code).toBe("RATE_LIMITED");
+    // 頭の外の読む要求（ログインした画面の読み直しなど）は、今までどおり数えない
+    for (let index = 0; index < 3; index += 1) {
+      expect(
+        (await app.request("/api/v1/test-only/items/0193A1B2-0000-7000-8000-000000000000")).status,
+      ).toBe(200);
+      expect((await app.request("/api/v1/health")).status).toBe(200);
+    }
+  });
+
+  it("ログインなしで読める道の上限は、IP ごとに別に数え、RATE_LIMIT_ENABLED が切なら数えない", async () => {
+    const limited = buildApp(
+      database,
+      testConfig({ rateLimit: { enabled: true, windowSeconds: 60, max: 2 }, trustedProxyHops: 1 }),
+      { extraModules: [publicReadModule] },
+    );
+    /**
+     * 中継が付けた IP から、見るだけの道を読む。
+     * @param ip 利用者の IP
+     * @returns 状態の番号
+     */
+    const view = async (ip: string) =>
+      (await limited.request("/api/v1/test-only/views/t1", { headers: { "x-forwarded-for": ip } }))
+        .status;
+    for (let index = 0; index < PUBLIC_READ_RATE_LIMIT.max; index += 1) {
+      expect(await view("203.0.113.1")).toBe(200);
+    }
+    expect(await view("203.0.113.1")).toBe(429);
+    expect(await view("203.0.113.2")).toBe(200);
+
+    const unlimited = buildApp(
+      database,
+      testConfig({ rateLimit: { enabled: false, windowSeconds: 60, max: 2 } }),
+      { extraModules: [publicReadModule] },
+    );
+    for (let index = 0; index <= PUBLIC_READ_RATE_LIMIT.max; index += 1) {
+      expect((await unlimited.request("/api/v1/test-only/views/t1")).status).toBe(200);
+    }
+  });
+
+  it("ログインなしで読める道の頭が自分の領域の外を指すと、組み立てが止まる", () => {
+    const stray: DomainModule = { publicReadPaths: ["/api/v1/other/views/"] };
+    expect(() =>
+      buildApp(database, testConfig(), { extraModules: { demo: stray }, extraApps: [DEMO_APP] }),
+    ).toThrow("ログインなしで読める道の頭");
   });
 
   it("IPv6 は /64 ごとに数える（/64 の中で IP を替えても、上限は効く）", async () => {
@@ -550,6 +769,17 @@ describe("退会の手順の並び（AD-22）", () => {
       accountData: "",
     };
   }
+
+  it("交流会の招待のリンクを絞る決まりは、出している領域のものだけを集める（AD-5・AD-23）", () => {
+    const restricts = { restrictsLinks: () => Promise.resolve(true) };
+    const never = { restrictsLinks: () => Promise.resolve(false) };
+    const collected = collectEventLinkRestrictions([
+      ["a1", { eventLinkRestriction: restricts }],
+      ["nostep", {}],
+      ["b1", { eventLinkRestriction: never }],
+    ]);
+    expect(collected).toEqual([restricts, never]);
+  });
 
   it("共通の領域を先、アプリを一覧の順（アプリの中は domains の順）、テストの領域を最後に並べ、account は入れない", () => {
     const calls: string[] = [];

@@ -366,14 +366,17 @@ async function deleteMembership(
 }
 
 /**
- * 管理者が、自分以外の人を組織から外す。
+ * 管理者が、自分以外の人を組織から外す。招待のリンクがあれば、同じトランザクションで作り直す
+ * （外した人が手元の古いリンクで、管理者の操作なしに入り直せないように。受付係を外すときと同じ）。
  * @param db DB
+ * @param box 秘密の箱（招待の札の写しを包む。ない環境では写しを持たない）
  * @param organizationId 組織の ID
  * @param targetAccountId 外す人
  * @throws {AppError} 相手がいない・管理者のとき（ORGANIZATION_MEMBER_NOT_FOUND）
  */
 export async function removeMember(
   db: Db,
+  box: SecretBox | undefined,
   organizationId: string,
   targetAccountId: string,
 ): Promise<void> {
@@ -385,6 +388,12 @@ export async function removeMember(
     if (!(await deleteMembership(tx, organizationId, targetAccountId))) {
       throw new AppError(ORGANIZATION_ERRORS.ORGANIZATION_MEMBER_NOT_FOUND);
     }
+    const [invite] = await tx
+      .select({ organizationId: organizationInvite.organizationId })
+      .from(organizationInvite)
+      .where(eq(organizationInvite.organizationId, organizationId))
+      .limit(1);
+    if (invite) await rotateInvite(tx, box, organizationId);
   });
 }
 

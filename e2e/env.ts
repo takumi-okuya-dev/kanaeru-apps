@@ -70,8 +70,8 @@ export const E2E_ENV: Record<string, string> = {
   // E2E のログインは account の試験用のログインで行う（本物の LINE は手元の http で動かない）
   TEST_LOGIN_ENABLED: "true",
   OPENAPI_DOC_ENABLED: "true",
-  // 機能の印で止めている領域のうち、通しのテストで確かめるもの（threads-010 の OAuth）
-  DOMAIN_FEATURES: "threads.oauth",
+  // 機能の印で止めている領域のうち、通しのテストで確かめるもの（threads-010 の OAuth・試合表のネットなしで開く仕組み〈AD-27。core-015〉）
+  DOMAIN_FEATURES: "threads.oauth,match.offline",
   LOG_PRETTY: "false",
   LOG_LEVEL: "warn",
   DATABASE_CONNECT_TIMEOUT_MS: "5000",
@@ -90,4 +90,7 @@ export const E2E_ENV: Record<string, string> = {
   // アプリの Meta のアプリ（threads-010）：テストだけの値。偽の Threads の認可の画面と Webhook の署名に使う
   THREADS_APP_ID: E2E_THREADS_APP_ID,
   THREADS_APP_SECRET: E2E_THREADS_APP_SECRET,
+  // 予約の知らせ（booking-002）：APP_ENV=test なので偽の送り手だけ。友だち追加のあいさつと確かめのメッセージを試すため on にする
+  NOTIFY_MODE: "on",
+  NOTIFY_ALLOWLIST: "",
 };
