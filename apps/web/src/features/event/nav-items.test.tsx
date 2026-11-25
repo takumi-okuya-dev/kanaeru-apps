@@ -10,10 +10,11 @@ import {
 } from "@tanstack/react-router";
 import { ADMIN_ROUTE_PATTERNS, adminPaths } from "@workspace/contracts/event";
 import type { EventRole } from "@workspace/contracts/event";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { availableAdminTabs, firstAdminPath } from "./admin-tabs.ts";
 import { useEventNavItems } from "./nav-items.ts";
+import { LAST_EVENT_KEY, readLastEvent, writeLastEvent } from "./last-event.ts";
 import { EVENT_QUERY_KEYS } from "./queries.ts";
 
 /** 試しの交流会の ID。 */
@@ -28,7 +29,11 @@ function Items() {
   return (
     <ul aria-label="項目">
       {items.map((item) => (
-        <li key={item.id}>{[item.label, item.to, ...(item.also ?? [])].join(" ")}</li>
+        <li key={item.id}>
+          {[item.label, item.to, ...(item.also ?? []), ...(item.disabled ? ["（薄い）"] : [])].join(
+            " ",
+          )}
+        </li>
       ))}
     </ul>
   );
@@ -67,15 +72,72 @@ async function renderItems(
 
 afterEach(() => {
   vi.restoreAllMocks();
+  window.localStorage.clear();
 });
 
+/** 薄い3つの項目（記録がなく、役目が分からないとき）。行き先は、押したときに進む一覧。 */
+const DIM_ITEMS = [
+  `参加者・合計 ${ADMIN_ROUTE_PATTERNS.eventList} （薄い）`,
+  `困りごと ${ADMIN_ROUTE_PATTERNS.eventList} （薄い）`,
+  `準備 ${ADMIN_ROUTE_PATTERNS.eventList} （薄い）`,
+];
+
 describe("外枠のナビの交流会の項目", () => {
-  it("交流会の外では、交流会の一覧だけ", async () => {
+  it("交流会の外で記録がなければ、交流会の一覧と、薄い3つの項目（core-022）", async () => {
     expect(await renderItems(ADMIN_ROUTE_PATTERNS.eventList, undefined)).toEqual([
       "交流会の一覧 /admin/events",
+      ...DIM_ITEMS,
     ]);
+  });
+
+  it("交流会の外で、直前に開いた交流会があれば、その交流会へ進む（役目の出し分けも同じ）", async () => {
+    writeLastEvent({ eventId: EVENT_ID, role: "organizer" });
+    expect(await renderItems(ADMIN_ROUTE_PATTERNS.eventList, undefined)).toEqual([
+      "交流会の一覧 /admin/events",
+      `参加者・合計 ${adminPaths.eventReception(EVENT_ID)}`,
+      `困りごと ${adminPaths.eventConcerns(EVENT_ID)}`,
+      `準備 ${adminPaths.eventSetup(EVENT_ID)} ${adminPaths.eventEdit(EVENT_ID)}`,
+    ]);
+    // 新しい交流会を作る画面（交流会の外）でも同じ
     expect(await renderItems(ADMIN_ROUTE_PATTERNS.eventNew, "organizer")).toEqual([
       "交流会の一覧 /admin/events",
+      `参加者・合計 ${adminPaths.eventReception(EVENT_ID)}`,
+      `困りごと ${adminPaths.eventConcerns(EVENT_ID)}`,
+      `準備 ${adminPaths.eventSetup(EVENT_ID)} ${adminPaths.eventEdit(EVENT_ID)}`,
+    ]);
+  });
+
+  it("直前に開いた交流会の役目が受付係なら、参加者・合計だけ", async () => {
+    writeLastEvent({ eventId: EVENT_ID, role: "staff" });
+    expect(await renderItems(ADMIN_ROUTE_PATTERNS.eventList, undefined)).toEqual([
+      "交流会の一覧 /admin/events",
+      `参加者・合計 ${adminPaths.eventReception(EVENT_ID)}`,
+    ]);
+  });
+
+  it("交流会の中で読みこんだら、その交流会を直前の記録として端末に置く", async () => {
+    expect(readLastEvent()).toBeUndefined();
+    await renderItems(adminPaths.eventReception(EVENT_ID), "organizer");
+    await waitFor(() => expect(readLastEvent()).toEqual({ eventId: EVENT_ID, role: "organizer" }));
+  });
+
+  it("交流会を読みこむ前は、記録しない。記録があれば同じ交流会へ、なければ薄い項目", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    expect(await renderItems(adminPaths.eventSetup(EVENT_ID), undefined)).toEqual([
+      "交流会の一覧 /admin/events",
+      ...DIM_ITEMS,
+    ]);
+    expect(window.localStorage.getItem(LAST_EVENT_KEY)).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("交流会を読みこむ前でも、同じ交流会の記録があれば、その役目で出す", async () => {
+    writeLastEvent({ eventId: EVENT_ID, role: "organizer" });
+    expect(await renderItems(adminPaths.eventSetup(EVENT_ID), undefined)).toEqual([
+      "交流会の一覧 /admin/events",
+      `参加者・合計 ${adminPaths.eventReception(EVENT_ID)}`,
+      `困りごと ${adminPaths.eventConcerns(EVENT_ID)}`,
+      `準備 ${adminPaths.eventSetup(EVENT_ID)} ${adminPaths.eventEdit(EVENT_ID)}`,
     ]);
   });
 
@@ -95,12 +157,13 @@ describe("外枠のナビの交流会の項目", () => {
     ]);
   });
 
-  it("交流会を読みこむ前は一覧だけで、ナビのために問い合わせない", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
-    expect(await renderItems(adminPaths.eventSetup(EVENT_ID), undefined)).toEqual([
-      "交流会の一覧 /admin/events",
-    ]);
-    expect(fetchSpy).not.toHaveBeenCalled();
+  it("登録されていない道の項目は、薄い項目にも出さない", async () => {
+    expect(
+      await renderItems(ADMIN_ROUTE_PATTERNS.eventList, undefined, [
+        ADMIN_ROUTE_PATTERNS.eventList,
+        ADMIN_ROUTE_PATTERNS.eventSetup,
+      ]),
+    ).toEqual(["交流会の一覧 /admin/events", `準備 ${ADMIN_ROUTE_PATTERNS.eventList} （薄い）`]);
   });
 
   it("登録されていない道の項目は出さない", async () => {

@@ -110,7 +110,7 @@ const summary = await getEventSummary(deps.db, deps.config, eventId); // 参加�
 
 | 名前 | 何か |
 |---|---|
-| `feature.nav`・`feature.useNavItems` | 外枠のナビの項目（core-003）。交流会の外は「交流会の一覧」だけ。交流会の中（`/admin/events/$eventId…`）は「交流会の一覧」「参加者・合計」（受付係も）・「困りごと」（主催者）・「準備」（主催者。交流会を直すも含む）。**道が道の木に登録されている項目だけ**出す（reception・survey が `ADMIN_ROUTE_PATTERNS` の道を足すと自然に出る）。役目は画面が読んだ交流会から読み、ナビのために問い合わせない（読む前は一覧だけ）。`nav-items.ts`。ほかの領域の画面の上に行き来のタブを置かない |
+| `feature.nav`・`feature.useNavItems` | 外枠のナビの項目（core-003・core-022）。「交流会の一覧」「参加者・合計」（受付係も）・「困りごと」（主催者）・「準備」（主催者。交流会を直すも含む）を**いつも出す**。交流会の中（`/admin/events/$eventId…`）はその交流会へ進み、外（一覧など）では**直前に開いた交流会**へ進む（`last-event.ts`：端末の localStorage の `kanaeru.event.last`〈交流会の ID と役目〉と `kanaeru.event.owner`。今の利用者が替わったら `registerLastEventReset` が消す）。記録がない（役目が分からない）ときは3つを**薄く**出し（`NavItem.disabled`）、押すと「先に交流会を選んでください」と案内して一覧へ進む。**道が道の木に登録されている項目だけ**出す（reception・survey が `ADMIN_ROUTE_PATTERNS` の道を足すと自然に出る）。役目は画面が読んだ交流会か記録から読み、ナビのために問い合わせない。`nav-items.ts`。ほかの領域の画面の上に行き来のタブを置かない |
 | `EventAccessGate` | `<EventAccessGate eventId={id} roles={["organizer", "staff"]}>{(event) => …}</EventAccessGate>`。交流会を読み、読みこみ中・403（「この交流会の一覧画面は使えません」）・404・夜間の停止（DB に届かない 503 で、`isNightStopWindow()` のときだけ。昼の 503 は「読みこめませんでした」と API の文と「もう一度」）・役目が合わない（「この画面は主催者だけが使えます」）を出す。`SessionGate` の中に置く |
 | `useEvent(eventId)`・`useEventSummary(eventId)`・`EVENT_QUERY_KEYS` | 交流会（`myRole` つき）と要約の問い合わせ・鍵 |
 | `formatEventDateTime`・`formatJstDate`・`formatFee` | 日本時間の日時（2026年11月25日（水）19:00）・参加費（1,000円） |
