@@ -1,5 +1,6 @@
 // API の呼び出し（Hono の RPC）。型は apps/api/src/client.ts から import type でだけ読む（lint の境界で止める）。
 // エラーの本文から code と欄ごとの理由を読み（ApiError）、通信の誤り（応答なし）は NetworkError として分けて投げる。
+// 401（未ログイン・セッション切れ）は、onUnauthenticated の受け手に知らせる（account がログインし直す。AD-12）。
 import { CORE_ERROR_MESSAGES } from "@workspace/contracts/core";
 import type { ErrorBody, FieldError } from "@workspace/contracts/core";
 import { hc } from "hono/client";
@@ -34,6 +35,24 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * 置き場所（Cloud Run）が止まっている・混み合っているときの文（core-020。画面だけの印 SERVICE_UNAVAILABLE で、API は返さない）。
+ * API のエラーの本文でない 5xx（502〜504・Cloudflare の 520〜530 など）と 429（Cloud Run の台が足りない）は、
+ * アプリより前（Google の入口・前に置く Cloudflare）が返したもの。アプリの 5xx はいつもエラーの本文を持つ。
+ * 夜間の停止（API が返す 503 DB_UNAVAILABLE）とは分ける。
+ */
+export const SERVICE_UNAVAILABLE_MESSAGE =
+  "ただいま使えません。サービスが止まっているか、混み合っています。しばらくしてから、もう一度お試しください。";
+
+/**
+ * 置き場所が止まっている・混み合っているときの状態の番号か（API のエラーの本文がないときだけ、この扱いにする）。
+ * @param status 状態の番号
+ * @returns 5xx か 429 なら true
+ */
+function isServiceUnavailableStatus(status: number): boolean {
+  return status >= 500 || status === 429;
+}
+
 /** 通信が届かなかった（応答がない）。入れた値は消さずに、この文を出す。 */
 export class NetworkError extends Error {
   /**
@@ -56,8 +75,28 @@ function isErrorBody(value: unknown): value is ErrorBody {
   return typeof error?.code === "string" && typeof error.message === "string";
 }
 
+/** 401 を受けたときの受け手。 */
+const unauthenticatedListeners = new Set<(error: ApiError) => void>();
+
+/**
+ * API が 401 を返したときに呼ばれる受け手を足す（account の領域がログインし直すために使う）。
+ * @param listener 受け手（401 の ApiError を受け取る）
+ * @returns 受け手を外す関数
+ */
+export function onUnauthenticated(listener: (error: ApiError) => void): () => void {
+  unauthenticatedListeners.add(listener);
+  return () => {
+    unauthenticatedListeners.delete(listener);
+  };
+}
+
 /** request が受け取る応答（Hono の RPC の応答か、ふつうの Response）。 */
-type ResponseLike = { ok: boolean; status: number; headers: Headers; json(): Promise<unknown> };
+export type ResponseLike = {
+  ok: boolean;
+  status: number;
+  headers: Headers;
+  json(): Promise<unknown>;
+};
 
 /** RPC の応答の型から、成功したときの本文の型を取り出す（ふつうの Response なら unknown）。 */
 type SuccessBody<R> =
@@ -69,6 +108,7 @@ type SuccessBody<R> =
 
 /**
  * API を呼び、成功なら本文を返す。エラーの本文なら ApiError、応答がなければ NetworkError を投げる。
+ * 401 なら、投げる前に onUnauthenticated の受け手に知らせる。
  * @param call API を呼ぶ関数（例：() => api.api.v1.health.$get()）
  * @returns 成功したときの本文（本文がなければ undefined）
  * @throws {ApiError} API がエラーを返したとき
@@ -83,18 +123,31 @@ export async function request<R extends ResponseLike>(
   } catch (error) {
     throw new NetworkError(error);
   }
+  if (!response.ok) throw await apiErrorFrom(response);
   if (response.status === 204) return undefined as SuccessBody<R>;
   const body: unknown = await response.json().catch(() => undefined);
-  if (!response.ok) {
-    throw isErrorBody(body)
-      ? new ApiError(response.status, body.error)
-      : new ApiError(response.status, {
-          code: "INTERNAL",
-          message: CORE_ERROR_MESSAGES.INTERNAL,
-          requestId: response.headers.get("x-request-id") ?? "",
-        });
-  }
   return body as SuccessBody<R>;
+}
+
+/**
+ * エラーの応答から ApiError を作る（本文がエラーの形でなければ、5xx と 429 は SERVICE_UNAVAILABLE、ほかは INTERNAL）。
+ * 401 なら onUnauthenticated の受け手に知らせる。
+ * request と、ファイルを受け取る fetchDownload（lib/download.ts）が同じ読み方を使う。
+ * @param response エラーの応答（ok でないもの）
+ * @returns 投げる ApiError
+ */
+export async function apiErrorFrom(response: ResponseLike): Promise<ApiError> {
+  const body: unknown = await response.json().catch(() => undefined);
+  const unavailable = isServiceUnavailableStatus(response.status);
+  const error = isErrorBody(body)
+    ? new ApiError(response.status, body.error)
+    : new ApiError(response.status, {
+        code: unavailable ? "SERVICE_UNAVAILABLE" : "INTERNAL",
+        message: unavailable ? SERVICE_UNAVAILABLE_MESSAGE : CORE_ERROR_MESSAGES.INTERNAL,
+        requestId: response.headers.get("x-request-id") ?? "",
+      });
+  if (error.status === 401) for (const listener of unauthenticatedListeners) listener(error);
+  return error;
 }
 
 /**

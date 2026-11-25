@@ -1,8 +1,7 @@
-// キーボードだけで使える（EXPERIENCE.md 5）：追加・開く・削除をキーボードだけで行い、道が変わると h1 にフォーカスが移り、
-// 確かめの枠は開いたらキャンセルにフォーカスを置き、Esc で閉じたら開いたボタンへ戻る。
+// キーボードだけで使える（EXPERIENCE.md 5）：先頭の「本文へ移る」と、道が変わると h1 にフォーカスが移ること。
+// 確かめの枠のフォーカスは packages/ui の部品のテストが確かめる。領域の画面を足したら、その流れをここに足す。
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
-import { resetNotes } from "../helpers/db.ts";
 
 /**
  * 名前の要素にフォーカスが来るまで Tab を押す。
@@ -40,48 +39,18 @@ async function focused(page: Page) {
   });
 }
 
-test("キーボードだけで、追加・開く・削除ができる", async ({ page }) => {
-  await resetNotes();
-  await page.goto("/notes");
+test("キーボードだけで、本文へ移り、リンクで道を変えると h1 にフォーカスが移る", async ({
+  page,
+}) => {
+  await page.goto("/no/such/page");
 
   // 先頭の「本文へ移る」
   await page.keyboard.press("Tab");
   expect(await focused(page)).toEqual({ tag: "A", text: "本文へ移る" });
 
-  await tabTo(page, "メモを追加");
+  // はじめの画面（/）は、ナビの最初の項目へ移る（どの画面になるかは書かない。並行開発の決まり 3-2）
+  await tabTo(page, "はじめの画面へ戻る");
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL("/notes/new");
-  await expect.poll(() => focused(page)).toEqual({ tag: "H1", text: "メモを追加" });
-
-  await page.keyboard.press("Tab");
-  await page.keyboard.type("キーボードのメモ");
-  await page.keyboard.press("Tab");
-  await page.keyboard.type("本文");
-  await tabTo(page, "追加");
-  await page.keyboard.press("Enter");
-  await expect(page).toHaveURL("/notes");
-  await expect.poll(() => focused(page)).toEqual({ tag: "H1", text: "メモ" });
-
-  await tabTo(page, "キーボードのメモ");
-  await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/\/notes\/[0-9a-f-]{36}$/);
-  await expect.poll(() => focused(page)).toEqual({ tag: "H1", text: "メモの編集" });
-
-  // 確かめの枠：開くとキャンセル、Esc で閉じると開いたボタンへ戻る
-  await tabTo(page, "削除");
-  await page.keyboard.press("Enter");
-  const dialog = page.getByRole("alertdialog", { name: "メモを削除しますか" });
-  await expect(dialog.getByRole("button", { name: "キャンセル" })).toBeFocused();
-  await page.keyboard.press("Escape");
-  await expect(dialog).toBeHidden();
-  await expect(page.getByRole("button", { name: "削除" })).toBeFocused();
-
-  // もう一度開き、枠の中の「削除」で消す
-  await page.keyboard.press("Enter");
-  await expect(dialog.getByRole("button", { name: "キャンセル" })).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(dialog.getByRole("button", { name: "削除" })).toBeFocused();
-  await page.keyboard.press("Enter");
-  await expect(page).toHaveURL("/notes");
-  await expect.poll(() => focused(page)).toEqual({ tag: "H1", text: "メモ" });
+  await expect(page).not.toHaveURL(/\/no\/such\/page$/);
+  await expect.poll(async () => (await focused(page)).tag).toBe("H1");
 });

@@ -2,8 +2,9 @@
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
-    <!-- 拡大を止めない（maximum-scale・user-scalable=no を入れない。WCAG 1.4.4） -->
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- 拡大を止めない（maximum-scale・user-scalable=no を入れない。WCAG 1.4.4）。
+         viewport-fit=cover は、外枠が端末の安全な余白（styles.css の pb-safe・px-safe）を空けるため -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light" />
     <!-- アイコンはまだない（/favicon.ico を読みに行かないよう、空のアイコンにする） -->
     <link rel="icon" href="data:," />

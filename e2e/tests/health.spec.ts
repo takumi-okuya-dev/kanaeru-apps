@@ -1,9 +1,8 @@
 // 動いているか・守りの見出し・CSP（両方の幅で流す）。
-// - API（画面の /api の中継を通したもの。ブラウザが見るのと同じ）と、画面の vite preview の見出し。
-// - CSP を効かせたまま、組み立てた画面が読み込め、CSP の違反が1つも出ないこと（確かめの枠を開いても）。
+// - API が返す /api と、API が返す組み立てた画面（同じ源。本番と同じ形）の見出し。
+// - CSP を効かせたまま、組み立てた画面が読み込め、CSP の違反が1つも出ないこと。
 import { expect, test } from "@playwright/test";
 import { collectCspViolations } from "../helpers/csp.ts";
-import { resetNotes } from "../helpers/db.ts";
 
 test("API は動いていて、守りの見出しがつく", async ({ request }) => {
   const health = await request.get("/api/v1/health");
@@ -26,38 +25,37 @@ test("窓口の文書（OpenAPI 3.1）に、すべての道が載る（E2E は O
   expect(response.status()).toBe(200);
   const document = (await response.json()) as { openapi: string; paths: Record<string, unknown> };
   expect(document.openapi).toBe("3.1.0");
-  expect(Object.keys(document.paths)).toEqual(
-    expect.arrayContaining(["/api/v1/health", "/api/v1/notes", "/api/v1/notes/{noteId}"]),
-  );
+  expect(Object.keys(document.paths)).toEqual(expect.arrayContaining(["/api/v1/health"]));
 });
 
 test("画面（組み立てたもの）に、守りの見出しと CSP がつく", async ({ request }) => {
-  for (const path of ["/", "/notes", "/no/such/page"]) {
+  for (const path of ["/", "/e/0193a1b2-0000-7000-8000-000000000000/checkin", "/no/such/page"]) {
     const response = await request.get(path);
     expect(response.status(), path).toBe(200);
     const headers = response.headers();
+    expect(headers["cache-control"], path).toBe("no-cache");
+    // 源（Cloud Run）が落ちたときは、前に置く Cloudflare が前の画面を出せる（core-020）
+    expect(headers["cloudflare-cdn-cache-control"], path).toBe("max-age=0, stale-if-error=86400");
     expect(headers["x-content-type-options"], path).toBe("nosniff");
     expect(headers["x-frame-options"], path).toBe("DENY");
     const csp = headers["content-security-policy"] ?? "";
-    expect(csp, path).toContain("script-src 'self'");
+    expect(csp, path).toContain("script-src 'self' https://static.line-scdn.net");
+    expect(csp, path).toContain("connect-src 'self' https://api.line.me");
     expect(csp, path).toContain("frame-ancestors 'none'");
     expect(csp, path).not.toContain("unsafe-inline");
     expect(csp, path).not.toContain("unsafe-eval");
   }
 });
 
-test("CSP を効かせたまま、一覧・追加・編集・確かめの枠が出せ、違反が出ない", async ({ page }) => {
-  await resetNotes(["CSP の確かめ"]);
+test("CSP を効かせたまま、画面を出して道を変えても、違反が出ない", async ({ page }) => {
   const violations = await collectCspViolations(page);
-  await page.goto("/");
-  await expect(page).toHaveURL("/notes");
-  await expect(page.getByRole("heading", { level: 1, name: "メモ" })).toBeVisible();
-  await page.getByRole("link", { name: "メモを追加" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "メモを追加" })).toBeVisible();
-  await page.goto("/notes");
-  await page.getByRole("link", { name: "CSP の確かめ" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "メモの編集" })).toBeVisible();
-  await page.getByRole("button", { name: "削除" }).click();
-  await expect(page.getByRole("alertdialog", { name: "メモを削除しますか" })).toBeVisible();
+  await page.goto("/no/such/page");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "ページが見つかりません" }),
+  ).toBeVisible();
+  // はじめの画面（/）は、ナビの最初の項目へ移る（どの画面になるかは書かない。並行開発の決まり 3-2）
+  await page.getByRole("link", { name: "はじめの画面へ戻る" }).click();
+  await expect(page).not.toHaveURL(/\/no\/such\/page$/);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   expect(await violations()).toEqual([]);
 });

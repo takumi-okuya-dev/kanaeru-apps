@@ -1,8 +1,18 @@
-# kanaeru-apps
+# paletkit-apps
 
-IT交流会で集めた「こんなアプリがあったらいいな」「日々の業務で面倒なこと」を、小さな実用アプリとして形にし、共通のアカウントとUIで**スイート型SaaS**に束ねていく構想。**いまは構想を練っている段階**。言語は TypeScript。
+IT交流会で集めた「こんなアプリがあったらいいな」「日々の業務で面倒なこと」を、小さな実用アプリとして形にし、共通のアカウントとUIで**スイート型SaaS**に束ねていく構想。**いまは最初のアプリ（受付）を交流会で使い始め、2つ目・3つ目のアプリ（Threads・試合表）を作っている段階**。言語は TypeScript。
 
 構想のたたき台は[構想メモ](_bmad-output/concept-memo.md)。
+
+## 入っているアプリ
+
+アプリの一覧の正本は `packages/contracts/src/core/apps.list.ts`（1行に1つ）。公開するかは、運営者が画面の「アプリの台帳」で決める（[スイートの地図](docs/apps/suite.md)）。
+
+| アプリ | 何をするか | 領域の地図 |
+|---|---|---|
+| 受付 | 交流会の受付を QR と LINE だけで済ませ、合計と困りごとのアンケートを集める。名簿（申込み）も持つ | [event](docs/apps/event.md)・[reception](docs/apps/reception.md)・[survey](docs/apps/survey.md)・[booking](docs/apps/booking.md) |
+| Threads | Threads の投稿の案をためて承認し、決めた時間に自動で投稿する（いまは運営者だけ） | [threads](docs/apps/threads.md) |
+| 試合表 | 名簿から、偏りの少ないダブルス・シングルスの試合表を作って印刷する（電波がなくても開ける） | [match](docs/apps/match.md) |
 
 ## 進め方（ロードマップ）
 
@@ -20,7 +30,8 @@ IT交流会で集めた「こんなアプリがあったらいいな」「日々
 ├── CLAUDE.md                  AIが守る決まりの入口
 ├── .gitignore / .gitattributes
 ├── .github/
-│   └── pull_request_template.md
+│   ├── pull_request_template.md
+│   └── workflows/             CI・デプロイ（deploy.yml → deploy-environment.yml）・週1回の守りの確かめ
 ├── .specify/                  spec-kit（設定・テンプレート・スクリプト）
 │   └── memory/constitution.md   守る原則（雛形）
 ├── .agents/skills/            BMADの実体＋spec-kitへのリンク（Codexが読む）
@@ -34,16 +45,22 @@ IT交流会で集めた「こんなアプリがあったらいいな」「日々
 ├── packages/contracts/        API の約束（zod）とエラーの文言
 ├── packages/ui/               見た目の値（tokens.css）と部品
 ├── e2e/                       通しのテスト（Playwright）
+├── infra/                     置き場所（GCP）の Terraform（本番とステージング）
 ├── tests/・scripts/security/  lint の規則と守りの確かめ
 └── docs/
     ├── README.md              文書の一覧（迷ったらここ）
     ├── architecture.md        全体の形
-    ├── apps/                  領域の地図（見本：notes.md）
+    ├── apps/                  領域の地図（領域を足したら1つずつ）
     ├── ai-skills.md           スキルの置き場所と使う順番
     ├── tech-selection.md      技術選定の候補（言語と層ごとの候補・TypeScript の既定）
     ├── design/                UI デザインの既定（SmartHR Design System を土台にした DESIGN.md・EXPERIENCE.md）
     ├── decisions.md           決めたことの記録（ADRを短くした形）
     ├── backlog.md             バックログ
+    ├── first-release.md       本番に初めて出す手順
+    ├── release-guide.md       本番に出す手順（3つのモード）
+    ├── hosting-cost.md        置き場所の比べと料金の試算
+    ├── images/                置き場所の構成図（SVG と、作る台本）
+    ├── study/                 初めて使う技術の学び
     └── rules/                 ② AIが守る決まり
         ├── development-flow.md   ブランチ・PR・レビュー・CI・マージ・デプロイ
         ├── specs.md              仕様のフォルダと番号・ブランチとコミットの名前
@@ -52,9 +69,9 @@ IT交流会で集めた「こんなアプリがあったらいいな」「日々
         └── documents.md          文書の種類と置き場所・作らない文書
 ```
 
-## TypeScript の骨組み
+## 技術の形
 
-API・画面・DB・テスト・lint・CI がそろった、動く最小の形。見本の領域「メモ」（一覧・追加・編集・削除）で、領域の作り方を見せる。全体の形は [docs/architecture.md](docs/architecture.md)、決まりは [コードの書き方の決まり](docs/rules/coding.md) 6章。
+API・画面・DB・テスト・lint・CI・置き場所がそろっている。全体の形は [docs/architecture.md](docs/architecture.md)、決まりは [コードの書き方の決まり](docs/rules/coding.md) 6章。
 
 | 層 | 使うもの |
 |---|---|
@@ -64,8 +81,8 @@ API・画面・DB・テスト・lint・CI がそろった、動く最小の形�
 | 約束・部品（`packages/`） | `contracts`（zod の約束と日本語のエラーの文言）・`ui`（見た目の値と部品） |
 | テスト | Vitest（API は本物の PostgreSQL）・Playwright＋axe（1440px と 375px） |
 | 守り | gitleaks（コミットの前）・`pnpm audit`（例外は理由と90日以内の期限）・Dependabot・GitHub Actions（`run-ci` のときだけ・部品は SHA で固定） |
-
-ログイン・複数のお客（組織）・置き場所（インフラ）は入れていない。ログインは仕様で足す（Better Auth を勧める）。置き場所と Terraform は、インフラの仕様で足す（[技術選定の候補](docs/tech-selection.md) 3-4・3-5）。
+| ログイン | LINE（LIFF の ID トークンを API が確かめ、セッションのクッキーを出す。[account の地図](docs/apps/account.md)） |
+| 置き場所 | GCP 東京：Cloud Run（画面と API を1つのコンテナで）・Cloud SQL（PostgreSQL 18・内部の IP だけ・夜間0時〜8時は止める）・Cloud Scheduler。本番とステージングの2つ。Terraform（`infra/`）で作り、GitHub Actions が鍵なしで出す（[infra/README.md](infra/README.md)・[全体の形](docs/architecture.md)・[置き場所の比べ](docs/hosting-cost.md)） |
 
 ### 初めて動かす
 
@@ -94,10 +111,7 @@ pnpm check                                            # 全部の確かめ（秘
 
 ## これからやること
 
-1. **構想を練る**：Claude Codeを開き、`/bmad-brainstorming`や`/bmad-product-brief`から始める（迷ったら`/bmad`）。[構想メモ](_bmad-output/concept-memo.md)を材料に渡す。出力は`_bmad-output/`。
-2. **画面の見た目を決める**：`/bmad-ux`で、[UI デザインの既定](docs/design/README.md)を土台にプロダクトの DESIGN.md を作る（プロダクトの色は置きかえる）。できたら値を `packages/ui/src/styles/tokens.css` に写し、`tokens.test.ts` の読む先をその DESIGN.md に替える（[UI デザインの既定](docs/design/README.md) 2）。
-3. **原則を決める**：PRDが固まったら`/speckit-constitution`で原則を書き入れる。
-4. **最初の領域を作る**：`/speckit-specify` から（足す手順は [コードの書き方の決まり](docs/rules/coding.md) 6-6）。領域を決めたら[仕様と名前の決まり](docs/rules/specs.md) 2の表に足す。見本の領域「メモ」は、消すか作り替える（[メモの地図](docs/apps/notes.md)）。
-5. 以降は機能ごとに`/speckit-specify`から（[AIスキルの使い方](docs/ai-skills.md) 4）。
+1. **本番に初めて出す**：[本番に初めて出す手順](docs/first-release.md)のとおり（GCP・LINE・GitHub の準備 → ステージング → 承認 → 本番）。2回目からは[本番に出す手順](docs/release-guide.md)の3つのモード（緊急・週ごと・新しいアプリ）。
+2. **次にやること**は[バックログ](docs/backlog.md)（独自ドメインと Cloudflare を前に置く・新しいアプリの候補など）。新しいアプリの案は `app-idea-research` スキルで調べてから、構想は BMAD、実装は `/speckit-specify` から（[AIスキルの使い方](docs/ai-skills.md)）。新しい領域の足し方は[コードの書き方の決まり](docs/rules/coding.md) 6-6。
 
 [product-template](https://github.com/takumi-okuya-dev/product-template)の`typescript`ブランチから作った。

@@ -1,0 +1,389 @@
+// 外枠：管理の形はサイドバー（メニューのボタンで開閉し、覚える）とタブバー、ナビなしの形は帯だけ。
+// 今の項目に aria-current。道が変わったら h1 にフォーカスを移す。
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  RouterProvider,
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+} from "@tanstack/react-router";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it } from "vitest";
+import { APP_NAME } from "../lib/app-name.ts";
+import { LAST_APP_STORAGE_KEY } from "../lib/apps.ts";
+import type { ShellApp, ShellAppsView } from "../lib/apps.ts";
+import type { NavItem } from "../lib/feature.ts";
+import { AppShell } from "./AppShell.tsx";
+import { SIDEBAR_STORAGE_KEY } from "./sidebar-state.ts";
+
+/** 試しの項目。 */
+const ITEMS: readonly NavItem[] = [
+  { id: "list", label: "交流会の一覧", to: "/admin/events", icon: "list" },
+  { id: "reception", label: "参加者・合計", to: "/admin/events/e1", icon: "people" },
+];
+
+/**
+ * 試しの道の木で外枠を描く。
+ * @param start 始めの道
+ * @param items ナビの項目
+ * @param apps アプリの切り替えの状態（なければ渡さない）
+ * @returns 道の道具
+ */
+async function renderShell(start: string, items: readonly NavItem[] = ITEMS, apps?: ShellAppsView) {
+  const rootRoute = createRootRoute({
+    component: () => (
+      <AppShell useNavItems={() => items} {...(apps ? { useApps: () => apps } : {})} />
+    ),
+  });
+  const page = (path: string, title: string, bare = false) =>
+    createRoute({
+      getParentRoute: () => rootRoute,
+      path,
+      ...(bare ? { staticData: { layout: "bare" as const } } : {}),
+      component: () => <h1 tabIndex={-1}>{title}</h1>,
+    });
+  const router = createRouter({
+    routeTree: rootRoute.addChildren([
+      page("/", "はじめ"),
+      page("/admin/events", "交流会の一覧の画面"),
+      page("/admin/events/$eventId", "参加者・合計の画面"),
+      page("/e/$eventId/checkin", "チェックイン", true),
+      page("/apps", "すべてのアプリの画面"),
+      page("/settings", "設定の画面"),
+      page("/settings/account", "アカウントの画面"),
+      page("/sample", "見本のアプリの画面"),
+    ]),
+    history: createMemoryHistory({ initialEntries: [start] }),
+  });
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  );
+  await screen.findByRole("heading", { level: 1 });
+  return router;
+}
+
+afterEach(() => {
+  window.localStorage.clear();
+});
+
+describe("外枠", () => {
+  it("管理の形は、サイドバーとタブバーに同じ項目を出し、今の画面に aria-current を付ける", async () => {
+    await renderShell("/admin/events/e1");
+    const navs = screen.getAllByRole("navigation", { name: "メイン" });
+    expect(navs).toHaveLength(2);
+    for (const nav of navs) {
+      const links = within(nav).getAllByRole("link");
+      expect(links.map((link) => link.textContent)).toEqual(["交流会の一覧", "参加者・合計"]);
+      expect(within(nav).getByRole("link", { name: "参加者・合計" })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+      expect(within(nav).getByRole("link", { name: "交流会の一覧" })).not.toHaveAttribute(
+        "aria-current",
+      );
+    }
+    expect(screen.getByRole("link", { name: APP_NAME })).toBeInTheDocument();
+  });
+
+  it("薄い項目は、サイドバーとタブバーに出て、aria-disabled と補足を持ち、今の項目にならない。押すと移り先に知らせが出る（core-022）", async () => {
+    const items: readonly NavItem[] = [
+      { id: "list", label: "交流会の一覧", to: "/admin/events", icon: "list" },
+      {
+        id: "concerns",
+        label: "困りごと",
+        to: "/admin/events",
+        icon: "concerns",
+        disabled: { message: "先に交流会を選んでください" },
+      },
+    ];
+    const router = await renderShell("/sample", items);
+    const navs = screen.getAllByRole("navigation", { name: "メイン" });
+    expect(navs).toHaveLength(2);
+    for (const nav of navs) {
+      const dim = within(nav).getByRole("link", { name: /困りごと/ });
+      expect(dim).toHaveAttribute("aria-disabled", "true");
+      expect(dim).not.toHaveAttribute("aria-current");
+      expect(dim).toHaveAccessibleName(/先に交流会を選んでください/);
+      expect(within(nav).getByRole("link", { name: "交流会の一覧" })).not.toHaveAttribute(
+        "aria-disabled",
+      );
+    }
+    // 押すと、行き先（一覧）へ移り、知らせの帯が出る
+    const sidebar = navs[0] as HTMLElement;
+    await userEvent.click(within(sidebar).getByRole("link", { name: /困りごと/ }));
+    expect(router.state.location.pathname).toBe("/admin/events");
+    expect(await screen.findByText("先に交流会を選んでください")).toBeInTheDocument();
+    // 一覧が今の項目のまま
+    for (const nav of screen.getAllByRole("navigation", { name: "メイン" })) {
+      expect(within(nav).getByRole("link", { name: "交流会の一覧" })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+    }
+    // ほかの道へ移ると、知らせは消える
+    await router.navigate({ to: "/settings" });
+    expect(screen.queryByText("先に交流会を選んでください")).toBeNull();
+  });
+
+  it("メニューのボタンでサイドバーを隠し、覚える（描き直しても隠れたまま）", async () => {
+    await renderShell("/admin/events");
+    const button = screen.getByRole("button", { name: "メニュー" });
+    expect(button).toHaveAttribute("aria-expanded", "true");
+    expect(button).toHaveAttribute("aria-controls", "app-sidebar");
+    expect(document.getElementById("app-sidebar")).toHaveClass("wide:block");
+
+    await userEvent.click(button);
+    expect(button).toHaveAttribute("aria-expanded", "false");
+    expect(document.getElementById("app-sidebar")).not.toHaveClass("wide:block");
+    expect(window.localStorage.getItem(SIDEBAR_STORAGE_KEY)).toBe("0");
+  });
+
+  it("隠したことを覚えていれば、はじめから隠す", async () => {
+    window.localStorage.setItem(SIDEBAR_STORAGE_KEY, "0");
+    await renderShell("/admin/events");
+    expect(screen.getByRole("button", { name: "メニュー" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
+  it("ナビなしの道は、ナビもメニューのボタンも出さず、アプリの名前をリンクにしない", async () => {
+    await renderShell("/e/e1/checkin");
+    expect(screen.queryByRole("navigation")).toBeNull();
+    expect(screen.queryByRole("button", { name: "メニュー" })).toBeNull();
+    expect(screen.queryByRole("link", { name: APP_NAME })).toBeNull();
+    expect(screen.getByText(APP_NAME)).toBeInTheDocument();
+  });
+
+  it("項目がなければ、ナビを出さない", async () => {
+    await renderShell("/admin/events", []);
+    expect(screen.queryByRole("navigation")).toBeNull();
+    expect(screen.queryByRole("button", { name: "メニュー" })).toBeNull();
+  });
+
+  it("タブバーの項目を押すと移り、新しい画面の h1 にフォーカスが移る", async () => {
+    const router = await renderShell("/admin/events/e1");
+    const [, tabBar] = screen.getAllByRole("navigation", { name: "メイン" });
+    if (!tabBar) throw new Error("タブバーがありません");
+    await userEvent.click(within(tabBar).getByRole("link", { name: "交流会の一覧" }));
+    const heading = await screen.findByRole("heading", { name: "交流会の一覧の画面" });
+    expect(router.state.location.pathname).toBe("/admin/events");
+    await expect.poll(() => document.activeElement).toBe(heading);
+  });
+
+  it("タブバーの項目が6つ以上なら、最初の4つと「その他」を並べ、残りは下から出す枠に出す", async () => {
+    const many: NavItem[] = [
+      { id: "list", label: "交流会の一覧", to: "/admin/events", icon: "list" },
+      { id: "reception", label: "参加者・合計", to: "/admin/events/e1", icon: "people" },
+      { id: "a", label: "項目A", to: "/apps", icon: "list" },
+      { id: "b", label: "項目B", to: "/settings", icon: "list" },
+      { id: "c", label: "項目C", to: "/sample", icon: "list" },
+      { id: "d", label: "項目D", to: "/settings/account", icon: "list" },
+    ];
+    const router = await renderShell("/sample", many);
+    const [sidebar, tabBar] = screen.getAllByRole("navigation", { name: "メイン" });
+    if (!sidebar || !tabBar) throw new Error("ナビがありません");
+    // サイドバーはすべて、タブバーは4つと「その他」（今の項目 C は「その他」の中）
+    expect(within(sidebar).getAllByRole("link")).toHaveLength(6);
+    expect(
+      within(tabBar)
+        .getAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual(["交流会の一覧", "参加者・合計", "項目A", "項目B"]);
+    const more = within(tabBar).getByRole("button", { name: /その他/ });
+    expect(more).toHaveTextContent("（今の画面を含む）");
+    await userEvent.click(more);
+    const sheet = await screen.findByRole("dialog", { name: "その他のメニュー" });
+    expect(within(sheet).getByRole("link", { name: "項目C" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await userEvent.click(within(sheet).getByRole("link", { name: "項目D" }));
+    await screen.findByRole("heading", { name: "アカウントの画面" });
+    expect(router.state.location.pathname).toBe("/settings/account");
+    expect(screen.queryByRole("dialog", { name: "その他のメニュー" })).toBeNull();
+  });
+
+  it("タブバーの項目が5つまでなら、「その他」を出さない", async () => {
+    const five: NavItem[] = [
+      { id: "list", label: "交流会の一覧", to: "/admin/events", icon: "list" },
+      { id: "reception", label: "参加者・合計", to: "/admin/events/e1", icon: "people" },
+      { id: "a", label: "項目A", to: "/apps", icon: "list" },
+      { id: "b", label: "項目B", to: "/settings", icon: "list" },
+      { id: "c", label: "項目C", to: "/sample", icon: "list" },
+    ];
+    await renderShell("/admin/events", five);
+    const [, tabBar] = screen.getAllByRole("navigation", { name: "メイン" });
+    if (!tabBar) throw new Error("タブバーがありません");
+    expect(within(tabBar).getAllByRole("link")).toHaveLength(5);
+    expect(within(tabBar).queryByRole("button", { name: /その他/ })).toBeNull();
+  });
+});
+
+/** 試しのアプリ（受付と見本）。 */
+const RECEPTION: ShellApp = {
+  key: "reception",
+  name: "受付",
+  summary: "交流会の受付・アンケート",
+  icon: "qr",
+  startPath: "/admin/events",
+  operatorOnly: false,
+};
+const SAMPLE: ShellApp = {
+  key: "sample",
+  name: "見本",
+  summary: "見本のアプリ",
+  icon: "list",
+  startPath: "/sample",
+  operatorOnly: true,
+};
+
+/**
+ * 試しのアプリの切り替えの状態。
+ * @param overrides 替える値
+ * @returns 状態
+ */
+function appsView(overrides: Partial<ShellAppsView> = {}): ShellAppsView {
+  return {
+    apps: [RECEPTION],
+    place: { kind: "app", key: "reception" },
+    hidden: false,
+    placeVisible: true,
+    appsPath: "/apps",
+    settingsPath: "/settings",
+    ...overrides,
+  };
+}
+
+describe("外枠のアプリの切り替え（core-005）", () => {
+  it("見えるアプリが1つなら切り替えを出さず、設定の入口だけを出す。今のアプリを覚える", async () => {
+    await renderShell("/admin/events", ITEMS, appsView());
+    expect(screen.queryByRole("button", { name: /切り替える）$/ })).toBeNull();
+    expect(screen.getByRole("link", { name: "全体の設定" })).toHaveAttribute("href", "/settings");
+    expect(screen.getAllByRole("navigation", { name: "メイン" })).toHaveLength(2);
+    expect(window.localStorage.getItem(LAST_APP_STORAGE_KEY)).toBe("reception");
+  });
+
+  it("見えるアプリが2つなら、PC は切り替えのメニューに使えるアプリ・運営者だけの札・すべてのアプリを出す", async () => {
+    await renderShell("/admin/events", ITEMS, appsView({ apps: [RECEPTION, SAMPLE] }));
+    // 上の帯（スマホ）のあとに、サイドバー（PC）の切り替えがある
+    const pcTrigger = screen.getAllByRole("button", { name: /切り替える）$/ }).at(-1);
+    if (!pcTrigger) throw new Error("切り替えがありません");
+    await userEvent.click(pcTrigger);
+    const menu = await screen.findByRole("menu");
+    const items = within(menu).getAllByRole("menuitem");
+    expect(items.map((item) => item.textContent)).toEqual([
+      "受付交流会の受付・アンケート",
+      "見本運営者だけ見本のアプリ",
+      "すべてのアプリ",
+    ]);
+    expect(items[0]).toHaveAttribute("aria-current", "page");
+    expect(items[2]).toHaveAttribute("href", "/apps");
+  });
+
+  it("スマホの切り替えは下から出す枠で、すべてのアプリと設定も出す", async () => {
+    await renderShell("/admin/events", ITEMS, appsView({ apps: [RECEPTION, SAMPLE] }));
+    const triggers = screen.getAllByRole("button", { name: /切り替える）$/ });
+    const [mobile] = triggers;
+    if (!mobile) throw new Error("切り替えがありません");
+    await userEvent.click(mobile);
+    const sheet = await screen.findByRole("dialog", { name: "アプリを切り替える" });
+    expect(
+      within(sheet)
+        .getAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual([
+      "受付交流会の受付・アンケート",
+      "見本運営者だけ見本のアプリ",
+      "すべてのアプリ",
+      "全体の設定",
+    ]);
+  });
+
+  it("すべてのアプリの画面は、ナビの項目なしでサイドバーに切り替えと案内を出す", async () => {
+    await renderShell(
+      "/apps",
+      [],
+      appsView({ apps: [RECEPTION, SAMPLE], place: { kind: "apps" } }),
+    );
+    expect(
+      screen.getAllByRole("button", { name: "アプリ すべてのアプリ（切り替える）" }).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText("アプリを選ぶと、そのアプリのメニューがここに出ます。")).toBeVisible();
+    expect(screen.queryByRole("navigation", { name: "メイン" })).toBeNull();
+  });
+
+  it("設定の画面は、見出しごとのナビを出し、タブバーを出さず、スマホは一覧へ戻るリンクを出す", async () => {
+    const settingsItems: NavItem[] = [
+      {
+        id: "account",
+        label: "アカウント",
+        to: "/settings/account",
+        icon: "account",
+        group: "個人の設定",
+      },
+      {
+        id: "ledger",
+        label: "アプリの台帳",
+        to: "/settings/apps",
+        icon: "ledger",
+        group: "運営（運営者だけ）",
+      },
+    ];
+    await renderShell(
+      "/settings/account",
+      settingsItems,
+      appsView({ place: { kind: "settings" } }),
+    );
+    const navs = screen.getAllByRole("navigation", { name: "メイン" });
+    expect(navs).toHaveLength(1);
+    const [nav] = navs;
+    if (!nav) throw new Error("ナビがありません");
+    expect(within(nav).getByText("個人の設定")).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: "アカウント" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "全体の設定" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "設定の一覧へ" })).toHaveAttribute("href", "/settings");
+  });
+
+  it("今の道のアプリが見えないときは、ページが見つかりませんを出し、覚えない", async () => {
+    render(<></>);
+    const rootRoute = createRootRoute({
+      component: () => (
+        <AppShell
+          useNavItems={() => ITEMS}
+          useApps={() =>
+            appsView({ place: { kind: "app", key: "sample" }, hidden: true, placeVisible: false })
+          }
+        />
+      ),
+    });
+    const router = createRouter({
+      routeTree: rootRoute.addChildren([
+        createRoute({
+          getParentRoute: () => rootRoute,
+          path: "/sample",
+          component: () => <h1>見本のアプリの画面</h1>,
+        }),
+      ]),
+      history: createMemoryHistory({ initialEntries: ["/sample"] }),
+    });
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByRole("heading", { name: "ページが見つかりません" })).toBeVisible();
+    expect(screen.queryByText("見本のアプリの画面")).toBeNull();
+    expect(window.localStorage.getItem(LAST_APP_STORAGE_KEY)).toBeNull();
+  });
+});

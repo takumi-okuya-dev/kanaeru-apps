@@ -1,11 +1,16 @@
 // 値のずれのテスト。DESIGN.md の先頭の YAML と、tokens.css の値を1つずつ比べる。
-// DESIGN.md を直したら、このテストが落ちて気づける。プロダクトの DESIGN.md（_bmad-output/）を作ったら、DESIGN_PATH を替える。
+// DESIGN.md を直したら、このテストが落ちて気づける。読むのはプロダクトの DESIGN.md（_bmad-output/ux-kanaeru-reception/）。
+// プロダクトの DESIGN.md は土台（docs/design/DESIGN.md）を引き継ぎ（先頭の YAML の inherits）、違う値だけを書くので、
+// 土台の値を先に読み、プロダクトの値で上書きしてから比べる（specs/core/001-foundation/research.md R11）。
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { SPACING_NAMES, TEXT_SIZE_NAMES } from "../lib/cn.ts";
 
-const DESIGN_PATH = new URL("../../../../docs/design/DESIGN.md", import.meta.url);
+const DESIGN_PATH = new URL(
+  "../../../../_bmad-output/ux-kanaeru-reception/DESIGN.md",
+  import.meta.url,
+);
 const TOKENS_PATH = new URL("./tokens.css", import.meta.url);
 
 /** DESIGN.md の先頭の YAML（使う所だけ）。 */
@@ -14,6 +19,7 @@ type Design = {
   typography: {
     fontFamily: string;
     size: Record<string, string>;
+    sizeFinePointer: Record<string, string>;
     lineHeight: Record<string, number>;
     weight: Record<string, number>;
   };
@@ -24,14 +30,60 @@ type Design = {
 };
 
 /**
- * DESIGN.md の先頭の YAML を読む。
+ * DESIGN.md の先頭の YAML を、そのまま読む。
+ * @param path DESIGN.md の場所
+ * @returns 先頭の YAML の値
+ */
+function readFrontmatter(path: URL): Record<string, unknown> {
+  const text = readFileSync(path, "utf8");
+  const match = /^---\n([\s\S]*?)\n---\n/.exec(text);
+  if (!match?.[1]) throw new Error(`${path.pathname} の先頭の YAML が見つかりません。`);
+  return parse(match[1]) as Record<string, unknown>;
+}
+
+/**
+ * ただのオブジェクト（配列でない）か。
+ * @param value 調べる値
+ * @returns オブジェクトなら true
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * 土台の値に、上書きの値を欄ごとに重ねる（入れ子のオブジェクトは中まで重ね、ほかは上書きの値にする）。
+ * @param base 土台の値
+ * @param override 上書きの値
+ * @returns 重ねた値
+ */
+function merge(base: Record<string, unknown>, override: Record<string, unknown>) {
+  const merged: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(override)) {
+    const current = merged[key];
+    merged[key] = isRecord(current) && isRecord(value) ? merge(current, value) : value;
+  }
+  return merged;
+}
+
+/**
+ * DESIGN.md の先頭の YAML を読む。inherits があれば、その DESIGN.md を土台にして重ねる。
+ * @param path DESIGN.md の場所
  * @returns 見た目の値
  */
-function readDesign(): Design {
-  const text = readFileSync(DESIGN_PATH, "utf8");
-  const match = /^---\n([\s\S]*?)\n---\n/.exec(text);
-  if (!match?.[1]) throw new Error("DESIGN.md の先頭の YAML が見つかりません。");
-  return parse(match[1]) as Design;
+function readDesign(path: URL = DESIGN_PATH): Design {
+  return readMerged(path) as Design;
+}
+
+/**
+ * DESIGN.md の先頭の YAML を、inherits の土台と重ねて読む（readDesign の中身）。
+ * @param path DESIGN.md の場所
+ * @returns 重ねた値
+ */
+function readMerged(path: URL): Record<string, unknown> {
+  const own = readFrontmatter(path);
+  const { inherits } = own;
+  if (typeof inherits !== "string") return own;
+  return merge(readMerged(new URL(inherits, path)), own);
 }
 
 /**
@@ -63,6 +115,15 @@ const design = readDesign();
 const tokens = readTokens();
 
 describe("tokens.css と DESIGN.md の値", () => {
+  it("プロダクトの DESIGN.md は土台を引き継ぐ（プロダクトの値で上書きし、書いていない値は土台のまま）", () => {
+    const base = readDesign(new URL("../../../../docs/design/DESIGN.md", import.meta.url));
+    expect(design.colors.primary).not.toBe(base.colors.primary);
+    expect(design.colors["primary-subtle"]).toBeDefined();
+    expect(design.colors.text).toBe(base.colors.text);
+    expect(design.typography).toEqual(base.typography);
+    expect(design.spacing).toEqual(base.spacing);
+  });
+
   it("Tailwind の初期の色・文字・余白・角・影・幅の境目を消している", () => {
     for (const reset of [
       "color-*",
@@ -98,6 +159,17 @@ describe("tokens.css と DESIGN.md の値", () => {
   it.each(Object.entries(design.typography.size))("文字の大きさ %s", (name, value) => {
     expect(tokens.get(`text-${name}`)).toBe(value);
   });
+
+  it.each(Object.entries(design.typography.sizeFinePointer))(
+    "細かく指せる端末の文字の大きさ %s（base.css の :root）",
+    (name, value) => {
+      const base = readFileSync(new URL("./base.css", import.meta.url), "utf8");
+      const block =
+        /@media \(min-width: 752px\) and \(pointer: fine\) \{([\s\S]*?)\n {2}\}/.exec(base)?.[1] ??
+        "";
+      expect(block).toContain(`--text-${name}: ${value};`);
+    },
+  );
 
   it.each(Object.entries(design.typography.lineHeight))("行の高さ %s", (name, value) => {
     expect(tokens.get(`leading-${name}`)).toBe(String(value));

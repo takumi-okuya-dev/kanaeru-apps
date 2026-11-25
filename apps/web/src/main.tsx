@@ -1,4 +1,6 @@
-// 画面の入口。TanStack Query と道（router.tsx）をつなぐ。
+// 画面の入口。LINE（LIFF）を始めてから、TanStack Query と道（router.tsx）をつなぐ。
+// LIFF の init の前に URL を変えると LIFF が壊れるので、ルーターは initLiff() が終わってから作る（構成の決めごと AD-4）。
+// 試合表の道（/match/…）だけは LIFF を始めずにルーターを作る（AD-4 の例外。電波がなくても開ける。lib/liff.ts の startLiffFor）。
 // zod の設定は、ほかのどの import よりも先に読む（lib/zod-config.ts）
 import "./lib/zod-config.ts";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -6,22 +8,43 @@ import { RouterProvider } from "@tanstack/react-router";
 import { UiProvider } from "@workspace/ui/components/ui-provider";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { startLiffFor } from "./lib/liff.ts";
+import { installPreloadErrorReload } from "./lib/preload-error.ts";
 import { createQueryClient } from "./lib/query.ts";
 import { createAppRouter } from "./router.tsx";
+import { StartupErrorPage } from "./shell/StartupErrorPage.tsx";
 import "./styles.css";
 
-const root = document.getElementById("root");
-if (!root) throw new Error("#root が見つかりません。");
+// 古い画面が新しい版にない部品を読もうとして失敗したら、1回だけ読み直す（core-020）
+installPreloadErrorReload();
 
-const queryClient = createQueryClient();
-const router = createAppRouter(queryClient);
+const element = document.getElementById("root");
+if (!element) throw new Error("#root が見つかりません。");
+const root = createRoot(element);
 
-createRoot(root).render(
-  <StrictMode>
-    <UiProvider>
-      <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-      </QueryClientProvider>
-    </UiProvider>
-  </StrictMode>,
-);
+/** LINE を始めてから（始めない道ならそのまま）、画面を描く。始められなければ「読みこめない」を出す（ルーターは作らない）。 */
+async function start(): Promise<void> {
+  if ((await startLiffFor(window.location.pathname)) === "failed") {
+    root.render(
+      <StrictMode>
+        <UiProvider>
+          <StartupErrorPage />
+        </UiProvider>
+      </StrictMode>,
+    );
+    return;
+  }
+  const queryClient = createQueryClient();
+  const router = createAppRouter(queryClient);
+  root.render(
+    <StrictMode>
+      <UiProvider>
+        <QueryClientProvider client={queryClient}>
+          <RouterProvider router={router} />
+        </QueryClientProvider>
+      </UiProvider>
+    </StrictMode>,
+  );
+}
+
+void start();

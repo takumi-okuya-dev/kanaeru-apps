@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>kanaeru 色の候補 1</title>
+<style>
+/* ===== Base tokens (DESIGN.md, SmartHR-based) — unchanged across variations =====
+   text #23221E / text-sub #706D65 / background #F8F7F6 / surface #FFFFFF
+   surface-sunken #F5F4F3 / border #D6D3D0 / border-input #8A867F
+   danger #E01E5A / success #0F7F85 / focus: 0 0 0 2px #FFF, 0 0 0 4px primary */
+:root{--text:#23221E;--text-sub:#706D65;--background:#F8F7F6;--surface:#FFFFFF;--surface-sunken:#F5F4F3;--head:#EDEBE8;--border:#D6D3D0;--border-input:#8A867F;--danger:#E01E5A;--success:#0F7F85;--line:#06C755;}
+/* 濃紺 / Deep navy
+   primary: #1F3A68  (11.27:1 on #FFFFFF, 10.53:1 on #F8F7F6)
+   primary-hover: #1B335C  (12.54:1 on #FFFFFF)
+   on-primary: #FFFFFF
+   primary-tint (selected chip bg, derived 8%): #EDEFF3 */
+.v-a{--primary:#1F3A68;--primary-hover:#1B335C;--on-primary:#FFFFFF;--primary-tint:#EDEFF3;}
+/* 藍鉄 / Slate indigo
+   primary: #3D4B8C  (8.13:1 on #FFFFFF, 7.60:1 on #F8F7F6)
+   primary-hover: #36427B  (9.45:1 on #FFFFFF)
+   on-primary: #FFFFFF
+   primary-tint (selected chip bg, derived 8%): #EFF1F6 */
+.v-b{--primary:#3D4B8C;--primary-hover:#36427B;--on-primary:#FFFFFF;--primary-tint:#EFF1F6;}
+/* 青鈍 / Muted teal-blue
+   primary: #2D6479  (6.54:1 on #FFFFFF, 6.11:1 on #F8F7F6)
+   primary-hover: #28586A  (7.79:1 on #FFFFFF)
+   on-primary: #FFFFFF
+   primary-tint (selected chip bg, derived 8%): #EEF3F4 */
+.v-c{--primary:#2D6479;--primary-hover:#28586A;--on-primary:#FFFFFF;--primary-tint:#EEF3F4;}
+/* 墨 / Warm charcoal / ink
+   primary: #3B3833  (11.67:1 on #FFFFFF, 10.91:1 on #F8F7F6)
+   primary-hover: #34312D  (12.94:1 on #FFFFFF)
+   on-primary: #FFFFFF
+   primary-tint (selected chip bg, derived 8%): #EFEFEF */
+.v-d{--primary:#3B3833;--primary-hover:#34312D;--on-primary:#FFFFFF;--primary-tint:#EFEFEF;}
+/* 茄子紺 / Deep plum (aubergine)
+   primary: #5A3D6E  (9.02:1 on #FFFFFF, 8.43:1 on #F8F7F6)
+   primary-hover: #4F3661  (10.33:1 on #FFFFFF)
+   on-primary: #FFFFFF
+   primary-tint (selected chip bg, derived 8%): #F2EFF3 */
+.v-e{--primary:#5A3D6E;--primary-hover:#4F3661;--on-primary:#FFFFFF;--primary-tint:#F2EFF3;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--background);color:var(--text);font-family:system-ui,"Hiragino Sans","Noto Sans JP",sans-serif;font-size:16px;line-height:1.5}
+.wrap{max-width:1240px;margin:0 auto;padding:32px 16px 64px}
+.top h1{font-size:24px;line-height:1.25;margin:0 0 8px}
+.top p{margin:0 0 4px;color:var(--text-sub);font-size:13.71px;max-width:72ch}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:24px;margin-top:24px}
+@media (max-width:420px){.grid{grid-template-columns:1fr}}
+.var{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:24px;display:flex;flex-direction:column;gap:16px}
+.vt{display:flex;align-items:center;gap:8px}
+.dot{width:20px;height:20px;border-radius:4px;background:var(--primary);flex:none}
+.vh h2{margin:0;font-size:19.2px;line-height:1.25}
+.vh h2 small{font-weight:400;font-size:13.71px;color:var(--text-sub);margin-left:8px}
+.reg{margin:8px 0 0;font-size:13.71px}
+.chips{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.chip{display:flex;align-items:center;gap:8px;min-width:0}
+.sw{width:28px;height:28px;border-radius:4px;border:1px solid var(--border);flex:none}
+.cl{display:flex;flex-direction:column;font-size:12px;line-height:1.25;min-width:0}
+.cl b{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cl code{font-family:ui-monospace,Menlo,monospace;color:var(--text-sub)}
+.ratio{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.badge{font-size:12px;padding:2px 8px;border-radius:4px;background:var(--surface-sunken);border:1px solid var(--border);font-variant-numeric:tabular-nums}
+.aa{font-size:12px;color:var(--success);font-weight:700}
+.aa::before{content:"✓ "}
+.note{margin:0;font-size:12px;color:var(--text-sub)}
+.demo{display:flex;flex-direction:column;gap:16px;background:var(--background);border-radius:6px;padding:16px}
+.phone{background:var(--background);border:1px solid var(--border);border-radius:16px;overflow:hidden;max-width:340px;width:100%;margin:0 auto;box-shadow:0 2px 4px 1px rgba(3,3,2,.15)}
+.linebar{display:flex;align-items:center;gap:8px;background:#fff;border-bottom:1px solid var(--border);padding:8px 12px;font-size:13.71px}
+.linebar .x{color:var(--text-sub)}
+.linebar .lt{flex:1;text-align:center;font-weight:700}
+.linebar .lg{background:var(--line);color:#fff;font-size:10.67px;font-weight:700;border-radius:4px;padding:1px 6px}
+.screen{padding:16px;display:flex;flex-direction:column;gap:16px}
+.ttl{margin:0;font-size:24px;line-height:1.25}
+.ev{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px 16px}
+.evn{font-weight:700;font-size:19.2px;line-height:1.25}
+.evm{font-size:13.71px;color:var(--text-sub);margin-top:4px}
+.lbl{font-weight:700;margin-bottom:8px}
+.seg{display:flex;gap:8px}
+.opt{flex:1;text-align:center;padding:10px 4px;min-height:48px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border-input);border-radius:4px;background:var(--surface);font-size:16px}
+.opt.on{border:2px solid var(--primary);background:var(--primary-tint);color:var(--primary);font-weight:700}
+.hint{font-size:13.71px;color:var(--text-sub);margin-top:8px;font-variant-numeric:tabular-nums}
+.btn{appearance:none;border:0;border-radius:4px;background:var(--primary);color:var(--on-primary);font:inherit;font-weight:700;min-height:48px;width:100%;box-shadow:0 0 0 2px #fff,0 0 0 4px var(--primary);cursor:pointer}
+.btn:hover{background:var(--primary-hover)}
+.btn.sm{width:auto;min-height:32px;padding:0 16px;font-size:13.71px;box-shadow:none}
+.lnk{color:var(--primary);text-decoration:underline;text-underline-offset:3px;font-size:13.71px;text-align:center}
+.admin{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.atop{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.ah{font-weight:700;font-size:13.71px}
+.tag{font-size:12px;border:1px solid var(--primary);color:var(--primary);border-radius:4px;padding:0 8px;font-weight:700}
+.sum{border-top:1px solid var(--border)}
+.row{display:grid;grid-template-columns:1fr auto 7.5em;gap:16px;padding:8px 0;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums;font-size:13.71px}
+.row .n,.row .y{text-align:right}
+.row.tot{font-weight:700;border-bottom:0}
+.row.tot .y{color:var(--primary)}
+.aact{display:flex;align-items:center;justify-content:space-between;gap:8px}
+</style></head><body><div class="wrap">
+<div class="top">
+  <h1>kanaeru プロダクトの色 — 候補 1（5案）</h1>
+  <p>置きかえるのは primary・primary-hover・on-primary だけ。灰色・danger・success・フォーカスの輪は DESIGN.md の値のまま。</p>
+  <p>条件：白の上 4.5:1 以上（リンクの文字にも使う）／SmartHR の #00c4cc・#0077c7 に見えない／LINE の緑（#06C755）とぶつからない。ライトモードのみ。</p>
+  <p>チェックイン画面の上の帯は LINE の中で開いたときの見え方（緑の札は LINE の色との並びを確かめるため）。選んだ札の薄い地は primary を 8% 混ぜた派生色。</p>
+</div>
+<div class="grid">
+<section class="var v-a">
+  <header class="vh">
+    <div class="vt"><span class="dot"></span><h2>濃紺<small>Deep navy</small></h2></div>
+    <p class="reg">銀行や役所の書類のような、いちばん堅くて信頼できる色。年配の方にも「ちゃんとした所」と伝わる。</p>
+  </header>
+  <div class="chips"><div class="chip"><span class="sw" style="background:#1F3A68"></span><span class="cl"><b>primary</b><code>#1F3A68</code></span></div><div class="chip"><span class="sw" style="background:#1B335C"></span><span class="cl"><b>primary-hover</b><code>#1B335C</code></span></div><div class="chip"><span class="sw" style="background:#FFFFFF"></span><span class="cl"><b>on-primary</b><code>#FFFFFF</code></span></div><div class="chip"><span class="sw" style="background:#23221E"></span><span class="cl"><b>text</b><code>#23221E</code></span></div><div class="chip"><span class="sw" style="background:#706D65"></span><span class="cl"><b>text-sub</b><code>#706D65</code></span></div><div class="chip"><span class="sw" style="background:#F8F7F6"></span><span class="cl"><b>background</b><code>#F8F7F6</code></span></div><div class="chip"><span class="sw" style="background:#FFFFFF"></span><span class="cl"><b>surface</b><code>#FFFFFF</code></span></div><div class="chip"><span class="sw" style="background:#D6D3D0"></span><span class="cl"><b>border</b><code>#D6D3D0</code></span></div><div class="chip"><span class="sw" style="background:#8A867F"></span><span class="cl"><b>border-input</b><code>#8A867F</code></span></div></div>
+  <div class="ratio"><span class="badge">白の上 11.27:1</span><span class="badge">地の上 10.53:1</span><span class="badge">hover 白の上 12.54:1</span><span class="aa">AA 合格</span></div>
+  <p class="note">いちばん保守的。SmartHR の青とは明るさが大きく違い、見分けがつく。</p>
+  <div class="demo">
+    <div class="phone">
+      <div class="linebar"><span class="x">×</span><span class="lt">kanaeru 受付</span><span class="lg">LINE</span></div>
+      <div class="screen">
+        <h3 class="ttl">チェックイン</h3>
+        <div class="ev"><div class="evn">IT交流会 11月</div><div class="evm">11月27日（金）19:00〜 ・ 渋谷</div></div>
+        <div class="fld">
+          <div class="lbl">支払い方法</div>
+          <div class="seg">
+            <span class="opt on">✓ PayPay</span><span class="opt">現金</span><span class="opt">無料</span>
+          </div>
+          <div class="hint">参加費 3,000円</div>
+        </div>
+        <button class="btn" type="button">チェックインする</button>
+        <a class="lnk" href="#">名前がちがうときは</a>
+      </div>
+    </div>
+    <div class="admin">
+      <div class="atop"><span class="ah">IT交流会 11月 の受付</span><span class="tag">受付中</span></div>
+      <div class="sum">
+        <div class="row"><span>PayPay</span><span class="n">12人</span><span class="y">36,000円</span></div>
+        <div class="row"><span>現金</span><span class="n">8人</span><span class="y">24,000円</span></div>
+        <div class="row tot"><span>合計</span><span class="n">20人</span><span class="y">60,000円</span></div>
+      </div>
+      <div class="aact"><button class="btn sm" type="button">参加者の一覧</button><a class="lnk" href="#">CSVで書き出す</a></div>
+    </div>
+  </div>
+</section>
+<section class="var v-b">
+  <header class="vh">
+    <div class="vt"><span class="dot"></span><h2>藍鉄<small>Slate indigo</small></h2></div>
+    <p class="reg">少し紫をふくんだ落ち着いた藍。堅すぎず、やわらかく丁寧な印象。</p>
+  </header>
+  <div class="chips"><div class="chip"><span class="sw" style="background:#3D4B8C"></span><span class="cl"><b>primary</b><code>#3D4B8C</code></span></div><div class="chip"><span class="sw" style="background:#36427B"></span><span class="cl"><b>primary-hover</b><code>#36427B</code></span></div><div class="chip"><span class="sw" style="background:#FFFFFF"></span><span class="cl"><b>on-primary</b><code>#FFFFFF</code></span></div><div class="chip"><span class="sw" style="background:#23221E"></span><span class="cl"><b>text</b><code>#23221E</code></span></div><div class="chip"><span class="sw" style="background:#706D65"></span><span class="cl"><b>text-sub</b><code>#706D65</code></span></div><div class="chip"><span class="sw" style="background:#F8F7F6"></span><span class="cl"><b>background</b><code>#F8F7F6</code></span></div><div class="chip"><span class="sw" style="background:#FFFFFF"></span><span class="cl"><b>surface</b><code>#FFFFFF</code></span></div><div class="chip"><span class="sw" style="background:#D6D3D0"></span><span class="cl"><b>border</b><code>#D6D3D0</code></span></div><div class="chip"><span class="sw" style="background:#8A867F"></span><span class="cl"><b>border-input</b><code>#8A867F</code></span></div></div>
+  <div class="ratio"><span class="badge">白の上 8.13:1</span><span class="badge">地の上 7.60:1</span><span class="badge">hover 白の上 9.45:1</span><span class="aa">AA 合格</span></div>
+  <p class="note">紺より少し親しみがある。紫寄りなので SmartHR・LINE のどちらとも離れる。</p>
+  <div class="demo">
+    <div class="phone">
+      <div class="linebar"><span class="x">×</span><span class="lt">kanaeru 受付</span><span class="lg">LINE</span></div>
+      <div class="screen">
+        <h3 class="ttl">チェックイン</h3>
+        <div class="ev"><div class="evn">IT交流会 11月</div><div class="evm">11月27日（金）19:00〜 ・ 渋谷</div></div>
+        <div class="fld">
+          <div class="lbl">支払い方法</div>
+          <div class="seg">
+            <span class="opt on">✓ PayPay</span><span class="opt">現金</span><span class="opt">無料</span>
+          </div>
+          <div class="hint">参加費 3,000円</div>
+        </div>
+        <button class="btn" type="button">チェックインする</button>
+        <a class="lnk" href="#">名前がちがうときは</a>
+      </div>
+    </div>
+    <div class="admin">
+      <div class="atop"><span class="ah">IT交流会 11月 の受付</span><span class="tag">受付中</span></div>
+      <div class="sum">
+        <div class="row"><span>PayPay</span><span class="n">12人</span><span class="y">36,000円</span></div>
+        <div class="row"><span>現金</span><span class="n">8人</span><span class="y">24,000円</span></div>
+        <div class="row tot"><span>合計</span><span class="n">20人</span><span class="y">60,000円</span></div>
+      </div>
+      <div class="aact"><button class="btn sm" type="button">参加者の一覧</button><a class="lnk" href="#">CSVで書き出す</a></div>
+    </div>
+  </div>
+</section>
+<section class="var v-c">
+  <header class="vh">
+    <div class="vt"><span class="dot"></span><h2>青鈍<small>Muted teal-blue</small></h2></div>
+    <p class="reg">くすんだ青緑がかった鼠色。静かで清潔、目に優しい。</p>
+  </header>
+  <div class="chips"><div class="chip"><span class="sw" style="background:#2D6479"></span><span class="cl"><b>primary</b><code>#2D6479</code></span></div><div class="chip"><span class="sw" style="background:#28586A"></span><span class="cl"><b>primary-hover</b><code>#28586A</code></span></div><div class="chip"><span class="sw" style="background:#FFFFFF"></span><span class="cl"><b>on-primary</b><code>#FFFFFF</code></span></div><div class="chip"><span class="sw" style="background:#23221E"></span><span class="cl"><b>text</b><code>#23221E</code></span></div><div class="chip"><span class="sw" style="background:#706D65"></span><span class="cl"><b>text-sub</b><code>#706D65</code></span></div><div class="chip"><span class="sw" style="background:#F8F7F6"></span><span class="cl"><b>background</b><code>#F8F7F6</code></span></div><div class="chip"><span class="sw" style="background:#FFFFFF"></span><span class="cl"><b>surface</b><code>#FFFFFF</code></span></div><div class="chip"><span class="sw" style="background:#D6D3D0"></span><span class="cl"><b>border</b><code>#D6D3D0</code></span></div><div class="chip"><span class="sw" style="background:#8A867F"></span><span class="cl"><b>border-input</b><code>#8A867F</code></span></div></div>
+  <div class="ratio"><span class="badge">白の上 6.54:1</span><span class="badge">地の上 6.11:1</span><span class="badge">hover 白の上 7.79:1</span><span class="aa">AA 合格</span></div>
+  <p class="note">緑みを抑え、LINE の緑とは別物に見える範囲に留めた。success（#0F7F85）と近いので、できたの表示はアイコンとことばで区別する。</p>
+  <div class="demo">
+    <div class="phone">
+      <div class="linebar"><span class="x">×</span><span class="lt">kanaeru 受付</span><span class="lg">LINE</span></div>
+      <div class="screen">
+        <h3 class="ttl">チェックイン</h3>
+        <div class="ev"><div class="evn">IT交流会 11月</div><div class="evm">11月27日（金）19:00〜 ・ 渋谷</div></div>
+        <div class="fld">
+          <div class="lbl">支払い方法</div>
+          <div class="seg">
+            <span class="opt on">✓ PayPay</span><span class="opt">現金</span><span class="opt">無料</span>
+          </div>
+          <div class="hint">参加費 3,000円</div>
+        </div>
+        <button class="btn" type="button">チェックインする</button>
+        <a class="lnk" href="#">名前がちがうときは</a>
+      </div>
+    </div>
+    <div class="admin">
+      <div class="atop"><span class="ah">IT交流会 11月 の受付</span><span class="tag">受付中</span></div>
+      <div class="sum">
+        <div class="row"><span>PayPay</span><span class="n">12人</span><span class="y">36,000円</span></div>
+        <div class="row"><span>現金</span><span class="n">8人</span><span class="y">24,000円</span></div>
+        <div class="row tot"><span>合計</span><span class="n">20人</span><span class="y">60,000円</span></div>
+      </div>
+      <div class="aact"><button class="btn sm" type="button">参加者の一覧</button><a class="lnk" href="#">CSVで書き出す</a></div>
+    </div>
+  </div>
+</section>
+<section class="var v-d">
+  <header class="vh">
+    <div class="vt"><span class="dot"></span><h2>墨<small>Warm charcoal / ink</small></h2></div>
+    <p class="reg">色を主張しない、和紙に墨の落ち着き。飾らず、きちんとした印象。</p>
+  </header>
+  <div class="chips"><div class="chip"><span class="sw" style="background:#3B3833"></span><span class="cl"><b>primary</b><code>#3B3833</code></span></div><div class="chip"><span class="sw" style="background:#34312D"></span><span class="cl"><b>primary-hover</b><code>#34312D</code></span></div><div class="chip"><span class="sw" style="background:#FFFFFF"></span><span class="cl"><b>on-primary</b><code>#FFFFFF</code></span></div><div class="chip"><span class="sw" style="background:#23221E"></span><span class="cl"><b>text</b><code>#23221E</code></span></div><div class="chip"><span class="sw" style="background:#706D65"></span><span class="cl"><b>text-sub</b><code>#706D65</code></span></div><div class="chip"><span class="sw" style="background:#F8F7F6"></span><span class="cl"><b>background</b><code>#F8F7F6</code></span></div><div class="chip"><span class="sw" style="background:#FFFFFF"></span><span class="cl"><b>surface</b><code>#FFFFFF</code></span></div><div class="chip"><span class="sw" style="background:#D6D3D0"></span><span class="cl"><b>border</b><code>#D6D3D0</code></span></div><div class="chip"><span class="sw" style="background:#8A867F"></span><span class="cl"><b>border-input</b><code>#8A867F</code></span></div></div>
+  <div class="ratio"><span class="badge">白の上 11.67:1</span><span class="badge">地の上 10.91:1</span><span class="badge">hover 白の上 12.94:1</span><span class="aa">AA 合格</span></div>
+  <p class="note">text（#23221E）と近い（1.36:1）。リンクは必ず下線を付け、選んだ状態は塗りとチェックで示す。</p>
+  <div class="demo">
+    <div class="phone">
+      <div class="linebar"><span class="x">×</span><span class="lt">kanaeru 受付</span><span class="lg">LINE</span></div>
+      <div class="screen">
+        <h3 class="ttl">チェックイン</h3>
+        <div class="ev"><div class="evn">IT交流会 11月</div><div class="evm">11月27日（金）19:00〜 ・ 渋谷</div></div>
+        <div class="fld">
+          <div class="lbl">支払い方法</div>
+          <div class="seg">
+            <span class="opt on">✓ PayPay</span><span class="opt">現金</span><span class="opt">無料</span>
+          </div>
+          <div class="hint">参加費 3,000円</div>
+        </div>
+        <button class="btn" type="button">チェックインする</button>
+        <a class="lnk" href="#">名前がちがうときは</a>
+      </div>
+    </div>
+    <div class="admin">
+      <div class="atop"><span class="ah">IT交流会 11月 の受付</span><span class="tag">受付中</span></div>
+      <div class="sum">
+        <div class="row"><span>PayPay</span><span class="n">12人</span><span class="y">36,000円</span></div>
+        <div class="row"><span>現金</span><span class="n">8人</span><span class="y">24,000円</span></div>
+        <div class="row tot"><span>合計</span><span class="n">20人</span><span class="y">60,000円</span></div>
+      </div>
+      <div class="aact"><button class="btn sm" type="button">参加者の一覧</button><a class="lnk" href="#">CSVで書き出す</a></div>
+    </div>
+  </div>
+</section>
+<section class="var v-e">
+  <header class="vh">
+    <div class="vt"><span class="dot"></span><h2>茄子紺<small>Deep plum (aubergine)</small></h2></div>
+    <p class="reg">紫みの深い紺。上品で、ほかの受付アプリと見分けがつく個性がある。</p>
+  </header>
+  <div class="chips"><div class="chip"><span class="sw" style="background:#5A3D6E"></span><span class="cl"><b>primary</b><code>#5A3D6E</code></span></div><div class="chip"><span class="sw" style="background:#4F3661"></span><span class="cl"><b>primary-hover</b><code>#4F3661</code></span></div><div class="chip"><span class="sw" style="background:#FFFFFF"></span><span class="cl"><b>on-primary</b><code>#FFFFFF</code></span></div><div class="chip"><span class="sw" style="background:#23221E"></span><span class="cl"><b>text</b><code>#23221E</code></span></div><div class="chip"><span class="sw" style="background:#706D65"></span><span class="cl"><b>text-sub</b><code>#706D65</code></span></div><div class="chip"><span class="sw" style="background:#F8F7F6"></span><span class="cl"><b>background</b><code>#F8F7F6</code></span></div><div class="chip"><span class="sw" style="background:#FFFFFF"></span><span class="cl"><b>surface</b><code>#FFFFFF</code></span></div><div class="chip"><span class="sw" style="background:#D6D3D0"></span><span class="cl"><b>border</b><code>#D6D3D0</code></span></div><div class="chip"><span class="sw" style="background:#8A867F"></span><span class="cl"><b>border-input</b><code>#8A867F</code></span></div></div>
+  <div class="ratio"><span class="badge">白の上 9.02:1</span><span class="badge">地の上 8.43:1</span><span class="badge">hover 白の上 10.33:1</span><span class="aa">AA 合格</span></div>
+  <p class="note">ワイン系は danger（#E01E5A）と同じ赤系で、主のボタンとエラーがまぎれるため、代わりに茄子紺を選んだ。</p>
+  <div class="demo">
+    <div class="phone">
+      <div class="linebar"><span class="x">×</span><span class="lt">kanaeru 受付</span><span class="lg">LINE</span></div>
+      <div class="screen">
+        <h3 class="ttl">チェックイン</h3>
+        <div class="ev"><div class="evn">IT交流会 11月</div><div class="evm">11月27日（金）19:00〜 ・ 渋谷</div></div>
+        <div class="fld">
+          <div class="lbl">支払い方法</div>
+          <div class="seg">
+            <span class="opt on">✓ PayPay</span><span class="opt">現金</span><span class="opt">無料</span>
+          </div>
+          <div class="hint">参加費 3,000円</div>
+        </div>
+        <button class="btn" type="button">チェックインする</button>
+        <a class="lnk" href="#">名前がちがうときは</a>
+      </div>
+    </div>
+    <div class="admin">
+      <div class="atop"><span class="ah">IT交流会 11月 の受付</span><span class="tag">受付中</span></div>
+      <div class="sum">
+        <div class="row"><span>PayPay</span><span class="n">12人</span><span class="y">36,000円</span></div>
+        <div class="row"><span>現金</span><span class="n">8人</span><span class="y">24,000円</span></div>
+        <div class="row tot"><span>合計</span><span class="n">20人</span><span class="y">60,000円</span></div>
+      </div>
+      <div class="aact"><button class="btn sm" type="button">参加者の一覧</button><a class="lnk" href="#">CSVで書き出す</a></div>
+    </div>
+  </div>
+</section></div>
+</div></body></html>

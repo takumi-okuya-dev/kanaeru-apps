@@ -1,0 +1,45 @@
+# コンテナの組み立て（Dockerfile）に渡さないもの。
+# 秘密の値（.env）・依存の実物（node_modules）・組み立ての成果物・文書・テストの結果を外し、小さく速くする。
+# 組み立てに要るのは、ワークスペースの package.json・pnpm-lock.yaml・apps/・packages/ の中身だけ。
+# e2e/ は pnpm のワークスペースの一員なので、package.json だけを残す（なくすと pnpm-lock.yaml と食い違う）。
+
+# 秘密の値・手元の設定
+.env
+.env.*
+*.local
+.claude/
+.agents/
+
+# git・道具
+.git/
+.githooks/
+.github/
+.vscode/
+.idea/
+.DS_Store
+
+# 依存・組み立ての成果物・テストの結果
+**/node_modules/
+**/dist/
+coverage/
+playwright-report/
+test-results/
+apps/api/openapi.json
+
+# 文書・仕様・構想（コンテナに要らない）
+**/*.md
+docs/
+specs/
+_bmad/
+_bmad-output/
+.specify/
+
+# インフラ（Terraform）と、テスト・lint の確かめ
+infra/
+tests/
+e2e/*
+!e2e/package.json
+security/
+# ルートの scripts/ は、pnpm install の prepare が呼ぶ1つ（git がなければ何もしない）だけを残す
+scripts/**
+!scripts/security/install-hooks.mjs

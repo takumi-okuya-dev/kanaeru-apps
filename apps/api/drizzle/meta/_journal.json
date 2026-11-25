@@ -8,6 +8,160 @@
       "when": 1794997895377,
       "tag": "0000_note",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795030130964,
+      "tag": "0001_drop_note",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795031951925,
+      "tag": "0002_account",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795033370449,
+      "tag": "0003_event",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795035334723,
+      "tag": "0004_reception",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795036945397,
+      "tag": "0005_survey",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795058321413,
+      "tag": "0006_event_discount",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795058634744,
+      "tag": "0007_checkin_discount",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795106197845,
+      "tag": "0008_suite",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795128774219,
+      "tag": "0009_threads",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795143212083,
+      "tag": "0010_threads_stock_parity",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795144935698,
+      "tag": "0011_threads_screens_parity",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795147891408,
+      "tag": "0012_suite_organization",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795148222208,
+      "tag": "0013_threads_team",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1795222238101,
+      "tag": "0014_suite_team",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1795226223789,
+      "tag": "0015_event_owner",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1795226484725,
+      "tag": "0016_booking",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795226715825,
+      "tag": "0017_booking_notify",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1795227039800,
+      "tag": "0018_booking_apply",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795227489614,
+      "tag": "0019_booking_waitlist",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1795252830812,
+      "tag": "0020_booking_header_digest",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1795277975752,
+      "tag": "0021_match",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1795354020107,
+      "tag": "0022_event_staff_invite_viewer",
+      "breakpoints": true
     }
   ]
 }

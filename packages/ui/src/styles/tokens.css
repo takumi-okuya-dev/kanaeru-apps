@@ -1,16 +1,18 @@
 /*
- * 見た目の値（Tailwind 4 の @theme）。docs/design/DESIGN.md の先頭の値から写した。
+ * 見た目の値（Tailwind 4 の @theme）。プロダクトの DESIGN.md（_bmad-output/ux-kanaeru-reception/DESIGN.md。
+ * 土台の docs/design/DESIGN.md を引き継ぎ、primary の組〈墨〉と primary-subtle だけを変えたもの）の先頭の値から写した。
  * 画面のコードは、ここの名前だけを使う（bg-primary・text-text-sub・p-xs・rounded-s など）。
  * Tailwind の初期の値（色・文字・余白・角・影・幅の境目）は消してから足す（DESIGN.md にない値を書いても効かないように）。
- * 値のずれは tokens.test.ts が見張る。プロダクトの DESIGN.md（_bmad-output/）を作ったら、そこから写し直し、
- * tokens.test.ts が読む DESIGN.md の道も替える（docs/design/README.md 2）。
+ * 値のずれは tokens.test.ts が見張る（プロダクトの DESIGN.md と、それが引き継ぐ土台を重ねて比べる）。
  */
 @theme {
   /* 色（DESIGN.md colors。名前もそのまま） */
   --color-*: initial;
-  --color-primary: #2f5bb7;
-  --color-primary-hover: #2a52a6;
+  --color-primary: #3b3833;
+  --color-primary-hover: #34312d;
   --color-on-primary: #ffffff;
+  /* 選んだ状態のチップの地だけ（DESIGN.md の Colors） */
+  --color-primary-subtle: #efefef;
   --color-text: #23221e;
   --color-text-sub: #706d65;
   --color-text-disabled: #c1bdb7;
@@ -38,8 +40,8 @@
   --text-xs: 12px;
   --text-s: 13.71px;
   --text-m: 16px;
-  --text-l: 19.2px;
-  --text-xl: 24px;
+  --text-l: 17px;
+  --text-xl: 20px;
   --text-xxl: 32px;
   --leading-*: initial;
   --leading-none: 1;
@@ -80,7 +82,7 @@
   --shadow-layer2: 0 2px 4px 1px rgba(3, 3, 2, 0.3);
   --shadow-layer3: 0 4px 8px 2px rgba(3, 3, 2, 0.3);
   --shadow-layer4: 0 8px 16px 4px rgba(3, 3, 2, 0.3);
-  --shadow-focus: 0 0 0 2px #ffffff, 0 0 0 4px #2f5bb7;
+  --shadow-focus: 0 0 0 2px #ffffff, 0 0 0 4px #3b3833;
 
   /* 幅の境目（DESIGN.md breakpoints.small：751px 以下を狭い画面とみる）。wide: で 752px 以上 */
   --breakpoint-*: initial;
@@ -93,8 +95,17 @@
   --container-*: initial;
   /* ページの本文の幅の上限（読みやすい長さに止める） */
   --container-page: 1040px;
+  /* 文と入力が中心のページの本文の幅の上限（Threads の運用。めぐるの本文の幅 768px にそろえた。表やグラフの広いページは page） */
+  --container-content: 768px;
   /* ダイアログの幅の上限 */
   --container-dialog: 480px;
+  /* メニュー（PC のアプリの切り替え。core-005）の幅。サイドバーより広く、名前と短い説明と札が1行に入る */
+  --container-menu: 304px;
+  /*
+   * 入力のフォームの幅の上限（max-w-form。欄を読みやすい長さに止める）。
+   * Tailwind の max-w-xl などは、ここに名前がないと余白の段（--spacing-xl＝48px）に落ちるので使わない
+   */
+  --container-form: 560px;
   /* サイドバーの幅 */
   --spacing-sidebar: 240px;
 }

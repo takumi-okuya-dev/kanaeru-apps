@@ -2,11 +2,20 @@
 // 起動のときに process.env を zod で確かめ、合わなければ、どの値がなぜ合わないかを日本語で出して止める。
 // DB の接続先など、値そのものはエラーに出さない。
 // 環境ごとの違いはコードで分けず、設定の値で決める（docs/rules/coding.md 2）。APP_ENV は、危ない組み合わせを止めるためだけに見る：
-// - staging・production：見本のデータの手順・回数の制限を外すこと・見本の DB のパスワード・手元を指す源・http の源を止める。
+// - staging・production：見本のデータの手順・試験用のログイン・回数の制限を外すこと・見本の DB のパスワード・手元を指す源・http の源を止め、
+//   LINE のチャネル ID・主催者の LINE のユーザー ID・組み立てた画面の場所がないときも止める。
 // - production：窓口の文書（OPENAPI_DOC_ENABLED）を止める。
 // loadConfig の中で確かめるので、API の起動・手順（見本のデータ・OpenAPI の文書）のどの入口でも効く。
 // DB の先が 127.0.0.1 なのは、DB への中継（Cloud SQL Auth Proxy など）の形なので止めない。
-// ログイン（Better Auth を勧める）を足すときは、秘密の鍵の値と、その staging・production での確かめをここに足す。
+// ログインは LINE の ID トークンを API が確かめる（構成の決めごと AD-4）。確かめる client_id は LINE_CHANNEL_IDS。
+// 秘密の値（外のサービスのトークンを包む鍵の束・定期の仕事の合言葉・Meta のアプリの秘密の値）は、ここで形を確かめ、領域には値を渡さない
+// （組み立てが秘密の箱と合言葉の確かめの道具にして渡す。kernel/http.ts の DomainRouteDeps）。
+// 知らせ（AD-24。booking-002）：送り方 NOTIFY_MODE（既定 off）と許可リスト NOTIFY_ALLOWLIST（秘密の値と同じく扱う）を読む。
+// APP_ENV が local・test のときは、どの設定でも偽の送り手だけを使う（notify.fakeOnly。AD-24 が環境の名前で決めると決めた唯一の所）。
+// 許可リストは領域に渡さず、組み立てが送る道具（platform/notify）にして渡す。
+import { resolve } from "node:path";
+import { LINE_USER_ID_FORMAT } from "@workspace/contracts/account";
+import { KeyRingError, createSecretBox } from "@workspace/secret-box";
 import { DOMAIN_FEATURE_KEY_FORMAT } from "./features.ts";
 import { z } from "zod";
 
@@ -29,6 +38,30 @@ const LOCAL_HOSTS: ReadonlySet<string> = new Set(["localhost", "127.0.0.1", "::1
 
 /** 見本の DB のパスワード（.env.example・docker-compose.yml・CI の値。staging・production の DATABASE_URL では使えない）。 */
 const SAMPLE_DB_PASSWORD = "postgres";
+
+/** LINE のチャネル ID の形（数字だけ）。 */
+const LINE_CHANNEL_ID_FORMAT = /^\d+$/;
+
+/** 定期の仕事の合言葉の最短の長さ。 */
+const JOB_TRIGGER_SECRET_MIN = 32;
+
+/** Threads の API の既定の宛先。 */
+const DEFAULT_THREADS_API_BASE_URL = "https://graph.threads.net";
+
+/** Meta のアプリの ID の形（数字だけ）。 */
+const META_APP_ID_FORMAT = /^\d+$/;
+
+/** Meta のアプリの秘密の値の最短の長さ（Meta が出す値は32文字）。 */
+const META_APP_SECRET_MIN = 16;
+
+/** 知らせの送り方（AD-24。本番の既定は off）。 */
+const NOTIFY_MODES = ["off", "allowlist", "on"] as const;
+
+/** 偽の送り手だけを使う環境（本物の LINE・メールを呼ばない。AD-24）。 */
+const FAKE_NOTIFY_ENVS: ReadonlySet<string> = new Set(["local", "test"]);
+
+/** 許可リストのメールアドレスの形（ゆるく確かめる。改行・空白を含めない）。 */
+const ALLOWLIST_EMAIL_FORMAT = /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/;
 
 /** 源の形が合わないときの文。 */
 const ORIGIN_FORMAT = "http:// か https:// で始まる源（道を含まない URL）にしてください。";
@@ -147,6 +180,29 @@ function isOrigin(value: string): boolean {
   );
 }
 
+/**
+ * https の URL か（利用者の名前・パスワードを持たない）。
+ * @param value 設定の値
+ * @returns https の URL なら true
+ */
+function isHttpsUrl(value: string): boolean {
+  if (!URL.canParse(value)) return false;
+  const url = new URL(value);
+  return url.protocol === "https:" && url.hostname !== "" && !url.username && !url.password;
+}
+
+/**
+ * カンマで並べた値を、前後の空白と空の要素を除いた並びにする。
+ * @param value 設定の値
+ * @returns 値の並び
+ */
+function splitList(value: string | undefined): string[] {
+  return (value ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
 const schema = z
   .object({
     APP_ENV: z.enum(APP_ENVS, { error: `${APP_ENVS.join("／")} のどれかにしてください。` }),
@@ -165,7 +221,9 @@ const schema = z
       }),
     DATABASE_CONNECT_TIMEOUT_MS: positiveInt(5000),
     DATABASE_QUERY_TIMEOUT_MS: positiveInt(10_000),
+    DATABASE_POOL_MAX: positiveInt(10),
     SAMPLE_DATA_ENABLED: flag(false),
+    TEST_LOGIN_ENABLED: flag(false),
     OPENAPI_DOC_ENABLED: flag(false),
     LOG_LEVEL: z
       .enum(LOG_LEVELS, { error: `${LOG_LEVELS.join("／")} のどれかにしてください。` })
@@ -177,21 +235,75 @@ const schema = z
     DOMAIN_FEATURES: z
       .string()
       .optional()
-      .transform((value) =>
-        (value ?? "")
-          .split(",")
-          .map((key) => key.trim())
-          .filter((key) => key.length > 0),
-      )
+      .transform(splitList)
       .refine((keys) => keys.every((key) => DOMAIN_FEATURE_KEY_FORMAT.test(key)), {
         error:
-          "「<領域>.<名前>」（例 notes.export）をカンマで並べてください（領域は英小文字で始まる英小文字・数字、名前は英小文字で始まる英数字）。",
+          "「<領域>.<名前>」（例 event.export）をカンマで並べてください（領域は英小文字で始まる英小文字・数字、名前は英小文字で始まる英数字）。",
       }),
     TRUSTED_PROXY_HOPS: z.coerce
       .number({ error: "数にしてください。" })
       .int({ error: "整数にしてください。" })
       .min(0, { error: "0以上にしてください。" })
       .default(0),
+    LINE_CHANNEL_IDS: z
+      .string()
+      .optional()
+      .transform(splitList)
+      .refine((ids) => ids.every((id) => LINE_CHANNEL_ID_FORMAT.test(id)), {
+        error: "LINE のチャネル ID（数字だけ）をカンマで並べてください。",
+      }),
+    ORGANIZER_LINE_USER_ID: optionalText().refine(
+      (value) => value === undefined || LINE_USER_ID_FORMAT.test(value),
+      { error: "LINE のユーザー ID（U と16進の32文字）にしてください。" },
+    ),
+    OPEN_CHAT_URL: optionalText().refine((value) => value === undefined || isHttpsUrl(value), {
+      error: "https:// で始まる URL にしてください。",
+    }),
+    WEB_DIST_DIR: optionalText(),
+    TOKEN_ENCRYPTION_KEYS: optionalText(),
+    // 空は「ない」とみなす（.env.example を写したままの空の値で、起動を止めない）
+    TOKEN_ENCRYPTION_KEY_VERSION: optionalText().pipe(
+      z.coerce
+        .number<string | undefined>({ error: "数にしてください。" })
+        .int({ error: "整数にしてください。" })
+        .min(1, { error: "1以上にしてください。" })
+        .optional(),
+    ),
+    JOB_TRIGGER_SECRET: optionalText().refine(
+      (value) => value === undefined || value.length >= JOB_TRIGGER_SECRET_MIN,
+      { error: `${JOB_TRIGGER_SECRET_MIN}文字以上の値にしてください。` },
+    ),
+    THREADS_API_BASE_URL: optionalText().refine((value) => value === undefined || isOrigin(value), {
+      error: ORIGIN_FORMAT,
+    }),
+    THREADS_APP_ID: optionalText().refine(
+      (value) => value === undefined || META_APP_ID_FORMAT.test(value),
+      { error: "Meta のアプリの ID（数字）にしてください。" },
+    ),
+    THREADS_APP_SECRET: optionalText().refine(
+      (value) => value === undefined || value.length >= META_APP_SECRET_MIN,
+      { error: `${META_APP_SECRET_MIN}文字以上の値にしてください。` },
+    ),
+    NOTIFY_MODE: z
+      .enum(NOTIFY_MODES, { error: `${NOTIFY_MODES.join("／")} のどれかにしてください。` })
+      .default("off"),
+    NOTIFY_ALLOWLIST: z
+      .string()
+      .optional()
+      .transform(splitList)
+      .refine(
+        (items) =>
+          items.every(
+            (item) => LINE_USER_ID_FORMAT.test(item) || ALLOWLIST_EMAIL_FORMAT.test(item),
+          ),
+        {
+          error:
+            "LINE のユーザー ID（U と16進の32文字）かメールアドレスを、カンマで並べてください。",
+        },
+      )
+      .transform((items) =>
+        items.map((item) => (LINE_USER_ID_FORMAT.test(item) ? item : item.toLowerCase())),
+      ),
     COMPOSE_PROJECT_NAME: optionalText(),
   })
   .superRefine((env, ctx) => {
@@ -199,12 +311,60 @@ const schema = z
     if (env.WEB_URL !== undefined && !isOrigin(env.WEB_URL)) {
       ctx.addIssue({ code: "custom", path: ["WEB_URL"], message: ORIGIN_FORMAT });
     }
+    if (env.TOKEN_ENCRYPTION_KEYS !== undefined || env.TOKEN_ENCRYPTION_KEY_VERSION !== undefined) {
+      if (env.TOKEN_ENCRYPTION_KEYS === undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["TOKEN_ENCRYPTION_KEYS"],
+          message: "TOKEN_ENCRYPTION_KEY_VERSION を入れるときは、鍵の束も入れてください。",
+        });
+      } else if (env.TOKEN_ENCRYPTION_KEY_VERSION === undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["TOKEN_ENCRYPTION_KEY_VERSION"],
+          message: "鍵の束を入れるときは、今の鍵の版も入れてください。",
+        });
+      } else {
+        try {
+          createSecretBox(env.TOKEN_ENCRYPTION_KEYS, env.TOKEN_ENCRYPTION_KEY_VERSION);
+        } catch (error) {
+          if (!(error instanceof KeyRingError)) throw error;
+          ctx.addIssue({ code: "custom", path: ["TOKEN_ENCRYPTION_KEYS"], message: error.message });
+        }
+      }
+    }
+    if ((env.THREADS_APP_ID === undefined) !== (env.THREADS_APP_SECRET === undefined)) {
+      ctx.addIssue({
+        code: "custom",
+        path: [env.THREADS_APP_ID === undefined ? "THREADS_APP_ID" : "THREADS_APP_SECRET"],
+        message:
+          "THREADS_APP_ID と THREADS_APP_SECRET は、両方入れるか、両方入れないかにしてください。",
+      });
+    }
     if (PROTECTED_ENVS.has(name)) {
+      if (
+        env.THREADS_API_BASE_URL !== undefined &&
+        (new URL(env.THREADS_API_BASE_URL).protocol !== "https:" ||
+          pointsToLocal(env.THREADS_API_BASE_URL))
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["THREADS_API_BASE_URL"],
+          message: `APP_ENV が ${name} のときは、手元でない https:// の源にしてください。`,
+        });
+      }
       if (env.SAMPLE_DATA_ENABLED) {
         ctx.addIssue({
           code: "custom",
           path: ["SAMPLE_DATA_ENABLED"],
           message: `APP_ENV が ${name} のときは true にできません（手元とテストだけで使う設定です）。`,
+        });
+      }
+      if (env.TEST_LOGIN_ENABLED) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["TEST_LOGIN_ENABLED"],
+          message: `APP_ENV が ${name} のときは true にできません（試験用のログインは手元とテストだけで使います）。`,
         });
       }
       if (!env.RATE_LIMIT_ENABLED) {
@@ -219,6 +379,27 @@ const schema = z
           code: "custom",
           path: ["DATABASE_URL"],
           message: `APP_ENV が ${name} のときは、見本の DB のパスワード（.env.example と同じ）を使えません（環境ごとに作った値にしてください）。`,
+        });
+      }
+      if (env.LINE_CHANNEL_IDS.length === 0) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["LINE_CHANNEL_IDS"],
+          message: `APP_ENV が ${name} のときは要ります（LINE のログインを確かめるため）。`,
+        });
+      }
+      if (env.ORGANIZER_LINE_USER_ID === undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["ORGANIZER_LINE_USER_ID"],
+          message: `APP_ENV が ${name} のときは要ります（主催者を決めるため）。`,
+        });
+      }
+      if (env.WEB_DIST_DIR === undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["WEB_DIST_DIR"],
+          message: `APP_ENV が ${name} のときは要ります（API が組み立てた画面を返すため）。`,
         });
       }
       if (env.WEB_URL === undefined) {
@@ -266,8 +447,12 @@ export type Config = {
   databaseUrl: string;
   /** DB の時間の上限（ミリ秒。つなぐまで・1つの命令） */
   databaseTimeouts: { connectTimeoutMs: number; queryTimeoutMs: number };
+  /** 1台（1つのプロセス）が持つ DB の接続の数の上限（DATABASE_POOL_MAX。既定は10。本番は台数 × この値が DB の接続の上限を超えないようにする） */
+  databasePoolMax: number;
   /** 見本のデータを入れる手順を許すか */
   sampleDataEnabled: boolean;
+  /** 試験用のログイン（POST /api/v1/auth/test-login。account の領域）を使えるか。staging・production では false だけ */
+  testLoginEnabled: boolean;
   /** 窓口の文書（GET /api/openapi.json）を出すか */
   openApiDocEnabled: boolean;
   /** ログの細かさ */
@@ -280,6 +465,37 @@ export type Config = {
   domainFeatures: string[];
   /** 前に置いた中継（ロードバランサーなど）の数。0 なら接続の相手を、1以上なら X-Forwarded-For の右から数えた値を、利用者の IP とする */
   trustedProxyHops: number;
+  /** LINE の ID トークンを確かめるときの client_id（LINE のチャネル ID）の並び。local・test では空のことがある */
+  lineChannelIds: string[];
+  /** 主催者の LINE のユーザー ID（秘密ではない。AD-5）。local・test ではないことがある */
+  organizerLineUserId: string | undefined;
+  /** コミュニティのオープンチャットの URL（https。PRD FR-17）。なければ案内を出さない */
+  openChatUrl: string | undefined;
+  /** 組み立てた画面のフォルダ（絶対の道）。あれば API が画面のファイルを返す（AD-8） */
+  webDistDir: string | undefined;
+  /**
+   * 外のサービスのトークンを包む鍵の束（TOKEN_ENCRYPTION_KEYS。秘密）と今の鍵の版（TOKEN_ENCRYPTION_KEY_VERSION）。
+   * なければ undefined（トークンを持つ機能は「準備ができていない」と断る）。領域には値を渡さず、組み立てが秘密の箱にして渡す
+   */
+  tokenEncryption: { keyRing: string; currentVersion: number } | undefined;
+  /** 定期の仕事（Cloud Scheduler）が API を呼ぶときの合言葉（JOB_TRIGGER_SECRET。秘密）。なければ定期の仕事の窓口は断る */
+  jobTriggerSecret: string | undefined;
+  /** Threads の API の宛先（THREADS_API_BASE_URL。末尾の / なし。既定は https://graph.threads.net。手元と E2E は偽のサーバー） */
+  threadsApiBaseUrl: string;
+  /**
+   * アプリの Meta のアプリ（THREADS_APP_ID と THREADS_APP_SECRET。秘密）。OAuth の接続と Meta の Webhook の署名の確かめに使う。
+   * なければ undefined（その機能は使えない）。領域には値を渡さず、組み立てが道具（kernel/meta-app.ts）にして渡す
+   */
+  threadsApp: { appId: string; appSecret: string } | undefined;
+  /**
+   * 知らせ（AD-24）：送り方（NOTIFY_MODE。既定 off）・許可リスト（NOTIFY_ALLOWLIST。秘密。メールアドレスは小文字）・
+   * 偽の送り手だけを使うか（APP_ENV が local・test なら true）。領域には値を渡さず、組み立てが送る道具（platform/notify）にして渡す
+   */
+  notify: {
+    mode: (typeof NOTIFY_MODES)[number];
+    allowlist: string[];
+    fakeOnly: boolean;
+  };
 };
 
 /** 設定が合わないときのエラー。文は日本語で、値そのものは入れない。 */
@@ -333,7 +549,9 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       connectTimeoutMs: value.DATABASE_CONNECT_TIMEOUT_MS,
       queryTimeoutMs: value.DATABASE_QUERY_TIMEOUT_MS,
     },
+    databasePoolMax: value.DATABASE_POOL_MAX,
     sampleDataEnabled: value.SAMPLE_DATA_ENABLED,
+    testLoginEnabled: value.TEST_LOGIN_ENABLED,
     openApiDocEnabled: value.OPENAPI_DOC_ENABLED,
     logLevel: value.LOG_LEVEL,
     logPretty: value.LOG_PRETTY,
@@ -344,5 +562,27 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     },
     domainFeatures: value.DOMAIN_FEATURES,
     trustedProxyHops: value.TRUSTED_PROXY_HOPS,
+    lineChannelIds: value.LINE_CHANNEL_IDS,
+    organizerLineUserId: value.ORGANIZER_LINE_USER_ID,
+    openChatUrl: value.OPEN_CHAT_URL,
+    webDistDir: value.WEB_DIST_DIR === undefined ? undefined : resolve(value.WEB_DIST_DIR),
+    tokenEncryption:
+      value.TOKEN_ENCRYPTION_KEYS !== undefined && value.TOKEN_ENCRYPTION_KEY_VERSION !== undefined
+        ? {
+            keyRing: value.TOKEN_ENCRYPTION_KEYS,
+            currentVersion: value.TOKEN_ENCRYPTION_KEY_VERSION,
+          }
+        : undefined,
+    jobTriggerSecret: value.JOB_TRIGGER_SECRET,
+    threadsApiBaseUrl: new URL(value.THREADS_API_BASE_URL ?? DEFAULT_THREADS_API_BASE_URL).origin,
+    threadsApp:
+      value.THREADS_APP_ID !== undefined && value.THREADS_APP_SECRET !== undefined
+        ? { appId: value.THREADS_APP_ID, appSecret: value.THREADS_APP_SECRET }
+        : undefined,
+    notify: {
+      mode: value.NOTIFY_MODE,
+      allowlist: value.NOTIFY_ALLOWLIST,
+      fakeOnly: FAKE_NOTIFY_ENVS.has(value.APP_ENV),
+    },
   };
 }

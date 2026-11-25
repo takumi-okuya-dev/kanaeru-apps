@@ -2,4 +2,11 @@
 // 形：export * as <領域> from "./features/<領域>/index.ts";
 // router.tsx はこの一覧を読んで道とナビをつなぐので、領域を足しても router.tsx は直さない。
 export {};
-export * as notes from "./features/notes/index.ts";
+export * as account from "./features/account/index.ts";
+export * as event from "./features/event/index.ts";
+export * as reception from "./features/reception/index.ts";
+export * as survey from "./features/survey/index.ts";
+export * as threads from "./features/threads/index.ts";
+export * as suite from "./features/suite/index.ts";
+export * as booking from "./features/booking/index.ts";
+export * as match from "./features/match/index.ts";

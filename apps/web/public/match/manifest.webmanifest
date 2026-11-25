@@ -1,0 +1,29 @@
+{
+  "id": "/match/",
+  "name": "PaletKit 試合表",
+  "short_name": "試合表",
+  "description": "名簿からレベル別の試合表を作り、当日の組み直しと印刷をします。電波のない体育館でも開けます。",
+  "lang": "ja",
+  "dir": "ltr",
+  "start_url": "/match/",
+  "scope": "/match",
+  "display": "standalone",
+  "theme_color": "#ffffff",
+  "background_color": "#f8f7f6",
+  "icons": [
+    { "src": "/match/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/match/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    {
+      "src": "/match/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/match/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

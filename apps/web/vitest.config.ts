@@ -3,11 +3,13 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   // 組み立てのときに埋める値（vite.config.ts の define と同じ名前。テストでは仮の名前）
-  define: { __APP_NAME__: JSON.stringify("テストのアプリ") },
+  // LIFF ID は空（LINE につながない仮の LIFF で動く。lib/liff.ts）
+  define: { __APP_NAME__: JSON.stringify("テストのアプリ"), __LIFF_ID__: JSON.stringify("") },
   test: {
     name: "web",
     environment: "jsdom",
-    include: ["src/**/*.test.{ts,tsx}"],
+    // 組み立ての plugin（scoped-service-worker.ts。core-015）のテストも流す
+    include: ["src/**/*.test.{ts,tsx}", "*.test.ts"],
     setupFiles: ["./vitest.setup.ts"],
   },
 });
