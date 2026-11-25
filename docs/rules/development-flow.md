@@ -17,6 +17,11 @@
 
 - ふだんのPRは`feature/*`→`develop`に向ける。ブランチは`develop`の最新から切る（`git switch -c <ブランチ> origin/develop`）。名前の付け方は[仕様と名前の決まり](./specs.md)。
 - リリースは`develop`→`main`のPR（タイトルは「リリース：…」）。
+- **リリースのPRの説明は、リリースノートとして書く**（[テンプレート](../../.github/PULL_REQUEST_TEMPLATE/release.md)。`gh pr create --template release.md`）。
+  - タイトルは「リリース：<リリースの名前>」（例：リリース：PaletKit 初回リリース）。「初めての本番」のような言い方は使わず、リリースの名前で呼ぶ。マージの commit の件名にも、この名前が使われる。
+  - 構成は、ヘッダー・概要・目的・リリース内容（機能の追加と不具合・安全の修正を分ける）・影響範囲・サポート範囲・備考（[NotePM のリリースノートのテンプレート](https://notepm.jp/template/release)を参考にした）。
+  - **本番で非公開のアプリは載せない**（アプリの台帳で「運営者だけ」か「オフ」のもの。台帳に行がないアプリも、既定で運営者だけ）。リリースのあとに公開へ切り替えるものは、その旨を1行で書く。
+  - 開発者向けの確かめと決まりのチェック（[PRのテンプレート](../../.github/pull_request_template.md)の欄）は、リリースノートの下の「開発者向け」にまとめる。
 - 本番の重大なバグの急ぎの直しは、`main`から`hotfix/*`を切り、`main`へ PR を出す（5章の①）。マージしたあと、`main`を`develop`に取り込み直す（`git log --oneline main ^develop`が空になること）。
 - `main`・`develop`への直接のpushは禁止（PR必須。GitHubのブランチの保護で止める）。
 - マージ済みのブランチは、手元とGitHubの両方から消す。
