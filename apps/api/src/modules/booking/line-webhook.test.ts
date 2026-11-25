@@ -364,7 +364,7 @@ describe("紐づけ", () => {
     const [notice] = await readOutbox(app, admin.cookie);
     expect(notice?.method).toBe("line_push");
     expect(notice?.to).toBe(lineUser("a"));
-    expect(notice?.text).toContain("kanaeru の参加者さんのアカウントと紐づきました");
+    expect(notice?.text).toContain("PaletKit の参加者さんのアカウントと紐づきました");
     expect(notice?.text).toContain("心当たりがなければ、このアカウントをブロックしてください");
     // 送り方が off なら送らない（紐づけはできる）
     const offApp = buildApp(database, notifyConfig({ mode: "off" }));

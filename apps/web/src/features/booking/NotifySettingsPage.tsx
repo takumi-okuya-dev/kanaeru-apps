@@ -34,6 +34,7 @@ import {
   sendTestMessage,
 } from "./notify-api.ts";
 import type { NotifyHolderKey } from "./notify-api.ts";
+import { PRODUCT_NAME } from "@workspace/contracts/core";
 
 /** 問い合わせの鍵。 */
 export const NOTIFY_QUERY_KEYS = {
@@ -474,7 +475,7 @@ function MailSection({ holder, settings }: { holder: NotifyHolderKey; settings: 
   return (
     <Section id="notify-mail-heading" title="メール">
       <p className="text-m">
-        公式アカウントと紐づけていない参加者には、本人が入れたメールアドレスに kanaeru
+        公式アカウントと紐づけていない参加者には、本人が入れたメールアドレスに {PRODUCT_NAME}
         から送ります（入れていない人には送りません）。
         参加者のメールアドレスは、主催者には見えません。
       </p>

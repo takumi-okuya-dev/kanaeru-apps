@@ -71,7 +71,7 @@ describe("ホーム画面の manifest とアイコン", () => {
   it("名前・始まりと範囲（/match/）・表示（standalone）・色は tokens.css の値", () => {
     expect(manifest).toMatchObject({
       id: "/match/",
-      name: "kanaeru 試合表",
+      name: "PaletKit 試合表",
       short_name: "試合表",
       start_url: "/match/",
       scope: "/match",
