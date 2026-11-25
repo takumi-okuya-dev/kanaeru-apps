@@ -2,6 +2,7 @@
 // ログインを求めたうえで、組織の名前・管理者・人数・「メンバーとして入ります」と、入る前に知っておくこと（表示名と役割が見える・
 // 退会すると組織に入れた記録は管理者に引き継がれる・アプリごとの見え方〈見えるアプリの分だけ〉）を出し、「入る」で入る。
 // すでに入っている人には「すでに入っています」と組織の画面への入口、使えないリンクには理由と「管理者に新しいリンクを頼んでください」。
+// 「入る」の上に、利用規約とプライバシーポリシーへのリンク（新しいタブ。suite-002）。
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, getRouteApi, useNavigate } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
@@ -13,6 +14,7 @@ import { visibleOrganizationExtensions } from "../../lib/organization.ts";
 import { Page } from "../../lib/page.tsx";
 import { SessionGate } from "../account/index.ts";
 import { joinOrganization } from "./organization-api.ts";
+import { LegalLink } from "./LegalLink.tsx";
 import { organizationPath } from "./organization-paths.ts";
 import { ORGANIZATION_QUERY_KEYS, useInvitePreview } from "./organization-queries.ts";
 import { useVisibleApps } from "./queries.ts";
@@ -153,6 +155,11 @@ function JoinContent({ token }: { token: string }) {
       </dl>
       <p className="text-m font-bold">メンバーとして入ります。</p>
       <JoinNotes />
+      <p className="text-s text-text-sub">
+        組織での情報の扱いは、
+        <LegalLink to="terms" newTab />と<LegalLink to="privacy" newTab />
+        に書いています（どちらも新しいタブで開きます）。
+      </p>
       <div className="flex flex-col items-start gap-xxs">
         <Button
           variant="primary"
