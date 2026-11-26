@@ -42,6 +42,7 @@ import type { FieldErrors } from "../../lib/form.ts";
 import { ThreadsPage } from "./ThreadsPage.tsx";
 import { AccountGate, LoadFailure, Loading } from "./AccountGate.tsx";
 import { createDraftBatch, fetchPrompt, savePromptSettings, undoDraftBatch } from "./api.ts";
+import { nextPartToCopy } from "./prompt-copy.ts";
 import { THREADS_QUERY_KEYS, usePromptSettings, useStrategy } from "./queries.ts";
 import { useThreadsCan } from "./team-access.ts";
 
@@ -364,6 +365,8 @@ function PromptSection({ accountId }: PromptSectionProps) {
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<string>();
   const [copied, setCopied] = useState<number>();
+  // コピーした部分の番号（主のボタンを、まだのもののうち最初の1つにするため）
+  const [copiedParts, setCopiedParts] = useState<ReadonlySet<number>>(new Set());
   const started = useRef(false);
 
   /** プロンプトを作る（最新の戦略・ルール・案から毎回作り直す）。 */
@@ -371,6 +374,7 @@ function PromptSection({ accountId }: PromptSectionProps) {
     if (pending) return;
     setFailure(undefined);
     setCopied(undefined);
+    setCopiedParts(new Set());
     setPending(true);
     try {
       setPrompt(await fetchPrompt(accountId));
@@ -397,14 +401,15 @@ function PromptSection({ accountId }: PromptSectionProps) {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(index);
+      setCopiedParts((current) => new Set(current).add(index));
     } catch {
       setFailure("コピーできませんでした。欄の文を選んで、手でコピーしてください。");
     }
   };
 
   const parts = prompt?.parts ?? [];
-  // 主のボタンは次にコピーするもの1つだけ（はじめは1つ目、コピーしたらその次。全部コピーしたら主はなし）
-  const nextPart = copied === undefined ? 0 : copied + 1;
+  // 主のボタンは、まだコピーしていないもののうち最初の1つだけ（全部コピーしたら主はなし）
+  const nextPart = nextPartToCopy(parts.length, copiedParts);
   return (
     <section aria-labelledby="threads-prompt" className="flex flex-col gap-xs">
       <h2 id="threads-prompt" className="text-l font-bold">
