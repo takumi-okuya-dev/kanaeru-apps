@@ -4,9 +4,10 @@
 //   （print-layout.ts。試合が少ないときは大きく、多いときは小さく。小さすぎるときは大きい紙をすすめる）
 // - 見るだけのリンクをこの端末で作ってあれば、版の右上に見るだけのページの QR を入れる（FR-M19・R1。今の試合の印は入れない）。
 //   入口に貼る1枚（R2。A4 縦・大きな QR）も選んで刷れる（FR-M20。match-004）。下に「PaletKit で作った試合表」（FR-M25）
+// - ミニゲームを組んでいれば、コートとチームの一覧も紙1枚に刷れる（TeamsSheet。match-009）
 // - 版は SVG で描き、印刷では版だけを出す（print.css）
 import { MATCH_FORMAT_LABELS, PLAYERS_PER_GAME } from "@workspace/contracts/match";
-import type { MatchGroup, MatchGroupPlan, MatchTable } from "@workspace/contracts/match";
+import type { MatchGroup, MatchGroupPlan, MatchMini, MatchTable } from "@workspace/contracts/match";
 import { Link, useParams as useRouteParams } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
@@ -23,6 +24,7 @@ import {
   PAPER_LABELS,
   PAPER_SIZES,
   layoutSheet,
+  layoutTeamsSheet,
   printableArea,
   textWidthEm,
 } from "./print-layout.ts";
@@ -70,7 +72,7 @@ function Sheet({ table, group, plan, size, orientation, viewUrl }: SheetProps) {
     longestNameEm: longest,
   });
   const { settings } = table.content;
-  const subtitle = `${table.name}・${formatPlayDate(table.playDate)}・${MATCH_FORMAT_LABELS[settings.format]}・1試合${settings.minutesPerGame}分・試合 ${settings.startTime}〜${settings.endTime}`;
+  const subtitle = `${table.name}・${formatPlayDate(table.playDate)}・${MATCH_FORMAT_LABELS[settings.format]}・${plan.games.length}試合`;
   const lineWidth = Math.max(0.2, layout.fontSize * 0.04);
   const tableBottom = layout.tableTop + layout.rowHeight * plan.games.length;
   // 右上の QR（表の上の帯の高さ）と、その左の小さな説明（2行）
@@ -197,6 +199,147 @@ function Sheet({ table, group, plan, size, orientation, viewUrl }: SheetProps) {
 }
 
 /**
+ * ミニゲームのチームの印刷の版（SVG。コートの枠を並べ、枠の中を2つのチームの列に分ける。match-009）。
+ * @param props 試合表（table）・チーム分け（mini）・紙（size・orientation）
+ * @param props.table 試合表
+ * @param props.mini チーム分け
+ * @param props.size 紙の大きさ
+ * @param props.orientation 向き
+ * @returns 版の要素
+ */
+function TeamsSheet({
+  table,
+  mini,
+  size,
+  orientation,
+}: {
+  table: MatchTable;
+  mini: MatchMini;
+  size: PaperSize;
+  orientation: Orientation;
+}) {
+  const names = new Map(table.content.players.map((player) => [player.id, player.nickname]));
+  const courts = Math.ceil(mini.teams.length / 2);
+  const layout = teamsLayoutOf(table, mini, size, orientation);
+  const subtitle = `${table.name}・${formatPlayDate(table.playDate)}・${courts}コート・${mini.teams.length}チーム`;
+  const lineWidth = Math.max(0.2, layout.fontSize * 0.04);
+  return (
+    <figure
+      data-paper={`${size}-${orientation}`}
+      aria-label="ミニゲームの印刷の版"
+      className="w-full max-w-form border border-border bg-surface shadow-layer1"
+    >
+      <svg
+        viewBox={`0 0 ${layout.width} ${layout.height}`}
+        width="100%"
+        height="100%"
+        role="img"
+        aria-label={`ミニゲームのチーム（${courts}コート）`}
+        className="block fill-text"
+      >
+        <text x={0} y={layout.titleSize} fontSize={layout.titleSize} fontWeight={700}>
+          ミニゲーム
+        </text>
+        <text
+          x={0}
+          y={layout.titleSize * 1.3 + layout.subtitleSize * 1.1}
+          fontSize={layout.subtitleSize}
+          className="fill-text-sub"
+        >
+          {subtitle}
+        </text>
+        {Array.from({ length: courts }, (_, court) => {
+          const x = (court % layout.cols) * layout.cellWidth;
+          const y = layout.gridTop + Math.floor(court / layout.cols) * layout.cellHeight;
+          const pad = layout.fontSize * 0.4;
+          return (
+            <g key={court}>
+              <rect
+                x={x + lineWidth / 2}
+                y={y + lineWidth / 2}
+                width={layout.cellWidth - lineWidth - 1}
+                height={layout.cellHeight - lineWidth - 1}
+                fill="none"
+                className="stroke-text"
+                strokeWidth={lineWidth}
+              />
+              <text
+                x={x + pad}
+                y={y + layout.lineHeight * 0.85}
+                fontSize={layout.headSize}
+                fontWeight={700}
+              >
+                {`コート ${court + 1}`}
+              </text>
+              {[0, 1].map((side) => {
+                const team = mini.teams[court * 2 + side] ?? [];
+                const left = x + pad + (side * (layout.cellWidth - 1)) / 2;
+                return (
+                  <g key={side}>
+                    <text
+                      x={left}
+                      y={y + layout.lineHeight * 1.9}
+                      fontSize={layout.headSize * 0.85}
+                      className="fill-text-sub"
+                    >
+                      {`チーム ${court * 2 + side + 1}`}
+                    </text>
+                    {team.map((id, row) => (
+                      <text
+                        key={id}
+                        x={left}
+                        y={y + layout.lineHeight * (2.9 + row)}
+                        fontSize={layout.fontSize}
+                        fontWeight={700}
+                      >
+                        {names.get(id) ?? ""}
+                      </text>
+                    ))}
+                  </g>
+                );
+              })}
+            </g>
+          );
+        })}
+        <text
+          x={layout.width}
+          y={layout.height - layout.footerSize * 0.4}
+          fontSize={layout.footerSize}
+          textAnchor="end"
+          className="fill-text-sub"
+        >
+          {PRODUCT_NAME} で作った試合表
+        </text>
+      </svg>
+    </figure>
+  );
+}
+
+/**
+ * ミニゲームの版の大きさ（いちばん長い呼び名と、いちばん多いチームの人数から決める）。
+ * @param table 試合表
+ * @param mini チーム分け
+ * @param size 紙の大きさ
+ * @param orientation 向き
+ * @returns 版の大きさ
+ */
+function teamsLayoutOf(
+  table: MatchTable,
+  mini: MatchMini,
+  size: PaperSize,
+  orientation: Orientation,
+) {
+  const names = new Map(table.content.players.map((player) => [player.id, player.nickname]));
+  return layoutTeamsSheet({
+    size,
+    orientation,
+    courts: Math.ceil(mini.teams.length / 2),
+    members: Math.max(1, ...mini.teams.map((team) => team.length)),
+    longestNameEm: Math.max(2, ...mini.teams.flat().map((id) => textWidthEm(names.get(id) ?? ""))),
+  });
+}
+
+/**
  * 入口に貼る1枚（R2。A4 縦。見るだけのページの大きな QR。FR-M20）。
  * @param props 試合表（table）・見るだけのページの URL（url）
  * @param props.table 試合表
@@ -273,27 +416,35 @@ function PrintBody({ table }: { table: MatchTable }) {
     ? new URL(matchPaths.view(viewLink.token), window.location.origin).href
     : undefined;
   const [entrance, setEntrance] = useState(false);
+  const mini = table.content.mini;
+  const [withMini, setWithMini] = useState(true);
+  const printMini = mini !== undefined && withMini;
   const selected = groups.filter((entry) => chosen.has(entry.group.key));
   const names = new Map(table.content.players.map((player) => [player.id, player.nickname]));
   const columns = PLAYERS_PER_GAME[table.content.settings.format];
-  const tooSmall = selected.some((entry) => {
-    const longest = Math.max(
-      2,
-      ...entry.plan.games.flatMap((game) =>
-        game.players.map((id) => textWidthEm(names.get(id) ?? "")),
-      ),
-    );
-    return layoutSheet({
-      size,
-      orientation,
-      rows: entry.plan.games.length,
-      columns,
-      longestNameEm: longest,
-    }).tooSmall;
-  });
+  const miniTooSmall = printMini && teamsLayoutOf(table, mini, size, orientation).tooSmall;
+  const tooSmall =
+    miniTooSmall ||
+    selected.some((entry) => {
+      const longest = Math.max(
+        2,
+        ...entry.plan.games.flatMap((game) =>
+          game.players.map((id) => textWidthEm(names.get(id) ?? "")),
+        ),
+      );
+      return layoutSheet({
+        size,
+        orientation,
+        rows: entry.plan.games.length,
+        columns,
+        longestNameEm: longest,
+      }).tooSmall;
+    });
   const paperLabel = `${PAPER_LABELS[size]} ${ORIENTATION_LABELS[orientation]}`;
 
-  if (groups.length === 0) {
+  const sheetCount = selected.length + (printMini ? 1 : 0);
+
+  if (groups.length === 0 && !mini) {
     return (
       <Page title="印刷" lead={table.name}>
         <p className="text-m text-text-sub">
@@ -307,7 +458,7 @@ function PrintBody({ table }: { table: MatchTable }) {
     <Page title="印刷" lead={`${table.name}・組ごとに1枚ずつ刷ります。`}>
       <div className="flex max-w-form flex-col gap-xs">
         <fieldset className="flex flex-col gap-x3s">
-          <legend className="mb-x3s text-m font-bold">刷るレベル（1つの組を1枚）</legend>
+          <legend className="mb-x3s text-m font-bold">刷るもの（1つの組を1枚）</legend>
           {groups.map(({ group }) => (
             <label key={group.key} className="flex min-h-l items-center gap-xxs text-m">
               <input
@@ -321,9 +472,20 @@ function PrintBody({ table }: { table: MatchTable }) {
                 }}
                 className="size-s accent-primary"
               />
-              {group.label}
+              {group.key === "all" ? "全員（分けない）" : group.label}
             </label>
           ))}
+          {mini ? (
+            <label className="flex min-h-l items-center gap-xxs text-m">
+              <input
+                type="checkbox"
+                checked={withMini}
+                onChange={(change) => setWithMini(change.target.checked)}
+                className="size-s accent-primary"
+              />
+              ミニゲーム（コートとチームの一覧）
+            </label>
+          ) : null}
         </fieldset>
         <ChoiceChips
           label="紙の大きさ"
@@ -375,12 +537,12 @@ function PrintBody({ table }: { table: MatchTable }) {
         <div>
           <Button
             variant="primary"
-            disabled={selected.length === 0 && !(viewUrl && entrance)}
+            disabled={sheetCount === 0 && !(viewUrl && entrance)}
             onClick={() => window.print()}
           >
             {viewUrl && entrance
-              ? `${selected.length + 1}枚を印刷する（${paperLabel}・入口の1枚は A4 縦）`
-              : `${selected.length}枚を印刷する（${paperLabel}）`}
+              ? `${sheetCount + 1}枚を印刷する（${paperLabel}・入口の1枚は A4 縦）`
+              : `${sheetCount}枚を印刷する（${paperLabel}）`}
           </Button>
         </div>
       </div>
@@ -400,6 +562,9 @@ function PrintBody({ table }: { table: MatchTable }) {
             viewUrl={viewUrl}
           />
         ))}
+        {printMini ? (
+          <TeamsSheet table={table} mini={mini} size={size} orientation={orientation} />
+        ) : null}
         {viewUrl && entrance ? <EntranceSheet table={table} url={viewUrl} /> : null}
       </section>
     </Page>

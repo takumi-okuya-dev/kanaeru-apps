@@ -48,10 +48,13 @@ export const MatchView = z.object({
   playDate: z.string(),
   /** 版の番号（30秒おきに確かめ、変わっていれば読み直す） */
   version: z.number().int(),
-  /** 1試合の長さ（分） */
-  minutesPerGame: z.number().int(),
-  /** 組ごとの試合（分け方の順。試合のない組も出す） */
+  /** 組ごとの試合（分け方の順〈レベル別の組・分けないの all〉。試合のない組も出す） */
   groups: z.array(MatchViewGroup),
+  /**
+   * ミニゲームのチームごとの呼び名（チームの数 = コート数 × 2。コート1はチーム1と2…。ミニゲームを組んでいなければ持たない。
+   * レベルは出さない。match-009）
+   */
+  teams: z.array(z.array(z.string())).optional(),
   /** 最後に直した時刻 */
   updatedAt: isoDateTime,
   /** 見られる期限 */

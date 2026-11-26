@@ -6,6 +6,7 @@ import {
   ORIENTATIONS,
   PAPER_SIZES,
   layoutSheet,
+  layoutTeamsSheet,
   printableArea,
   textWidthEm,
 } from "./print-layout.ts";
@@ -78,5 +79,30 @@ describe("印刷の版の大きさ", () => {
     expect(landscape.width).toBeGreaterThan(landscape.height);
     expect(textWidthEm("高橋")).toBe(2);
     expect(textWidthEm("Ken")).toBeCloseTo(1.8);
+  });
+});
+
+describe("ミニゲームの印刷の版の大きさ（match-009）", () => {
+  it("どの紙と向き・コート数でも、コートの枠が刷る範囲に収まり、名前はチームの列に収まる", () => {
+    for (const size of PAPER_SIZES) {
+      for (const orientation of ORIENTATIONS) {
+        for (const courts of [1, 2, 3, 5, 8]) {
+          const layout = layoutTeamsSheet({
+            size,
+            orientation,
+            courts,
+            members: 6,
+            longestNameEm: 4,
+          });
+          expect(layout.cols * layout.rows).toBeGreaterThanOrEqual(courts);
+          expect(layout.cellWidth * layout.cols).toBeCloseTo(layout.width, 6);
+          const bottom = layout.gridTop + layout.cellHeight * layout.rows + layout.footerSize * 2;
+          expect(bottom).toBeLessThanOrEqual(layout.height + 1e-6);
+          expect(layout.lineHeight * 8.5).toBeCloseTo(layout.cellHeight, 6);
+          expect(layout.fontSize * 4).toBeLessThanOrEqual(layout.cellWidth / 2);
+          expect(layout.fontSize).toBeLessThanOrEqual(MAX_FONT_MM);
+        }
+      }
+    }
   });
 });

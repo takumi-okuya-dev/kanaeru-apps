@@ -4,10 +4,11 @@
 // - 「自分の名前」を選ぶと、その呼び名に印を付ける（選んだ名前はこの端末にだけ残す）
 // - つながっている間は30秒おきに版の番号を確かめ、変わっていれば読み直す。読めないときは、最後に読んだ表とその時刻を出す
 //   （最後に読んだ表はこの端末に置く。ページそのものは試合表の Service Worker がネットなしで開く。AD-27。match-005）
-// - つながらない間は、最後に読んだ表と1試合の長さから今の試合を見込んで出す（FR-M15【仮決め】。view-estimate.ts）
+// - 分け方（レベル別・分けない・ミニゲーム）が2つ以上なら分け方のタブ、レベル別の中で組が2つ以上なら組のタブ。ミニゲームはコートごとの
+//   チームの呼び名（match-009）。つながらない間の今の試合の見込みは、1試合の長さを持たなくなったのでやめた（match-009）
 // - 「QR を読む」（M4・FR-M24）：担当の端末が出した試合表の QR を読み、同じ試合表で今より新しい版のときだけ取り込む（AD-28）
 // - 下に「試合表は当日に参加者へ公開されます」と「PaletKit で作った試合表・自分のサークルでも使う」（FR-M25）
-import type { MatchView } from "@workspace/contracts/match";
+import type { MatchSet, MatchView } from "@workspace/contracts/match";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
@@ -29,7 +30,8 @@ import {
 } from "./handoff.ts";
 import { tokenHint } from "./link-store.ts";
 import { QrScanner } from "./QrScanner.tsx";
-import { estimateNowIndex, nowIndexOf } from "./view-estimate.ts";
+import { MiniTeams } from "./MiniTeams.tsx";
+import { SetTabs } from "./SetTabs.tsx";
 import { decideHandoffImport, isHandoffNewer, newerView } from "./view-import.ts";
 import type { SavedView } from "./view-import.ts";
 import { useOnline } from "./online.ts";
@@ -39,9 +41,6 @@ import { PRODUCT_NAME } from "@workspace/contracts/core";
 
 /** 版の番号を確かめる間（ミリ秒。AD-26【仮決め】）。 */
 const VERSION_CHECK_MS = 30_000;
-
-/** 見込みを描き直す間（ミリ秒）。 */
-const ESTIMATE_TICK_MS = 30_000;
 
 /**
  * 端末に置く鍵（札ごと）。
@@ -97,6 +96,16 @@ function loadSaved(token: string): SavedView | undefined {
 }
 
 /**
+ * 今の試合の番号（0から。チェックのない最初の試合。みな終わっていれば試合の数）。
+ * @param games 試合
+ * @returns 番号
+ */
+function nowIndexOf(games: readonly { done: boolean }[]): number {
+  const index = games.findIndex((game) => !game.done);
+  return index < 0 ? games.length : index;
+}
+
+/**
  * 見るだけのページの中身。
  * @param props 中身（view）・読んだ時刻（readAt）・読めていないか（stale）・札（token）・QR で受け取ったか（fromQr）・QR を読む（onReadQr）
  * @param props.view 中身
@@ -125,36 +134,55 @@ function ViewBody({
   const baseId = useId();
   const meId = useId();
   const [me, setMe] = useState(() => load(storageKey(token, "me")) ?? "");
-  const groups = view.groups.filter((group) => group.games.length > 0);
-  const mine = groups.find((group) => group.games.some((game) => game.players.includes(me)));
+  const groupsWithGames = view.groups.filter((group) => group.games.length > 0);
+  const teams = view.teams ?? [];
+  const sets: MatchSet[] = [
+    ...(groupsWithGames.some((group) => group.key !== "all") ? (["levels"] as const) : []),
+    ...(groupsWithGames.some((group) => group.key === "all") ? (["ungrouped"] as const) : []),
+    ...(teams.length > 0 ? (["mini"] as const) : []),
+  ];
+  const groupsOf = (set: MatchSet) =>
+    set === "mini"
+      ? []
+      : groupsWithGames.filter((group) => (group.key === "all") === (set === "ungrouped"));
+  const mine = groupsWithGames.find((group) =>
+    group.games.some((game) => game.players.includes(me)),
+  );
+  const [chosenSet, setChosenSet] = useState<MatchSet | undefined>(() =>
+    mine ? (mine.key === "all" ? "ungrouped" : "levels") : sets[0],
+  );
+  const set = chosenSet && sets.includes(chosenSet) ? chosenSet : sets[0];
+  const groups = set ? groupsOf(set) : [];
   const [selected, setSelected] = useState(mine?.key ?? groups[0]?.key ?? "");
   const group = groups.find((entry) => entry.key === selected) ?? groups[0];
   const names = [
-    ...new Set(view.groups.flatMap((entry) => entry.games.flatMap((game) => game.players))),
+    ...new Set([
+      ...view.groups.flatMap((entry) => entry.games.flatMap((game) => game.players)),
+      ...teams.flat(),
+    ]),
   ]
     .filter((name) => name !== "")
     .sort((a, b) => a.localeCompare(b, "ja"));
-  // つながらない間は、最後に読んだ表と1試合の長さから今の試合を見込む（30秒おきに描き直す）
-  const [clock, setClock] = useState(() => Date.now());
-  useEffect(() => {
-    if (!stale) return;
-    setClock(Date.now());
-    const timer = setInterval(() => setClock(Date.now()), ESTIMATE_TICK_MS);
-    return () => clearInterval(timer);
-  }, [stale]);
-  const indexOf = (games: MatchView["groups"][number]["games"]) =>
-    stale ? estimateNowIndex(games, readAt, view.minutesPerGame, clock) : nowIndexOf(games);
-  const now = group ? indexOf(group.games) : 0;
-  const estimated = stale && group !== undefined && now !== nowIndexOf(group.games);
+  const now = group ? nowIndexOf(group.games) : 0;
   const progress =
-    group && now < group.games.length
-      ? `${estimated ? "見込み " : ""}今 第${now + 1}試合${now + 1 < group.games.length ? `・次 第${now + 2}試合` : ""}`
-      : estimated
-        ? "見込み すべて終わりました"
+    set === "mini"
+      ? `ミニゲーム・${teams.length / 2}コート`
+      : group && now < group.games.length
+        ? `今 第${now + 1}試合${now + 1 < group.games.length ? `・次 第${now + 2}試合` : ""}`
         : "すべて終わりました";
 
+  /**
+   * 分け方を選ぶ（その分け方の最初の組を選ぶ）。
+   * @param next 分け方
+   */
+  const chooseSet = (next: MatchSet) => {
+    setChosenSet(next);
+    const first = groupsOf(next)[0];
+    if (first) setSelected(first.key);
+  };
+
   return (
-    <Page title={view.name} lead={`${formatPlayDate(view.playDate)}・レベル別の試合表`}>
+    <Page title={view.name} lead={`${formatPlayDate(view.playDate)}・試合表`}>
       <div
         className={cn(
           "flex flex-wrap items-center justify-between gap-xxs rounded-md border px-xs py-xxs",
@@ -167,13 +195,12 @@ function ViewBody({
             : stale
               ? `電波がないか読めないため、${formatClock(readAt)} に読んだ表を出しています。つながったら自動で読み直します。`
               : `${formatClock(readAt)} に読んだ表です。つながっている間は30秒おきに確かめます。`}
-          {estimated ? ` 今の試合は、1試合${view.minutesPerGame}分として見込んだものです。` : ""}
         </p>
         <Button size="small" onClick={onReadQr}>
           QR を読む
         </Button>
       </div>
-      {groups.length === 0 || !group ? (
+      {sets.length === 0 || !set ? (
         <p className="text-m text-text-sub">まだ試合表はありません。運営が作ると、ここに出ます。</p>
       ) : (
         <div className="flex flex-col gap-xs">
@@ -202,71 +229,97 @@ function ViewBody({
               </select>
             </div>
           </div>
-          {groups.length > 1 ? (
-            <GroupTabs
-              groups={groups.map((entry) => ({ key: entry.key, label: entry.label, levels: [] }))}
-              selected={group.key}
-              onSelect={setSelected}
-              baseId={baseId}
-              nowOf={(key) => {
-                const games = groups.find((entry) => entry.key === key)?.games ?? [];
-                const index = indexOf(games);
-                return index < games.length ? index + 1 : null;
-              }}
-            />
+          {sets.length > 1 ? (
+            <SetTabs sets={sets} selected={set} onSelect={chooseSet} baseId={baseId} />
           ) : null}
           <div
-            id={`${baseId}-panel`}
-            role={groups.length > 1 ? "tabpanel" : undefined}
-            aria-labelledby={groups.length > 1 ? `${baseId}-tab-${group.key}` : undefined}
+            id={`${baseId}-set-panel`}
+            role={sets.length > 1 ? "tabpanel" : undefined}
+            aria-labelledby={sets.length > 1 ? `${baseId}-set-${set}` : undefined}
+            className="flex flex-col gap-xs"
           >
-            <table
-              aria-label={`${group.label}の試合表`}
-              className="w-full table-fixed border-collapse border border-border bg-surface"
-            >
-              <tbody>
-                {group.games.map((game, index) => {
-                  const isNow = index === now;
-                  const isNext = index === now + 1;
-                  return (
-                    <tr
-                      key={index}
-                      aria-current={isNow ? "true" : undefined}
-                      className={cn(
-                        "border-t border-border first:border-t-0",
-                        isNow && "bg-primary text-on-primary",
-                        isNext && "bg-primary-subtle",
-                        game.done && "text-text-sub",
-                      )}
-                    >
-                      <td
-                        className={cn(
-                          "w-m px-x3s py-xxs text-right text-xs tabular-nums",
-                          isNow ? "text-on-primary" : "text-text-sub",
-                        )}
-                      >
-                        {index + 1}
-                      </td>
-                      {game.players.map((name, column) => (
-                        <td
-                          key={column}
-                          className={cn(
-                            "truncate border-l border-border px-xxs py-xxs text-m",
-                            game.done ? "font-normal" : "font-bold",
-                          )}
-                        >
-                          {me && name === me ? (
-                            <mark className="rounded-sm bg-warning px-x3s text-text">{name}</mark>
-                          ) : (
-                            name
-                          )}
-                        </td>
-                      ))}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            {set === "mini" ? (
+              <MiniTeams
+                teams={teams.map((team) =>
+                  team.map((name) => ({ name, ...(me && name === me ? { note: "自分" } : {}) })),
+                )}
+              />
+            ) : group ? (
+              <>
+                {groups.length > 1 ? (
+                  <GroupTabs
+                    groups={groups.map((entry) => ({
+                      key: entry.key,
+                      label: entry.label,
+                      levels: [],
+                    }))}
+                    selected={group.key}
+                    onSelect={setSelected}
+                    baseId={baseId}
+                    nowOf={(key) => {
+                      const games = groups.find((entry) => entry.key === key)?.games ?? [];
+                      const index = nowIndexOf(games);
+                      return index < games.length ? index + 1 : null;
+                    }}
+                  />
+                ) : null}
+                <div
+                  id={`${baseId}-panel`}
+                  role={groups.length > 1 ? "tabpanel" : undefined}
+                  aria-labelledby={groups.length > 1 ? `${baseId}-tab-${group.key}` : undefined}
+                >
+                  <table
+                    aria-label={`${group.label}の試合表`}
+                    className="w-full table-fixed border-collapse border border-border bg-surface"
+                  >
+                    <tbody>
+                      {group.games.map((game, index) => {
+                        const isNow = index === now;
+                        const isNext = index === now + 1;
+                        return (
+                          <tr
+                            key={index}
+                            aria-current={isNow ? "true" : undefined}
+                            className={cn(
+                              "border-t border-border first:border-t-0",
+                              isNow && "bg-primary text-on-primary",
+                              isNext && "bg-primary-subtle",
+                              game.done && "text-text-sub",
+                            )}
+                          >
+                            <td
+                              className={cn(
+                                "w-m px-x3s py-xxs text-right text-xs tabular-nums",
+                                isNow ? "text-on-primary" : "text-text-sub",
+                              )}
+                            >
+                              {index + 1}
+                            </td>
+                            {game.players.map((name, column) => (
+                              <td
+                                key={column}
+                                className={cn(
+                                  "truncate border-l border-border px-xxs py-xxs text-m",
+                                  game.done ? "font-normal" : "font-bold",
+                                )}
+                              >
+                                {me && name === me ? (
+                                  <mark className="rounded-sm bg-warning px-x3s text-text">
+                                    {name}
+                                  </mark>
+                                ) : (
+                                  name
+                                )}
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
       )}
