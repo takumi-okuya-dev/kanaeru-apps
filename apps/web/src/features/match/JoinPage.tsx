@@ -9,6 +9,7 @@ import type { MatchLevel } from "@workspace/contracts/match";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { Field } from "@workspace/ui/components/field";
 import { Input } from "@workspace/ui/components/input";
@@ -129,12 +130,14 @@ export function JoinRoute() {
           <p className="text-m text-text-sub">
             つながったら、自動で送ります。電波のある所で「もう一度送る」を押しても送れます。
           </p>
-          <Button
-            aria-disabled={send.isPending || undefined}
-            onClick={() => !send.isPending && send.mutate(pending.input)}
-          >
-            {send.isPending ? "送っています…" : "もう一度送る"}
-          </Button>
+          <ButtonRow>
+            <Button
+              aria-disabled={send.isPending || undefined}
+              onClick={() => !send.isPending && send.mutate(pending.input)}
+            >
+              {send.isPending ? "送っています…" : "もう一度送る"}
+            </Button>
+          </ButtonRow>
         </div>
       </Page>
     );
@@ -180,9 +183,11 @@ export function JoinRoute() {
           error={errors.level}
         />
         <div className="flex flex-col gap-xxs">
-          <Button type="submit" variant="primary" aria-disabled={send.isPending || undefined}>
-            {send.isPending ? "送っています…" : "受付する"}
-          </Button>
+          <ButtonRow>
+            <Button type="submit" variant="primary" aria-disabled={send.isPending || undefined}>
+              {send.isPending ? "送っています…" : "受付する"}
+            </Button>
+          </ButtonRow>
           {offline ? (
             <ResponseMessage tone="danger">
               電波がないため、まだ送れていません。電波のある所でもう一度「受付する」を押すか、運営に名前とレベルを伝えてください。

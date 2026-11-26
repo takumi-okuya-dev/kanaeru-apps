@@ -22,11 +22,11 @@ export function UpdatePrompt() {
     >
       <p className="text-m">新しい版があります。読み直すと新しくなります。</p>
       <div className="flex gap-xxs">
-        <Button size="small" variant="primary" onClick={applyUpdate}>
-          読み直す
-        </Button>
         <Button size="small" onClick={() => setLater(true)}>
           あとで
+        </Button>
+        <Button size="small" variant="primary" onClick={applyUpdate}>
+          読み直す
         </Button>
       </div>
     </div>
