@@ -4,6 +4,7 @@ import { ResearchKeywordInput, parseKeywordIdeas } from "@workspace/contracts/th
 import type { KeywordIdea, ResearchKeyword } from "@workspace/contracts/threads";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { Field } from "@workspace/ui/components/field";
 import { Input } from "@workspace/ui/components/input";
@@ -218,15 +219,17 @@ export function KeywordsSection({ accountId }: SectionProps) {
           <Input value={purpose} onChange={(change) => setPurpose(change.target.value)} />
         </Field>
         <div className="flex flex-col items-start gap-xxs">
-          <Button type="submit">キーワードを足す</Button>
+          <ButtonRow>
+            <Button type="submit">キーワードを足す</Button>
+          </ButtonRow>
           {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
         </div>
       </form>
       <div className="flex flex-col gap-xs rounded-md border border-border p-xs">
         <h3 className="text-m font-bold">キーワードの案を外の AI に出してもらう</h3>
-        <div>
+        <ButtonRow>
           <Button onClick={() => void makeIdeaPrompt()}>キーワードの案のプロンプトを作る</Button>
-        </div>
+        </ButtonRow>
         {ideaPrompt ? (
           <>
             <Field label="キーワードの案のプロンプト">
@@ -277,9 +280,11 @@ export function KeywordsSection({ accountId }: SectionProps) {
         ) : null}
         <div className="flex flex-col items-start gap-xxs">
           {ideaPrompt ? (
-            <Button variant="primary" onClick={() => void addIdeas()}>
-              選んだキーワードを足す
-            </Button>
+            <ButtonRow>
+              <Button variant="primary" onClick={() => void addIdeas()}>
+                選んだキーワードを足す
+              </Button>
+            </ButtonRow>
           ) : null}
           {ideaResult ? (
             <ResponseMessage tone={ideaResult.tone}>{ideaResult.message}</ResponseMessage>

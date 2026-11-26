@@ -6,6 +6,7 @@ import type { PostingSchedule, ThreadsCheck } from "@workspace/contracts/threads
 import { jstDateTime } from "@workspace/contracts/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useState } from "react";
 import { checkThreadsPublish, fetchAutoPost } from "./api.ts";
@@ -97,9 +98,11 @@ export function PublishCheck({ accountId }: PublishCheckProps) {
 
   return (
     <div className="flex flex-col items-start gap-xxs">
-      <Button size="small" aria-disabled={pending || undefined} onClick={() => void check()}>
-        {pending ? "確かめています…" : "投稿できるかを確かめる"}
-      </Button>
+      <ButtonRow>
+        <Button aria-disabled={pending || undefined} onClick={() => void check()}>
+          {pending ? "確かめています…" : "投稿できるかを確かめる"}
+        </Button>
+      </ButtonRow>
       {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
     </div>
   );

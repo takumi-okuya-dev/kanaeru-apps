@@ -8,6 +8,7 @@ import { homeNextStep } from "@workspace/contracts/threads";
 import type { HomeStepTarget, ThreadsAccount } from "@workspace/contracts/threads";
 import { Link, getRouteApi } from "@tanstack/react-router";
 import { buttonVariants } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Disclosure } from "@workspace/ui/components/disclosure";
 import { cn } from "@workspace/ui/lib/cn";
 import type * as React from "react";
@@ -258,9 +259,9 @@ function HomeSteps({
           {step.title}
         </h2>
         <p className="text-m">{step.body}</p>
-        <div className="pt-x3s">
+        <ButtonRow className="pt-x3s">
           <StepLink accountId={account.id} target={step.target} />
-        </div>
+        </ButtonRow>
       </section>
       <nav aria-label="投稿の材料">
         <ul className="grid gap-xxs md:grid-cols-3">

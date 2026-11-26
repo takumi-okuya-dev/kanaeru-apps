@@ -14,6 +14,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Disclosure } from "@workspace/ui/components/disclosure";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { Input } from "@workspace/ui/components/input";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
@@ -194,10 +195,13 @@ function ConnectionBody({ accountId, connection }: { accountId: string; connecti
       />
       {connected ? (
         <div className="flex flex-col items-start gap-xxs">
-          <div className="flex flex-wrap gap-xxs">
+          <ButtonRow>
             <Button onClick={() => void check()} aria-disabled={checking || undefined}>
               {checking ? "確かめています…" : "接続を確かめる"}
             </Button>
+          </ButtonRow>
+          {/* 危ない操作（接続を切る）は、確かめるの並びに入れず、あとに左へ離して置く（主の場所にも、先の Tab にもしない） */}
+          <div>
             <Button variant="danger" onClick={() => setConfirmOpen(true)}>
               接続を切る
             </Button>
@@ -370,9 +374,9 @@ function ScheduleForm({ accountId, view }: { accountId: string; view: PostingSch
             </li>
           ))}
         </ul>
+        {/* 行を足す操作は、保存と見分けやすいよう左に置く（右寄せの ButtonRow にしない） */}
         <div>
           <Button
-            size="small"
             disabled={rows.length >= AUTOPOST_SLOT_LIMIT}
             onClick={() => setRows((current) => [...current, timeRow("")])}
           >
@@ -396,9 +400,11 @@ function ScheduleForm({ accountId, view }: { accountId: string; view: PostingSch
         {limits.minGapMinutes}分以上あけます）
       </label>
       <div className="flex flex-col items-start gap-xxs">
-        <Button type="submit" variant="primary" aria-disabled={pending || undefined}>
-          {pending ? "保存しています…" : "自動投稿の設定を保存"}
-        </Button>
+        <ButtonRow>
+          <Button type="submit" variant="primary" aria-disabled={pending || undefined}>
+            {pending ? "保存しています…" : "自動投稿の設定を保存"}
+          </Button>
+        </ButtonRow>
         {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
       </div>
     </form>

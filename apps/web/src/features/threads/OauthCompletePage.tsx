@@ -2,6 +2,7 @@
 // 返った道（設定の画面など）へ移る。接続は、ログインした同じ人のときだけ済む（API が state の持ち主と比べる）。
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { useEffect, useRef, useState } from "react";
 import { errorMessage } from "../../lib/api.ts";
 import { ThreadsPage } from "./ThreadsPage.tsx";
@@ -41,11 +42,11 @@ function Completer() {
   if (error) {
     return (
       <ThreadsPage title="つなげませんでした" lead={error}>
-        <div>
+        <ButtonRow>
           <Button onClick={() => void navigate({ to: "/threads/accounts" })}>
             アカウントの一覧へ
           </Button>
-        </div>
+        </ButtonRow>
       </ThreadsPage>
     );
   }

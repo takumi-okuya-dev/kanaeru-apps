@@ -431,25 +431,29 @@ function Team({ teamId }: { teamId: string }) {
     <ThreadsPage
       title={view.name}
       lead={`組織：${view.organization.name}・あなたの役割：${TEAM_ROLE_LABELS[view.myRole]}${view.leader ? "（このチームのリーダー）" : ""}`}
-    >
-      <div className="flex flex-wrap items-center gap-xxs">
-        {view.leader ? <Badge variant="success">リーダー</Badge> : null}
-        <Link
-          to="/threads/teams"
-          className={buttonVariants({ variant: "secondary", size: "small" })}
-        >
-          チームの一覧へ
-        </Link>
-        {view.myRole === "admin" ? (
-          <Link
-            to="/settings/organizations/$organizationId"
-            params={{ organizationId: view.organization.id }}
-            className={buttonVariants({ variant: "secondary", size: "small" })}
-          >
-            人を招く・チームに分ける
+      // ほかの画面へ移るリンクは題の横に置く（DESIGN.md の「ボタンの並べ方」）
+      actions={
+        <>
+          <Link to="/threads/teams" className={buttonVariants({ variant: "secondary" })}>
+            チームの一覧へ
           </Link>
-        ) : null}
-      </div>
+          {view.myRole === "admin" ? (
+            <Link
+              to="/settings/organizations/$organizationId"
+              params={{ organizationId: view.organization.id }}
+              className={buttonVariants({ variant: "secondary" })}
+            >
+              人を招く・チームに分ける
+            </Link>
+          ) : null}
+        </>
+      }
+    >
+      {view.leader ? (
+        <div>
+          <Badge variant="success">リーダー</Badge>
+        </div>
+      ) : null}
       {tabs.length > 1 ? (
         <SectionTabs label="見るもの" tabs={tabs} current={current} onSelect={setTab} />
       ) : null}

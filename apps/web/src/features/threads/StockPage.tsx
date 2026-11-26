@@ -31,6 +31,7 @@ import { jstDateTime } from "@workspace/contracts/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
@@ -659,14 +660,16 @@ function StockContent({ account, status, onStatusChange }: StockContentProps) {
           ) : null}
           {published && publishedPages.hasNextPage ? (
             <div className="flex flex-col items-start gap-xxs">
-              <Button
-                aria-disabled={publishedPages.isFetchingNextPage || undefined}
-                onClick={() => {
-                  if (!publishedPages.isFetchingNextPage) void publishedPages.fetchNextPage();
-                }}
-              >
-                {publishedPages.isFetchingNextPage ? "読みこんでいます…" : "もっと見る"}
-              </Button>
+              <ButtonRow>
+                <Button
+                  aria-disabled={publishedPages.isFetchingNextPage || undefined}
+                  onClick={() => {
+                    if (!publishedPages.isFetchingNextPage) void publishedPages.fetchNextPage();
+                  }}
+                >
+                  {publishedPages.isFetchingNextPage ? "読みこんでいます…" : "もっと見る"}
+                </Button>
+              </ButtonRow>
               {publishedPages.isFetchNextPageError ? (
                 <ResponseMessage tone="danger">
                   続きを読めませんでした。{errorMessage(publishedPages.error)}

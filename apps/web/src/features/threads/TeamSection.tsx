@@ -12,6 +12,7 @@ import { Link } from "@tanstack/react-router";
 import { Disclosure } from "@workspace/ui/components/disclosure";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Dialog } from "@workspace/ui/components/dialog";
 import { Field, useFieldControl } from "@workspace/ui/components/field";
 import { inputClassName } from "@workspace/ui/components/input";
@@ -238,13 +239,15 @@ function OwnerControls({ accountId, team }: { accountId: string; team: ThreadsAc
           <p className="text-s text-text-sub">{PLACEMENT_NOTE}</p>
         </Disclosure>
         <div className="flex flex-col items-start gap-xxs">
-          <Button
-            disabled={!changed}
-            aria-disabled={pending || undefined}
-            onClick={() => void savePlacement()}
-          >
-            {pending ? "入れています…" : "チームに入れる"}
-          </Button>
+          <ButtonRow>
+            <Button
+              disabled={!changed}
+              aria-disabled={pending || undefined}
+              onClick={() => void savePlacement()}
+            >
+              {pending ? "入れています…" : "チームに入れる"}
+            </Button>
+          </ButtonRow>
           {placementMessage}
         </div>
       </div>

@@ -6,6 +6,7 @@ import { TEAM_ROLE_LABELS } from "@workspace/contracts/threads";
 import { Link, Navigate } from "@tanstack/react-router";
 import { Badge } from "@workspace/ui/components/badge";
 import { buttonVariants } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Disclosure } from "@workspace/ui/components/disclosure";
 import { SessionGate } from "../account/index.ts";
 import { LoadFailure, Loading } from "./AccountGate.tsx";
@@ -147,15 +148,15 @@ function Teams() {
                       ]}
                     />
                   </Disclosure>
-                  <div>
+                  <ButtonRow>
                     <Link
                       to="/settings/organizations/$organizationId"
                       params={{ organizationId: organization.organizationId }}
-                      className={buttonVariants({ variant: "secondary", size: "small" })}
+                      className={buttonVariants({ variant: "secondary" })}
                     >
                       人を招く・チームに分ける
                     </Link>
-                  </div>
+                  </ButtonRow>
                 </>
               ) : null}
             </section>

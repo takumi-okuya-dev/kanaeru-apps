@@ -17,6 +17,7 @@ import type {
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { Dialog } from "@workspace/ui/components/dialog";
@@ -249,7 +250,7 @@ function PromotionDialog({
       }}
       title={promotion ? "宣伝を直す" : "宣伝を足す"}
       footer={
-        <div className="flex flex-col-reverse gap-xxs wide:flex-row wide:justify-end">
+        <>
           <Button onClick={onClose} aria-disabled={pending || undefined}>
             キャンセル
           </Button>
@@ -260,7 +261,7 @@ function PromotionDialog({
           >
             {pending ? "保存しています…" : "保存"}
           </Button>
-        </div>
+        </>
       }
     >
       <div className="flex flex-col gap-xs">
@@ -750,7 +751,9 @@ export function PromotionsSection({ accountId }: SectionProps) {
             />
           </Field>
           <div className="flex flex-col items-start gap-xxs">
-            <Button type="submit">割合を保存</Button>
+            <ButtonRow>
+              <Button type="submit">割合を保存</Button>
+            </ButtonRow>
             {ratioResult ? (
               <ResponseMessage tone={ratioResult.tone}>{ratioResult.message}</ResponseMessage>
             ) : null}
@@ -818,14 +821,16 @@ export function PromotionsSection({ accountId }: SectionProps) {
         </>
       )}
       <div className="flex flex-col items-start gap-xxs">
-        <Button
-          onClick={() => {
-            if (!atLimit) setDialog({ promotion: undefined });
-          }}
-          aria-disabled={atLimit || undefined}
-        >
-          宣伝を足す
-        </Button>
+        <ButtonRow>
+          <Button
+            onClick={() => {
+              if (!atLimit) setDialog({ promotion: undefined });
+            }}
+            aria-disabled={atLimit || undefined}
+          >
+            宣伝を足す
+          </Button>
+        </ButtonRow>
         {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
       </div>
       {dialog ? (

@@ -6,6 +6,7 @@ import { EXPLAIN_BATCH_MAX, isBlank, parseExplanations } from "@workspace/contra
 import type { ExplanationProblem, ReferencePost } from "@workspace/contracts/threads";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Field } from "@workspace/ui/components/field";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { Textarea } from "@workspace/ui/components/textarea";
@@ -129,9 +130,11 @@ export function ExplainBatchPanel({ accountId, posts, onSaved }: ExplainBatchPan
       </p>
       {pendingCount > 0 ? (
         <div className="flex flex-col items-start gap-xxs">
-          <Button onClick={() => void makePrompt()}>
-            解説のプロンプトを作る（{batchCount}件）
-          </Button>
+          <ButtonRow>
+            <Button onClick={() => void makePrompt()}>
+              解説のプロンプトを作る（{batchCount}件）
+            </Button>
+          </ButtonRow>
           {promptError ? <ResponseMessage tone="danger">{promptError}</ResponseMessage> : null}
         </div>
       ) : null}
@@ -216,13 +219,15 @@ export function ExplainBatchPanel({ accountId, posts, onSaved }: ExplainBatchPan
             </fieldset>
           ) : null}
           <div className="flex flex-col items-start gap-xxs">
-            <Button
-              variant="primary"
-              onClick={() => void save()}
-              aria-disabled={pending || undefined}
-            >
-              {pending ? "保存しています…" : `${picked.length.toString()}件の解説を保存`}
-            </Button>
+            <ButtonRow>
+              <Button
+                variant="primary"
+                onClick={() => void save()}
+                aria-disabled={pending || undefined}
+              >
+                {pending ? "保存しています…" : `${picked.length.toString()}件の解説を保存`}
+              </Button>
+            </ButtonRow>
           </div>
         </>
       ) : null}

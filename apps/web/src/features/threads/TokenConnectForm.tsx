@@ -18,6 +18,7 @@ import type { ConnectResult } from "@workspace/contracts/threads";
 import { Link } from "@tanstack/react-router";
 import { Disclosure } from "@workspace/ui/components/disclosure";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Field } from "@workspace/ui/components/field";
 import { Input } from "@workspace/ui/components/input";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
@@ -207,13 +208,15 @@ export function TokenConnectForm({
         に書いています（どちらも新しいタブで開きます）。
       </p>
       <div className="flex flex-col items-start gap-xxs">
-        <Button
-          type="submit"
-          variant="primary"
-          aria-disabled={pending || lockedUntil !== null || undefined}
-        >
-          {pending ? "確かめています…" : again}
-        </Button>
+        <ButtonRow>
+          <Button
+            type="submit"
+            variant="primary"
+            aria-disabled={pending || lockedUntil !== null || undefined}
+          >
+            {pending ? "確かめています…" : again}
+          </Button>
+        </ButtonRow>
         {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
         {result?.code === THREADS_ERRORS.THREADS_ACCOUNT_REGISTERED.code ? (
           <Link to={threadsPaths.accounts()} className="text-s text-text-link underline">

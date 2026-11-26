@@ -424,6 +424,7 @@ function StrategyForm({ accountId, strategy }: StrategyFormProps) {
           );
         })}
       </section>
+      {/* 区分の行き来は、前を左・次を右に置く（向きの手がかり。右寄せの ButtonRow にしない） */}
       <div className="flex flex-wrap items-center justify-between gap-xxs border-t border-border pt-xs">
         {previous ? (
           <Button onClick={() => selectSection(previous.id)}>{`← ${previous.chip}`}</Button>
@@ -474,7 +475,7 @@ function StrategyForm({ accountId, strategy }: StrategyFormProps) {
             : "ほかの画面で戦略が保存されています。どちらにするかを選んでください。"
         }
         footer={
-          <div className="flex flex-wrap justify-end gap-xxs">
+          <>
             <Button
               onClick={() => {
                 if (!conflict) return;
@@ -499,7 +500,7 @@ function StrategyForm({ accountId, strategy }: StrategyFormProps) {
             >
               上書きする
             </Button>
-          </div>
+          </>
         }
       >
         <ul className="list-disc pl-s text-s">
