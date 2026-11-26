@@ -3,6 +3,7 @@
 import type { CheckinInput, CheckinView } from "@workspace/contracts/reception";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useEffect, useRef, useState } from "react";
 import type * as React from "react";
@@ -92,19 +93,14 @@ export function ManualCheckinForm({
       </h3>
       <CheckinFields values={values} onChange={setValues} errors={errors} discounts={discounts} />
       <div className="flex flex-col gap-xxs">
-        <div className="flex flex-wrap gap-xxs">
-          <Button
-            type="submit"
-            variant="primary"
-            aria-disabled={mutation.isPending || undefined}
-            className="min-h-xl"
-          >
-            {mutation.isPending ? "チェックインしています…" : "チェックインする"}
-          </Button>
-          <Button type="button" className="min-h-xl" onClick={onCancel}>
+        <ButtonRow>
+          <Button type="button" onClick={onCancel}>
             やめる
           </Button>
-        </div>
+          <Button type="submit" variant="primary" aria-disabled={mutation.isPending || undefined}>
+            {mutation.isPending ? "チェックインしています…" : "チェックインする"}
+          </Button>
+        </ButtonRow>
         {mutation.isError && Object.keys(fieldErrorsFromApi(mutation.error)).length === 0 ? (
           <ResponseMessage tone="danger">
             {`チェックインできませんでした。${errorMessage(mutation.error)}`}
