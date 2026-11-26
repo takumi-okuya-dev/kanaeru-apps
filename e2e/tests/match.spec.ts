@@ -544,6 +544,16 @@ test("組み合わせを直す：ドラッグか2人を順に押して入れか�
   await expect(
     page.getByRole("table", { name: "上級の試合表" }).getByRole("row").nth(1),
   ).toContainText("内田");
+
+  // 名前を選んだまま組み直すと、選んだ名前は外れる（選んだ場所に別の人が入るため）
+  await page.getByRole("button", { name: "組み合わせを直す" }).click();
+  const board = page.getByRole("table", { name: "上級の試合表" });
+  await board.getByRole("button").first().click();
+  await expect(board.locator('[aria-pressed="true"]')).toHaveCount(1);
+  await page.getByRole("button", { name: "別の組み合わせにする" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "別の組み合わせにする" }).click();
+  await waitSaved(page);
+  await expect(board.locator('[aria-pressed="true"]')).toHaveCount(0);
   expect(await readCspViolations()).toEqual([]);
 });
 

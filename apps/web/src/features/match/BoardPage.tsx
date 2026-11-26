@@ -210,6 +210,12 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
   const [pickedMember, setPickedMember] = useState<TeamSlot | null>(null);
   const canEdit = editing && editor.isEditor;
 
+  /** 選んだ名前を外す（組み直し・やり直し・当日の直しで、選んだ場所に別の人が入ることがあるため）。 */
+  const clearPicks = () => {
+    setPickedGame(null);
+    setPickedMember(null);
+  };
+
   /**
    * 入れかえの結果を保存し、帯に知らせる。
    * @param run 入れかえる（今の中身から結果を作る）
@@ -346,6 +352,7 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
    * @param action 直し方
    */
   const mark = (playerId: string, action: AttendanceAction) => {
+    clearPicks();
     let text = "";
     const applied = editor.apply((draft) => {
       const result = markAttendance(draft.content, draft.seed, playerId, action);
@@ -367,6 +374,7 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
    * @param next 新しい設定
    */
   const regroup = (next: MatchSettings) => {
+    clearPicks();
     const applied = editor.apply((draft) => {
       const changed = changeSettings(draft.content, next).content;
       // ミニゲームのチームは、外したとき・コート数を変えたときだけ分け直す（changeSettings が消したときだけ作る）
@@ -396,6 +404,7 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
   /** ミニゲームのチームを、今の来る人だけで分け直す（当日の印を変えてもチームは変えないため。research R5）。 */
   const redoTeams = () => {
     setTeamsOpen(false);
+    clearPicks();
     let short = false;
     const applied = editor.apply((draft) => {
       const mini = buildMini(draft.content, draft.seed);
@@ -624,6 +633,7 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
         confirmLabel="別の組み合わせにする"
         onConfirm={() => {
           setConfirmOpen(false);
+          clearPicks();
           editor.apply((draft) => {
             const seed = newSeed();
             return { seed, content: rebuild(draft.content, seed, { reshuffleMini: true }) };
