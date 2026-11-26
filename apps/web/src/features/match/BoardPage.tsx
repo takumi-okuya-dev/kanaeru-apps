@@ -459,12 +459,8 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
       <EditorState editor={editor} />
       {planned ? (
         // 画面の操作は、題の下に同じ幅の格子で並べる（DESIGN.md の「ボタンの並べ方」。直す操作は担当の端末だけ）
-        // スマホの2列では文字が長いので、ボタンの左右の余白を小さくして途中の折り返しを減らす。
-        // 数が奇数のときは、最後の1つをスマホで2列分の幅にする（空きを作らない）
-        <ButtonRow
-          layout="grid"
-          className="*:px-xxs *:last:odd:col-span-2 wide:*:last:odd:col-span-1"
-        >
+        // スマホの2列では文字が長いので、ボタンの左右の余白を部品の決まり（xs）よりさらに小さくして、途中の折り返しを減らす
+        <ButtonRow layout="grid" className="max-wide:*:px-xxs">
           {editor.isEditor ? (
             <>
               <Button onClick={() => setAttendanceOpen(true)}>人を選んで直す</Button>

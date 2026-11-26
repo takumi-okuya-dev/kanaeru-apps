@@ -75,10 +75,7 @@ function ViewLinkBody({ table }: { table: MatchTable }) {
           <QrCode text={url} label="見るだけのページの QR" className="border border-border" />
           <p className="max-w-menu text-s break-all text-text-sub">{url}</p>
           <p className="text-m">{`${expiryText(link.expiresAt)}見られます。`}</p>
-          <ButtonRow
-            layout="grid"
-            className="w-full *:last:odd:col-span-2 wide:*:last:odd:col-span-1"
-          >
+          <ButtonRow layout="grid">
             <Button
               onClick={() => {
                 void navigator.clipboard
@@ -121,7 +118,7 @@ function ViewLinkBody({ table }: { table: MatchTable }) {
                 : "見るだけのリンクは、ほかの端末で作りました。この端末で QR を出すには、リンクを作り直します（前のリンクと刷った QR は使えなくなります）。"}
             </p>
           ) : null}
-          <ButtonRow className="w-full">
+          <ButtonRow>
             <Button
               variant="primary"
               disabled={pending}
