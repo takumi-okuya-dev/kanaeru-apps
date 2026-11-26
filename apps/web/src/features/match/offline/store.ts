@@ -4,7 +4,9 @@
 // - meta：端末の ID・試合表の一覧など、小さな値
 // IndexedDB を開けない（古いブラウザ・プライベートブラウズの一部）ときは、画面を開いている間だけの置き場所（memory）にする。
 // 置くのはこの端末の運営が開いた試合表だけ（呼び名とレベル。氏名は持たない。Constitution II）。
-import type { MatchTable, MatchTableContent } from "@workspace/contracts/match";
+// 読んだ中身は約束の MatchTableContent で今の形に直す（前の版で置いた写し・送っていない変更の設定の形。match-009 research R1）。
+import { MatchSettings, MatchTableContent } from "@workspace/contracts/match";
+import type { MatchTable } from "@workspace/contracts/match";
 
 /** 送っていない変更（1つの変更は中身のまるごと。AD-28）。 */
 export type OutboxEntry = {
@@ -254,6 +256,54 @@ function createIndexedDbStore(db: IDBDatabase): OfflineStore {
   };
 }
 
+/**
+ * 端末に置いた中身を今の形に直す（前の形の設定を直す。直せないものはそのまま返す）。
+ * @param content 置いた中身
+ * @returns 今の形の中身
+ */
+export function upgradeContent(content: MatchTableContent): MatchTableContent {
+  const parsed = MatchTableContent.safeParse(content);
+  if (parsed.success) return parsed.data;
+  // 中身のほかの所が今の確かめに通らなくても、設定だけは今の形に直す（画面が前の形の設定を読んで壊れないように）
+  const settings = MatchSettings.safeParse(content.settings);
+  return settings.success ? { ...content, settings: settings.data } : content;
+}
+
+/**
+ * 読んだ中身を今の形に直す置き場所（試合表の写しと送っていない変更）。
+ * @param store もとの置き場所
+ * @returns 置き場所
+ */
+function upgradingStore(store: OfflineStore): OfflineStore {
+  return {
+    get durable() {
+      return store.durable;
+    },
+    readSnapshot: async (tableId) => {
+      const snapshot = await store.readSnapshot(tableId);
+      return snapshot
+        ? {
+            ...snapshot,
+            table: { ...snapshot.table, content: upgradeContent(snapshot.table.content) },
+          }
+        : undefined;
+    },
+    writeSnapshot: (snapshot) => store.writeSnapshot(snapshot),
+    removeTable: (tableId) => store.removeTable(tableId),
+    listChanges: async (tableId) =>
+      (await store.listChanges(tableId)).map((entry) => ({
+        ...entry,
+        content: upgradeContent(entry.content),
+      })),
+    addChange: (entry) => store.addChange(entry),
+    removeChange: (seq) => store.removeChange(seq),
+    clearChanges: (tableId) => store.clearChanges(tableId),
+    readMeta: <T>(key: string) => store.readMeta<T>(key),
+    writeMeta: (key, value) => store.writeMeta(key, value),
+    clearAccountData: (keepMeta) => store.clearAccountData(keepMeta),
+  };
+}
+
 /** 開いた置き場所（1つだけ）。 */
 let opened: Promise<OfflineStore> | undefined;
 
@@ -270,7 +320,7 @@ export function offlineStore(): Promise<OfflineStore> {
       return createMemoryStore();
     }
   })();
-  return opened;
+  return opened.then(upgradingStore);
 }
 
 /**

@@ -294,6 +294,269 @@ const DAY_PLAYERS = [
   ["d2", "関口", "novice"],
 ] as const;
 
+test("試合の数を入れ、レベル別と分けないとミニゲームを組み合わせて切り替える（match-009）", async ({
+  page,
+}, testInfo) => {
+  const readCspViolations = await collectCspViolations(page);
+  const tag = testInfo.project.name === "mobile" ? "a92" : "a91";
+  const lineUserId = `U${(tag + Date.now().toString(16)).padStart(32, "0")}`;
+  const deviceA = `d-e2e-${tag}-device-a`;
+  await page.addInitScript((id) => {
+    window.localStorage.setItem("kanaeru.match.deviceId", id);
+  }, deviceA);
+  const login = await page.request.post("/api/v1/auth/test-login", {
+    data: { lineUserId, displayName: `分け方の運営（${testInfo.project.name}）` },
+    headers: ORIGIN,
+  });
+  expect(login.status()).toBe(200);
+  const created = await page.request.post("/api/v1/match/tables", {
+    data: { name: "12/27(日) 練習会", playDate: "2026-12-27", deviceId: deviceA },
+    headers: ORIGIN,
+  });
+  expect(created.status()).toBe(201);
+  const table = (await created.json()) as {
+    id: string;
+    version: number;
+    content: { settings: Record<string, unknown> };
+  };
+  const saved = await page.request.put(`/api/v1/match/tables/${table.id}`, {
+    data: {
+      deviceId: deviceA,
+      baseVersion: table.version,
+      changeId: crypto.randomUUID(),
+      seed: 13,
+      content: {
+        settings: table.content.settings,
+        players: DAY_PLAYERS.map(([id, nickname, level]) => ({
+          id,
+          nickname,
+          level,
+          status: "present",
+        })),
+        plan: [],
+      },
+    },
+    headers: ORIGIN,
+  });
+  expect(saved.status()).toBe(200);
+
+  // 名簿と設定：時刻の欄はなく、試合の数を入れる
+  await page.goto(`/match/tables/${table.id}`);
+  await expect(page.getByRole("spinbutton", { name: "試合の数（1つの組）" })).toHaveValue("8");
+  await expect(page.getByLabel("1試合（分）")).toHaveCount(0);
+  await expect(page.getByLabel("試合の始まり")).toHaveCount(0);
+  const count = page.getByRole("spinbutton", { name: "試合の数（1つの組）" });
+  await count.fill("10");
+  await count.blur();
+  await waitSaved(page);
+  // 分け方を組み合わせる：レベル別（3つ）・分けない・ミニゲーム（2コート）
+  await page.getByRole("radio", { name: "上級・中級・初級＆入門" }).click();
+  await waitSaved(page);
+  await page.getByRole("checkbox", { name: /^分けない/u }).check();
+  await waitSaved(page);
+  await page.getByRole("checkbox", { name: /^ミニゲーム/u }).check();
+  await waitSaved(page);
+  await expect(page.getByRole("spinbutton", { name: "コート数" })).toHaveValue("2");
+  await expect(page.getByText("13人・10試合")).toBeVisible();
+  await expect(page.getByText("13人・4チーム・1チーム3〜4人")).toBeVisible();
+  await checkPage(page, "名簿と設定（分け方の組み合わせ）");
+  // どれも外すと、欄のそばに誤り
+  await page.getByRole("checkbox", { name: /^ミニゲーム/u }).uncheck();
+  await waitSaved(page);
+  await page.getByRole("checkbox", { name: /^分けない/u }).uncheck();
+  await waitSaved(page);
+  // 最後の1つは外れず（印は残る）、誤りを出す
+  await page.getByRole("checkbox", { name: "レベル別" }).click();
+  await expect(page.getByText("分け方を1つ以上選んでください。")).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "レベル別" })).toBeChecked();
+  await page.getByRole("checkbox", { name: /^分けない/u }).check();
+  await waitSaved(page);
+  await expect(page.getByText("分け方を1つ以上選んでください。")).toHaveCount(0);
+  await page.getByRole("checkbox", { name: /^ミニゲーム/u }).check();
+  await waitSaved(page);
+
+  // 試合表：分け方のタブで切り替える
+  await page.getByRole("button", { name: "試合表を作る" }).click();
+  await waitSaved(page);
+  await expect(page.getByRole("tab", { name: "レベル別" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(page.getByRole("table", { name: "上級の試合表" }).getByRole("row")).toHaveCount(10);
+  await page.getByRole("tab", { name: "分けない" }).click();
+  await expect(page.getByRole("table", { name: "全員の試合表" }).getByRole("row")).toHaveCount(10);
+  await page.getByRole("tab", { name: "ミニゲーム" }).click();
+  await expect(page.getByRole("heading", { name: "コート 1" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "コート 2" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "チーム 4" })).toBeVisible();
+  await checkPage(page, "試合表（ミニゲーム）");
+  // 帰った人はチームに残り印が付く → チーム分けをやり直すと外れる
+  await page.getByRole("button", { name: "人を選んで直す" }).click();
+  const attendance = page.getByRole("dialog", { name: "人を選んで直す" });
+  await attendance.getByRole("combobox", { name: "人" }).selectOption({ label: "青木（来る）" });
+  await attendance.getByRole("button", { name: "帰る" }).click();
+  await waitSaved(page);
+  await page.getByRole("tab", { name: "ミニゲーム" }).click();
+  await expect(page.getByText("上級・帰った")).toBeVisible();
+  await page.getByRole("button", { name: "チーム分けをやり直す" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "やり直す" }).click();
+  await waitSaved(page);
+  await expect(page.getByText("上級・帰った")).toHaveCount(0);
+  await expect(page.getByText("今の来る人で、ミニゲームのチームを分け直しました。")).toBeVisible();
+
+  // 印刷：ミニゲームの1枚も刷れる
+  await page.getByRole("link", { name: "印刷" }).first().click();
+  await expect(page.getByRole("figure", { name: "ミニゲームの印刷の版" })).toBeVisible();
+  await checkPage(page, "印刷（ミニゲーム）");
+  expect(await readCspViolations()).toEqual([]);
+});
+
+/** 入れかえの E2E の名簿（上級8人。架空の名前）。 */
+const SWAP_PLAYERS = [
+  ["p1", "安藤"],
+  ["p2", "井上"],
+  ["p3", "内田"],
+  ["p4", "遠藤"],
+  ["p5", "岡田"],
+  ["p6", "川口"],
+  ["p7", "木村"],
+  ["p8", "熊谷"],
+] as const;
+
+test("組み合わせを直す：ドラッグか2人を順に押して入れかえ、ミニゲームの人をほかのチームへ移す（match-010）", async ({
+  page,
+}, testInfo) => {
+  const readCspViolations = await collectCspViolations(page);
+  const tag = testInfo.project.name === "mobile" ? "a82" : "a81";
+  const lineUserId = `U${(tag + Date.now().toString(16)).padStart(32, "0")}`;
+  const deviceA = `d-e2e-${tag}-device-a`;
+  await page.addInitScript((id) => {
+    window.localStorage.setItem("kanaeru.match.deviceId", id);
+  }, deviceA);
+  const login = await page.request.post("/api/v1/auth/test-login", {
+    data: { lineUserId, displayName: `入れかえの運営（${testInfo.project.name}）` },
+    headers: ORIGIN,
+  });
+  expect(login.status()).toBe(200);
+  const created = await page.request.post("/api/v1/match/tables", {
+    data: { name: "1/10(土) 練習会", playDate: "2027-01-10", deviceId: deviceA },
+    headers: ORIGIN,
+  });
+  expect(created.status()).toBe(201);
+  const table = (await created.json()) as { id: string; version: number };
+  const saved = await page.request.put(`/api/v1/match/tables/${table.id}`, {
+    data: {
+      deviceId: deviceA,
+      baseVersion: table.version,
+      changeId: crypto.randomUUID(),
+      seed: 5,
+      content: {
+        settings: { format: "doubles", gameCount: 4, levels: "four", ungrouped: false, courts: 1 },
+        players: SWAP_PLAYERS.map(([id, nickname]) => ({
+          id,
+          nickname,
+          level: "advanced",
+          status: "present",
+        })),
+        plan: [
+          {
+            key: "advanced",
+            games: [
+              { players: ["p1", "p2", "p3", "p4"], done: true },
+              { players: ["p5", "p6", "p7", "p8"], done: false },
+              { players: ["p1", "p2", "p5", "p6"], done: false },
+              { players: ["p3", "p4", "p7", "p8"], done: false },
+            ],
+          },
+        ],
+        mini: {
+          teams: [
+            ["p1", "p2", "p3", "p4"],
+            ["p5", "p6", "p7", "p8"],
+          ],
+        },
+      },
+    },
+    headers: ORIGIN,
+  });
+  expect(saved.status()).toBe(200);
+
+  await page.goto(`/match/tables/${table.id}/board`);
+  await page.getByRole("button", { name: "組み合わせを直す" }).click();
+  // 終わった試合の名前は動かせない
+  await expect(page.getByRole("button", { name: "第1試合の安藤" })).toHaveCount(0);
+  await checkPage(page, "組み合わせを直す");
+
+  // 2人を順に押して入れかえる
+  await page.getByRole("button", { name: "第2試合の岡田" }).click();
+  await expect(page.getByRole("button", { name: "第2試合の岡田" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await page.getByRole("button", { name: "第4試合の内田" }).click();
+  await expect(
+    page.getByText("第2試合の「岡田」と第4試合の「内田」を入れかえました。"),
+  ).toBeVisible();
+  await waitSaved(page);
+  await expect(page.getByRole("button", { name: "第2試合の内田" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "第4試合の岡田" })).toBeVisible();
+
+  // 同じ試合に同じ人が2回入るときは入れかえない
+  await page.getByRole("button", { name: "第3試合の安藤" }).click();
+  await page.getByRole("button", { name: "第2試合の川口" }).click();
+  await expect(page.getByText("同じ試合に同じ人が2回入るため、入れかえられません。")).toBeVisible();
+  await expect(page.getByRole("button", { name: "第3試合の安藤" })).toBeVisible();
+
+  // パソコンはドラッグでも入れかえる
+  if (testInfo.project.name !== "mobile") {
+    await page
+      .getByRole("button", { name: "第3試合の井上" })
+      .dragTo(page.getByRole("button", { name: "第4試合の遠藤" }));
+    await expect(
+      page.getByText("第3試合の「井上」と第4試合の「遠藤」を入れかえました。"),
+    ).toBeVisible();
+    await waitSaved(page);
+  }
+
+  // 選んだまま分け方のタブを替えると、選んだ印は消える
+  await page.getByRole("button", { name: "第2試合の内田" }).click();
+  await page.getByRole("tab", { name: "ミニゲーム" }).click();
+  await page.getByRole("tab", { name: "レベル別" }).click();
+  await expect(page.getByRole("button", { name: "第2試合の内田" })).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+
+  // ミニゲーム：1人をほかのチームへ移す
+  await page.getByRole("tab", { name: "ミニゲーム" }).click();
+  await page.getByRole("button", { name: "チーム1の安藤" }).click();
+  await page.getByRole("button", { name: "チーム 2 へ移す" }).click();
+  await expect(page.getByText("「安藤」をチーム2へ移しました。")).toBeVisible();
+  await waitSaved(page);
+  await expect(page.getByRole("button", { name: "チーム2の安藤" })).toBeVisible();
+  await checkPage(page, "組み合わせを直す（ミニゲーム）");
+
+  // 直し終えると、名前は文字に戻る。読み直しても入れかえは残る
+  await page.getByRole("button", { name: "直し終える" }).click();
+  await expect(page.getByRole("button", { name: "チーム2の安藤" })).toHaveCount(0);
+  await page.reload();
+  await page.getByRole("tab", { name: "レベル別" }).click();
+  await expect(
+    page.getByRole("table", { name: "上級の試合表" }).getByRole("row").nth(1),
+  ).toContainText("内田");
+
+  // 名前を選んだまま組み直すと、選んだ名前は外れる（選んだ場所に別の人が入るため）
+  await page.getByRole("button", { name: "組み合わせを直す" }).click();
+  const board = page.getByRole("table", { name: "上級の試合表" });
+  await board.getByRole("button").first().click();
+  await expect(board.locator('[aria-pressed="true"]')).toHaveCount(1);
+  await page.getByRole("button", { name: "別の組み合わせにする" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "別の組み合わせにする" }).click();
+  await waitSaved(page);
+  await expect(board.locator('[aria-pressed="true"]')).toHaveCount(0);
+  expect(await readCspViolations()).toEqual([]);
+});
+
 test("当日：人を選んで直す・分け方を変える・大きく映す・担当の端末を受け取る（match-003）", async ({
   page,
   browser,
@@ -368,12 +631,12 @@ test("当日：人を選んで直す・分け方を変える・大きく映す�
   const laterRows = await advanced.getByRole("row").allInnerTexts();
   for (const row of laterRows.slice(2)) expect(row).not.toContain("青木");
 
-  // レベルの分け方：初級と入門（2人ずつで組めない）を一緒にする。何が変わるかを先に出す
-  await page.getByRole("button", { name: "レベルの分け方" }).click();
-  const regroup = page.getByRole("dialog", { name: "レベルの分け方と試合の形" });
+  // 分け方と試合の形：初級と入門（2人ずつで組めない）を一緒にする。何が変わるかを先に出す
+  await page.getByRole("button", { name: "分け方と試合の形" }).click();
+  const regroup = page.getByRole("dialog", { name: "分け方と試合の形" });
   await regroup.getByRole("radio", { name: "上級・中級・初級＆入門" }).click();
   await expect(regroup.getByText("上級・中級の試合は、そのまま残します。")).toBeVisible();
-  await checkPage(page, "レベルの分け方");
+  await checkPage(page, "分け方と試合の形");
   await regroup.getByRole("button", { name: "変えて組み直す" }).click();
   await waitSaved(page);
   await expect(page.getByRole("tab", { name: /初級＆入門/u })).toBeVisible();

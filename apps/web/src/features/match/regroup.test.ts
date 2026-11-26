@@ -8,6 +8,7 @@ import {
   MATCH_GROUPINGS,
   MATCH_LEVELS,
   MatchTableContent,
+  settingsOfGrouping,
 } from "@workspace/contracts/match";
 import type { MatchGame, MatchPlayer } from "@workspace/contracts/match";
 import fc from "fast-check";
@@ -29,15 +30,13 @@ function contentOf(
   grouping: (typeof MATCH_GROUPINGS)[number],
   format: "doubles" | "singles",
 ): MatchTableContent {
-  const minutes = games * 10;
   return {
     ...INITIAL_CONTENT,
     settings: {
       format,
-      grouping,
-      minutesPerGame: 10,
-      startTime: "10:00",
-      endTime: `${String(10 + Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`,
+      gameCount: games,
+      ...settingsOfGrouping(grouping),
+      courts: null,
     },
     players: Array.from({ length: size }, (_, index): MatchPlayer => ({
       id: `p${index}`,
@@ -92,7 +91,7 @@ describe("分け方と試合の形を変える（changeSettings）", () => {
             { ...initial, plan: buildPlan(initial, seed) },
             (index) => done[index] ?? 0,
           );
-          const next = { ...planned.settings, grouping: toGrouping, format: toFormat };
+          const next = { ...planned.settings, ...settingsOfGrouping(toGrouping), format: toFormat };
           const { content, report } = changeSettings(planned, next);
           expect(MatchTableContent.safeParse(content).success).toBe(true);
 
@@ -137,7 +136,7 @@ describe("分け方と試合の形を変える（changeSettings）", () => {
     const novice = planned.plan.find((group) => group.key === "novice")?.games ?? [];
     const { content, report } = changeSettings(planned, {
       ...planned.settings,
-      grouping: "three",
+      ...settingsOfGrouping("three"),
     });
     expect(report.carried).toEqual(["advanced", "intermediate"]);
     expect(report.moved).toBe(5);
@@ -170,7 +169,10 @@ describe("分け方と試合の形を変える（changeSettings）", () => {
       index === 0 ? 3 : 1,
     );
     expect(planned.plan.find((group) => group.key === "beginner")?.games ?? []).toHaveLength(0);
-    const { content } = changeSettings(planned, { ...planned.settings, grouping: "three" });
+    const { content } = changeSettings(planned, {
+      ...planned.settings,
+      ...settingsOfGrouping("three"),
+    });
     const merged = buildPlan(content, 6).find((group) => group.key === "beginner_novice");
     expect(merged?.games).toHaveLength(8 - 3);
     expect(merged?.offset).toBe(-3);
@@ -180,7 +182,10 @@ describe("分け方と試合の形を変える（changeSettings）", () => {
     // 8人・分けない・6試合で2試合終わったところで、2つ（上級＆中級・初級＆入門）に分ける
     const initial = contentOf(8, 6, "none", "doubles");
     const planned = markDone({ ...initial, plan: buildPlan(initial, 9) }, () => 2);
-    const { content, report } = changeSettings(planned, { ...planned.settings, grouping: "two" });
+    const { content, report } = changeSettings(planned, {
+      ...planned.settings,
+      ...settingsOfGrouping("two"),
+    });
     const mixed = report.archived.find((entry) => entry.key === "all")?.count ?? 0;
     expect(report.moved + mixed).toBe(2);
     // 進んだのは2試合。移せなかった分だけ行が減る
@@ -211,10 +216,101 @@ describe("分け方と試合の形を変える（changeSettings）", () => {
     const planned = { ...initial, plan: buildPlan(initial, 4) };
     const { content, report } = changeSettings(planned, {
       ...planned.settings,
-      minutesPerGame: 15,
+      gameCount: 9,
     });
     expect(report.regrouped).toBe(false);
     expect(content.plan).toEqual(planned.plan);
     expect(describeSettingsChange(report, false)).toEqual([]);
+  });
+});
+
+describe("分け方を組み合わせる（match-009）", () => {
+  it("レベル別と分けないの両方で組むと、両方の組ができ、分けない組はレベルの差の上限を守る", () => {
+    const initial = contentOf(16, 6, "four", "doubles");
+    const both = { ...initial, settings: { ...initial.settings, ungrouped: true } };
+    const plan = buildPlan(both, 3);
+    expect(plan.map((group) => group.key)).toEqual([
+      "advanced",
+      "intermediate",
+      "beginner",
+      "novice",
+      "all",
+    ]);
+    const all = plan.find((group) => group.key === "all");
+    expect(all?.games).toHaveLength(6);
+    const levelOf = new Map(both.players.map((player) => [player.id, player.level]));
+    for (const game of all?.games ?? []) {
+      const ranks = game.players.map((id) => MATCH_LEVELS.indexOf(levelOf.get(id) ?? "advanced"));
+      expect(Math.max(...ranks) - Math.min(...ranks)).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it("分けないを足すだけなら、レベル別の組はそのまま、足した組は試合の数のまま組む", () => {
+    const initial = contentOf(16, 6, "four", "doubles");
+    const planned = markDone({ ...initial, plan: buildPlan(initial, 8) }, () => 3);
+    const { content, report } = changeSettings(planned, { ...planned.settings, ungrouped: true });
+    expect(report.carried).toEqual(["advanced", "intermediate", "beginner", "novice"]);
+    expect(report.doneTotal).toBe(0);
+    for (const group of planned.plan) {
+      expect(content.plan.find((entry) => entry.key === group.key)).toEqual(group);
+    }
+    const all = buildPlan(content, 8).find((group) => group.key === "all");
+    expect(all?.games).toHaveLength(6);
+    expect(all?.offset).toBeUndefined();
+  });
+
+  it("分けないを外すと、終わった試合は前の分け方の試合に残し、レベル別の組は変えない", () => {
+    const initial = contentOf(16, 6, "four", "doubles");
+    const both = { ...initial, settings: { ...initial.settings, ungrouped: true } };
+    const planned = markDone({ ...both, plan: buildPlan(both, 4) }, () => 2);
+    const { content, report } = changeSettings(planned, { ...planned.settings, ungrouped: false });
+    expect(report.carried).toEqual(["advanced", "intermediate", "beginner", "novice"]);
+    expect(content.plan.some((group) => group.key === "all")).toBe(false);
+    expect(content.archive?.find((entry) => entry.key === "all")?.games).toHaveLength(2);
+    expect(MatchTableContent.safeParse(content).success).toBe(true);
+  });
+
+  it("ミニゲームを外す・コート数を変えると、チーム分けを消す", () => {
+    const initial = contentOf(8, 6, "four", "doubles");
+    const withMini = {
+      ...initial,
+      settings: { ...initial.settings, courts: 1 },
+      mini: {
+        teams: [
+          ["p0", "p1"],
+          ["p2", "p3"],
+        ],
+      },
+    };
+    const removed = changeSettings(withMini, { ...withMini.settings, courts: null });
+    expect(removed.content.mini).toBeUndefined();
+    expect(describeSettingsChange(removed.report, false)).toEqual([
+      "ミニゲームのチーム分けを消します。",
+    ]);
+    const resized = changeSettings(withMini, { ...withMini.settings, courts: 2 });
+    expect(resized.content.mini).toBeUndefined();
+    expect(MatchTableContent.safeParse(resized.content).success).toBe(true);
+    const kept = changeSettings(withMini, { ...withMini.settings, gameCount: 9 });
+    expect(kept.content.mini).toEqual(withMini.mini);
+  });
+});
+
+describe("分け方をまたいで終わった試合を移さない（match-009 のセルフレビュー）", () => {
+  it("分けないが残るとき、レベル別の終わった試合は分けないの組へ移さず、前の分け方の試合に残す", () => {
+    // 上級＆中級・初級＆入門 + 分けない。上級と中級が一緒の終わった試合は、4つに分けるとどの組にも入らない
+    const initial = contentOf(16, 6, "two", "doubles");
+    const both = { ...initial, settings: { ...initial.settings, ungrouped: true } };
+    const planned = markDone({ ...both, plan: buildPlan(both, 12) }, (index) =>
+      index === 0 ? 2 : 0,
+    );
+    const allBefore = planned.plan.find((group) => group.key === "all");
+    const { content } = changeSettings(planned, { ...planned.settings, levels: "four" });
+    expect(content.plan.find((group) => group.key === "all")).toEqual(allBefore);
+    const archived = content.archive?.find((entry) => entry.key === "advanced_intermediate");
+    const movedToLevels = content.plan
+      .filter((group) => group.key !== "all")
+      .reduce((sum, group) => sum + group.games.length, 0);
+    expect((archived?.games.length ?? 0) + movedToLevels).toBe(2);
+    expect(MatchTableContent.safeParse(content).success).toBe(true);
   });
 });
