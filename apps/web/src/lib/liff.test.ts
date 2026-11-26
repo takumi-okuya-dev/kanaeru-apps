@@ -84,6 +84,32 @@ describe("LINE の始め方", () => {
     expect(await client.requestFriendship()).toBe(false);
   });
 
+  it("ログインし直しは、残っている LINE のログインを捨ててから LINE のログインへ移る（期限切れのトークンを使い続けない）", async () => {
+    const sdk = {
+      init: vi.fn(() => Promise.resolve()),
+      isLoggedIn: vi.fn(() => true),
+      login: vi.fn(),
+      logout: vi.fn(),
+      getIDToken: vi.fn(() => "期限の切れたトークン"),
+      isInClient: vi.fn(() => false),
+    };
+    vi.doMock("@line/liff", () => ({ default: sdk }));
+    const client = await initLiff({ liffId: "1234567890-AbCdEfGh" });
+    client.relogin();
+    expect(sdk.logout).toHaveBeenCalledTimes(1);
+    expect(sdk.login).toHaveBeenCalledWith(undefined);
+    expect(sdk.logout.mock.invocationCallOrder[0]).toBeLessThan(
+      sdk.login.mock.invocationCallOrder[0] ?? 0,
+    );
+    // ログインしていなければ、捨てずにそのままログインへ
+    sdk.isLoggedIn.mockReturnValue(false);
+    client.relogin("https://paletkit.app/admin/events");
+    expect(sdk.logout).toHaveBeenCalledTimes(1);
+    expect(sdk.login).toHaveBeenLastCalledWith({
+      redirectUri: "https://paletkit.app/admin/events",
+    });
+  });
+
   it("LIFF の init が失敗したら、initLiff も失敗する（画面は「読みこめない」を出す）", async () => {
     vi.doMock("@line/liff", () => ({
       default: { init: () => Promise.reject(new Error("init に失敗")) },
