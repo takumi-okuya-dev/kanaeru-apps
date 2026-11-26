@@ -322,8 +322,15 @@ describe("同意の画面に出すもの（FR-014）", () => {
 
     const response = await app.request(`/api/oauth/authorize/consent?${qs(params(clientId))}`, withCookie(cookie));
     expect(response.status).toBe(200);
-    const view = (await response.json()) as { clientName: string; scopes: { scope: string; label: string }[] };
+    const view = (await response.json()) as {
+      clientName: string;
+      clientKind: string;
+      redirectHost: string;
+      scopes: { scope: string; label: string }[];
+    };
     expect(view.clientName).toBe("テストの CLI");
+    expect(view.clientKind).toBe("dcr");
+    expect(view.redirectHost).toBe("127.0.0.1:1455");
     expect(view.scopes.length).toBeGreaterThan(0);
     for (const row of view.scopes) {
       expect(row.scope.endsWith(":read")).toBe(true);
@@ -331,7 +338,7 @@ describe("同意の画面に出すもの（FR-014）", () => {
     }
   });
 
-  it("ログインしていないと 401。要求が使えないと 400（戻り先へは送らない）", async () => {
+  it("ログインしていないと 401。戻り先を信じられる失敗は戻り先（error・state・iss つき）を返し、信じられない失敗は 400", async () => {
     const app = makeApp();
     const clientId = await registerClient(app);
 
@@ -343,7 +350,14 @@ describe("同意の画面に出すもの（FR-014）", () => {
       `/api/oauth/authorize/consent?${qs(params(clientId, { resource: `${TEST_ORIGIN}/api/v1/x` }))}`,
       withCookie(cookie),
     );
-    expect(wrongResource.status).toBe(400);
-    expect(((await wrongResource.json()) as { error: string }).error).toBe("invalid_target");
+    expect(wrongResource.status).toBe(200);
+    const back = parseRedirect(((await wrongResource.json()) as { redirectTo: string }).redirectTo);
+    expect(back.error).toBe("invalid_target");
+    expect(back.state).toBe(STATE);
+    expect(back.iss).toBe(TEST_ORIGIN);
+
+    const unknownClient = await app.request(`/api/oauth/authorize/consent?${qs(params("dcr_nope"))}`, withCookie(cookie));
+    expect(unknownClient.status).toBe(400);
+    expect(((await unknownClient.json()) as { error: string }).error).toBe("invalid_client");
   });
 });

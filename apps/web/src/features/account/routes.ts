@@ -28,8 +28,9 @@ export const devLoginRoute = createRoute({
 });
 
 /**
- * 同意の画面（/oauth/consent）。認可の要求の項目を、問い合わせのまま渡す（形は画面の中で確かめる）。
+ * 同意の画面（/oauth/consent）。認可の要求は、画面の部品が URL から文字列のまま読む（oauth-consent-request.ts）。
  * 外枠のナビを出さない（ログインの前の画面と同じく、認可の途中の画面）。
+ * 道の名前が領域（account）で始まらないのは、API（/api/oauth/authorize）が送る先として決まった道のため。
  */
 export const oauthConsentRoute = createRoute({
   getParentRoute: () => rootRoute,

@@ -103,8 +103,15 @@ export const ConnectionListView = z.object({ connections: z.array(ConnectionView
 /** 同意の画面に出すもの（クライアントの名前と、要求の範囲の画面向けの名前。FR-014）。 */
 export const ConsentView = z.object({
   clientName: z.string(),
+  /** 登録の種類（dcr は自己申告の名前。画面で見分けられるようにする） */
+  clientKind: z.enum(["cimd", "dcr", "preregistered"]),
+  /** 戻り先のホスト（許す前に、どこへ戻るかを見せる） */
+  redirectHost: z.string(),
   scopes: z.array(z.object({ scope: z.string(), label: z.string(), description: z.string() })),
 });
+
+/** 同意の画面の表示の応答（表示するものか、戻り先へ進む先〈戻り先へ返すべき失敗〉）。 */
+export const ConsentViewResult = z.union([ConsentView, ConsentResponse]);
 
 /** 認可の要求の項目（型）。 */
 export type AuthorizeQuery = z.infer<typeof AuthorizeParams>;
@@ -112,3 +119,5 @@ export type AuthorizeQuery = z.infer<typeof AuthorizeParams>;
 export type ConsentDecisionInput = z.infer<typeof ConsentInput>;
 /** 同意の画面に出すもの（型）。 */
 export type ConsentViewData = z.infer<typeof ConsentView>;
+/** 同意の画面の表示の応答（型）。 */
+export type ConsentViewResultData = z.infer<typeof ConsentViewResult>;
