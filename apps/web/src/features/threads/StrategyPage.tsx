@@ -425,17 +425,18 @@ function StrategyForm({ accountId, strategy }: StrategyFormProps) {
           );
         })}
       </section>
-      <div className="border-t border-border pt-xs">
-        <ButtonRow>
-          {previous ? (
-            <Button onClick={() => selectSection(previous.id)}>{`← ${previous.chip}`}</Button>
-          ) : null}
-          {following ? (
-            <Button variant="primary" onClick={() => selectSection(following.id)}>
-              {`次の区分へ：${following.chip} →`}
-            </Button>
-          ) : null}
-        </ButtonRow>
+      {/* 区分の行き来は、前を左・次を右に置く（向きの手がかり。右寄せの ButtonRow にしない） */}
+      <div className="flex flex-wrap items-center justify-between gap-xxs border-t border-border pt-xs">
+        {previous ? (
+          <Button onClick={() => selectSection(previous.id)}>{`← ${previous.chip}`}</Button>
+        ) : (
+          <span />
+        )}
+        {following ? (
+          <Button variant="primary" onClick={() => selectSection(following.id)}>
+            {`次の区分へ：${following.chip} →`}
+          </Button>
+        ) : null}
       </div>
       <div>
         <Button

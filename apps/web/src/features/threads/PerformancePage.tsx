@@ -359,7 +359,7 @@ function ExportSection({ accountId }: { accountId: string }) {
         にします。投稿ごと（今の値と判定）と、取りこみごと（24時間・3日・7日の値）があります。
       </p>
       <div className="flex flex-col items-start gap-xxs">
-        <ButtonRow>
+        <ButtonRow layout="grid" className="wide:grid-cols-2">
           <Button
             aria-disabled={mutation.isPending || undefined}
             onClick={() => !mutation.isPending && mutation.mutate("posts")}

@@ -204,7 +204,8 @@ function SettingsForm({ accountId, settings }: SettingsFormProps) {
             </Field>
           ))}
         </div>
-        <ButtonRow>
+        {/* 途中の「戻す」は、下の「設定を保存」と見分けやすいよう左に置く（右寄せの ButtonRow にしない） */}
+        <div>
           <Button
             type="button"
             onClick={() =>
@@ -218,7 +219,7 @@ function SettingsForm({ accountId, settings }: SettingsFormProps) {
           >
             文字数と割合をはじめの値に戻す（保存はまだ）
           </Button>
-        </ButtonRow>
+        </div>
       </Disclosure>
       <div className="flex flex-col items-start gap-xxs">
         <ButtonRow>

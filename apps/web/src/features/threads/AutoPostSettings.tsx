@@ -195,15 +195,17 @@ function ConnectionBody({ accountId, connection }: { accountId: string; connecti
       />
       {connected ? (
         <div className="flex flex-col items-start gap-xxs">
-          {/* 危ない操作（接続を切る）は最後（PC の右・スマホの上）に置かない */}
           <ButtonRow>
-            <Button variant="danger" onClick={() => setConfirmOpen(true)}>
-              接続を切る
-            </Button>
             <Button onClick={() => void check()} aria-disabled={checking || undefined}>
               {checking ? "確かめています…" : "接続を確かめる"}
             </Button>
           </ButtonRow>
+          {/* 危ない操作（接続を切る）は、確かめるの並びに入れず、あとに左へ離して置く（主の場所にも、先の Tab にもしない） */}
+          <div>
+            <Button variant="danger" onClick={() => setConfirmOpen(true)}>
+              接続を切る
+            </Button>
+          </div>
           {checkResult ? (
             <ResponseMessage tone={checkResult.tone}>{checkResult.message}</ResponseMessage>
           ) : null}

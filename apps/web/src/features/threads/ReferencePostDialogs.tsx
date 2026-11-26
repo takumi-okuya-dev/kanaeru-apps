@@ -266,11 +266,12 @@ export function AddReferenceDialog({
           whyGoodNote="空のままで大丈夫です。足したあとに、解説がまだの参考の投稿をまとめて AI に解説してもらえます。"
         />
         <div className="flex flex-col items-start gap-xxs border-t border-border pt-xs">
-          <ButtonRow>
+          {/* 本文の中の「ためる」は、下の「n件を足す」と見分けやすいよう左に置く（右寄せの ButtonRow にしない） */}
+          <div>
             <Button aria-disabled={pending || !canQueue || undefined} onClick={enqueue}>
               ＋この投稿をためて、次の投稿を入れる
             </Button>
-          </ButtonRow>
+          </div>
           <p className="text-s text-text-sub">
             参考の投稿はあと{remaining}件まで足せます
             {cap === REFERENCE_BATCH_MAX && queue.length + 1 > cap
