@@ -22,7 +22,10 @@ const REQUEST: AuthorizeQuery = {
  */
 function stubConsentView(response: Response): void {
   vi.stubGlobal("fetch", (input: RequestInfo | URL) => {
-    const url = new URL(input instanceof Request ? input.url : input.toString(), "http://localhost:3000");
+    const url = new URL(
+      input instanceof Request ? input.url : input.toString(),
+      "http://localhost:3000",
+    );
     if (url.pathname === "/api/oauth/authorize/consent") return Promise.resolve(response);
     return Promise.resolve(new Response(null, { status: 500 }));
   });
@@ -34,7 +37,9 @@ function stubConsentView(response: Response): void {
  */
 function renderPage(request: AuthorizeQuery | undefined): void {
   render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
       <OAuthConsentPage request={request} />
     </QueryClientProvider>,
   );
@@ -56,7 +61,9 @@ describe("同意の画面", () => {
         clientName: "テストの CLI",
         clientKind: "dcr",
         redirectHost: "127.0.0.1:1455",
-        scopes: [{ scope: "reception:read", label: "受付の記録を読む", description: "自分のチェックイン" }],
+        scopes: [
+          { scope: "reception:read", label: "受付の記録を読む", description: "自分のチェックイン" },
+        ],
       }),
     );
     renderPage(REQUEST);
@@ -72,7 +79,12 @@ describe("同意の画面", () => {
   });
 
   it("戻り先を信じられない要求は、理由を出し「もう一度」を出さない", async () => {
-    stubConsentView(Response.json({ error: "invalid_client", error_description: "クライアントを確かめられない" }, { status: 400 }));
+    stubConsentView(
+      Response.json(
+        { error: "invalid_client", error_description: "クライアントを確かめられない" },
+        { status: 400 },
+      ),
+    );
     renderPage(REQUEST);
     expect(await screen.findByText("この要求は使えません")).toBeTruthy();
     expect(screen.getByText(/クライアントを確かめられない/)).toBeTruthy();
@@ -82,7 +94,9 @@ describe("同意の画面", () => {
   it("戻り先へ返すべき失敗は、窓口が返す戻り先へ進む", async () => {
     const assign = vi.fn();
     vi.stubGlobal("location", { ...window.location, assign });
-    stubConsentView(Response.json({ redirectTo: "http://127.0.0.1:1455/callback?error=invalid_scope" }));
+    stubConsentView(
+      Response.json({ redirectTo: "http://127.0.0.1:1455/callback?error=invalid_scope" }),
+    );
     renderPage(REQUEST);
     expect(await screen.findByText("アプリに戻っています…")).toBeTruthy();
     await waitFor(() => {

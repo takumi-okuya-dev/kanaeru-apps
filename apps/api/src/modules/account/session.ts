@@ -14,7 +14,12 @@ import { createMiddleware } from "hono/factory";
 import type { Db } from "../../kernel/db.ts";
 import { AppError } from "../../kernel/errors.ts";
 import type { ApiEnv, DomainConfig } from "../../kernel/http.ts";
-import { findAccountById, createSession, deleteSessionByTokenHash, findSessionAccount } from "./repository.ts";
+import {
+  findAccountById,
+  createSession,
+  deleteSessionByTokenHash,
+  findSessionAccount,
+} from "./repository.ts";
 import { internalAuthOf } from "../../kernel/internal-auth.ts";
 import { WINDOW_ALLOWLIST } from "./window-allowlist.ts";
 import type { AccountRecord } from "./repository.ts";
@@ -199,7 +204,9 @@ async function accountOfInternalCall(
 ): Promise<{ record: AccountRecord; allowed: boolean } | null> {
   const auth = internalAuthOf(c.req.raw);
   if (!auth) return null;
-  const entry = WINDOW_ALLOWLIST.find((w) => w.method === c.req.method && w.routePath === c.req.routePath);
+  const entry = WINDOW_ALLOWLIST.find(
+    (w) => w.method === c.req.method && w.routePath === c.req.routePath,
+  );
   if (!entry) return null;
   const record = await findAccountById(db, auth.accountId);
   if (!record) return null;

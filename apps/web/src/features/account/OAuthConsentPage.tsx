@@ -4,7 +4,11 @@
 // 要求が読めないとき・戻り先を信じられない要求のときは、アプリからもう一度始めてもらう（「もう一度」では直らない）。
 // 戻り先へ返すべき失敗（範囲・宛先・PKCE）は、窓口が返す戻り先へそのまま進む。
 import { useMutation, useQuery } from "@tanstack/react-query";
-import type { AuthorizeQuery, ConsentDecisionInput, ConsentViewData } from "@workspace/contracts/account";
+import type {
+  AuthorizeQuery,
+  ConsentDecisionInput,
+  ConsentViewData,
+} from "@workspace/contracts/account";
 import { Button } from "@workspace/ui/components/button";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useEffect, useState } from "react";
@@ -179,11 +183,7 @@ function ConsentForm({ request, view }: { request: AuthorizeQuery; view: Consent
           <Button type="submit" variant="primary" disabled={granted.length === 0 || locked}>
             許可する
           </Button>
-          <Button
-            type="button"
-            disabled={locked}
-            onClick={() => send("deny", [])}
-          >
+          <Button type="button" disabled={locked} onClick={() => send("deny", [])}>
             許可しない
           </Button>
         </div>

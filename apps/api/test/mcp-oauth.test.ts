@@ -69,11 +69,21 @@ function params(clientId: string, overrides: Record<string, string> = {}): Recor
  * @param decision 許す・断る
  * @returns 戻り先の URL
  */
-async function decide(app: TestApp, cookie: string, clientId: string, decision: "approve" | "deny"): Promise<string> {
-  const meta = (await (await app.request("/.well-known/oauth-protected-resource")).json()) as { scopes_supported: string[] };
+async function decide(
+  app: TestApp,
+  cookie: string,
+  clientId: string,
+  decision: "approve" | "deny",
+): Promise<string> {
+  const meta = (await (await app.request("/.well-known/oauth-protected-resource")).json()) as {
+    scopes_supported: string[];
+  };
   const response = await app.request(
     "/api/oauth/authorize/decision",
-    withCookie(cookie, jsonRequest("POST", { ...params(clientId), decision, granted_scopes: meta.scopes_supported })),
+    withCookie(
+      cookie,
+      jsonRequest("POST", { ...params(clientId), decision, granted_scopes: meta.scopes_supported }),
+    ),
   );
   expect(response.status).toBe(200);
   return ((await response.json()) as { redirectTo: string }).redirectTo;
@@ -98,7 +108,12 @@ function tokenRequest(app: TestApp, form: Record<string, string>) {
  * @param url 戻り先の URL
  * @returns code と iss と state
  */
-function parseRedirect(url: string): { code: string | null; iss: string | null; state: string | null; error: string | null } {
+function parseRedirect(url: string): {
+  code: string | null;
+  iss: string | null;
+  state: string | null;
+  error: string | null;
+} {
   const u = new URL(url);
   return {
     code: u.searchParams.get("code"),
@@ -115,12 +130,16 @@ beforeEach(async () => {
 describe("認可のメタデータ（RFC 9728・8414）", () => {
   it("発行者は画面の源。/api/mcp を保護資源として名指す。PKCE は S256、iss を返す", async () => {
     const app = makeApp();
-    const asMeta = (await (await app.request("/.well-known/oauth-authorization-server")).json()) as Record<string, unknown>;
+    const asMeta = (await (
+      await app.request("/.well-known/oauth-authorization-server")
+    ).json()) as Record<string, unknown>;
     expect(asMeta.issuer).toBe(TEST_ORIGIN);
     expect(asMeta.code_challenge_methods_supported).toEqual(["S256"]);
     expect(asMeta.client_id_metadata_document_supported).toBe(true);
     expect(asMeta.authorization_response_iss_parameter_supported).toBe(true);
-    const prMeta = (await (await app.request("/.well-known/oauth-protected-resource")).json()) as Record<string, unknown>;
+    const prMeta = (await (
+      await app.request("/.well-known/oauth-protected-resource")
+    ).json()) as Record<string, unknown>;
     expect(prMeta.resource).toBe(RESOURCE);
     expect(prMeta.authorization_servers).toEqual([TEST_ORIGIN]);
     expect(prMeta.bearer_methods_supported).toEqual(["header"]);
@@ -149,7 +168,9 @@ describe("認可の要求", () => {
   it("正しい要求は同意の画面へ送る（要求の項目を引き継ぐ）", async () => {
     const app = makeApp();
     const clientId = await registerClient(app);
-    const response = await app.request(`/api/oauth/authorize?${qs(params(clientId))}`, { redirect: "manual" });
+    const response = await app.request(`/api/oauth/authorize?${qs(params(clientId))}`, {
+      redirect: "manual",
+    });
     expect(response.status).toBe(302);
     const location = new URL(response.headers.get("location") ?? "");
     expect(location.pathname).toBe("/oauth/consent");
@@ -164,7 +185,9 @@ describe("認可の要求", () => {
       { redirect: "manual" },
     );
     expect(badRedirect.status).toBe(400);
-    const unknown = await app.request(`/api/oauth/authorize?${qs(params("dcr_nope"))}`, { redirect: "manual" });
+    const unknown = await app.request(`/api/oauth/authorize?${qs(params("dcr_nope"))}`, {
+      redirect: "manual",
+    });
     expect(unknown.status).toBe(400);
     // CIMD の文書は外へ出ずに取れない（安全に断る）
     const cimd = await app.request(
@@ -217,7 +240,12 @@ describe("同意とトークン（全体の流れ）", () => {
     });
     expect(token.status).toBe(200);
     expect(token.headers.get("cache-control")).toBe("no-store");
-    const tokens = (await token.json()) as { access_token: string; refresh_token: string; token_type: string; scope: string };
+    const tokens = (await token.json()) as {
+      access_token: string;
+      refresh_token: string;
+      token_type: string;
+      scope: string;
+    };
     expect(tokens.token_type).toBe("Bearer");
     expect(tokens.access_token.length).toBeGreaterThan(20);
     expect(tokens.scope.length).toBeGreaterThan(0);
@@ -320,7 +348,10 @@ describe("同意の画面に出すもの（FR-014）", () => {
     const clientId = await registerClient(app);
     const { cookie } = await loginAs(app, { lineUserId: testLineUserId() });
 
-    const response = await app.request(`/api/oauth/authorize/consent?${qs(params(clientId))}`, withCookie(cookie));
+    const response = await app.request(
+      `/api/oauth/authorize/consent?${qs(params(clientId))}`,
+      withCookie(cookie),
+    );
     expect(response.status).toBe(200);
     const view = (await response.json()) as {
       clientName: string;
@@ -356,7 +387,10 @@ describe("同意の画面に出すもの（FR-014）", () => {
     expect(back.state).toBe(STATE);
     expect(back.iss).toBe(TEST_ORIGIN);
 
-    const unknownClient = await app.request(`/api/oauth/authorize/consent?${qs(params("dcr_nope"))}`, withCookie(cookie));
+    const unknownClient = await app.request(
+      `/api/oauth/authorize/consent?${qs(params("dcr_nope"))}`,
+      withCookie(cookie),
+    );
     expect(unknownClient.status).toBe(400);
     expect(((await unknownClient.json()) as { error: string }).error).toBe("invalid_client");
   });

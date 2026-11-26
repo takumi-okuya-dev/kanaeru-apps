@@ -31,7 +31,11 @@ const clientColumns = {
  * @returns 行、ない場合は null
  */
 export async function findClient(db: Executor, clientId: string): Promise<ClientRow | null> {
-  const [row] = await db.select(clientColumns).from(oauthClient).where(eq(oauthClient.clientId, clientId)).limit(1);
+  const [row] = await db
+    .select(clientColumns)
+    .from(oauthClient)
+    .where(eq(oauthClient.clientId, clientId))
+    .limit(1);
   return row ?? null;
 }
 
@@ -47,10 +51,21 @@ export async function upsertCimdClient(
 ): Promise<ClientRow> {
   const [row] = await db
     .insert(oauthClient)
-    .values({ clientId: input.clientId, kind: "cimd", name: input.name, redirectUris: input.redirectUris, expiresAt: input.expiresAt })
+    .values({
+      clientId: input.clientId,
+      kind: "cimd",
+      name: input.name,
+      redirectUris: input.redirectUris,
+      expiresAt: input.expiresAt,
+    })
     .onConflictDoUpdate({
       target: oauthClient.clientId,
-      set: { name: input.name, redirectUris: input.redirectUris, expiresAt: input.expiresAt, updatedAt: sql`now()` },
+      set: {
+        name: input.name,
+        redirectUris: input.redirectUris,
+        expiresAt: input.expiresAt,
+        updatedAt: sql`now()`,
+      },
     })
     .returning(clientColumns);
   if (!row) throw new Error("CIMD のクライアントを作れなかった");
@@ -69,7 +84,13 @@ export async function insertDcrClient(
 ): Promise<ClientRow> {
   const [row] = await db
     .insert(oauthClient)
-    .values({ clientId: input.clientId, kind: "dcr", name: input.name, redirectUris: input.redirectUris, expiresAt: input.expiresAt })
+    .values({
+      clientId: input.clientId,
+      kind: "dcr",
+      name: input.name,
+      redirectUris: input.redirectUris,
+      expiresAt: input.expiresAt,
+    })
     .returning(clientColumns);
   if (!row) throw new Error("DCR のクライアントを作れなかった");
   return row;
@@ -111,7 +132,14 @@ export async function insertGrant(
  */
 export async function insertCode(
   db: Executor,
-  input: { codeHash: string; grantId: string; codeChallenge: string; redirectUri: string; resource: string; expiresAt: Date },
+  input: {
+    codeHash: string;
+    grantId: string;
+    codeChallenge: string;
+    redirectUri: string;
+    resource: string;
+    expiresAt: Date;
+  },
 ): Promise<void> {
   await db.insert(oauthCode).values(input);
 }
@@ -126,11 +154,22 @@ export async function insertCode(
 export async function consumeCode(
   db: Executor,
   codeHash: string,
-): Promise<{ grantId: string; codeChallenge: string; redirectUri: string; resource: string } | null> {
+): Promise<{
+  grantId: string;
+  codeChallenge: string;
+  redirectUri: string;
+  resource: string;
+} | null> {
   const [row] = await db
     .update(oauthCode)
     .set({ usedAt: sql`now()` })
-    .where(and(eq(oauthCode.codeHash, codeHash), isNull(oauthCode.usedAt), gt(oauthCode.expiresAt, sql`now()`)))
+    .where(
+      and(
+        eq(oauthCode.codeHash, codeHash),
+        isNull(oauthCode.usedAt),
+        gt(oauthCode.expiresAt, sql`now()`),
+      ),
+    )
     .returning({
       grantId: oauthCode.grantId,
       codeChallenge: oauthCode.codeChallenge,
@@ -162,7 +201,13 @@ export async function findUsedCodeGrant(db: Executor, codeHash: string): Promise
  */
 export async function insertToken(
   db: Executor,
-  input: { tokenHash: string; kind: "access" | "refresh"; grantId: string; resource: string; expiresAt: Date },
+  input: {
+    tokenHash: string;
+    kind: "access" | "refresh";
+    grantId: string;
+    resource: string;
+    expiresAt: Date;
+  },
 ): Promise<void> {
   await db.insert(oauthToken).values(input);
 }
@@ -222,7 +267,10 @@ export async function findActiveToken(
  * @param tokenId 札の ID
  */
 export async function revokeToken(db: Executor, tokenId: string): Promise<void> {
-  await db.update(oauthToken).set({ revokedAt: sql`now()` }).where(eq(oauthToken.id, tokenId));
+  await db
+    .update(oauthToken)
+    .set({ revokedAt: sql`now()` })
+    .where(eq(oauthToken.id, tokenId));
 }
 
 /**
@@ -231,7 +279,10 @@ export async function revokeToken(db: Executor, tokenId: string): Promise<void> 
  * @param grantId 同意の ID
  */
 export async function revokeGrant(db: Executor, grantId: string): Promise<void> {
-  await db.update(oauthGrant).set({ revokedAt: sql`now()` }).where(eq(oauthGrant.id, grantId));
+  await db
+    .update(oauthGrant)
+    .set({ revokedAt: sql`now()` })
+    .where(eq(oauthGrant.id, grantId));
 }
 
 /**
@@ -240,7 +291,10 @@ export async function revokeGrant(db: Executor, grantId: string): Promise<void> 
  * @param grantId 同意の ID
  */
 export async function touchGrant(db: Executor, grantId: string): Promise<void> {
-  await db.update(oauthGrant).set({ lastUsedAt: sql`now()` }).where(eq(oauthGrant.id, grantId));
+  await db
+    .update(oauthGrant)
+    .set({ lastUsedAt: sql`now()` })
+    .where(eq(oauthGrant.id, grantId));
 }
 
 /**
@@ -250,7 +304,13 @@ export async function touchGrant(db: Executor, grantId: string): Promise<void> {
  */
 export async function insertToolCall(
   db: Executor,
-  input: { accountId: string; toolName: string; access: "read" | "write"; targetId?: string; result: string },
+  input: {
+    accountId: string;
+    toolName: string;
+    access: "read" | "write";
+    targetId?: string;
+    result: string;
+  },
 ): Promise<void> {
   await db.insert(mcpToolCall).values(input);
 }
@@ -264,7 +324,15 @@ export async function insertToolCall(
 export async function listActiveGrants(
   db: Executor,
   accountId: string,
-): Promise<Array<{ id: string; clientName: string; scopes: string[]; lastUsedAt: Date | null; createdAt: Date }>> {
+): Promise<
+  Array<{
+    id: string;
+    clientName: string;
+    scopes: string[];
+    lastUsedAt: Date | null;
+    createdAt: Date;
+  }>
+> {
   return db
     .select({
       id: oauthGrant.id,
@@ -300,7 +368,12 @@ export async function findGrantById(
     .where(eq(oauthGrant.id, grantId))
     .limit(1);
   if (!row) return null;
-  return { accountId: row.accountId, clientRowId: row.clientRowId, scopes: row.scopes, revoked: row.revokedAt !== null };
+  return {
+    accountId: row.accountId,
+    clientRowId: row.clientRowId,
+    scopes: row.scopes,
+    revoked: row.revokedAt !== null,
+  };
 }
 
 /**
@@ -310,11 +383,21 @@ export async function findGrantById(
  * @param accountId 持ち主（今の利用者）
  * @returns 取り消したなら true
  */
-export async function revokeGrantOwnedBy(db: Executor, grantId: string, accountId: string): Promise<boolean> {
+export async function revokeGrantOwnedBy(
+  db: Executor,
+  grantId: string,
+  accountId: string,
+): Promise<boolean> {
   const rows = await db
     .update(oauthGrant)
     .set({ revokedAt: sql`now()` })
-    .where(and(eq(oauthGrant.id, grantId), eq(oauthGrant.accountId, accountId), isNull(oauthGrant.revokedAt)))
+    .where(
+      and(
+        eq(oauthGrant.id, grantId),
+        eq(oauthGrant.accountId, accountId),
+        isNull(oauthGrant.revokedAt),
+      ),
+    )
     .returning({ id: oauthGrant.id });
   return rows.length > 0;
 }

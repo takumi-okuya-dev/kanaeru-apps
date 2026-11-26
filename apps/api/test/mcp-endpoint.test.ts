@@ -29,14 +29,19 @@ const PROTOCOL = "2025-11-25";
  * @param scopes 同意する範囲（省けば、すべて）
  * @returns 札と同意の情報
  */
-async function obtainAccessToken(app: TestApp, scopes?: string[]): Promise<{ access: string; clientId: string }> {
+async function obtainAccessToken(
+  app: TestApp,
+  scopes?: string[],
+): Promise<{ access: string; clientId: string }> {
   const reg = await app.request(
     "/api/oauth/register",
     jsonRequest("POST", { client_name: "テスト", redirect_uris: [REDIRECT] }),
   );
   const clientId = ((await reg.json()) as { client_id: string }).client_id;
   const { cookie } = await loginAs(app, { lineUserId: testLineUserId() });
-  const meta = (await (await app.request("/.well-known/oauth-protected-resource")).json()) as { scopes_supported: string[] };
+  const meta = (await (await app.request("/.well-known/oauth-protected-resource")).json()) as {
+    scopes_supported: string[];
+  };
   const fields = {
     response_type: "code",
     client_id: clientId,
@@ -48,7 +53,14 @@ async function obtainAccessToken(app: TestApp, scopes?: string[]): Promise<{ acc
   };
   const decision = await app.request(
     "/api/oauth/authorize/decision",
-    withCookie(cookie, jsonRequest("POST", { ...fields, decision: "approve", granted_scopes: scopes ?? meta.scopes_supported })),
+    withCookie(
+      cookie,
+      jsonRequest("POST", {
+        ...fields,
+        decision: "approve",
+        granted_scopes: scopes ?? meta.scopes_supported,
+      }),
+    ),
   );
   const redirected = new URL(((await decision.json()) as { redirectTo: string }).redirectTo);
   const token = await app.request("/api/oauth/token", {
@@ -74,7 +86,11 @@ async function obtainAccessToken(app: TestApp, scopes?: string[]): Promise<{ acc
  * @param headers 見出し（札など）
  * @returns 応答
  */
-function mcp(app: TestApp | OpenAPIHono<ApiEnv>, body: unknown, headers: Record<string, string> = {}) {
+function mcp(
+  app: TestApp | OpenAPIHono<ApiEnv>,
+  body: unknown,
+  headers: Record<string, string> = {},
+) {
   return app.request("/api/mcp", {
     method: "POST",
     headers: {
@@ -91,7 +107,11 @@ const INIT = {
   jsonrpc: "2.0",
   id: 1,
   method: "initialize",
-  params: { protocolVersion: PROTOCOL, capabilities: {}, clientInfo: { name: "test", version: "1" } },
+  params: {
+    protocolVersion: PROTOCOL,
+    capabilities: {},
+    clientInfo: { name: "test", version: "1" },
+  },
 };
 
 beforeEach(async () => {
@@ -134,7 +154,10 @@ describe("/api/mcp の札の確かめ", () => {
   it("画面の源と違う Origin は 403", async () => {
     const app = buildApp(database, testConfig({ testLoginEnabled: true }));
     const { access } = await obtainAccessToken(app);
-    const foreign = await mcp(app, INIT, { authorization: `Bearer ${access}`, origin: "https://evil.example" });
+    const foreign = await mcp(app, INIT, {
+      authorization: `Bearer ${access}`,
+      origin: "https://evil.example",
+    });
     expect(foreign.status).toBe(403);
   });
 });
@@ -148,7 +171,11 @@ describe("/api/mcp の応答", () => {
     const initBody = (await init.json()) as { result?: { serverInfo?: { name: string } } };
     expect(initBody.result?.serverInfo?.name).toBe("kanaeru");
 
-    const list = await mcp(app, { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }, { authorization: `Bearer ${access}` });
+    const list = await mcp(
+      app,
+      { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} },
+      { authorization: `Bearer ${access}` },
+    );
     const listBody = (await list.json()) as { result?: { tools: Array<{ name: string }> } };
     // 本番の道具は受付の1つ（範囲 reception:read の札に見せる）
     expect(listBody.result?.tools.map((t) => t.name)).toEqual(["reception_my_checkin"]);
@@ -190,14 +217,25 @@ describe("/api/mcp の道具（範囲・記録）", () => {
     // 範囲は読むだけ（reception:read）。テスト用の道具は別の API に登録する
     const { access } = await obtainAccessToken(app, ["reception:read"]);
     const tools = appWithTools();
-    const list = await mcp(tools, { jsonrpc: "2.0", id: 3, method: "tools/list", params: {} }, { authorization: `Bearer ${access}` });
-    const names = ((await list.json()) as { result?: { tools: Array<{ name: string }> } }).result?.tools.map((t) => t.name);
+    const list = await mcp(
+      tools,
+      { jsonrpc: "2.0", id: 3, method: "tools/list", params: {} },
+      { authorization: `Bearer ${access}` },
+    );
+    const names = (
+      (await list.json()) as { result?: { tools: Array<{ name: string }> } }
+    ).result?.tools.map((t) => t.name);
     // reception:read のトークンが見せるのは reception:read の道具だけ（write の道具は出ない）
     expect(names).toEqual(["echo_record"]);
 
     const call = await mcp(
       tools,
-      { jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "echo_record", arguments: { word: "hi" } } },
+      {
+        jsonrpc: "2.0",
+        id: 4,
+        method: "tools/call",
+        params: { name: "echo_record", arguments: { word: "hi" } },
+      },
       { authorization: `Bearer ${access}` },
     );
     const callBody = (await call.json()) as { result?: { content: Array<{ text: string }> } };

@@ -3,7 +3,13 @@ import { describe, expect, it } from "vitest";
 import { pkceS256Challenge, isAcceptableChallenge, verifyPkceS256 } from "./pkce.ts";
 import { isRegistrableRedirectUri, redirectUriAllowed } from "./redirect.ts";
 import { canonicalMcpResource, isCanonicalMcpResource } from "./resource.ts";
-import { fetchClientMetadata, isPrivateAddress, parseCimdUrl, validateClientMetadata, CimdError } from "./cimd.ts";
+import {
+  fetchClientMetadata,
+  isPrivateAddress,
+  parseCimdUrl,
+  validateClientMetadata,
+  CimdError,
+} from "./cimd.ts";
 import { generateOpaqueToken, hashOpaqueToken } from "./tokens.ts";
 
 const VERIFIER = "a".repeat(43);
@@ -36,10 +42,18 @@ describe("戻り先の照合（FR-033）", () => {
   });
   it("登録にない別のホスト・http の外の戻り先・利用者の情報は断る（localhost はループバックとして受ける）", () => {
     expect(redirectUriAllowed("https://evil.example/callback", registered)).toBe(false);
-    expect(redirectUriAllowed("http://example.com/callback", ["http://example.com/callback"])).toBe(false);
-    expect(redirectUriAllowed("http://localhost:3000/callback", ["http://localhost/callback"])).toBe(true);
-    expect(redirectUriAllowed("http://localhost:3000/callback", ["http://127.0.0.1/callback"])).toBe(false);
-    expect(redirectUriAllowed("http://u:p@127.0.0.1:1/callback", ["http://127.0.0.1/callback"])).toBe(false);
+    expect(redirectUriAllowed("http://example.com/callback", ["http://example.com/callback"])).toBe(
+      false,
+    );
+    expect(
+      redirectUriAllowed("http://localhost:3000/callback", ["http://localhost/callback"]),
+    ).toBe(true);
+    expect(
+      redirectUriAllowed("http://localhost:3000/callback", ["http://127.0.0.1/callback"]),
+    ).toBe(false);
+    expect(
+      redirectUriAllowed("http://u:p@127.0.0.1:1/callback", ["http://127.0.0.1/callback"]),
+    ).toBe(false);
   });
   it("登録の形：https か、ループバックの http だけ", () => {
     expect(isRegistrableRedirectUri("https://app.example/cb")).toBe(true);
@@ -71,7 +85,18 @@ describe("CIMD（取りに行く先の守り）", () => {
     expect(parseCimdUrl("not a url")).toBeNull();
   });
   it("私的・予約の番地を見分ける", () => {
-    for (const a of ["127.0.0.1", "10.1.2.3", "172.16.0.1", "192.168.1.1", "169.254.169.254", "100.64.0.1", "::1", "fd00::1", "fe80::1", "::ffff:10.0.0.1"]) {
+    for (const a of [
+      "127.0.0.1",
+      "10.1.2.3",
+      "172.16.0.1",
+      "192.168.1.1",
+      "169.254.169.254",
+      "100.64.0.1",
+      "::1",
+      "fd00::1",
+      "fe80::1",
+      "::ffff:10.0.0.1",
+    ]) {
       expect(isPrivateAddress(a), a).toBe(true);
     }
     expect(isPrivateAddress("93.184.216.34")).toBe(false);
@@ -79,15 +104,34 @@ describe("CIMD（取りに行く先の守り）", () => {
   });
   it("文書の検証：client_id が一致し、戻り先が使え、名前は任意", () => {
     const id = "https://app.example/client.json";
-    expect(validateClientMetadata({ client_id: id, redirect_uris: ["http://127.0.0.1/cb"], client_name: "Codex" }, id)).toEqual({
+    expect(
+      validateClientMetadata(
+        { client_id: id, redirect_uris: ["http://127.0.0.1/cb"], client_name: "Codex" },
+        id,
+      ),
+    ).toEqual({
       clientId: id,
       clientName: "Codex",
       redirectUris: ["http://127.0.0.1/cb"],
     });
-    expect(() => validateClientMetadata({ client_id: "https://other.example/c.json", redirect_uris: ["https://a.example/cb"] }, id)).toThrow(CimdError);
-    expect(() => validateClientMetadata({ client_id: id, redirect_uris: [] }, id)).toThrow(CimdError);
-    expect(() => validateClientMetadata({ client_id: id, redirect_uris: ["http://a.example/cb"] }, id)).toThrow(CimdError);
-    expect(() => validateClientMetadata({ client_id: id, redirect_uris: ["https://a.example/cb"], client_name: 5 }, id)).toThrow(CimdError);
+    expect(() =>
+      validateClientMetadata(
+        { client_id: "https://other.example/c.json", redirect_uris: ["https://a.example/cb"] },
+        id,
+      ),
+    ).toThrow(CimdError);
+    expect(() => validateClientMetadata({ client_id: id, redirect_uris: [] }, id)).toThrow(
+      CimdError,
+    );
+    expect(() =>
+      validateClientMetadata({ client_id: id, redirect_uris: ["http://a.example/cb"] }, id),
+    ).toThrow(CimdError);
+    expect(() =>
+      validateClientMetadata(
+        { client_id: id, redirect_uris: ["https://a.example/cb"], client_name: 5 },
+        id,
+      ),
+    ).toThrow(CimdError);
   });
   it("取得：私的な番地に解決されたら取りに行かない", async () => {
     let called = false;
@@ -96,7 +140,10 @@ describe("CIMD（取りに行く先の守り）", () => {
       return Promise.resolve(new Response("{}"));
     }) as unknown as typeof fetch;
     await expect(
-      fetchClientMetadata("https://app.example/client.json", { fetch: fetchFake, resolveHost: () => Promise.resolve(["10.0.0.5"]) }),
+      fetchClientMetadata("https://app.example/client.json", {
+        fetch: fetchFake,
+        resolveHost: () => Promise.resolve(["10.0.0.5"]),
+      }),
     ).rejects.toMatchObject({ code: "UNSAFE_URL" });
     expect(called).toBe(false);
   });
@@ -104,19 +151,37 @@ describe("CIMD（取りに行く先の守り）", () => {
     const id = "https://app.example/client.json";
     const resolve = () => Promise.resolve(["93.184.216.34"]);
     const ok = (() =>
-      Promise.resolve(new Response(JSON.stringify({ client_id: id, redirect_uris: ["https://app.example/cb"], client_name: "A" }), {
-        headers: { "content-type": "application/json" },
-      }))) as unknown as typeof fetch;
-    await expect(fetchClientMetadata(id, { fetch: ok, resolveHost: resolve })).resolves.toMatchObject({ clientName: "A" });
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            client_id: id,
+            redirect_uris: ["https://app.example/cb"],
+            client_name: "A",
+          }),
+          {
+            headers: { "content-type": "application/json" },
+          },
+        ),
+      )) as unknown as typeof fetch;
+    await expect(
+      fetchClientMetadata(id, { fetch: ok, resolveHost: resolve }),
+    ).resolves.toMatchObject({ clientName: "A" });
 
     const big = (() => Promise.resolve(new Response("x".repeat(9000)))) as unknown as typeof fetch;
-    await expect(fetchClientMetadata(id, { fetch: big, resolveHost: resolve })).rejects.toMatchObject({ code: "TOO_LARGE" });
+    await expect(
+      fetchClientMetadata(id, { fetch: big, resolveHost: resolve }),
+    ).rejects.toMatchObject({ code: "TOO_LARGE" });
 
-    const fail = (() => Promise.resolve(new Response("no", { status: 500 }))) as unknown as typeof fetch;
-    await expect(fetchClientMetadata(id, { fetch: fail, resolveHost: resolve })).rejects.toMatchObject({ code: "FETCH_FAILED" });
+    const fail = (() =>
+      Promise.resolve(new Response("no", { status: 500 }))) as unknown as typeof fetch;
+    await expect(
+      fetchClientMetadata(id, { fetch: fail, resolveHost: resolve }),
+    ).rejects.toMatchObject({ code: "FETCH_FAILED" });
 
     const broken = (() => Promise.reject(new TypeError("network"))) as unknown as typeof fetch;
-    await expect(fetchClientMetadata(id, { fetch: broken, resolveHost: resolve })).rejects.toMatchObject({ code: "FETCH_FAILED" });
+    await expect(
+      fetchClientMetadata(id, { fetch: broken, resolveHost: resolve }),
+    ).rejects.toMatchObject({ code: "FETCH_FAILED" });
   });
 });
 

@@ -167,7 +167,10 @@ describe("画面のファイル", () => {
 
   it("/.well-known の下も画面に戻さず、API の守り（core-021・AD-21）", async () => {
     // 認可のメタデータは API が答える（JSON・API の CSP。画面の HTML には戻らない）
-    for (const path of ["/.well-known/oauth-protected-resource", "/.well-known/oauth-authorization-server"]) {
+    for (const path of [
+      "/.well-known/oauth-protected-resource",
+      "/.well-known/oauth-authorization-server",
+    ]) {
       const response = await appWithWeb().request(path);
       expect(response.status, path).toBe(200);
       expect(response.headers.get("content-type"), path).toContain("application/json");

@@ -5,7 +5,12 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { TEST_ORIGIN, buildApp, jsonRequest, testConfig } from "./helpers/app.ts";
 import type { TestApp } from "./helpers/app.ts";
-import { ORGANIZER_LINE_USER_ID_FOR_TEST, loginAs, testLineUserId, withCookie } from "./helpers/account.ts";
+import {
+  ORGANIZER_LINE_USER_ID_FOR_TEST,
+  loginAs,
+  testLineUserId,
+  withCookie,
+} from "./helpers/account.ts";
 import { truncateAllTables, useTestDatabase } from "./helpers/db.ts";
 import { createEvent } from "./helpers/event.ts";
 import { checkIn } from "./helpers/reception.ts";
@@ -26,7 +31,10 @@ const PROTOCOL = "2025-11-25";
  * @returns アクセストークン
  */
 async function tokenFor(app: TestApp, cookie: string, scopes: string[]): Promise<string> {
-  const reg = await app.request("/api/oauth/register", jsonRequest("POST", { client_name: "テスト", redirect_uris: [REDIRECT] }));
+  const reg = await app.request(
+    "/api/oauth/register",
+    jsonRequest("POST", { client_name: "テスト", redirect_uris: [REDIRECT] }),
+  );
   const clientId = ((await reg.json()) as { client_id: string }).client_id;
   const fields = {
     response_type: "code",
@@ -39,7 +47,10 @@ async function tokenFor(app: TestApp, cookie: string, scopes: string[]): Promise
   };
   const decision = await app.request(
     "/api/oauth/authorize/decision",
-    withCookie(cookie, jsonRequest("POST", { ...fields, decision: "approve", granted_scopes: scopes })),
+    withCookie(
+      cookie,
+      jsonRequest("POST", { ...fields, decision: "approve", granted_scopes: scopes }),
+    ),
   );
   const redirected = new URL(((await decision.json()) as { redirectTo: string }).redirectTo);
   const token = await app.request("/api/oauth/token", {
@@ -84,7 +95,10 @@ beforeEach(async () => {
 
 describe("道具から受付の窓口を呼ぶ（本人のチェックイン）", () => {
   it("本人のチェックインだけを返し、チェックインのない人には null を返す。記録は残すが中身は残さない", async () => {
-    const app = buildApp(database, testConfig({ testLoginEnabled: true, organizerLineUserId: ORGANIZER_LINE_USER_ID_FOR_TEST }));
+    const app = buildApp(
+      database,
+      testConfig({ testLoginEnabled: true, organizerLineUserId: ORGANIZER_LINE_USER_ID_FOR_TEST }),
+    );
     const organizer = await loginAs(app, { lineUserId: ORGANIZER_LINE_USER_ID_FOR_TEST });
     const event = await createEvent(app, organizer.cookie);
 
@@ -95,35 +109,61 @@ describe("道具から受付の窓口を呼ぶ（本人のチェックイン）"
     const aliceToken = await tokenFor(app, alice.cookie, ["reception:read"]);
     const bobToken = await tokenFor(app, bob.cookie, ["reception:read"]);
 
-    const list = await rpc(app, { jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }, aliceToken);
-    const names = ((list.result as { tools: Array<{ name: string }> }).tools ?? []).map((t) => t.name);
+    const list = await rpc(
+      app,
+      { jsonrpc: "2.0", id: 1, method: "tools/list", params: {} },
+      aliceToken,
+    );
+    const names = ((list.result as { tools: Array<{ name: string }> }).tools ?? []).map(
+      (t) => t.name,
+    );
     expect(names).toEqual(["reception_my_checkin"]);
 
     const mine = await rpc(
       app,
-      { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "reception_my_checkin", arguments: { eventId: event.id } } },
+      {
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/call",
+        params: { name: "reception_my_checkin", arguments: { eventId: event.id } },
+      },
       aliceToken,
     );
-    const mineText = ((mine.result as { content: Array<{ text: string }> }).content[0] ?? { text: "" }).text;
+    const mineText = (
+      (mine.result as { content: Array<{ text: string }> }).content[0] ?? { text: "" }
+    ).text;
     expect(mineText).toContain("アリス・テスト");
 
     const none = await rpc(
       app,
-      { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "reception_my_checkin", arguments: { eventId: event.id } } },
+      {
+        jsonrpc: "2.0",
+        id: 3,
+        method: "tools/call",
+        params: { name: "reception_my_checkin", arguments: { eventId: event.id } },
+      },
       bobToken,
     );
-    const noneText = ((none.result as { content: Array<{ text: string }> }).content[0] ?? { text: "" }).text;
+    const noneText = (
+      (none.result as { content: Array<{ text: string }> }).content[0] ?? { text: "" }
+    ).text;
     // チェックインのない人は checkin が null（初期値の名前は本人のもの）
     expect(noneText).toContain('"checkin":null');
     expect(mineText).not.toContain("ボブ");
 
-    const records = await database.db.select().from(mcpToolCall).where(eq(mcpToolCall.toolName, "reception_my_checkin"));
+    const records = await database.db
+      .select()
+      .from(mcpToolCall)
+      .where(eq(mcpToolCall.toolName, "reception_my_checkin"));
     expect(records.length).toBe(2);
     expect(JSON.stringify(records)).not.toContain("アリス");
   });
 
   it("範囲に reception:read がなければ、受付の道具は一覧に出ず、呼んでも通らない", async () => {
-    const app = buildApp(database, testConfig({ testLoginEnabled: true, organizerLineUserId: ORGANIZER_LINE_USER_ID_FOR_TEST }));
+    const app = buildApp(
+      database,
+      testConfig({ testLoginEnabled: true, organizerLineUserId: ORGANIZER_LINE_USER_ID_FOR_TEST }),
+    );
     const organizer = await loginAs(app, { lineUserId: ORGANIZER_LINE_USER_ID_FOR_TEST });
     const event = await createEvent(app, organizer.cookie);
     const carol = await loginAs(app, { lineUserId: testLineUserId() });
@@ -136,7 +176,12 @@ describe("道具から受付の窓口を呼ぶ（本人のチェックイン）"
 
     const call = await rpc(
       app,
-      { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "reception_my_checkin", arguments: { eventId: event.id } } },
+      {
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/call",
+        params: { name: "reception_my_checkin", arguments: { eventId: event.id } },
+      },
       token,
     );
     expect(call.result).toBeUndefined();
@@ -144,7 +189,10 @@ describe("道具から受付の窓口を呼ぶ（本人のチェックイン）"
   });
 
   it("窓口は札（Bearer）を受けない。道具の窓口の呼び出しは、内側の印だけで通る", async () => {
-    const app = buildApp(database, testConfig({ testLoginEnabled: true, organizerLineUserId: ORGANIZER_LINE_USER_ID_FOR_TEST }));
+    const app = buildApp(
+      database,
+      testConfig({ testLoginEnabled: true, organizerLineUserId: ORGANIZER_LINE_USER_ID_FOR_TEST }),
+    );
     const organizer = await loginAs(app, { lineUserId: ORGANIZER_LINE_USER_ID_FOR_TEST });
     const event = await createEvent(app, organizer.cookie);
     const dave = await loginAs(app, { lineUserId: testLineUserId() });
