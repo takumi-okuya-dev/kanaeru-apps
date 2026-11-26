@@ -1,5 +1,6 @@
 // 予約の領域の入口（docs/apps/booking.md・docs/rules/coding.md 6-6）。受付アプリの4つ目の領域（AD-23）。土台（app.ts）は
-// routes・withdrawal・eventLinkRestriction・scheduledJob を読む。依存は booking → reception → event の一方向で、reception は booking を読まない。
+// routes・withdrawal・eventLinkRestriction・scheduledJob・publicReadPaths を読む。
+// 依存は booking → reception → event の一方向で、reception は booking を読まない。
 // ほかのアプリに出すのは、確定した申込みの名簿（名前と account だけ）の listApplicantRoster だけ（試合表が前もって名簿を
 // 入れる。AD-23 の 2026-11-22 の直し・match-006）。チェックインした人は reception の index.ts が出す。
 // 知らせ（booking-002。AD-24）：公式アカウントの設定・Webhook・紐づけ・連絡のメールアドレスの窓口。業務の関数 sendNotice は
@@ -23,6 +24,16 @@ export { bookingWithdrawal as withdrawal } from "./withdrawal.ts";
 export { bookingEventLinkRestriction as eventLinkRestriction } from "./event-links.ts";
 // 定期の仕事（組み立てが共通の窓口 POST /api/v1/jobs/tick に渡す。core-017・booking-007）
 export { bookingScheduledJob as scheduledJob } from "./scheduled-job.ts";
+
+/**
+ * ログインなしで読める道の頭（core-016。組み立てが集め、読む要求にも IP ごとの回数の制限をかける）。
+ * 申込みのページ・カレンダー（交流会の道）と、メールで申し込んだ人の札のページ。交流会の道の頭には主催者の読む窓口も入るが、
+ * 上限（60秒に600回）は人の使い方では届かない。
+ */
+export const publicReadPaths = [
+  "/api/v1/booking/events/",
+  "/api/v1/booking/entry-tokens/",
+] as const;
 
 /**
  * 予約の領域の道。戻り値の型は書かない（書くと画面に渡す型が消える）。
