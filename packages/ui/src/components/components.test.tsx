@@ -179,6 +179,7 @@ describe("ボタンの並べ方（ButtonRow）", () => {
     );
     const row = container.querySelector('[data-slot="button-row"]');
     expect(row?.className).toContain("flex-col-reverse");
+    expect(row?.className.split(" ")).toContain("w-full");
     expect(row?.className).toContain("wide:auto-cols-fr");
     expect(
       [...(row?.querySelectorAll("button") ?? [])].map((button) => button.textContent),
@@ -189,7 +190,11 @@ describe("ボタンの並べ方（ButtonRow）", () => {
         <Button>印刷</Button>
       </ButtonRow>,
     );
-    expect(container.querySelector('[data-slot="button-row"]')?.className).toContain("grid-cols-2");
+    const grid = container.querySelector('[data-slot="button-row"]')?.className ?? "";
+    expect(grid).toContain("grid-cols-2");
+    // スマホで数が奇数のときは、最後の1つを2列分にする・左寄せの入れ物の中でも横幅いっぱい
+    expect(grid.split(" ")).toContain("*:last:odd:col-span-2");
+    expect(grid.split(" ")).toContain("w-full");
   });
 
   it("ボタンの高さはふつう 48px・小 40px（32px は使わない）", () => {
