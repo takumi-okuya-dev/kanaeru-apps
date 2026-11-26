@@ -70,7 +70,8 @@ afterEach(() => {
 describe("変更の帯のボタン", () => {
   it("「知らせずに済ませる」を押したら、それにだけ印をつけ、「変更を知らせる」は止める", async () => {
     // 答えを返さないままにして、送っている途中を保つ
-    vi.stubGlobal("fetch", () => new Promise<Response>(() => {}));
+    const fetch = vi.fn(() => new Promise<Response>(() => {}));
+    vi.stubGlobal("fetch", fetch);
     render(
       <QueryClientProvider client={new QueryClient()}>
         <ChangeBanner
@@ -87,5 +88,7 @@ describe("変更の帯のボタン", () => {
     await waitFor(() => expect(quiet).toHaveAttribute("aria-busy", "true"));
     expect(notify).not.toHaveAttribute("aria-busy");
     expect(notify).toHaveAttribute("aria-disabled", "true");
+    await userEvent.click(notify);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });
