@@ -4,7 +4,7 @@
 import type { EventView } from "@workspace/contracts/event";
 import { Link } from "@tanstack/react-router";
 import { buttonVariants } from "@workspace/ui/components/button";
-import { cn } from "@workspace/ui/lib/cn";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { usesRoster } from "@workspace/contracts/booking";
 import { useBookingSetting } from "./queries.ts";
 
@@ -28,22 +28,23 @@ export function ReceptionRosterSection({ event }: { event: EventView }) {
       <p className="text-s text-text-sub">
         この交流会は名簿を使っています。チェックインした人を、名簿の人に当ててください。
       </p>
-      <div className="flex flex-wrap gap-xxs">
-        <Link
-          to="/admin/events/$eventId/roster/match"
-          params={{ eventId: event.id }}
-          className={cn(buttonVariants({ variant: "secondary" }), "min-h-xl")}
-        >
-          名簿に当てる
-        </Link>
+      {/* 枠の下の並び（二番の「名簿を見る」→ この節の主な操作「名簿に当てる」の順。同じ幅にそろえる） */}
+      <ButtonRow>
         <Link
           to="/admin/events/$eventId/roster"
           params={{ eventId: event.id }}
-          className={cn(buttonVariants({ variant: "text" }), "min-h-xl")}
+          className={buttonVariants({ variant: "secondary" })}
         >
           名簿を見る
         </Link>
-      </div>
+        <Link
+          to="/admin/events/$eventId/roster/match"
+          params={{ eventId: event.id }}
+          className={buttonVariants({ variant: "secondary" })}
+        >
+          名簿に当てる
+        </Link>
+      </ButtonRow>
     </section>
   );
 }

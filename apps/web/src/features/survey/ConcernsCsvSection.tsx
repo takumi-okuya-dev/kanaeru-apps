@@ -3,6 +3,7 @@
 import type { EventView } from "@workspace/contracts/event";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { errorMessage } from "../../lib/api.ts";
 import { saveFile } from "../../lib/download.ts";
@@ -28,14 +29,16 @@ export function ConcernsCsvSection({ event }: { event: EventView }) {
         名前・困りごと・月いくら・テスター・仕事の立場・職種を、Excel で開ける CSV にします。
       </p>
       <div className="flex flex-col items-start gap-xxs">
-        <Button
-          aria-disabled={mutation.isPending || undefined}
-          onClick={() => {
-            if (!mutation.isPending) mutation.mutate();
-          }}
-        >
-          {mutation.isPending ? "書き出しています…" : "困りごとをCSVで書き出す"}
-        </Button>
+        <ButtonRow>
+          <Button
+            aria-disabled={mutation.isPending || undefined}
+            onClick={() => {
+              if (!mutation.isPending) mutation.mutate();
+            }}
+          >
+            {mutation.isPending ? "書き出しています…" : "困りごとをCSVで書き出す"}
+          </Button>
+        </ButtonRow>
         {mutation.isSuccess ? (
           <ResponseMessage tone="success">{`${mutation.data.filename} を保存しました。`}</ResponseMessage>
         ) : null}

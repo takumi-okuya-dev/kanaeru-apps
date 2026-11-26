@@ -20,6 +20,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, getRouteApi } from "@tanstack/react-router";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { Field } from "@workspace/ui/components/field";
@@ -259,18 +260,15 @@ function AddEntryForm({
         />
       ) : null}
       <div className="flex flex-col gap-xxs">
-        <div className="flex flex-wrap gap-xxs">
-          <Button
-            type="submit"
-            aria-disabled={mutation.isPending || undefined}
-            className="min-h-xl"
-          >
-            {mutation.isPending ? "足しています…" : "名簿に足す"}
-          </Button>
-          <Button type="button" className="min-h-xl" onClick={onCancel}>
+        {/* 並べる順は「二番 → 主」（主は右・スマホは上。DESIGN.md の「ボタンの並べ方」） */}
+        <ButtonRow>
+          <Button type="button" onClick={onCancel}>
             やめる
           </Button>
-        </div>
+          <Button type="submit" variant="primary" aria-disabled={mutation.isPending || undefined}>
+            {mutation.isPending ? "足しています…" : "名簿に足す"}
+          </Button>
+        </ButtonRow>
         {mutation.isError && Object.keys(fieldErrorsFromApi(mutation.error)).length === 0 ? (
           <ResponseMessage tone="danger">
             {`足せませんでした。${errorMessage(mutation.error)}`}
@@ -412,7 +410,6 @@ function RosterView({ event }: { event: EventView }) {
           {entry.status === "waitlisted" && waitlistOn ? (
             <Button
               variant="text"
-              className="min-h-xl"
               aria-label={`${entry.name}に打診する`}
               onClick={() => {
                 if (offer.isPending) return;
@@ -426,7 +423,6 @@ function RosterView({ event }: { event: EventView }) {
           {waiting ? (
             <Button
               variant="text"
-              className="min-h-xl"
               aria-label={`${entry.name}を確定にする`}
               onClick={() => {
                 if (status.isPending) return;
@@ -439,7 +435,6 @@ function RosterView({ event }: { event: EventView }) {
           ) : null}
           <Button
             variant="text"
-            className="min-h-xl"
             aria-label={`${entry.name}を${entry.status === "cancelled" ? "確定に戻す" : "取り消す"}`}
             onClick={() => {
               if (status.isPending) return;
@@ -455,7 +450,6 @@ function RosterView({ event }: { event: EventView }) {
           {target ? (
             <Button
               variant="text"
-              className="min-h-xl"
               aria-label={`${entry.name}の同じ名前の行をまとめる`}
               onClick={() => {
                 merge.reset();
@@ -467,7 +461,6 @@ function RosterView({ event }: { event: EventView }) {
           ) : null}
           <Button
             variant="text"
-            className="min-h-xl"
             aria-expanded={noticesOf === entry.id}
             aria-label={`${entry.name}さんに送った知らせ`}
             onClick={() => setNoticesOf(noticesOf === entry.id ? undefined : entry.id)}
@@ -483,48 +476,44 @@ function RosterView({ event }: { event: EventView }) {
   };
 
   return (
-    <Page
-      title="名簿"
-      lead={`${event.name}（${formatEventDateTime(event.startsAt)}）`}
-      actions={
-        <>
-          <Button
-            onClick={() => {
-              setMessage(undefined);
-              setAdding(true);
-            }}
-          >
-            1人足す
-          </Button>
-          {organizer ? (
-            <Link
-              to="/admin/events/$eventId/roster/import"
-              params={{ eventId: event.id }}
-              className={buttonVariants({ variant: "secondary" })}
-            >
-              貼る・CSV で入れる
-            </Link>
-          ) : null}
-          {organizer ? (
-            <Button
-              aria-disabled={exporting.isPending || undefined}
-              onClick={() => {
-                if (!exporting.isPending) exporting.mutate();
-              }}
-            >
-              書き出す
-            </Button>
-          ) : null}
+    <Page title="名簿" lead={`${event.name}（${formatEventDateTime(event.startsAt)}）`}>
+      {/* 画面の操作は、題の下に同じ幅の格子で並べる（DESIGN.md の「ボタンの並べ方」。文字の長さで幅を変えない） */}
+      <ButtonRow layout="grid">
+        <Button
+          onClick={() => {
+            setMessage(undefined);
+            setAdding(true);
+          }}
+        >
+          1人足す
+        </Button>
+        {organizer ? (
           <Link
-            to="/admin/events/$eventId/roster/match"
+            to="/admin/events/$eventId/roster/import"
             params={{ eventId: event.id }}
             className={buttonVariants({ variant: "secondary" })}
           >
-            名簿に当てる
+            貼る・CSV で入れる
           </Link>
-        </>
-      }
-    >
+        ) : null}
+        {organizer ? (
+          <Button
+            aria-disabled={exporting.isPending || undefined}
+            onClick={() => {
+              if (!exporting.isPending) exporting.mutate();
+            }}
+          >
+            書き出す
+          </Button>
+        ) : null}
+        <Link
+          to="/admin/events/$eventId/roster/match"
+          params={{ eventId: event.id }}
+          className={buttonVariants({ variant: "secondary" })}
+        >
+          名簿に当てる
+        </Link>
+      </ButtonRow>
       {message ? <ResponseMessage tone={message.tone}>{message.text}</ResponseMessage> : null}
       {adding ? (
         <AddEntryForm

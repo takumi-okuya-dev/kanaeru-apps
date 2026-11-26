@@ -12,6 +12,7 @@ import type { CheckinInput } from "@workspace/contracts/reception";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Field } from "@workspace/ui/components/field";
 import { Input } from "@workspace/ui/components/input";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
@@ -64,7 +65,7 @@ function timeOf(iso: string): string {
  * @param props.onPick 選んだとき
  * @param props.onCancel やめたとき
  * @param props.title 見出し
- * @param props.children 下に足すもの（任意）
+ * @param props.children 下の並びに足すボタン（任意。「やめる」のあとに並べる）
  * @returns 欄の要素
  */
 function ChoicePicker({
@@ -121,12 +122,13 @@ function ChoicePicker({
           ))}
         </ul>
       )}
-      <div className="flex flex-wrap gap-xxs">
-        {children}
-        <Button type="button" className="min-h-xl" onClick={onCancel}>
+      {/* 枠の下の並び（「やめる」→ 足したもの の順。DESIGN.md の「ボタンの並べ方」） */}
+      <ButtonRow>
+        <Button type="button" onClick={onCancel}>
           やめる
         </Button>
-      </div>
+        {children}
+      </ButtonRow>
     </section>
   );
 }
@@ -211,18 +213,15 @@ function ManualForm({
         discounts={event.discounts}
       />
       <div className="flex flex-col gap-xxs">
-        <div className="flex flex-wrap gap-xxs">
-          <Button
-            type="submit"
-            aria-disabled={mutation.isPending || undefined}
-            className="min-h-xl"
-          >
-            {mutation.isPending ? "チェックインしています…" : "チェックインする"}
-          </Button>
-          <Button type="button" className="min-h-xl" onClick={onCancel}>
+        {/* 並べる順は「二番 → 主」（主は右・スマホは上。DESIGN.md の「ボタンの並べ方」） */}
+        <ButtonRow>
+          <Button type="button" onClick={onCancel}>
             やめる
           </Button>
-        </div>
+          <Button type="submit" variant="primary" aria-disabled={mutation.isPending || undefined}>
+            {mutation.isPending ? "チェックインしています…" : "チェックインする"}
+          </Button>
+        </ButtonRow>
         {mutation.isError && Object.keys(fieldErrorsFromApi(mutation.error)).length === 0 ? (
           <ResponseMessage tone="danger">
             {`チェックインできませんでした。${errorMessage(mutation.error)}`}
@@ -292,16 +291,10 @@ function PendingCard({
             <br />
             <span className="text-text-sub">名前がそろうのは1人だけです</span>
           </p>
+          {/* カードの中の操作なので、ButtonRow に入れずカードの中の同じ幅の2列に置く */}
           <div className="grid grid-cols-2 gap-xxs">
-            <Button
-              className="min-h-xl font-bold"
-              onClick={() => run({ kind: "match", entry: candidate })}
-            >
-              当てる
-            </Button>
-            <Button className="min-h-xl" onClick={() => run({ kind: "dismiss", entry: candidate })}>
-              ちがう人
-            </Button>
+            <Button onClick={() => run({ kind: "match", entry: candidate })}>当てる</Button>
+            <Button onClick={() => run({ kind: "dismiss", entry: candidate })}>ちがう人</Button>
           </div>
         </>
       ) : (
@@ -316,12 +309,8 @@ function PendingCard({
             />
           ) : (
             <div className="grid grid-cols-2 gap-xxs">
-              <Button className="min-h-xl" onClick={() => setPicking(true)}>
-                名簿から選ぶ
-              </Button>
-              <Button className="min-h-xl" onClick={() => run({ kind: "walk_in" })}>
-                飛び入りにする
-              </Button>
+              <Button onClick={() => setPicking(true)}>名簿から選ぶ</Button>
+              <Button onClick={() => run({ kind: "walk_in" })}>飛び入りにする</Button>
             </div>
           )}
         </>
@@ -441,11 +430,7 @@ function MatchView({ event }: { event: EventView }) {
               onPick={(choice) => setManual({ step: "form", choice })}
               onCancel={() => setManual(undefined)}
             >
-              <Button
-                type="button"
-                className="min-h-xl"
-                onClick={() => setManual({ step: "form", choice: undefined })}
-              >
+              <Button type="button" onClick={() => setManual({ step: "form", choice: undefined })}>
                 名簿にいない人（飛び入り）
               </Button>
             </ChoicePicker>
@@ -461,16 +446,17 @@ function MatchView({ event }: { event: EventView }) {
             />
           ) : (
             <div className="sticky bottom-0 bg-background py-xxs">
-              <Button
-                variant="primary"
-                className="min-h-xl w-full"
-                onClick={() => {
-                  setMessage(undefined);
-                  setManual({ step: "pick" });
-                }}
-              >
-                手でチェックイン（名簿から選ぶ）
-              </Button>
+              <ButtonRow>
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    setMessage(undefined);
+                    setManual({ step: "pick" });
+                  }}
+                >
+                  手でチェックイン（名簿から選ぶ）
+                </Button>
+              </ButtonRow>
             </div>
           )}
         </>
