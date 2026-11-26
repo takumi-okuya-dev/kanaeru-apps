@@ -167,7 +167,7 @@ describe("組織の画面", () => {
     const remove = within(other).getByRole("button", { name: "外す" });
     await waitFor(() => expect(remove).toHaveAttribute("aria-disabled", "true"));
     await userEvent.click(remove);
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
   it("管理者が抜けるときは、引き継ぐ人を選ぶまで押せず、選ぶと引き継ぐ人を送る", async () => {
