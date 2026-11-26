@@ -119,7 +119,11 @@ export default defineConfig(({ mode }) => {
   const name = env.APP_NAME ?? "";
   const liffId = env.VITE_LIFF_ID?.trim() ?? "";
   const port = Number(env.WEB_PORT || 5173);
-  const proxy = { "/api": { target: apiProxyTarget(env) } };
+  // /.well-known は認可のメタデータ（RFC 8414・9728）。MCP のクライアントは画面の源から読むので、API へ流す（core-021）
+  const proxy = {
+    "/api": { target: apiProxyTarget(env) },
+    "/.well-known": { target: apiProxyTarget(env) },
+  };
   return {
     envDir,
     plugins: [
