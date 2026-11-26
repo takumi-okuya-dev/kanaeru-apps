@@ -4,7 +4,6 @@
 import { EVENT_DISCOUNTS_MAX } from "@workspace/contracts/event";
 import type { EventDiscountView } from "@workspace/contracts/event";
 import { Button } from "@workspace/ui/components/button";
-import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Field } from "@workspace/ui/components/field";
 import { Input } from "@workspace/ui/components/input";
 import { useId } from "react";
@@ -156,7 +155,8 @@ export function DiscountFields({ rows, onChange, errors, editing }: DiscountFiel
         </p>
       ) : null}
       {rows.length < EVENT_DISCOUNTS_MAX ? (
-        <ButtonRow>
+        // 行を足す操作は、送る（作る・保存）と見分けやすいよう左に置く（右寄せの ButtonRow にしない）
+        <div>
           <Button
             type="button"
             onClick={() =>
@@ -165,7 +165,7 @@ export function DiscountFields({ rows, onChange, errors, editing }: DiscountFiel
           >
             割引を足す
           </Button>
-        </ButtonRow>
+        </div>
       ) : null}
     </fieldset>
   );

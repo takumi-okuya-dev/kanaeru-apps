@@ -89,7 +89,7 @@ function QrSection({ event }: { event: EventView }) {
               <Link
                 to="/admin/events/$eventId/setup/qr/$kind"
                 params={{ eventId: event.id, kind }}
-                className={buttonVariants({ variant: "secondary" })}
+                className={buttonVariants({ variant: "secondary", size: "small" })}
               >
                 {QR_TITLES[kind]}を印刷する
               </Link>

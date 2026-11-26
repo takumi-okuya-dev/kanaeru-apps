@@ -116,7 +116,7 @@ function EventRow({ event, registered }: EventRowProps) {
             to="/admin/events/$eventId/setup"
             params={{ eventId: event.id }}
             aria-label={`準備：${event.name}`}
-            className={buttonVariants({ variant: "secondary" })}
+            className={buttonVariants({ variant: "secondary", size: "small" })}
           >
             準備
           </Link>
@@ -124,7 +124,7 @@ function EventRow({ event, registered }: EventRowProps) {
             to="/admin/events/$eventId/edit"
             params={{ eventId: event.id }}
             aria-label={`直す：${event.name}`}
-            className={buttonVariants({ variant: "secondary" })}
+            className={buttonVariants({ variant: "secondary", size: "small" })}
           >
             直す
           </Link>
