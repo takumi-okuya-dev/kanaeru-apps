@@ -3,7 +3,14 @@
 // 名前はどれも架空のもの。
 import { describe, expect, it } from "vitest";
 import { parseCsv } from "../../lib/csv-read.ts";
-import { assignNicknames, detectColumns, levelChoices, readLevel, readRoster, timestampKey } from "./roster-read.ts";
+import {
+  assignNicknames,
+  detectColumns,
+  levelChoices,
+  readLevel,
+  readRoster,
+  timestampKey,
+} from "./roster-read.ts";
 
 /** スプレッドシートから貼った見本（タブ区切り。メール・ラケット・きっかけ・要望の列つき）。 */
 const PASTED = [
@@ -134,7 +141,9 @@ describe("列の確かめ（match-008）", () => {
   });
 
   it("選択肢を逆に振っても、言葉どおりに読む。読めない選択肢は対応で選ぶ（SC-002）", () => {
-    const parsed = parseCsv(["氏名,レベル", "山田 太郎,1入門", "佐藤 花子,4上級", "林 優斗,A：大会に出ている"].join("\n"));
+    const parsed = parseCsv(
+      ["氏名,レベル", "山田 太郎,1入門", "佐藤 花子,4上級", "林 優斗,A：大会に出ている"].join("\n"),
+    );
     const { choices } = levelChoices(parsed, 1);
     expect(choices).toEqual([
       { value: "1入門", level: "novice" },
@@ -146,30 +155,37 @@ describe("列の確かめ（match-008）", () => {
       ["4上級", "advanced" as const],
       ["A：大会に出ている", "advanced" as const],
     ]);
-    expect(readRoster(parsed, detectColumns(parsed), map).people.map((person) => person.level)).toEqual([
-      "novice",
-      "advanced",
-      "advanced",
-    ]);
+    expect(
+      readRoster(parsed, detectColumns(parsed), map).people.map((person) => person.level),
+    ).toEqual(["novice", "advanced", "advanced"]);
   });
 
   it("午前・午後の付いた日時も 24 時間に直して比べ、新しい回答を使う（SC-003）", () => {
-    expect(timestampKey("2026/11/21 1:05:18 午後 GMT+9") > timestampKey("2026/11/21 11:00:00 午前 GMT+9")).toBe(true);
-    expect(timestampKey("2026/11/21 12:10:00 午前") < timestampKey("2026/11/21 1:00:00 午前")).toBe(true);
+    expect(
+      timestampKey("2026/11/21 1:05:18 午後 GMT+9") >
+        timestampKey("2026/11/21 11:00:00 午前 GMT+9"),
+    ).toBe(true);
+    expect(timestampKey("2026/11/21 12:10:00 午前") < timestampKey("2026/11/21 1:00:00 午前")).toBe(
+      true,
+    );
     expect(timestampKey("11/21/2026 1:05:18 PM")).not.toBe("");
     const text = [
       "タイムスタンプ,氏名,レベル",
       "2026/11/21 1:05:18 午後 GMT+9,山田 太郎,1上級",
       "2026/11/21 11:00:00 午前 GMT+9,山田 太郎,4入門",
     ].join("\n");
-    expect(readRoster(parseCsv(text)).people).toEqual([{ fullName: "山田 太郎", level: "advanced" }]);
+    expect(readRoster(parseCsv(text)).people).toEqual([
+      { fullName: "山田 太郎", level: "advanced" },
+    ]);
   });
 
   it("違うレベルの言葉が2つある選択肢は、数字があっても読めないとして選んでもらう", () => {
     expect(readLevel("3初中級（上級者と打てる）")).toBeNull();
     expect(readLevel("中上級")).toBe("advanced");
     const parsed = parseCsv(["氏名,レベル", "山田 太郎,3初中級（上級者と打てる）"].join("\n"));
-    expect(levelChoices(parsed, 1).choices).toEqual([{ value: "3初中級（上級者と打てる）", level: undefined }]);
+    expect(levelChoices(parsed, 1).choices).toEqual([
+      { value: "3初中級（上級者と打てる）", level: undefined },
+    ]);
   });
 
   it("対応を見せなかった値（選択肢が多い列）は、言葉と数字で読む", () => {
