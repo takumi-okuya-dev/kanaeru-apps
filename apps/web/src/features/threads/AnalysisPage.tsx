@@ -912,7 +912,8 @@ function SettingsSection({
           </div>
         ))}
         {errors.themes ? <ResponseMessage tone="danger">{errors.themes}</ResponseMessage> : null}
-        <ButtonRow>
+        {/* 行を足す操作は、保存と見分けやすいよう左に置く（右寄せの ButtonRow にしない） */}
+        <div>
           <Button
             variant="secondary"
             aria-disabled={themes.length >= ANALYSIS_THEMES_MAX || undefined}
@@ -923,7 +924,7 @@ function SettingsSection({
           >
             テーマを足す
           </Button>
-        </ButtonRow>
+        </div>
       </div>
       <div className="flex flex-col items-start gap-xxs">
         <ButtonRow>

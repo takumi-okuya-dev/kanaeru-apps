@@ -372,14 +372,15 @@ function ScheduleForm({ accountId, view }: { accountId: string; view: PostingSch
             </li>
           ))}
         </ul>
-        <ButtonRow>
+        {/* 行を足す操作は、保存と見分けやすいよう左に置く（右寄せの ButtonRow にしない） */}
+        <div>
           <Button
             disabled={rows.length >= AUTOPOST_SLOT_LIMIT}
             onClick={() => setRows((current) => [...current, timeRow("")])}
           >
             時刻を足す
           </Button>
-        </ButtonRow>
+        </div>
         {timesError ? (
           <p id={timesErrorId} className="text-s text-danger-text">
             {timesError}
