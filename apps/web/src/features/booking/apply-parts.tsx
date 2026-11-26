@@ -1,15 +1,16 @@
 // 自前の申込みページの部品（申込みページ・札のページ・自分の申込みが共に使う。booking-003）：交流会の欄・カレンダーに追加・
-// 公式 LINE の友だち追加・連絡のメールアドレス・LINE でログインへの入口。押せる所は 48px（min-h-xl）。
+// 公式 LINE の友だち追加・連絡のメールアドレス・LINE でログインへの入口。ボタンの高さは Button の大きさに任せ、
+// 並べる所は ButtonRow に入れる（DESIGN.md の「ボタンの並べ方」）。
 // 外へのリンクは rel="noreferrer"（札のページの URL を外へ送らない。research S3）。
 import type { ApplyEvent, CalendarLinks } from "@workspace/contracts/booking";
 import { ContactInput } from "@workspace/contracts/booking";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "@tanstack/react-router";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Field } from "@workspace/ui/components/field";
 import { Input } from "@workspace/ui/components/input";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
-import { cn } from "@workspace/ui/lib/cn";
 import { useState } from "react";
 import type * as React from "react";
 import { errorMessage } from "../../lib/api.ts";
@@ -17,9 +18,6 @@ import { fieldErrorsFromApi, fieldErrorsFromIssues } from "../../lib/form.ts";
 import { getLiff } from "../../lib/liff.ts";
 import { formatEventDateTime, formatFee } from "../event/index.ts";
 import { deleteMyContact, fetchMyContact, saveMyContact } from "./apply-api.ts";
-
-/** 主のボタンの見た目（高さ 48px・狭い画面では横いっぱい。受付の画面と同じ）。 */
-export const PRIMARY_ACTION_CLASS = "min-h-xl w-full wide:w-auto wide:self-start wide:px-m";
 
 /** 外のページへのリンクの属性（参照元を送らない）。 */
 export const EXTERNAL_LINK = { target: "_blank", rel: "noopener noreferrer" } as const;
@@ -88,22 +86,22 @@ export function CalendarSection({ calendar }: { calendar: CalendarLinks }) {
       <h2 id="apply-calendar" className="text-l leading-tight font-bold">
         カレンダーに追加
       </h2>
-      <div className="grid gap-xxs wide:grid-cols-2">
+      <ButtonRow layout="grid" className="wide:grid-cols-2">
         <a
           href={calendar.googleUrl}
           {...EXTERNAL_LINK}
-          className={cn(buttonVariants({ variant: "secondary" }), "min-h-xl")}
+          className={buttonVariants({ variant: "secondary" })}
         >
           Google カレンダー
         </a>
         <a
           href={calendar.icsPath}
           download="event.ics"
-          className={cn(buttonVariants({ variant: "secondary" }), "min-h-xl")}
+          className={buttonVariants({ variant: "secondary" })}
         >
           ほかのカレンダー（.ics）
         </a>
-      </div>
+      </ButtonRow>
       <p className="text-s text-text-sub">
         「ほかのカレンダー」は iPhone・Outlook
         用のファイルです。終わりの時刻は、始まりから2時間にしています。
@@ -144,13 +142,11 @@ export function LineFriendSection({
           <p className="text-m">
             {`${hostName}の公式 LINE を友だちに追加し、届いたリンクを開くと、日時の変更などが LINE で届きます。`}
           </p>
-          <a
-            href={url}
-            {...EXTERNAL_LINK}
-            className={cn(buttonVariants({ variant: "secondary" }), "min-h-xl")}
-          >
-            公式 LINE を友だちに追加する
-          </a>
+          <ButtonRow>
+            <a href={url} {...EXTERNAL_LINK} className={buttonVariants({ variant: "secondary" })}>
+              公式 LINE を友だちに追加する
+            </a>
+          </ButtonRow>
         </>
       )}
     </section>
@@ -211,7 +207,6 @@ export function ContactSection() {
           <p className="text-m break-all">{`入れているアドレス：${current}`}</p>
           <Button
             variant="text"
-            className="min-h-xl"
             aria-busy={remove.isPending || undefined}
             onClick={() => remove.mutate()}
           >
@@ -232,13 +227,11 @@ export function ContactSection() {
               onChange={(event) => setValue(event.target.value)}
             />
           </Field>
-          <Button
-            type="submit"
-            className="min-h-xl self-start"
-            aria-busy={save.isPending || undefined}
-          >
-            {save.isPending ? "入れています…" : "メールアドレスを入れる"}
-          </Button>
+          <ButtonRow>
+            <Button type="submit" aria-busy={save.isPending || undefined}>
+              {save.isPending ? "入れています…" : "メールアドレスを入れる"}
+            </Button>
+          </ButtonRow>
         </form>
       )}
       {done ? <ResponseMessage tone="success">{done}</ResponseMessage> : null}
@@ -251,6 +244,7 @@ export function ContactSection() {
 
 /**
  * LINE でログインする入口（LINE の中は開き直す・外のブラウザは LINE のログインへ・手元は手元のログインへ）。
+ * 置く所で ButtonRow に入れる（幅と並びは ButtonRow が決める）。
  * @param props ボタンの言葉（label）と主のボタンか（primary）
  * @param props.label ボタンの言葉
  * @param props.primary 主のボタンにするか
@@ -259,21 +253,21 @@ export function ContactSection() {
 export function LineLoginButton({ label, primary = true }: { label: string; primary?: boolean }) {
   const liff = getLiff();
   const location = useLocation();
-  const className = cn(
-    buttonVariants({ variant: primary ? "primary" : "secondary" }),
-    PRIMARY_ACTION_CLASS,
-  );
+  const variant = primary ? "primary" : "secondary";
   if (liff.mode === "fake") {
     return (
-      <Link to="/dev/login" search={{ redirect: location.href }} className={className}>
+      <Link
+        to="/dev/login"
+        search={{ redirect: location.href }}
+        className={buttonVariants({ variant })}
+      >
         {label}
       </Link>
     );
   }
   return (
     <Button
-      variant={primary ? "primary" : "secondary"}
-      className={PRIMARY_ACTION_CLASS}
+      variant={variant}
       onClick={() => {
         if (liff.isInClient()) window.location.reload();
         else liff.login();
