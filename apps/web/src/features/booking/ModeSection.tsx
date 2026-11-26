@@ -14,6 +14,7 @@ import {
 import type { BookingMode } from "@workspace/contracts/booking";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { cn } from "@workspace/ui/lib/cn";
@@ -112,9 +113,14 @@ export function ModeSection({ event }: { event: EventView }) {
         </div>
       </fieldset>
       <div className="flex flex-col items-start gap-xxs">
-        <Button aria-disabled={mutation.isPending || setting.isPending || undefined} onClick={save}>
-          {mutation.isPending ? "変えています…" : "使い方を変える"}
-        </Button>
+        <ButtonRow>
+          <Button
+            aria-disabled={mutation.isPending || setting.isPending || undefined}
+            onClick={save}
+          >
+            {mutation.isPending ? "変えています…" : "使い方を変える"}
+          </Button>
+        </ButtonRow>
         {saved ? (
           <ResponseMessage tone="success">
             {selected === "roster"
