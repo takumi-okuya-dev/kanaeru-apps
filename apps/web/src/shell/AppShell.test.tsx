@@ -293,6 +293,14 @@ describe("外枠のアプリの切り替え（core-005）", () => {
       .filter((link) => link.getAttribute("aria-current") === "page")
       .map((link) => `${link.textContent ?? ""} ${link.getAttribute("href") ?? ""}`);
     expect(current).toEqual(["改善点を送る /settings/feedback"]);
+    // スマホのアプリの切り替えの枠を開いても、全体の設定は今のページにしない
+    const [mobile] = screen.getAllByRole("button", { name: /切り替える）$/ });
+    if (!mobile) throw new Error("切り替えがありません");
+    await userEvent.click(mobile);
+    const sheet = await screen.findByRole("dialog", { name: "アプリを切り替える" });
+    expect(within(sheet).getByRole("link", { name: "全体の設定" })).not.toHaveAttribute(
+      "aria-current",
+    );
   });
 
   it("見えるアプリが2つなら、PC は切り替えのメニューに使えるアプリ・運営者だけの札・すべてのアプリを出す", async () => {

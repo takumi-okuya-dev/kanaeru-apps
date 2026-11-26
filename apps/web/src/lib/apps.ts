@@ -104,3 +104,14 @@ export function provideStartPaths(paths: ReadonlyMap<string, string>): void {
 export function startPathOf(app: { key: string; basePath: string }): string {
   return startPaths.get(app.key) ?? app.basePath;
 }
+
+/**
+ * 今の道が改善点のページ（とその下の道）か。末尾の / も同じに見る（外枠とアプリの切り替えで、今のページの印を1つにするため）。
+ * @param pathname 今の道
+ * @param feedbackPath 改善点を送る道（なければ null）
+ * @returns 改善点のページなら true
+ */
+export function isFeedbackPath(pathname: string, feedbackPath: string | null): boolean {
+  if (feedbackPath === null) return false;
+  return pathname.replace(/\/$/u, "") === feedbackPath || pathname.startsWith(`${feedbackPath}/`);
+}

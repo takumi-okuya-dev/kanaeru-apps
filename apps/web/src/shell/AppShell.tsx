@@ -20,7 +20,7 @@ import { cn } from "@workspace/ui/lib/cn";
 import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { APP_NAME } from "../lib/app-name.ts";
-import { writeLastApp } from "../lib/apps.ts";
+import { isFeedbackPath, writeLastApp } from "../lib/apps.ts";
 import type { ShellAppsView } from "../lib/apps.ts";
 import type { NavItem } from "../lib/feature.ts";
 import { Icon } from "../lib/icon.tsx";
@@ -361,9 +361,7 @@ export function AppShell({ useNavItems, useApps = useNoApps }: AppShellProps) {
   // 改善点を送るは、どの画面でもヘッダーに出す（使っていて気づいたことをすぐ送れるように。PC は文字、スマホはアイコン）
   const feedbackPath = admin ? apps.feedbackPath : null;
   // 改善点のページ（とその下の道）にいるか。末尾の / も同じに見る
-  const inFeedback =
-    feedbackPath !== null &&
-    (pathname.replace(/\/$/u, "") === feedbackPath || pathname.startsWith(`${feedbackPath}/`));
+  const inFeedback = isFeedbackPath(pathname, feedbackPath);
   // 「今のページ」はヘッダーで1つだけにする（改善点のページでは、全体の設定でなく改善点を送るを今にする）
   const settingsCurrent = inSettings && !inFeedback;
   const toggleSidebar = () => {
