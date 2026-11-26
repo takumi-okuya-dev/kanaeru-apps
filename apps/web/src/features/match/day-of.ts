@@ -3,8 +3,13 @@
 // - 終わった試合（チェックの付いた試合）は決して変えない。今の試合（チェックのない最初の試合）も、入る人がみな出られるなら残す
 // - それまでの試合の数は引き継いで均す（来た人は今の周に入り、来るまでの試合は数えない。帰った人はこれからの試合に入らない）
 // - ほかの組の試合は変えない。レベル別と分けないの両方を選んでいれば、その人の入るどちらの組も組み直す（match-009）
-import { PLAYERS_PER_GAME } from "@workspace/contracts/match";
-import type { MatchGroup, MatchTableContent, PlayerStatus } from "@workspace/contracts/match";
+import { MATCH_GROUPS, PLAYERS_PER_GAME } from "@workspace/contracts/match";
+import type {
+  MatchGroup,
+  MatchSettings,
+  MatchTableContent,
+  PlayerStatus,
+} from "@workspace/contracts/match";
 import { groupsOf, presentPlayersOf, replanGroup } from "./plan.ts";
 import { updatePlayer } from "./roster-edit.ts";
 
@@ -61,6 +66,16 @@ export function groupOfPlayer(
 }
 
 /**
+ * 「人を選んで直す」の選ぶ欄の組（レベル別があればその組、なければ全員の1つ。ミニゲームだけでも人を選べるように・
+ * レベル別と分けないの両方でも同じ人を2回並べないように）。
+ * @param settings 設定
+ * @returns 組
+ */
+export function attendanceGroups(settings: MatchSettings): readonly MatchGroup[] {
+  return settings.levels ? MATCH_GROUPS[settings.levels] : MATCH_GROUPS.none;
+}
+
+/**
  * 人の入る組のすべて（レベル別の組と、分けないなら全員の組。match-009）。
  * @param content 試合表の中身
  * @param playerId 名簿の人の ID
@@ -78,8 +93,10 @@ export type AttendanceReport = {
   nickname: string;
   /** 直し方 */
   action: AttendanceAction;
-  /** 組の言葉（レベルがなければ undefined） */
+  /** 組の言葉（レベルがない・試合の組がないときは undefined） */
   groupLabel?: string;
+  /** レベルはあるが、試合の組がない（ミニゲームだけ） */
+  noGroups?: boolean;
   /** 組み直した最初の試合の番号（1から。組み合わせがないときは undefined） */
   fromGame?: number;
   /** 組み直したあと、この先の試合が組めない（1試合の人数に足りない） */
@@ -108,7 +125,10 @@ export function markAttendance(
   const groups = groupsOfPlayer(marked, playerId);
   const report: AttendanceReport = { nickname: player.nickname, action, short: false };
   const [first] = groups;
-  if (!first) return { content: marked, report };
+  if (!first) {
+    if (player.level !== null) report.noGroups = true;
+    return { content: marked, report };
+  }
   report.groupLabel = first.label;
   // まだ組んでいない試合表（どの組も試合がない）は、当日の印だけを直す（「試合表を作る」で組む）
   if (!marked.plan.some((plan) => plan.games.length > 0)) return { content: marked, report };
@@ -141,6 +161,9 @@ export function markAttendance(
  */
 export function describeAttendance(report: AttendanceReport): string {
   const who = `${report.nickname}：${ATTENDANCE_ACTION_LABELS[report.action]}`;
+  if (report.noGroups) {
+    return `直しました。${who}（ミニゲームのチームは変えません。分け直すときは「チーム分けをやり直す」を押してください）`;
+  }
   if (!report.groupLabel) return `直しました。${who}（レベルがないので、試合には入りません）`;
   if (report.fromGame === undefined) {
     return `直しました。${who}（まだ試合表を作っていないので、当日の印だけを直しました）`;

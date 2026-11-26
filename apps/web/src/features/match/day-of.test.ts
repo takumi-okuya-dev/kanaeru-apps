@@ -12,7 +12,13 @@ import {
 import type { MatchPlayer, PlayerStatus } from "@workspace/contracts/match";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { actionsFor, describeAttendance, groupOfPlayer, markAttendance } from "./day-of.ts";
+import {
+  actionsFor,
+  attendanceGroups,
+  describeAttendance,
+  groupOfPlayer,
+  markAttendance,
+} from "./day-of.ts";
 import type { AttendanceAction } from "./day-of.ts";
 import { buildPlan } from "./plan.ts";
 import { changeSettings } from "./regroup.ts";
@@ -464,5 +470,42 @@ describe("レベル別と分けないの両方（match-009 のセルフレビュ
       for (const game of games.slice(from)) expect(game.players).not.toContain("p0");
     }
     expect(describeAttendance(result!.report)).toMatch(/上級の第\d+試合から・全員の第\d+試合から/u);
+  });
+});
+
+describe("人を選んで直すの選ぶ欄と、ミニゲームだけの試合表（リリースの PR の Codex の指摘）", () => {
+  it("選ぶ欄の組は、レベル別があればその組・なければ全員の1つ（同じ人を2回並べない）", () => {
+    const settings = INITIAL_CONTENT.settings;
+    expect(attendanceGroups({ ...settings, levels: "two" }).map((group) => group.key)).toEqual([
+      "advanced_intermediate",
+      "beginner_novice",
+    ]);
+    expect(
+      attendanceGroups({ ...settings, levels: "four", ungrouped: true }).map((group) => group.key),
+    ).toEqual(["advanced", "intermediate", "beginner", "novice"]);
+    expect(
+      attendanceGroups({ ...settings, levels: null, ungrouped: false, courts: 2 }).map(
+        (group) => group.key,
+      ),
+    ).toEqual(["all"]);
+  });
+
+  it("ミニゲームだけでも当日の印を直せ、チームは変えないと知らせる", () => {
+    const base = oneGroup(["present", "present", "present", "present"], 4);
+    const content: MatchTableContent = {
+      ...base,
+      settings: { ...base.settings, levels: null, ungrouped: false, courts: 1 },
+      plan: [],
+      mini: {
+        teams: [
+          ["p0", "p1"],
+          ["p2", "p3"],
+        ],
+      },
+    };
+    const result = markAttendance(content, 3, "p0", "left");
+    expect(result?.content.players.find((player) => player.id === "p0")?.status).toBe("left");
+    expect(result?.content.mini).toEqual(content.mini);
+    expect(describeAttendance(result!.report)).toContain("ミニゲームのチームは変えません");
   });
 });
