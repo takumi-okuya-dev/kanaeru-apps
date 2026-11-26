@@ -2,6 +2,7 @@
 // 紙の大きさと向き。
 import { describe, expect, it } from "vitest";
 import {
+  MAX_FONT_MM,
   ORIENTATIONS,
   PAPER_SIZES,
   layoutSheet,
@@ -45,6 +46,18 @@ describe("印刷の版の大きさ", () => {
       longestNameEm: 10,
     });
     expect(long.fontSize * 10).toBeLessThanOrEqual(long.nameWidth);
+  });
+
+  it("試合が少なく大きい紙でも、名前の字は上限より大きくならない", () => {
+    const layout = layoutSheet({
+      size: "a2",
+      orientation: "portrait",
+      rows: 3,
+      columns: 4,
+      longestNameEm: 2,
+    });
+    expect(layout.fontSize).toBe(MAX_FONT_MM);
+    expect(layout.fontSize).toBeLessThan(layout.rowHeight * 0.5);
   });
 
   it("小さい紙に試合が多いと「読みにくい」の印が付く", () => {

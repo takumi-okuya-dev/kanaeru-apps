@@ -1,7 +1,8 @@
 // 印刷の版の大きさを決める（PRD FR-M19・モックアップ R1・M5）。状態を持たない関数だけ。
 // 1つの組を紙1枚に、名前の列に縦線を引いて並べる。字の大きさと行の高さは、選んだ紙1枚にちょうど収まるよう自動で合わせる
-// （試合が少ないときは大きく、多いときは小さく。持ち主が決めた）。版は SVG で描き、大きさはどれも紙の上の mm で決める
-// （画面の値ではないので tokens.css に置かない。research R10）。
+// （試合が少ないときは大きく、多いときは小さく。持ち主が決めた）。ただし大きくなりすぎないよう、名前の字は行の高さの
+// 45%・上限 MAX_FONT_MM まで、題は上限 16mm まで（刷ると大きすぎた。持ち主が決めた）。
+// 版は SVG で描き、大きさはどれも紙の上の mm で決める（画面の値ではないので tokens.css に置かない。research R10）。
 
 /** 紙の大きさの code（A5〜A2・B5〜B3。B は日本の JIS の B 列）。 */
 export const PAPER_SIZES = ["a5", "b5", "a4", "b4", "a3", "b3", "a2"] as const;
@@ -51,6 +52,15 @@ const SAFETY_MM = 1;
 
 /** 名前の字がこれより小さいと読みにくい（mm。約10ポイント）。大きい紙をすすめる【仮決め】。 */
 export const MIN_READABLE_FONT_MM = 3.5;
+
+/** 名前の字の大きさの上限（mm。約34ポイント）。試合が少ないときに字が大きくなりすぎないため。 */
+export const MAX_FONT_MM = 12;
+
+/** 名前の字の大きさの、行の高さに対する割合。 */
+const FONT_TO_ROW = 0.45;
+
+/** 題（組の名前）の字の大きさの上限（mm）。 */
+const MAX_TITLE_MM = 16;
 
 /** 既定の紙（A3 縦。PRD FR-M19【仮決め】）。 */
 export const DEFAULT_PAPER: { size: PaperSize; orientation: Orientation } = {
@@ -135,7 +145,7 @@ export function layoutSheet(input: {
   longestNameEm: number;
 }): SheetLayout {
   const { width, height } = printableArea(input.size, input.orientation);
-  const titleSize = Math.min(height * 0.05, width * 0.07, 24);
+  const titleSize = Math.min(height * 0.05, width * 0.07, MAX_TITLE_MM);
   const subtitleSize = Math.max(3, titleSize * 0.4);
   const tableTop = titleSize * 1.3 + subtitleSize * 1.8;
   const footerSize = Math.min(5, Math.max(3, height * 0.012));
@@ -145,7 +155,11 @@ export function layoutSheet(input: {
   const digits = String(rows).length;
   const numberWidth = Math.max(width * 0.06, Math.min(rowHeight * 0.5, 12) * 0.6 * digits + 4);
   const nameWidth = (width - numberWidth) / Math.max(1, input.columns);
-  const fontSize = Math.min(rowHeight * 0.6, (nameWidth * 0.86) / Math.max(2, input.longestNameEm));
+  const fontSize = Math.min(
+    rowHeight * FONT_TO_ROW,
+    MAX_FONT_MM,
+    (nameWidth * 0.86) / Math.max(2, input.longestNameEm),
+  );
   const numberSize = Math.min(fontSize * 0.7, (numberWidth * 0.8) / (digits * 0.6));
   return {
     width,

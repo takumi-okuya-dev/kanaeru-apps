@@ -203,6 +203,8 @@ test("受付の交流会からチェックインした人と申込みの名簿�
   await expect(page.getByText(sourceText)).toBeVisible();
   await expect(page.getByRole("cell", { name: "なかむらさき" })).toHaveCount(0);
 
+  // 名簿の一覧は、開き直すと閉じている（人数が多いときのため）
+  await page.getByText("名簿の一覧（2人）").click();
   // LINE でチェックインした人のレベルを選ぶ（覚える）。呼び名も直す
   await savedAfter(page, async () => {
     await page.getByRole("combobox", { name: "なかのレベル" }).selectOption("intermediate");

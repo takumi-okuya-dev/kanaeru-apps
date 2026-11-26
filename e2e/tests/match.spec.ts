@@ -594,6 +594,7 @@ test("見るだけのページと QR の受付：リンクと QR を作り、ロ
     await guestContext.close();
   }
   await page.getByRole("link", { name: "この名簿で試合表を作る" }).click();
+  await page.getByText(/^名簿の一覧（/u).click();
   await expect(page.getByRole("textbox", { name: "石川の呼び名" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "森の呼び名" })).toHaveCount(0);
   expect(await readCspViolations()).toEqual([]);

@@ -1,4 +1,4 @@
-// 試合表の画面の言葉の形（日付・時刻）。
+// 試合表の画面の言葉の形（日付・時刻・札の期限）。
 
 /** 曜日の言葉。 */
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"] as const;
@@ -22,4 +22,14 @@ export function formatPlayDate(playDate: string): string {
  */
 export function formatClock(time: number): string {
   return new Date(time).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+}
+
+/**
+ * 期限の文（例：「2026/12/13(日) の終わりまで」）。期限は日本時間の翌日0時なので、1ミリ秒前の日付を出す。
+ * @param expiresAt 期限（ISO 8601）
+ * @returns 文
+ */
+export function expiryText(expiresAt: string): string {
+  const last = new Date(Date.parse(expiresAt) - 1 + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return `${formatPlayDate(last)} の終わりまで`;
 }
