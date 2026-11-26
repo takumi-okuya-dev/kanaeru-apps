@@ -5,6 +5,7 @@ import { DISPLAY_NAME_MAX, TestLoginInput } from "@workspace/contracts/account";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Field } from "@workspace/ui/components/field";
 import { Input } from "@workspace/ui/components/input";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
@@ -111,14 +112,14 @@ export function DevLoginPage({ redirect }: DevLoginPageProps) {
             ログインしています：{session.account.displayName || "（表示名なし）"}
             {session.account.isOrganizer ? "（主催者）" : ""}
           </h2>
-          <div className="flex flex-wrap gap-xxs">
+          <ButtonRow>
+            <Button onClick={() => void signOut()}>ログアウト</Button>
             {redirect ? (
               <Link to={redirect} className={buttonVariants({ variant: "primary" })}>
                 もとの画面へ
               </Link>
             ) : null}
-            <Button onClick={() => void signOut()}>ログアウト</Button>
-          </div>
+          </ButtonRow>
           {failure ? <ResponseMessage tone="danger">{failure}</ResponseMessage> : null}
         </section>
       ) : (
@@ -156,9 +157,11 @@ export function DevLoginPage({ redirect }: DevLoginPageProps) {
             />
           </Field>
           <div className="flex flex-col items-start gap-xxs">
-            <Button type="submit" variant="primary" aria-disabled={pending || undefined}>
-              {pending ? "ログインしています…" : "ログイン"}
-            </Button>
+            <ButtonRow>
+              <Button type="submit" variant="primary" aria-disabled={pending || undefined}>
+                {pending ? "ログインしています…" : "ログイン"}
+              </Button>
+            </ButtonRow>
             {failure ? <ResponseMessage tone="danger">{failure}</ResponseMessage> : null}
           </div>
         </form>

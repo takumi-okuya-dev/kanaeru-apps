@@ -8,6 +8,7 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { isNightStopWindow } from "@workspace/contracts/core";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import type * as React from "react";
 import { ApiError, errorMessage } from "../../lib/api.ts";
 import { getLiff } from "../../lib/liff.ts";
@@ -33,7 +34,7 @@ function LoginRequired() {
         title="ログインしていません"
         lead="LINE につながない手元とテストでは、手元のログインから入ります。"
       >
-        <div>
+        <ButtonRow>
           <Link
             to="/dev/login"
             search={{ redirect: location.href }}
@@ -41,7 +42,7 @@ function LoginRequired() {
           >
             手元のログインへ
           </Link>
-        </div>
+        </ButtonRow>
       </Page>
     );
   }
@@ -50,7 +51,7 @@ function LoginRequired() {
       title="LINEでログインし直してください"
       lead="ログインが切れたか、確かめられませんでした。"
     >
-      <div>
+      <ButtonRow>
         <Button
           variant="primary"
           onClick={() => {
@@ -62,7 +63,7 @@ function LoginRequired() {
         >
           LINEでログインし直す
         </Button>
-      </div>
+      </ButtonRow>
     </Page>
   );
 }
@@ -92,9 +93,9 @@ export function SessionGate({ children }: SessionGateProps) {
       <Page title="夜間（0時〜8時）は止まっています" lead="8時からもう一度開いてください。" />
     ) : (
       <Page title="読みこめませんでした" lead={errorMessage(session.error)}>
-        <div>
+        <ButtonRow>
           <Button onClick={session.retry}>もう一度</Button>
-        </div>
+        </ButtonRow>
       </Page>
     );
   }
