@@ -8,6 +8,7 @@ import type { Context } from "hono";
 import { AppError, domainErrorResponse, errorResponse } from "../../kernel/errors.ts";
 import { invalidInputResponse, notFoundResponse, uuidParam } from "../../kernel/http.ts";
 import type { ApiEnv, DomainRouteDeps } from "../../kernel/http.ts";
+import { registerOAuthRoutes } from "./oauth/routes.ts";
 import { createLineIdTokenVerifier } from "./line-verifier.ts";
 import type { LineIdTokenVerifier } from "./line-verifier.ts";
 import { isForeignKeyViolation } from "../../kernel/pg-errors.ts";
@@ -267,7 +268,7 @@ export function accountRoutes(
     ? withTestLogin(routes)
     : (routes as unknown as ReturnType<typeof withTestLogin>);
 
-  return (
+  return registerOAuthRoutes(
     withTest
       .openapi(logoutRoute, async (c) => {
         const token = readSessionToken(c, cookie);
@@ -299,5 +300,5 @@ export function accountRoutes(
         if (!deleted) throw new AppError("NOT_FOUND");
         return c.body(null, 204);
       })
-  );
+  , deps);
 }
