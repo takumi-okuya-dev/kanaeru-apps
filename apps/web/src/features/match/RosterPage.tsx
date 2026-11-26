@@ -662,9 +662,12 @@ function SettingsCard({ table, editor }: BodyProps) {
     setFailure(undefined);
     editor.apply((draft) => ({ ...draft, content: rebuild(draft.content, draft.seed) }));
     const path = matchPaths.board(table.id);
+    const miniNote = mini?.short
+      ? `ミニゲームは、来る人がチームの数（${mini.teams}）より少ないため、チームを分けていません。`
+      : "";
     showNotice({
       tone: "success",
-      message: planned ? "まだの試合を組み直しました。" : "試合表を作りました。",
+      message: `${planned ? "まだの試合を組み直しました。" : "試合表を作りました。"}${miniNote}`,
       path,
     });
     void navigate({ to: "/match/tables/$tableId/board", params: { tableId: table.id } });

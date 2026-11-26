@@ -4,11 +4,18 @@
 // - 来る人でレベルのある人が、みなちょうど1つのチームに入る
 // - どの2人を入れかえても、チームの点の合計の差（最大 − 最小）が小さくならない
 // - 同じ名簿・同じ種なら同じチーム分け
-import { INITIAL_CONTENT, LEVEL_POINTS, MATCH_LEVELS } from "@workspace/contracts/match";
-import type { MatchPlayer, MatchTableContent } from "@workspace/contracts/match";
+import {
+  INITIAL_CONTENT,
+  LEVEL_POINTS,
+  MATCH_LEVELS,
+  MatchTableContent,
+} from "@workspace/contracts/match";
+import type { MatchPlayer } from "@workspace/contracts/match";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { buildMini, miniSummary, planTeams } from "./mini-game.ts";
+import { rebuild } from "./plan.ts";
+import { importPeople, removePlayer } from "./roster-edit.ts";
 
 /**
  * チームの点の合計の差（最大 − 最小）。
@@ -137,5 +144,68 @@ describe("試合表の中身からチーム分けを作る", () => {
     const short = { ...content, settings: { ...content.settings, courts: 2 } };
     expect(buildMini(short, 1)).toBeUndefined();
     expect(miniSummary(short)).toMatchObject({ teams: 4, players: 3, short: true });
+  });
+});
+
+describe("ミニゲームのチームと名簿の直し（match-009 のセルフレビュー）", () => {
+  /**
+   * チームを分けた中身（6人・1コート）。
+   * @returns 中身
+   */
+  const withTeams = (): MatchTableContent => {
+    const players = ["a", "b", "c", "d", "e", "f"].map((id): MatchPlayer => ({
+      id,
+      nickname: id,
+      level: "beginner",
+      status: "present",
+    }));
+    return {
+      ...INITIAL_CONTENT,
+      settings: { ...INITIAL_CONTENT.settings, courts: 1 },
+      players,
+      mini: {
+        teams: [
+          ["a", "b", "c"],
+          ["d", "e", "f"],
+        ],
+      },
+    };
+  };
+
+  it("名簿から消した人はチームからも外れ、チームが空になるならチーム分けを外す", () => {
+    const removed = removePlayer(withTeams(), "a");
+    expect(removed.mini?.teams).toEqual([
+      ["b", "c"],
+      ["d", "e", "f"],
+    ]);
+    expect(MatchTableContent.safeParse(removed).success).toBe(true);
+    const lone = { ...withTeams(), mini: { teams: [["a"], ["b", "c", "d", "e", "f"]] } };
+    const emptied = removePlayer(lone, "a");
+    expect(emptied.mini).toBeUndefined();
+    expect(MatchTableContent.safeParse(emptied).success).toBe(true);
+  });
+
+  it("名簿を置きかえるとチーム分けを外し、足すだけなら残す", () => {
+    const people = [
+      { fullName: "新 人", nickname: "新", level: "novice" as const, nameCheck: false },
+    ];
+    expect(importPeople(withTeams(), people, "replace").content.mini).toBeUndefined();
+    expect(importPeople(withTeams(), people, "append").content.mini).toEqual(withTeams().mini);
+  });
+
+  it("組み直してもチームは残り、「別の組み合わせ」だけが分け直す", () => {
+    const content = withTeams();
+    expect(rebuild(content, 1).mini).toEqual(content.mini);
+    expect(rebuild(content, 1, { reshuffleMini: true }).mini?.teams.flat().sort()).toEqual([
+      "a",
+      "b",
+      "c",
+      "d",
+      "e",
+      "f",
+    ]);
+    const none = { ...content, settings: { ...content.settings, courts: null } };
+    const { mini: _mini, ...withoutMini } = none;
+    expect(rebuild(withoutMini, 1).mini).toBeUndefined();
   });
 });

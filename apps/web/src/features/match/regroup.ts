@@ -152,7 +152,12 @@ export function changeSettings(
   const archived = new Map<MatchGroupKey, MatchGame[]>();
   let doneTotal = 0;
   let dropped = 0;
+  const newSets = new Set(newGroups.map((group) => groupSetOf(group.key)));
   sources.forEach((plan, source) => {
+    // 終わった試合を移してよいのは、同じ分け方の組か、前の分け方がなくなるとき（入れかえたとき）だけ。
+    // 残る分け方から別の分け方の組へは移さない（別の時間に進むため。match-009 research R3）
+    const sourceSet = groupSetOf(plan.key);
+    const crossOk = !newSets.has(sourceSet);
     plan.games.forEach((game, index) => {
       if (!game.done) {
         dropped += 1;
@@ -164,6 +169,7 @@ export function changeSettings(
           ? newGroups.find(
               (group) =>
                 !carriedKeys.has(group.key) &&
+                (crossOk || groupSetOf(group.key) === sourceSet) &&
                 game.players.every((id) => {
                   const level = levelOf.get(id);
                   return level !== null && level !== undefined && group.levels.includes(level);
@@ -181,7 +187,6 @@ export function changeSettings(
     });
   });
 
-  const newSets = new Set(newGroups.map((group) => groupSetOf(group.key)));
   const plan: MatchGroupPlan[] = [];
   let movedCount = 0;
   for (const group of newGroups) {

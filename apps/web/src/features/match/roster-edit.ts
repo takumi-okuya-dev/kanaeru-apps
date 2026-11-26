@@ -68,13 +68,15 @@ export function importPeople(
       ...(person.accountId ? { accountId: person.accountId } : {}),
     });
   }
-  const { receptionEvent: before, ...rest } = content;
+  const { receptionEvent: before, mini, ...rest } = content;
   const receptionEvent = from ?? (mode === "replace" ? undefined : before);
   return {
     content: {
       ...rest,
       players: [...base, ...added],
       plan: mode === "replace" ? [] : content.plan,
+      // 置きかえたら、ミニゲームのチーム分けも外す（前の名簿の人で分けたものなので。match-009）
+      ...(mini && mode !== "replace" ? { mini } : {}),
       ...(receptionEvent ? { receptionEvent } : {}),
     },
     fullNames,
@@ -107,7 +109,7 @@ export function updatePlayer(
 /**
  * 1人を消す（その人の入った、まだの試合も組み合わせから消す。終わった試合は残す）。
  * 消した人の入った終わった試合（前の分け方で終わった試合も）があるときは、名簿から消さずに「来ない」にする
- * （終わった試合の名前が消えないように）。
+ * （終わった試合の名前が消えないように）。ミニゲームのチームからも外し、チームが空になるならチーム分けを外す。
  * @param content 今の中身
  * @param id 名簿の人の ID
  * @returns 新しい中身
@@ -119,13 +121,18 @@ export function removePlayer(content: MatchTableContent, id: string): MatchTable
     ) ||
     (content.archive ?? []).some((entry) => entry.games.some((game) => game.players.includes(id)));
   if (inDone) return updatePlayer(content, id, { status: "absent" });
+  const { mini, ...rest } = content;
+  // ミニゲームのチームからも外す。チームが空になるならチーム分けを外す（組み直すときに分け直す。match-009）
+  const teams = mini?.teams.map((team) => team.filter((member) => member !== id));
+  const keepMini = teams !== undefined && teams.every((team) => team.length > 0);
   return {
-    ...content,
+    ...rest,
     players: content.players.filter((player) => player.id !== id),
     plan: content.plan.map((plan) => ({
       ...plan,
       games: plan.games.filter((game) => !game.players.includes(id)),
     })),
+    ...(keepMini ? { mini: { teams } } : {}),
   };
 }
 

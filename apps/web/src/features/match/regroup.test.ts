@@ -294,3 +294,23 @@ describe("分け方を組み合わせる（match-009）", () => {
     expect(kept.content.mini).toEqual(withMini.mini);
   });
 });
+
+describe("分け方をまたいで終わった試合を移さない（match-009 のセルフレビュー）", () => {
+  it("分けないが残るとき、レベル別の終わった試合は分けないの組へ移さず、前の分け方の試合に残す", () => {
+    // 上級＆中級・初級＆入門 + 分けない。上級と中級が一緒の終わった試合は、4つに分けるとどの組にも入らない
+    const initial = contentOf(16, 6, "two", "doubles");
+    const both = { ...initial, settings: { ...initial.settings, ungrouped: true } };
+    const planned = markDone({ ...both, plan: buildPlan(both, 12) }, (index) =>
+      index === 0 ? 2 : 0,
+    );
+    const allBefore = planned.plan.find((group) => group.key === "all");
+    const { content } = changeSettings(planned, { ...planned.settings, levels: "four" });
+    expect(content.plan.find((group) => group.key === "all")).toEqual(allBefore);
+    const archived = content.archive?.find((entry) => entry.key === "advanced_intermediate");
+    const movedToLevels = content.plan
+      .filter((group) => group.key !== "all")
+      .reduce((sum, group) => sum + group.games.length, 0);
+    expect((archived?.games.length ?? 0) + movedToLevels).toBe(2);
+    expect(MatchTableContent.safeParse(content).success).toBe(true);
+  });
+});

@@ -189,7 +189,15 @@ function BigBody({
   const baseId = useId();
   const sets = setsOf(table.content.settings);
   const planOf = (key: string) => table.content.plan.find((plan) => plan.key === key);
-  const [chosenSet, setChosenSet] = useState<MatchSet | undefined>(sets[0]);
+  const hasContent = (candidate: MatchSet) =>
+    candidate === "mini"
+      ? table.content.mini !== undefined
+      : groupsOfSet(table.content, candidate).some(
+          (group) => (planOf(group.key)?.games.length ?? 0) > 0,
+        );
+  const [chosenSet, setChosenSet] = useState<MatchSet | undefined>(
+    () => sets.find(hasContent) ?? sets[0],
+  );
   const set = chosenSet && sets.includes(chosenSet) ? chosenSet : (sets[0] ?? "levels");
   const groups = groupsOfSet(table.content, set);
   const firstWithGames = groups.find((group) => (planOf(group.key)?.games.length ?? 0) > 0);

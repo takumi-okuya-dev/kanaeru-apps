@@ -255,10 +255,10 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
     setTeamsOpen(false);
     let short = false;
     const applied = editor.apply((draft) => {
-      const { mini: _old, ...rest } = draft.content;
       const mini = buildMini(draft.content, draft.seed);
       short = mini === undefined;
-      return { ...draft, content: { ...rest, ...(mini ? { mini } : {}) } };
+      // 人が足りなくて分けられないときは、今のチームを残す（消さない）
+      return mini ? { ...draft, content: { ...draft.content, mini } } : draft;
     });
     setChangeNote(
       !applied
@@ -460,7 +460,7 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
           setConfirmOpen(false);
           editor.apply((draft) => {
             const seed = newSeed();
-            return { seed, content: rebuild(draft.content, seed) };
+            return { seed, content: rebuild(draft.content, seed, { reshuffleMini: true }) };
           });
         }}
       >

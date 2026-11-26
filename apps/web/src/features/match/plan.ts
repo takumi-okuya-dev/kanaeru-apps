@@ -259,13 +259,26 @@ export function buildPlan(content: MatchTableContent, seed: number): MatchGroupP
 
 /**
  * 組み合わせとミニゲームのチーム分けをまとめて作る（「試合表を作る」「組み直す」「別の組み合わせにする」）。
+ * ミニゲームのチームは、もう分けてあれば残す（配ったチームを組み直しで変えない。当日の人の出入りは「チーム分けをやり直す」。
+ * research R5）。「別の組み合わせにする」（reshuffleMini）だけは分け直す。
  * @param content 試合表の中身
  * @param seed くじの種
+ * @param options 分け直すか
+ * @param options.reshuffleMini ミニゲームのチームも分け直すか
  * @returns 組み合わせとチーム分けを入れた中身（ミニゲームを選んでいない・組めないときはチーム分けを持たない）
  */
-export function rebuild(content: MatchTableContent, seed: number): MatchTableContent {
-  const { mini: _old, ...rest } = content;
-  const mini = buildMini(content, seed);
+export function rebuild(
+  content: MatchTableContent,
+  seed: number,
+  options: { reshuffleMini?: boolean } = {},
+): MatchTableContent {
+  const { mini: before, ...rest } = content;
+  const mini =
+    content.settings.courts === null
+      ? undefined
+      : before && !options.reshuffleMini
+        ? before
+        : (buildMini(content, seed) ?? before);
   return { ...rest, plan: buildPlan(content, seed), ...(mini ? { mini } : {}) };
 }
 
