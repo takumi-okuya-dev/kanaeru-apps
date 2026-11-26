@@ -58,7 +58,12 @@ const REFRESH_TTL_MS = contract.REFRESH_TOKEN_TTL_SECONDS * 1000;
  * @param description 人が読む説明
  * @returns 応答
  */
-function oauthError<S extends 400 | 401 | 429>(c: Context, status: S, error: string, description: string) {
+function oauthError<S extends 400 | 401 | 429>(
+  c: Context,
+  status: S,
+  error: string,
+  description: string,
+) {
   c.header("Cache-Control", "no-store");
   return c.json({ error, error_description: description }, status);
 }
@@ -86,7 +91,15 @@ async function validateAuthorize(
 ): Promise<{ ok: true; value: Validated } | { ok: false; reason: Rejected }> {
   const parsed = contract.AuthorizeParams.safeParse(raw);
   if (!parsed.success) {
-    return { ok: false, reason: { direct: true, status: 400, error: "invalid_request", description: "要求の項目が足りないか、形が違う" } };
+    return {
+      ok: false,
+      reason: {
+        direct: true,
+        status: 400,
+        error: "invalid_request",
+        description: "要求の項目が足りないか、形が違う",
+      },
+    };
   }
   const request = parsed.data;
 
@@ -94,15 +107,37 @@ async function validateAuthorize(
   try {
     client = await resolveClient(deps, request.client_id);
   } catch {
-    return { ok: false, reason: { direct: true, status: 400, error: "invalid_client", description: "クライアントを確かめられない" } };
+    return {
+      ok: false,
+      reason: {
+        direct: true,
+        status: 400,
+        error: "invalid_client",
+        description: "クライアントを確かめられない",
+      },
+    };
   }
   if (!redirectUriAllowed(request.redirect_uri, client.redirectUris)) {
-    return { ok: false, reason: { direct: true, status: 400, error: "invalid_request", description: "戻り先が登録と合わない" } };
+    return {
+      ok: false,
+      reason: {
+        direct: true,
+        status: 400,
+        error: "invalid_request",
+        description: "戻り先が登録と合わない",
+      },
+    };
   }
 
   const back = (error: string, description: string): { ok: false; reason: Rejected } => ({
     ok: false,
-    reason: { direct: false, redirectUri: request.redirect_uri, error, description, state: request.state },
+    reason: {
+      direct: false,
+      redirectUri: request.redirect_uri,
+      error,
+      description,
+      state: request.state,
+    },
   });
   if (!isCanonicalMcpResource(request.resource, deps.config.webUrl)) {
     return back("invalid_target", "宛先（resource）が kanaeru の /api/mcp ではない");
@@ -132,7 +167,13 @@ async function resolveClient(
 ): Promise<ClientRow> {
   if (parseCimdUrl(clientId)) {
     const cached = await findClient(deps.db, clientId);
-    if (cached && cached.kind === "cimd" && cached.expiresAt && cached.expiresAt.getTime() > Date.now()) return cached;
+    if (
+      cached &&
+      cached.kind === "cimd" &&
+      cached.expiresAt &&
+      cached.expiresAt.getTime() > Date.now()
+    )
+      return cached;
     const meta = await fetchClientMetadata(clientId, { fetch: deps.fetch });
     return upsertCimdClient(deps.db, {
       clientId: meta.clientId,
@@ -142,7 +183,8 @@ async function resolveClient(
     });
   }
   const row = await findClient(deps.db, clientId);
-  if (!row || row.kind === "cimd") throw new CimdError("INVALID_DOCUMENT", "登録のないクライアント");
+  if (!row || row.kind === "cimd")
+    throw new CimdError("INVALID_DOCUMENT", "登録のないクライアント");
   return row;
 }
 
@@ -155,7 +197,8 @@ async function resolveClient(
  */
 function redirectWith(redirectUri: string, params: Record<string, string>, issuer: string): string {
   const url = new URL(redirectUri);
-  for (const [key, value] of Object.entries({ ...params, iss: issuer })) url.searchParams.set(key, value);
+  for (const [key, value] of Object.entries({ ...params, iss: issuer }))
+    url.searchParams.set(key, value);
   return url.toString();
 }
 
@@ -184,8 +227,20 @@ async function issueTokens(
 ) {
   const access = generateOpaqueToken();
   const refresh = generateOpaqueToken();
-  await insertToken(db, { tokenHash: access.tokenHash, kind: "access", grantId, resource, expiresAt: new Date(Date.now() + ACCESS_TTL_MS) });
-  await insertToken(db, { tokenHash: refresh.tokenHash, kind: "refresh", grantId, resource, expiresAt: new Date(Date.now() + REFRESH_TTL_MS) });
+  await insertToken(db, {
+    tokenHash: access.tokenHash,
+    kind: "access",
+    grantId,
+    resource,
+    expiresAt: new Date(Date.now() + ACCESS_TTL_MS),
+  });
+  await insertToken(db, {
+    tokenHash: refresh.tokenHash,
+    kind: "refresh",
+    grantId,
+    resource,
+    expiresAt: new Date(Date.now() + REFRESH_TTL_MS),
+  });
   await touchGrant(db, grantId);
   return {
     access_token: access.token,
@@ -210,7 +265,12 @@ const metadataRoute = createRoute({
   tags: ["account"],
   operationId: "accountOAuthAuthorizationServerMetadata",
   summary: "認可のサーバーのメタデータ（RFC 8414）",
-  responses: { 200: { description: "メタデータ", content: { "application/json": { schema: z.record(z.string(), z.unknown()) } } } },
+  responses: {
+    200: {
+      description: "メタデータ",
+      content: { "application/json": { schema: z.record(z.string(), z.unknown()) } },
+    },
+  },
 });
 
 const registerRoute = createRoute({
@@ -221,9 +281,18 @@ const registerRoute = createRoute({
   summary: "クライアントを登録する（DCR・RFC 7591。非推奨だが後方互換のため残す）",
   request: { body: { required: true, content: { "application/json": { schema: registerBody } } } },
   responses: {
-    201: { description: "登録した", content: { "application/json": { schema: contract.ClientRegistrationResponse } } },
-    400: { description: "形が違う・戻り先が使えない", content: { "application/json": { schema: oauthErrorSchema } } },
-    429: { description: "登録が多すぎる（1日の上限）", content: { "application/json": { schema: oauthErrorSchema } } },
+    201: {
+      description: "登録した",
+      content: { "application/json": { schema: contract.ClientRegistrationResponse } },
+    },
+    400: {
+      description: "形が違う・戻り先が使えない",
+      content: { "application/json": { schema: oauthErrorSchema } },
+    },
+    429: {
+      description: "登録が多すぎる（1日の上限）",
+      content: { "application/json": { schema: oauthErrorSchema } },
+    },
   },
 });
 
@@ -236,7 +305,10 @@ const authorizeRoute = createRoute({
   request: { query: authorizeQuery },
   responses: {
     302: { description: "同意の画面へ（要求の項目を引き継ぐ）、または戻り先へ結果（エラー）" },
-    400: { description: "戻り先を信じられない要求（直接の応答）", content: { "application/json": { schema: oauthErrorSchema } } },
+    400: {
+      description: "戻り先を信じられない要求（直接の応答）",
+      content: { "application/json": { schema: oauthErrorSchema } },
+    },
   },
 });
 
@@ -248,9 +320,20 @@ const consentRoute = createRoute({
   summary: "同意の画面の決め（許す・断る）",
   request: { body: { required: true, content: { "application/json": { schema: consentBody } } } },
   responses: {
-    200: { description: "戻り先の URL（画面がそこへ進める）", content: { "application/json": { schema: contract.ConsentResponse } } },
-    400: { description: "形が違う・範囲が要求の外", content: { "application/json": { schema: contract.OAuthErrorResponse.openapi("OAuthErrorBody") } } },
-    401: domainErrorResponse({ code: "UNAUTHENTICATED", status: 401, message: "ログインしていない" }, "ログインしていない"),
+    200: {
+      description: "戻り先の URL（画面がそこへ進める）",
+      content: { "application/json": { schema: contract.ConsentResponse } },
+    },
+    400: {
+      description: "形が違う・範囲が要求の外",
+      content: {
+        "application/json": { schema: contract.OAuthErrorResponse.openapi("OAuthErrorBody") },
+      },
+    },
+    401: domainErrorResponse(
+      { code: "UNAUTHENTICATED", status: 401, message: "ログインしていない" },
+      "ログインしていない",
+    ),
     403: domainErrorResponse({ code: "FORBIDDEN", status: 403, message: "権限がない" }, "源が違う"),
   },
 });
@@ -264,11 +347,18 @@ const consentViewRoute = createRoute({
   request: { query: authorizeQuery },
   responses: {
     200: {
-      description: "同意の画面に出すもの。戻り先へ返すべき失敗（範囲・宛先・PKCE）なら、画面が進む戻り先の URL",
+      description:
+        "同意の画面に出すもの。戻り先へ返すべき失敗（範囲・宛先・PKCE）なら、画面が進む戻り先の URL",
       content: { "application/json": { schema: contract.ConsentViewResult } },
     },
-    400: { description: "要求の形が違う・クライアントや範囲が使えない", content: { "application/json": { schema: oauthErrorSchema } } },
-    401: domainErrorResponse({ code: "UNAUTHENTICATED", status: 401, message: "ログインしていない" }, "ログインしていない"),
+    400: {
+      description: "要求の形が違う・クライアントや範囲が使えない",
+      content: { "application/json": { schema: oauthErrorSchema } },
+    },
+    401: domainErrorResponse(
+      { code: "UNAUTHENTICATED", status: 401, message: "ログインしていない" },
+      "ログインしていない",
+    ),
   },
 });
 
@@ -278,11 +368,25 @@ const tokenRoute = createRoute({
   tags: ["account"],
   operationId: "accountOAuthToken",
   summary: "トークンを発行・更新する（RFC 6749。公開クライアントは client_id だけ）",
-  request: { body: { required: true, content: { "application/x-www-form-urlencoded": { schema: tokenForm } } } },
+  request: {
+    body: {
+      required: true,
+      content: { "application/x-www-form-urlencoded": { schema: tokenForm } },
+    },
+  },
   responses: {
-    200: { description: "トークン", content: { "application/json": { schema: contract.TokenResponse } } },
-    400: { description: "要求が違う・コードや札が無効", content: { "application/json": { schema: oauthErrorSchema } } },
-    401: { description: "クライアントを確かめられない", content: { "application/json": { schema: oauthErrorSchema } } },
+    200: {
+      description: "トークン",
+      content: { "application/json": { schema: contract.TokenResponse } },
+    },
+    400: {
+      description: "要求が違う・コードや札が無効",
+      content: { "application/json": { schema: oauthErrorSchema } },
+    },
+    401: {
+      description: "クライアントを確かめられない",
+      content: { "application/json": { schema: oauthErrorSchema } },
+    },
   },
 });
 
@@ -291,7 +395,8 @@ const tokenRoute = createRoute({
  * @param deps 土台の道具（DB と設定）
  * @returns requireSession の中間処理
  */
-const requireLogin = (deps: Pick<DomainRouteDeps, "db" | "config">) => requireSession({ db: deps.db, config: deps.config });
+const requireLogin = (deps: Pick<DomainRouteDeps, "db" | "config">) =>
+  requireSession({ db: deps.db, config: deps.config });
 
 /**
  * 認可の道を app に足す（accountRoutes から呼ぶ）。
@@ -299,7 +404,10 @@ const requireLogin = (deps: Pick<DomainRouteDeps, "db" | "config">) => requireSe
  * @param deps 土台の道具
  * @returns 同じ app
  */
-export function registerOAuthRoutes<T extends OpenAPIHono<ApiEnv>>(app: T, deps: DomainRouteDeps): T {
+export function registerOAuthRoutes<T extends OpenAPIHono<ApiEnv>>(
+  app: T,
+  deps: DomainRouteDeps,
+): T {
   const issuer = issuerOf(deps.config.webUrl);
   const resource = canonicalMcpResource(deps.config.webUrl);
 
@@ -333,7 +441,12 @@ export function registerOAuthRoutes<T extends OpenAPIHono<ApiEnv>>(app: T, deps:
   app.openapi(registerRoute, async (c) => {
     const body = c.req.valid("json");
     if (!body.redirect_uris.every(isRegistrableRedirectUri)) {
-      return oauthError(c, 400, "invalid_redirect_uri", "戻り先は https か、ループバックの http だけ");
+      return oauthError(
+        c,
+        400,
+        "invalid_redirect_uri",
+        "戻り先は https か、ループバックの http だけ",
+      );
     }
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
     if ((await countDcrClientsSince(deps.db, since)) >= DCR_DAILY_LIMIT) {
@@ -370,7 +483,15 @@ export function registerOAuthRoutes<T extends OpenAPIHono<ApiEnv>>(app: T, deps:
         return oauthError(c, 400, checked.reason.error, checked.reason.description);
       }
       return c.redirect(
-        redirectWith(checked.reason.redirectUri, { error: checked.reason.error, error_description: checked.reason.description, state: checked.reason.state }, issuer),
+        redirectWith(
+          checked.reason.redirectUri,
+          {
+            error: checked.reason.error,
+            error_description: checked.reason.description,
+            state: checked.reason.state,
+          },
+          issuer,
+        ),
         302,
       );
     }
@@ -394,9 +515,20 @@ export function registerOAuthRoutes<T extends OpenAPIHono<ApiEnv>>(app: T, deps:
     c.header("Cache-Control", "no-store");
     if (!checked.ok) {
       // 戻り先を信じられない失敗は画面に出す。戻り先を信じられる失敗は、クライアントへ結果を返す（画面がそこへ進む）
-      if (checked.reason.direct) return oauthError(c, 400, checked.reason.error, checked.reason.description);
+      if (checked.reason.direct)
+        return oauthError(c, 400, checked.reason.error, checked.reason.description);
       return c.json(
-        { redirectTo: redirectWith(checked.reason.redirectUri, { error: checked.reason.error, error_description: checked.reason.description, state: checked.reason.state }, issuer) },
+        {
+          redirectTo: redirectWith(
+            checked.reason.redirectUri,
+            {
+              error: checked.reason.error,
+              error_description: checked.reason.description,
+              state: checked.reason.state,
+            },
+            issuer,
+          ),
+        },
         200,
       );
     }
@@ -425,17 +557,44 @@ export function registerOAuthRoutes<T extends OpenAPIHono<ApiEnv>>(app: T, deps:
     const { decision, granted_scopes: grantedInput, ...authorizeFields } = body;
     const checked = await validateAuthorize(deps, authorizeFields);
     if (!checked.ok) {
-      if (checked.reason.direct) return oauthError(c, 400, checked.reason.error, checked.reason.description);
-      return c.json({ redirectTo: redirectWith(checked.reason.redirectUri, { error: checked.reason.error, error_description: checked.reason.description, state: checked.reason.state }, issuer) }, 200);
+      if (checked.reason.direct)
+        return oauthError(c, 400, checked.reason.error, checked.reason.description);
+      return c.json(
+        {
+          redirectTo: redirectWith(
+            checked.reason.redirectUri,
+            {
+              error: checked.reason.error,
+              error_description: checked.reason.description,
+              state: checked.reason.state,
+            },
+            issuer,
+          ),
+        },
+        200,
+      );
     }
     const { client, request, scopes } = checked.value;
     const account = currentAccount(c);
     if (decision === "deny") {
-      return c.json({ redirectTo: redirectWith(request.redirect_uri, { error: "access_denied", state: request.state }, issuer) }, 200);
+      return c.json(
+        {
+          redirectTo: redirectWith(
+            request.redirect_uri,
+            { error: "access_denied", state: request.state },
+            issuer,
+          ),
+        },
+        200,
+      );
     }
     const granted = (grantedInput ?? []).filter((s) => scopes.includes(s));
     if (granted.length === 0) throw new AppError("INVALID_INPUT");
-    const grantId = await insertGrant(deps.db, { accountId: account.accountId, clientRowId: client.id, scopes: granted });
+    const grantId = await insertGrant(deps.db, {
+      accountId: account.accountId,
+      clientRowId: client.id,
+      scopes: granted,
+    });
     const code = generateOpaqueToken();
     await insertCode(deps.db, {
       codeHash: code.tokenHash,
@@ -445,7 +604,16 @@ export function registerOAuthRoutes<T extends OpenAPIHono<ApiEnv>>(app: T, deps:
       resource: request.resource,
       expiresAt: new Date(Date.now() + CODE_TTL_MS),
     });
-    return c.json({ redirectTo: redirectWith(request.redirect_uri, { code: code.token, state: request.state }, issuer) }, 200);
+    return c.json(
+      {
+        redirectTo: redirectWith(
+          request.redirect_uri,
+          { code: code.token, state: request.state },
+          issuer,
+        ),
+      },
+      200,
+    );
   });
 
   app.openapi(tokenRoute, async (c) => {
@@ -460,7 +628,12 @@ export function registerOAuthRoutes<T extends OpenAPIHono<ApiEnv>>(app: T, deps:
       }
     }
     if (!isCanonicalMcpResource(body.resource, deps.config.webUrl)) {
-      return oauthError(c, 400, "invalid_target", "宛先（resource）が kanaeru の /api/mcp ではない");
+      return oauthError(
+        c,
+        400,
+        "invalid_target",
+        "宛先（resource）が kanaeru の /api/mcp ではない",
+      );
     }
 
     if (body.grant_type === "authorization_code") {
@@ -483,7 +656,10 @@ export function registerOAuthRoutes<T extends OpenAPIHono<ApiEnv>>(app: T, deps:
         return oauthError(c, 400, "invalid_grant", "code_verifier が合わない");
       }
       c.header("Cache-Control", "no-store");
-      return c.json(await issueTokens(deps.db, consumed.grantId, consumed.resource, grant.scopes), 200);
+      return c.json(
+        await issueTokens(deps.db, consumed.grantId, consumed.resource, grant.scopes),
+        200,
+      );
     }
 
     // refresh_token：使ったリフレッシュは取り消して、新しい組を出す

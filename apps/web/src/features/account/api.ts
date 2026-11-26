@@ -106,13 +106,21 @@ export async function fetchConsentView(query: AuthorizeQuery): Promise<ConsentVi
   const params = new URLSearchParams(query);
   let response: Response;
   try {
-    response = await fetch(`/api/oauth/authorize/consent?${params.toString()}`, { credentials: "same-origin" });
+    response = await fetch(`/api/oauth/authorize/consent?${params.toString()}`, {
+      credentials: "same-origin",
+    });
   } catch (error) {
     throw new NetworkError(error);
   }
   if (response.status === 400) {
-    const body = OAuthErrorResponse.safeParse(await response.clone().json().catch(() => undefined));
-    if (body.success) throw new ConsentRequestError(body.data.error, body.data.error_description ?? "");
+    const body = OAuthErrorResponse.safeParse(
+      await response
+        .clone()
+        .json()
+        .catch(() => undefined),
+    );
+    if (body.success)
+      throw new ConsentRequestError(body.data.error, body.data.error_description ?? "");
   }
   if (!response.ok) throw await apiErrorFrom(response);
   return ConsentViewResultSchema.parse(await response.json());

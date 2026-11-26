@@ -25,7 +25,13 @@ function parseUrl(value: string): URL | null {
  * @returns ループバックなら true
  */
 function isLoopbackUrl(url: URL): boolean {
-  return url.protocol === "http:" && LOOPBACK_HOSTS.has(url.hostname) && !url.username && !url.password && !url.hash;
+  return (
+    url.protocol === "http:" &&
+    LOOPBACK_HOSTS.has(url.hostname) &&
+    !url.username &&
+    !url.password &&
+    !url.hash
+  );
 }
 
 /**

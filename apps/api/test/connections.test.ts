@@ -19,7 +19,10 @@ const RESOURCE = `${TEST_ORIGIN}/api/mcp`;
  * @returns 札
  */
 async function connect(app: TestApp, cookie: string): Promise<string> {
-  const reg = await app.request("/api/oauth/register", jsonRequest("POST", { client_name: "テストの AI", redirect_uris: [REDIRECT] }));
+  const reg = await app.request(
+    "/api/oauth/register",
+    jsonRequest("POST", { client_name: "テストの AI", redirect_uris: [REDIRECT] }),
+  );
   const clientId = ((await reg.json()) as { client_id: string }).client_id;
   const fields = {
     response_type: "code",
@@ -32,7 +35,10 @@ async function connect(app: TestApp, cookie: string): Promise<string> {
   };
   const decision = await app.request(
     "/api/oauth/authorize/decision",
-    withCookie(cookie, jsonRequest("POST", { ...fields, decision: "approve", granted_scopes: ["reception:read"] })),
+    withCookie(
+      cookie,
+      jsonRequest("POST", { ...fields, decision: "approve", granted_scopes: ["reception:read"] }),
+    ),
   );
   const redirected = new URL(((await decision.json()) as { redirectTo: string }).redirectTo);
   const token = await app.request("/api/oauth/token", {
@@ -83,22 +89,35 @@ describe("接続の一覧と取り消し（FR-015）", () => {
     const bobToken = await connect(app, bob.cookie);
 
     const list = await app.request("/api/v1/accounts/me/connections", withCookie(alice.cookie));
-    const { connections } = (await list.json()) as { connections: Array<{ id: string; clientName: string; scopes: string[] }> };
+    const { connections } = (await list.json()) as {
+      connections: Array<{ id: string; clientName: string; scopes: string[] }>;
+    };
     expect(connections.length).toBe(1);
     expect(connections[0]?.clientName).toBe("テストの AI");
     expect(connections[0]?.scopes).toEqual(["reception:read"]);
     const aliceGrant = connections[0]?.id ?? "";
 
     // ほかの人の接続は取り消せない（404）・札は使えたまま
-    const bobGrantList = await app.request("/api/v1/accounts/me/connections", withCookie(bob.cookie));
-    const bobGrant = ((await bobGrantList.json()) as { connections: Array<{ id: string }> }).connections[0]?.id ?? "";
-    const foreign = await app.request(`/api/v1/accounts/me/connections/${bobGrant}`, withCookie(alice.cookie, { method: "DELETE" }));
+    const bobGrantList = await app.request(
+      "/api/v1/accounts/me/connections",
+      withCookie(bob.cookie),
+    );
+    const bobGrant =
+      ((await bobGrantList.json()) as { connections: Array<{ id: string }> }).connections[0]?.id ??
+      "";
+    const foreign = await app.request(
+      `/api/v1/accounts/me/connections/${bobGrant}`,
+      withCookie(alice.cookie, { method: "DELETE" }),
+    );
     expect(foreign.status).toBe(404);
     expect(await mcpStatus(app, bobToken)).toBe(200);
 
     // 取り消す → 次の呼び出しから 401
     expect(await mcpStatus(app, aliceToken)).toBe(200);
-    const revoke = await app.request(`/api/v1/accounts/me/connections/${aliceGrant}`, withCookie(alice.cookie, { method: "DELETE" }));
+    const revoke = await app.request(
+      `/api/v1/accounts/me/connections/${aliceGrant}`,
+      withCookie(alice.cookie, { method: "DELETE" }),
+    );
     expect(revoke.status).toBe(204);
     expect(await mcpStatus(app, aliceToken)).toBe(401);
     const after = await app.request("/api/v1/accounts/me/connections", withCookie(alice.cookie));
@@ -118,7 +137,10 @@ describe("退会と接続（T041）", () => {
     const token = await connect(app, carol.cookie);
     expect(await mcpStatus(app, token)).toBe(200);
 
-    const withdraw = await app.request("/api/v1/accounts/me", withCookie(carol.cookie, { method: "DELETE" }));
+    const withdraw = await app.request(
+      "/api/v1/accounts/me",
+      withCookie(carol.cookie, { method: "DELETE" }),
+    );
     expect(withdraw.status).toBe(204);
     expect(await mcpStatus(app, token)).toBe(401);
   });

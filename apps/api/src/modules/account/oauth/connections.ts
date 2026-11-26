@@ -42,7 +42,10 @@ const revokeRoute = createRoute({
  * @param deps 土台の道具
  * @returns 同じ app
  */
-export function registerConnectionRoutes<T extends OpenAPIHono<ApiEnv>>(app: T, deps: DomainRouteDeps): T {
+export function registerConnectionRoutes<T extends OpenAPIHono<ApiEnv>>(
+  app: T,
+  deps: DomainRouteDeps,
+): T {
   const session = requireSession(deps);
   const listWithSession = createRoute({ ...listRoute, middleware: [session] as const });
   const revokeWithSession = createRoute({ ...revokeRoute, middleware: [session] as const });

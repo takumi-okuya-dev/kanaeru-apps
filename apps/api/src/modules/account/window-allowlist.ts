@@ -17,5 +17,10 @@ export type WindowAllowance = {
 
 /** 許可リスト（1行に1つ。読むだけ）。 */
 export const WINDOW_ALLOWLIST: readonly WindowAllowance[] = [
-  { method: "GET", routePath: "/api/v1/events/:eventId/checkins/me", appKey: "reception", access: "read" },
+  {
+    method: "GET",
+    routePath: "/api/v1/events/:eventId/checkins/me",
+    appKey: "reception",
+    access: "read",
+  },
 ];

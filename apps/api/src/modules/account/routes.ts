@@ -299,6 +299,7 @@ export function accountRoutes(
         const deleted = await withdrawAccount(deps, accountId);
         if (!deleted) throw new AppError("NOT_FOUND");
         return c.body(null, 204);
-      })
-  , deps);
+      }),
+    deps,
+  );
 }

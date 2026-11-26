@@ -115,7 +115,10 @@ export function registerMcpRoute<T extends OpenAPIHono<ApiEnv>>(
             const text = await tool.run(input, {
               accountId: row.accountId,
               request: (path, init) => {
-                if (!deps.internalFetch) throw new Error("窓口を呼ぶ道具がありません（組み立てが internalFetch を渡していない）");
+                if (!deps.internalFetch)
+                  throw new Error(
+                    "窓口を呼ぶ道具がありません（組み立てが internalFetch を渡していない）",
+                  );
                 return deps.internalFetch(new Request(new URL(path, issuer), init), {
                   accountId: row.accountId,
                   scopes: row.scopes,

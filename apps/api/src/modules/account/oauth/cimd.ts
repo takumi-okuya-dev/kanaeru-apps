@@ -25,7 +25,10 @@ export type ClientMetadata = {
 /** 取得や検証の失敗（code はログと応答に出してよい短い印）。 */
 export class CimdError extends Error {
   readonly code: "UNSAFE_URL" | "FETCH_FAILED" | "TOO_LARGE" | "INVALID_DOCUMENT";
-  constructor(code: "UNSAFE_URL" | "FETCH_FAILED" | "TOO_LARGE" | "INVALID_DOCUMENT", message: string) {
+  constructor(
+    code: "UNSAFE_URL" | "FETCH_FAILED" | "TOO_LARGE" | "INVALID_DOCUMENT",
+    message: string,
+  ) {
     super(message);
     this.name = "CimdError";
     this.code = code;
@@ -58,7 +61,13 @@ export function isPrivateAddress(address: string): boolean {
     const lower = address.toLowerCase();
     if (lower === "::1" || lower === "::") return true;
     if (lower.startsWith("fc") || lower.startsWith("fd")) return true; // fc00::/7
-    if (lower.startsWith("fe8") || lower.startsWith("fe9") || lower.startsWith("fea") || lower.startsWith("feb")) return true; // fe80::/10
+    if (
+      lower.startsWith("fe8") ||
+      lower.startsWith("fe9") ||
+      lower.startsWith("fea") ||
+      lower.startsWith("feb")
+    )
+      return true; // fe80::/10
     const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(lower);
     if (mapped?.[1]) return isPrivateAddress(mapped[1]);
     return false;
@@ -92,7 +101,12 @@ export function parseCimdUrl(clientId: string): URL | null {
   if (url.protocol !== "https:") return null;
   if (url.username || url.password || url.hash) return null;
   if (url.pathname === "/" || url.pathname === "") return null;
-  if (isIP(url.hostname) !== 0 || url.hostname === "localhost" || url.hostname.endsWith(".localhost")) return null;
+  if (
+    isIP(url.hostname) !== 0 ||
+    url.hostname === "localhost" ||
+    url.hostname.endsWith(".localhost")
+  )
+    return null;
   if (!url.hostname.includes(".")) return null;
   return url;
 }
@@ -177,16 +191,20 @@ export function validateClientMetadata(json: unknown, clientId: string): ClientM
   const bad = (message: string): never => {
     throw new CimdError("INVALID_DOCUMENT", message);
   };
-  if (typeof json !== "object" || json === null || Array.isArray(json)) bad("文書が JSON の箱ではない");
+  if (typeof json !== "object" || json === null || Array.isArray(json))
+    bad("文書が JSON の箱ではない");
   const doc = json as Record<string, unknown>;
   if (doc.client_id !== clientId) bad("文書の client_id が一致しない");
   const uris = doc.redirect_uris;
-  if (!Array.isArray(uris) || uris.length === 0 || uris.length > MAX_REDIRECT_URIS) bad("redirect_uris の数が使えない");
+  if (!Array.isArray(uris) || uris.length === 0 || uris.length > MAX_REDIRECT_URIS)
+    bad("redirect_uris の数が使えない");
   const redirectUris = (uris as unknown[]).map((u) => {
-    if (typeof u !== "string" || !isRegistrableRedirectUri(u)) bad("redirect_uris に使えない戻り先がある");
+    if (typeof u !== "string" || !isRegistrableRedirectUri(u))
+      bad("redirect_uris に使えない戻り先がある");
     return u as string;
   });
   const name = doc.client_name;
-  if (name !== undefined && (typeof name !== "string" || name.length > 100)) bad("client_name が使えない");
+  if (name !== undefined && (typeof name !== "string" || name.length > 100))
+    bad("client_name が使えない");
   return { clientId, clientName: typeof name === "string" ? name : "", redirectUris };
 }
