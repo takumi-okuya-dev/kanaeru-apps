@@ -1,7 +1,8 @@
 // M1 名簿と設定（/match/tables/$tableId）。モックアップの M1。
 // - 名簿の入れ方：受付の交流会から（チェックインした人か申込みの名簿。前に入れたレベルを使う。FR-M4・match-006）・
 //   フォームの回答をスプレッドシートからコピーして貼り付ける（主な入れ方。FR-M30）・CSV のファイルを読む（FR-M1）・
-//   1人足す（FR-M3）。貼った表と CSV は画面の中で読み（lib/csv-read.ts）、氏名・レベル・タイムスタンプだけを使う。メール・ラケット・
+//   1人足す（FR-M3）。貼った表と CSV は画面の中で読み（lib/csv-read.ts）、名簿に入れる前に列の確かめ（ColumnCheckDialog.tsx。
+//   match-008）で氏名・レベル・回答の日時の列を確かめ、その3つだけを使う。メール・ラケット・
 //   きっかけ・要望は読まず、サーバーにも送らない。氏名も送らず、呼び名（姓から作る。FR-M2）とレベルだけを送る（Constitution II）。
 //   氏名は、この画面を開いている間だけ「氏名（入れたもの）」の列に出す
 // - 1人ずつ：呼び名・レベル・当日の印（来る・遅れて来る・来ない）を直せる。消せる
@@ -45,6 +46,7 @@ import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { Textarea } from "@workspace/ui/components/textarea";
 import { useRef, useState } from "react";
 import { decodeCsv, parseCsv } from "../../lib/csv-read.ts";
+import type { ParsedCsv } from "../../lib/csv-read.ts";
 import { fieldErrorsFromIssues } from "../../lib/form.ts";
 import type { FieldErrors } from "../../lib/form.ts";
 import { showNotice } from "../../lib/notice.ts";
@@ -57,8 +59,9 @@ import { MATCH_QUERY_KEYS } from "./queries.ts";
 import { forgetJoinedPlayer, useJoins } from "./use-joins.ts";
 import { addPlayer, countRoster, importPeople, removePlayer, updatePlayer } from "./roster-edit.ts";
 import type { ImportMode } from "./roster-edit.ts";
-import { assignNicknames, readRoster } from "./roster-read.ts";
+import { assignNicknames } from "./roster-read.ts";
 import type { RosterReadResult } from "./roster-read.ts";
+import { ColumnCheckDialog } from "./ColumnCheckDialog.tsx";
 import { ReceptionImportDialog } from "./ReceptionImportDialog.tsx";
 import { ReceptionEventNote } from "./ReceptionEventNote.tsx";
 import { EditorState, TableFrame } from "./TableFrame.tsx";
@@ -106,18 +109,39 @@ function ImportActions({
   const [text, setText] = useState("");
   const [mode, setMode] = useState<ImportMode>("replace");
   const [message, setMessage] = useState<{ tone: "success" | "danger"; text: string }>();
+  const [pending, setPending] = useState<{ parsed: ParsedCsv; mode: ImportMode; sourceLabel: string }>();
   const fileRef = useRef<HTMLInputElement>(null);
   const disabled = !editor.isEditor;
   const hasRoster = table.content.players.length > 0;
 
   /**
-   * 読んだ表を名簿に入れる。
+   * 貼った文字かファイルの文字を表として読み、列の確かめの枠を開く。
    * @param raw 貼った文字か、ファイルの文字
+   * @param importMode 入れ方
+   * @param sourceLabel 読んだもの（ファイルの名前か「貼り付けた表」）
+   * @returns 表が読めたら true
+   */
+  const readText = (raw: string, importMode: ImportMode, sourceLabel: string): boolean => {
+    const parsed = parseCsv(raw, { delimiter: "auto" });
+    if (parsed.headers.length === 0 || parsed.rows.length === 0) {
+      setMessage({
+        tone: "danger",
+        text: "表が読めませんでした。フォームの回答の表を、見出しの行ごとコピーして貼り付けてください。",
+      });
+      return false;
+    }
+    setMessage(undefined);
+    setPending({ parsed, mode: importMode, sourceLabel });
+    return true;
+  };
+
+  /**
+   * 列の確かめのあと、読んだ名簿を入れる。
+   * @param result 名簿を読んだ結果（列の確かめで選んだ列で読んだもの）
    * @param importMode 入れ方
    * @returns 入れられたら true
    */
-  const importText = (raw: string, importMode: ImportMode): boolean => {
-    const result = readRoster(parseCsv(raw, { delimiter: "auto" }));
+  const importText = (result: RosterReadResult, importMode: ImportMode): boolean => {
     if (result.people.length === 0) {
       setMessage({
         tone: "danger",
@@ -184,7 +208,7 @@ function ImportActions({
               return;
             }
             void file.arrayBuffer().then((buffer) => {
-              importText(decodeCsv(buffer), hasRoster ? "append" : "replace");
+              readText(decodeCsv(buffer), hasRoster ? "append" : "replace", file.name);
             });
           }}
         />
@@ -194,20 +218,20 @@ function ImportActions({
         open={pasteOpen}
         onOpenChange={setPasteOpen}
         title="フォームの回答を貼り付ける"
-        description="Google フォームの回答のスプレッドシートで、見出しの行ごと表を選んでコピーし、ここに貼り付けます。氏名・レベル・タイムスタンプだけを読みます（メールアドレスや要望は読みません）。"
+        description="Google フォームの回答のスプレッドシートで、見出しの行ごと表を選んでコピーし、ここに貼り付けます。次に、どの列を読むかを確かめます（氏名・レベル・回答の日時だけを読み、メールアドレスや要望は読みません）。"
         footer={
           <>
             <Button onClick={() => setPasteOpen(false)}>やめる</Button>
             <Button
               variant="primary"
               onClick={() => {
-                if (importText(text, hasRoster ? mode : "replace")) {
+                if (readText(text, hasRoster ? mode : "replace", "貼り付けた表")) {
                   setPasteOpen(false);
                   setText("");
                 }
               }}
             >
-              名簿に入れる
+              次へ（列を確かめる）
             </Button>
           </>
         }
@@ -229,6 +253,12 @@ function ImportActions({
           ) : null}
         </div>
       </Dialog>
+      <ColumnCheckDialog
+        parsed={pending?.parsed}
+        sourceLabel={pending?.sourceLabel ?? ""}
+        onClose={() => setPending(undefined)}
+        onImport={(result) => (pending ? importText(result, pending.mode) : false)}
+      />
       <AddPlayerDialog open={addOpen} onOpenChange={setAddOpen} editor={editor} />
       <ReceptionImportDialog
         table={table}

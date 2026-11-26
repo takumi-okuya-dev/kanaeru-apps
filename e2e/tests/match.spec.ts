@@ -189,7 +189,12 @@ test("貼り付けた名簿から試合表を作り、進めて、印刷の版�
   await page.getByRole("button", { name: "フォームから貼り付ける" }).click();
   const dialog = page.getByRole("dialog", { name: "フォームの回答を貼り付ける" });
   await dialog.getByRole("textbox", { name: "貼り付ける表" }).fill(PASTED);
-  await dialog.getByRole("button", { name: "名簿に入れる" }).click();
+  await dialog.getByRole("button", { name: "次へ（列を確かめる）" }).click();
+  // 列の確かめ（match-008）：見出しから氏名・レベル・日時を選んだ状態で、16人を取り込む
+  const check = page.getByRole("dialog", { name: "どの列を読むか確かめてください" });
+  await expect(check.getByRole("combobox", { name: /氏名の列/ })).toHaveValue(/\d+/u);
+  await checkPage(page, "列の確かめ");
+  await check.getByRole("button", { name: "この列で16人を取り込む" }).click();
   await expect(page.getByText("16人を名簿に入れました。")).toBeVisible();
   await waitSaved(page);
   await expect(page.getByRole("textbox", { name: "佐藤美の呼び名" })).toBeVisible();
