@@ -2,10 +2,10 @@
 // アプリが見えるかを決めるのは、ここが出す isAppVisible と requireApp だけ（AD-16）。アプリは app_setting を読まない。
 // 組織（suite-001。AD-22）：ほかの領域は、組織をここからだけ読む（役割・入っている組織・組織の人・外部キーのための表）。
 // suite の表に書かない。契約があるかは hasEntitlement だけで決める（売り始める前は、いつも使える）。
-import { feedbackRoutes } from "./routes-feedback.ts";
 import type { DomainRouteDeps } from "../../kernel/http.ts";
 import { suiteRoutes } from "./routes.ts";
 import { organizationRoutes } from "./routes-organization.ts";
+import { feedbackRoutes } from "./routes-feedback.ts";
 
 export { INITIAL_APP_SETTINGS, restoreInitialAppSettings, upsertVisibility } from "./repository.ts";
 export { appVisibility, isAppVisible, requireApp, requireAppNotOff } from "./visibility.ts";

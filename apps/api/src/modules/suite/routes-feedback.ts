@@ -1,5 +1,5 @@
 // 改善点の窓口（suite-004）。道は /api/v1/suite/feedback の下。
-// - 送る：ログインした人（本文1〜2000文字・アプリの key は任意で台帳にあるもの・1人1日20件まで）
+// - 送る：ログインした人（本文1〜2000文字・アプリの key は任意で、その人に見えるアプリ・1人1日20件まで〈人ごとの鍵で数える〉）
 // - 一覧・済み：運営者（AD-5 の主催者）だけ
 // 本文はログに書かない（Constitution II）。
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
@@ -12,11 +12,13 @@ import type { ApiEnv, DomainRouteDeps } from "../../kernel/http.ts";
 import {
   currentAccount,
   forbiddenResponse,
+  isOrganizer,
   requireOrganizer,
   requireSession,
   unauthenticatedResponse,
 } from "../account/index.ts";
-import { countFeedbackSince, insertFeedback, listFeedback, setFeedbackDone } from "./feedback.ts";
+import { insertFeedbackWithinLimit, listFeedback, setFeedbackDone } from "./feedback.ts";
+import { isAppVisible } from "./visibility.ts";
 
 /** 1日の長さ（ミリ秒）。 */
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -81,18 +83,24 @@ export function feedbackRoutes(deps: DomainRouteDeps) {
       }),
       async (c) => {
         const { body, appKey } = c.req.valid("json");
-        if (appKey && !apps.some((app) => app.key === appKey)) {
+        const account = currentAccount(c);
+        // 選べるのは、その人に見えるアプリだけ（画面の選ぶ欄と同じ。AD-16）
+        const viewer = { isOperator: isOrganizer(deps.config, account) };
+        if (
+          appKey &&
+          (!apps.some((app) => app.key === appKey) || !(await isAppVisible(db, appKey, viewer)))
+        ) {
           throw new AppError("INVALID_INPUT", {
             fields: [{ path: "appKey", message: "アプリを一覧から選んでください。" }],
           });
         }
-        const accountId = currentAccount(c).accountId;
-        const now = new Date();
-        const startOfDay = new Date(endOfJstDate(now).getTime() - DAY_MS);
-        if ((await countFeedbackSince(db, accountId, startOfDay)) >= FEEDBACK_DAILY_MAX) {
-          throw new AppError(FEEDBACK_ERRORS.DAILY_LIMIT);
-        }
-        const id = await insertFeedback(db, { accountId, appKey: appKey ?? null, body });
+        const startOfDay = new Date(endOfJstDate(new Date()).getTime() - DAY_MS);
+        const id = await insertFeedbackWithinLimit(
+          db,
+          { accountId: account.accountId, appKey: appKey ?? null, body },
+          { since: startOfDay, max: FEEDBACK_DAILY_MAX },
+        );
+        if (!id) throw new AppError(FEEDBACK_ERRORS.DAILY_LIMIT);
         return c.json({ id }, 201);
       },
     )
@@ -102,7 +110,7 @@ export function feedbackRoutes(deps: DomainRouteDeps) {
         path: "/api/v1/suite/feedback",
         tags: ["suite"],
         operationId: "suiteListFeedback",
-        summary: "届いた改善点（運営者だけ。新しい順）",
+        summary: "届いた改善点（運営者だけ。新しい順・500件まで）",
         middleware: [requireSession(deps), requireOrganizer(deps)] as const,
         request: { query: FeedbackListQuery },
         responses: {
@@ -117,12 +125,13 @@ export function feedbackRoutes(deps: DomainRouteDeps) {
       async (c) => {
         const query = c.req.valid("query");
         const names = new Map(apps.map((app) => [app.key, app.name]));
-        const rows = await listFeedback(db, {
+        const { rows, truncated } = await listFeedback(db, {
           appKey: query.app,
           pending: query.pending === "true",
         });
         return c.json(
           {
+            truncated,
             items: rows.map((row) => ({
               id: row.id,
               createdAt: row.createdAt.toISOString(),
@@ -164,7 +173,7 @@ export function feedbackRoutes(deps: DomainRouteDeps) {
         const { feedbackId } = c.req.valid("param");
         const { done } = c.req.valid("json");
         if (!(await setFeedbackDone(db, feedbackId, done))) throw new AppError("NOT_FOUND");
-        const [row] = await listFeedback(db, { id: feedbackId });
+        const [row] = (await listFeedback(db, { id: feedbackId })).rows;
         if (!row) throw new AppError("NOT_FOUND");
         const app = apps.find((candidate) => candidate.key === row.appKey);
         return c.json(

@@ -42,8 +42,8 @@ export const FeedbackEntry = z.object({
   appName: z.string().nullable(),
   /** 本文 */
   body: z.string(),
-  /** 送った人の表示名（退会した人は null） */
-  sender: z.string().nullable(),
+  /** 送った人の表示名（退会すると改善点ごと消える） */
+  sender: z.string(),
   /** 済みか */
   done: z.boolean(),
 });
@@ -55,6 +55,8 @@ export type FeedbackEntry = z.infer<typeof FeedbackEntry>;
 export const FeedbackList = z.object({
   /** 改善点 */
   items: z.array(FeedbackEntry),
+  /** 上限（500件）で切ったか（切ったら古いものは出ていない） */
+  truncated: z.boolean(),
 });
 
 /** 届いた改善点の一覧の型。 */

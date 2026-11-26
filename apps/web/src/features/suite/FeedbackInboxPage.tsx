@@ -2,6 +2,7 @@
 // アプリで絞る・まだのものだけを出せる。運営者でなければ OperatorOnlyPage（窓口も 403）。
 import type { FeedbackEntry } from "@workspace/contracts/suite";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { listApps } from "@workspace/contracts/core";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
@@ -11,7 +12,6 @@ import { Page } from "../../lib/page.tsx";
 import { SessionGate, useSession } from "../account/index.ts";
 import { OperatorOnlyPage } from "./OperatorOnlyPage.tsx";
 import { fetchFeedback, setFeedbackDone } from "./api.ts";
-import { useVisibleApps } from "./queries.ts";
 
 /**
  * 届いた改善点の読み込みの鍵。
@@ -46,7 +46,9 @@ function InboxContent() {
   const session = useSession();
   const isOperator = session.status === "authenticated" && session.account.isOrganizer;
   const queryClient = useQueryClient();
-  const visible = useVisibleApps();
+  // 絞るアプリは登録されたすべて（台帳で切にしたアプリへの改善点も絞れるように）
+  const apps = listApps();
+  const [busy, setBusy] = useState<string>();
   const [app, setApp] = useState("");
   const [pendingOnly, setPendingOnly] = useState(true);
   const [failure, setFailure] = useState<string>();
@@ -64,9 +66,11 @@ function InboxContent() {
    */
   const toggle = (item: FeedbackEntry) => {
     setFailure(undefined);
+    setBusy(item.id);
     setFeedbackDone(item.id, !item.done)
       .then(() => queryClient.invalidateQueries({ queryKey: ["suite", "feedback"] }))
-      .catch((caught: unknown) => setFailure(`変えられませんでした。${errorMessage(caught)}`));
+      .catch((caught: unknown) => setFailure(`変えられませんでした。${errorMessage(caught)}`))
+      .finally(() => setBusy(undefined));
   };
 
   return (
@@ -83,7 +87,7 @@ function InboxContent() {
             onChange={(change) => setApp(change.target.value)}
           >
             <option value="">すべて</option>
-            {visible.apps.map((entry) => (
+            {apps.map((entry) => (
               <option key={entry.key} value={entry.key}>
                 {entry.name}
               </option>
@@ -113,27 +117,34 @@ function InboxContent() {
       ) : query.data.items.length === 0 ? (
         <p className="text-m text-text-sub">届いた改善点はありません。</p>
       ) : (
-        <ul aria-label="届いた改善点" className="flex flex-col gap-xs">
-          {query.data.items.map((item) => (
-            <li
-              key={item.id}
-              className="flex flex-col gap-xxs rounded-md border border-border bg-surface p-xs"
-            >
-              <div className="flex flex-wrap items-center gap-xxs text-s text-text-sub">
-                <span>{formatSent(item.createdAt)}</span>
-                <Badge>{item.appName ?? (item.appKey ? item.appKey : "全体")}</Badge>
-                <span>{item.sender ?? "退会した人"}</span>
-                {item.done ? <Badge>済み</Badge> : null}
-              </div>
-              <p className="text-m break-words whitespace-pre-wrap">{item.body}</p>
-              <div>
-                <Button size="small" onClick={() => toggle(item)}>
-                  {item.done ? "まだに戻す" : "済みにする"}
-                </Button>
-              </div>
-            </li>
-          ))}
-        </ul>
+        <>
+          {query.data.truncated ? (
+            <ResponseMessage tone="info">
+              新しい500件だけを出しています。古いものは、アプリで絞るか「まだのものだけ」で探してください。
+            </ResponseMessage>
+          ) : null}
+          <ul aria-label="届いた改善点" className="flex flex-col gap-xs">
+            {query.data.items.map((item) => (
+              <li
+                key={item.id}
+                className="flex flex-col gap-xxs rounded-md border border-border bg-surface p-xs"
+              >
+                <div className="flex flex-wrap items-center gap-xxs text-s text-text-sub">
+                  <span>{formatSent(item.createdAt)}</span>
+                  <Badge>{item.appName ?? (item.appKey ? item.appKey : "全体")}</Badge>
+                  <span>{item.sender || "（表示名なし）"}</span>
+                  {item.done ? <Badge>済み</Badge> : null}
+                </div>
+                <p className="text-m break-words whitespace-pre-wrap">{item.body}</p>
+                <div>
+                  <Button size="small" disabled={busy === item.id} onClick={() => toggle(item)}>
+                    {item.done ? "まだに戻す" : "済みにする"}
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </Page>
   );
