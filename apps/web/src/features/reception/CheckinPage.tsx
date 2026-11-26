@@ -10,9 +10,9 @@ import type { MyCheckinState } from "@workspace/contracts/reception";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { StatusIcon } from "@workspace/ui/components/status-icon";
-import { cn } from "@workspace/ui/lib/cn";
 import { useEffect, useRef, useState } from "react";
 import type * as React from "react";
 import { ApiError, errorMessage } from "../../lib/api.ts";
@@ -26,12 +26,6 @@ import { checkInMine } from "./api.ts";
 import { EMPTY_CHECKIN_FORM, focusFirstCheckinError, validateCheckinForm } from "./checkin-form.ts";
 import type { CheckinFormValues } from "./checkin-form.ts";
 import { RECEPTION_QUERY_KEYS, isNightStop, useMyCheckin } from "./queries.ts";
-
-/**
- * 主のボタンの見た目（高さ 48px・狭い画面では横いっぱい・広い画面では言葉の幅に左右 32px の余白。DESIGN の button-primary）。
- * 縦に並べる flex の中では w-auto だけだと横に伸びるので、広い画面では self-start で左に寄せる。
- */
-const primaryActionClassName = "min-h-xl w-full wide:w-auto wide:self-start wide:px-m";
 
 /** 外のページへのリンクの属性（LINE の中でもアプリの外として開く）。 */
 const EXTERNAL_LINK = { target: "_blank", rel: "noopener noreferrer" } as const;
@@ -102,23 +96,23 @@ function CheckinDone({ summary, justCheckedIn }: DoneProps) {
         <p className="text-m">受付で紙の名札に名前を書いて、お入りください。</p>
       </section>
       {summary.surveyOpen ? (
-        <div className="flex flex-col gap-xxs wide:flex-row">
-          <InternalLink
-            href={participantPaths.survey(summary.id)}
-            className={cn(buttonVariants({ variant: "primary" }), primaryActionClassName)}
-          >
-            アンケートに答える
-          </InternalLink>
+        <ButtonRow>
           {summary.lineGroupUrl ? (
             <a
               href={summary.lineGroupUrl}
               {...EXTERNAL_LINK}
-              className={cn(buttonVariants({ variant: "secondary" }), "min-h-xl")}
+              className={buttonVariants({ variant: "secondary" })}
             >
               交流会のLINEグループに参加する
             </a>
           ) : null}
-        </div>
+          <InternalLink
+            href={participantPaths.survey(summary.id)}
+            className={buttonVariants({ variant: "primary" })}
+          >
+            アンケートに答える
+          </InternalLink>
+        </ButtonRow>
       ) : null}
       {summary.openChatUrl ? (
         <p className="text-m">
@@ -209,14 +203,11 @@ function CheckinForm({ summary, state, onDone }: FormProps) {
             ? "お名前・選んだ答え・紹介してくれた人の名前は、この交流会の受付と、主催者の集計だけに使います。紹介してくれた人の名前は主催者だけが読みます。"
             : "お名前と選んだ答えは、この交流会の受付と、主催者の集計だけに使います。"}
         </p>
-        <Button
-          type="submit"
-          variant="primary"
-          aria-disabled={mutation.isPending || undefined}
-          className={primaryActionClassName}
-        >
-          {mutation.isPending ? "チェックインしています…" : "チェックインする"}
-        </Button>
+        <ButtonRow>
+          <Button type="submit" variant="primary" aria-disabled={mutation.isPending || undefined}>
+            {mutation.isPending ? "チェックインしています…" : "チェックインする"}
+          </Button>
+        </ButtonRow>
         {mutation.isError && Object.keys(fieldErrorsFromApi(mutation.error)).length === 0 ? (
           <ResponseMessage tone="danger">
             {`チェックインできませんでした。${errorMessage(mutation.error)}開かないときは、受付の人に声をかけてください。`}
@@ -253,9 +244,9 @@ function CheckinLoadFailure({ error, retry }: FailureProps) {
       lead="電波の良い所で、もう一度試してください。開かないときは、受付の人に声をかけてください。"
     >
       <p className="text-s text-text-sub">{errorMessage(error)}</p>
-      <div>
+      <ButtonRow>
         <Button onClick={retry}>もう一度</Button>
-      </div>
+      </ButtonRow>
     </Page>
   );
 }

@@ -10,6 +10,7 @@ import {
 } from "@workspace/contracts/reception";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import {
   Table,
@@ -121,10 +122,9 @@ export function ParticipantsTab({ event, list }: ParticipantsTabProps) {
           }}
         />
       ) : (
-        <div>
+        <ButtonRow>
           <Button
             variant="primary"
-            className="min-h-xl"
             onClick={() => {
               setMessage(undefined);
               setAdding(true);
@@ -132,7 +132,7 @@ export function ParticipantsTab({ event, list }: ParticipantsTabProps) {
           >
             手でチェックイン
           </Button>
-        </div>
+        </ButtonRow>
       )}
       {message ? <ResponseMessage tone="success">{message}</ResponseMessage> : null}
       {list === undefined ? (
