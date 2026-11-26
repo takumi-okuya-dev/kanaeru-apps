@@ -2,7 +2,7 @@
 import type { EventView } from "@workspace/contracts/event";
 import { Link } from "@tanstack/react-router";
 import { buttonVariants } from "@workspace/ui/components/button";
-import { cn } from "@workspace/ui/lib/cn";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import type * as React from "react";
 import { errorMessage } from "../../lib/api.ts";
@@ -37,13 +37,15 @@ export function RosterGate({ event, children }: { event: EventView; children: Re
             : "この交流会は名簿を使っていません。"}
         </p>
         {event.myRole === "organizer" ? (
-          <Link
-            to="/admin/events/$eventId/setup"
-            params={{ eventId: event.id }}
-            className={cn(buttonVariants({ variant: "secondary" }), "self-start")}
-          >
-            準備の画面を開く
-          </Link>
+          <ButtonRow>
+            <Link
+              to="/admin/events/$eventId/setup"
+              params={{ eventId: event.id }}
+              className={buttonVariants({ variant: "secondary" })}
+            >
+              準備の画面を開く
+            </Link>
+          </ButtonRow>
         ) : null}
       </Page>
     );

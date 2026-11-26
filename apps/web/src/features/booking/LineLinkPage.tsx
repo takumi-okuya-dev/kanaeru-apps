@@ -7,6 +7,7 @@ import { PARTICIPANT_ROUTE_PATTERNS } from "@workspace/contracts/core";
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useState } from "react";
 import { ApiError, errorMessage } from "../../lib/api.ts";
@@ -58,9 +59,9 @@ function LineLink({ linkToken }: { linkToken: string }) {
     }
     return (
       <Page title="読みこめませんでした" lead={errorMessage(query.error)}>
-        <div>
+        <ButtonRow>
           <Button onClick={() => void query.refetch()}>もう一度</Button>
-        </div>
+        </ButtonRow>
       </Page>
     );
   }
@@ -114,14 +115,16 @@ function LineLink({ linkToken }: { linkToken: string }) {
         と紐づき、あなたの予約の知らせがその人に届きます）。
       </p>
       <div className="flex flex-col items-start gap-xxs">
-        <Button
-          variant="primary"
-          aria-disabled={pending || undefined}
-          aria-busy={pending || undefined}
-          onClick={() => void accept()}
-        >
-          {pending ? "紐づけています…" : "紐づける"}
-        </Button>
+        <ButtonRow>
+          <Button
+            variant="primary"
+            aria-disabled={pending || undefined}
+            aria-busy={pending || undefined}
+            onClick={() => void accept()}
+          >
+            {pending ? "紐づけています…" : "紐づける"}
+          </Button>
+        </ButtonRow>
         {failure ? <ResponseMessage tone="danger">{failure}</ResponseMessage> : null}
       </div>
     </Page>

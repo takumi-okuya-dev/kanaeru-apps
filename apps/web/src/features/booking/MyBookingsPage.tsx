@@ -112,7 +112,7 @@ function EntriesTab() {
                 {item.cancellable ? (
                   <Button
                     variant="text"
-                    className="min-h-xl text-danger-text"
+                    className="text-danger-text"
                     onClick={() => {
                       setDone(undefined);
                       cancel.reset();
@@ -234,7 +234,6 @@ function ConsentSection() {
             <span className="text-m break-words">{consent.holderName}</span>
             <Button
               variant="text"
-              className="min-h-xl"
               aria-busy={(remove.isPending && remove.variables === consent.id) || undefined}
               onClick={() => remove.mutate(consent.id)}
             >
