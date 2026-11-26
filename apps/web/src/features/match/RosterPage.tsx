@@ -5,6 +5,8 @@
 //   match-008）で氏名・レベル・回答の日時の列を確かめ、その3つだけを使う。メール・ラケット・
 //   きっかけ・要望は読まず、サーバーにも送らない。氏名も送らず、呼び名（姓から作る。FR-M2）とレベルだけを送る（Constitution II）。
 //   氏名は、この画面を開いている間だけ「氏名（入れたもの）」の列に出す
+// - 名簿の表は「名簿の一覧（N人）」の開け閉めの中に入れ、初めは閉じておく（人数が多いとスクロールが長くなるため）。
+//   受付の交流会・貼り付け・CSV から取り込んだ直後は開いて、入った人を見せる
 // - 1人ずつ：呼び名・レベル・当日の印（来る・遅れて来る・来ない）を直せる。消せる
 // - 設定：1試合の長さ・試合の時間（→ 組ごとの試合の数）・試合の形・レベルの分け方。レベル別の人数と試合の数を出す
 // - 「試合表を作る」（作ってあれば「組み直す」。終わった試合は残す）で組み、試合表の画面へ移る
@@ -40,6 +42,7 @@ import { Button } from "@workspace/ui/components/button";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { Dialog } from "@workspace/ui/components/dialog";
+import { Disclosure } from "@workspace/ui/components/disclosure";
 import { Field } from "@workspace/ui/components/field";
 import { Input, inputClassName } from "@workspace/ui/components/input";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
@@ -806,6 +809,8 @@ function SettingsCard({ table, editor }: BodyProps) {
  */
 function RosterBody({ table, editor }: BodyProps) {
   const [fullNames, setFullNames] = useState<Map<string, string>>(new Map());
+  // 名簿を取り込んだ回数（取り込んだら名簿の一覧を開き直して、入った人を見せる）
+  const [imports, setImports] = useState(0);
   const queryClient = useQueryClient();
   // QR の受付で入った人を名簿に入れる（担当の端末。開いたときに1度読む。match-004）
   useJoins(table, editor, false);
@@ -839,9 +844,12 @@ function RosterBody({ table, editor }: BodyProps) {
           <ImportActions
             table={table}
             editor={editor}
-            onNames={(names, mode) =>
-              setFullNames((before) => (mode === "append" ? new Map([...before, ...names]) : names))
-            }
+            onNames={(names, mode) => {
+              setFullNames((before) =>
+                mode === "append" ? new Map([...before, ...names]) : names,
+              );
+              setImports((count) => count + 1);
+            }}
           />
         </div>
         <p className="flex flex-wrap gap-x-s text-m text-text-sub">
@@ -853,7 +861,25 @@ function RosterBody({ table, editor }: BodyProps) {
           {counts.left > 0 ? <span>帰った {counts.left}人</span> : null}
           {counts.checks > 0 ? <span>確かめる所 {counts.checks}件</span> : null}
         </p>
-        <RosterTable table={table} editor={editor} fullNames={fullNames} onRemoved={removeJoin} />
+        {table.content.players.length > 0 ? (
+          // 人数が多いとスクロールが長くなるので、名簿の表は初めは閉じておく（持ち主が決めた）。
+          // 取り込んだ直後は開く（入った人と確かめる所を見せる）
+          <Disclosure
+            key={imports}
+            defaultOpen={imports > 0}
+            variant="heading"
+            summary={`名簿の一覧（${table.content.players.length}人）`}
+          >
+            <RosterTable
+              table={table}
+              editor={editor}
+              fullNames={fullNames}
+              onRemoved={removeJoin}
+            />
+          </Disclosure>
+        ) : (
+          <RosterTable table={table} editor={editor} fullNames={fullNames} onRemoved={removeJoin} />
+        )}
         <p className="text-s text-text-sub">
           氏名はこの端末の画面にだけ出し、保存しません。保存するのは呼び名・レベル・当日の印だけです。「遅れて来る」「来ない」「帰った」の人は試合に入りません。当日は、試合表の画面の「人を選んで直す」を使うと、その人の組のこれからの試合だけを組み直します。
         </p>
