@@ -140,7 +140,7 @@ describe("/api/mcp の札の確かめ", () => {
 });
 
 describe("/api/mcp の応答", () => {
-  it("札があれば initialize に答え、道具は範囲で見せる（道具を登録していなければ空）", async () => {
+  it("札があれば initialize に答え、道具は範囲で見せる（すべての範囲の札には受付の道具が出る）", async () => {
     const app = buildApp(database, testConfig({ testLoginEnabled: true }));
     const { access } = await obtainAccessToken(app);
     const init = await mcp(app, INIT, { authorization: `Bearer ${access}` });
@@ -149,8 +149,9 @@ describe("/api/mcp の応答", () => {
     expect(initBody.result?.serverInfo?.name).toBe("kanaeru");
 
     const list = await mcp(app, { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }, { authorization: `Bearer ${access}` });
-    const listBody = (await list.json()) as { result?: { tools: unknown[] } };
-    expect(listBody.result?.tools).toEqual([]);
+    const listBody = (await list.json()) as { result?: { tools: Array<{ name: string }> } };
+    // 本番の道具は受付の1つ（範囲 reception:read の札に見せる）
+    expect(listBody.result?.tools.map((t) => t.name)).toEqual(["reception_my_checkin"]);
   });
 });
 

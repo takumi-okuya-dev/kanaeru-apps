@@ -14,6 +14,8 @@ import type { MetaApp } from "./meta-app.ts";
 import type { Logger } from "./logger.ts";
 import type { Notifier } from "./notifier.ts";
 import type { RegisteredWithdrawalStep } from "./withdrawal.ts";
+import type { InternalAuth } from "./internal-auth.ts";
+import type { McpTool } from "./mcp-tool.ts";
 
 /** 道の文脈の型（要求ごとの値）。 */
 export type ApiEnv = { Variables: RequestIdVariables };
@@ -73,6 +75,16 @@ export type DomainRouteDeps = {
    * 手で組み立てるテストは書かなくてよい（なければ手順なし）
    */
   withdrawalSteps?: readonly RegisteredWithdrawalStep[];
+  /**
+   * MCP の道具（組み立てが領域の mcpTools を集めたもの。/api/mcp が範囲で見せる。core-021）。
+   * 手で組み立てるテストは書かなくてよい（なければ道具なし）
+   */
+  mcpTools?: readonly McpTool[];
+  /**
+   * 窓口を利用者の印つきで内側から呼ぶ（道具が使う。組み立てが自分の app を渡す。core-021・AD-20）。
+   * 手で組み立てるテストは書かなくてよい（なければ道具は呼べない）
+   */
+  internalFetch?: (request: Request, auth: InternalAuth) => Promise<Response>;
   /**
    * 交流会の招待のリンクを絞る決まり（組み立てが各領域の eventLinkRestriction を集めたもの。event の要約の窓口だけが使う。AD-5・AD-23）。
    * どれか1つが true なら、交流会の役目のない人にはリンクを返さない。手で組み立てるテストは書かなくてよい（なければ絞らない）

@@ -4,6 +4,7 @@
 // reception は booking を読まない。AD-23）。
 import type { DomainRouteDeps } from "../../kernel/http.ts";
 import { receptionRoutes } from "./routes.ts";
+import { mcpTools as receptionMcpTools } from "./mcp.ts";
 
 // ほかの領域が読むもの
 // - 表は外部キーのためだけ（survey_answer.checkin_id → .references(() => checkinTable.id, { onDelete: "cascade" })。
@@ -27,4 +28,12 @@ export type { ManualCheckinRequest } from "./manual.ts";
  */
 export function routes(deps: DomainRouteDeps) {
   return receptionRoutes(deps);
+}
+
+/**
+ * 受付の MCP の道具（core-021）。/api/mcp が範囲（reception:read）で見せる。
+ * @returns 道具
+ */
+export function mcpTools() {
+  return receptionMcpTools();
 }
