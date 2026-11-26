@@ -63,7 +63,7 @@
 | GET | `…/entries` | 主催者・受付係 | 名簿（行は申し込んだ日時の古い順。行ごとに `sameName`・`attendance`〈`came`・`no_show`・`pending`〉・`match`〈`manual`・`auto`〉・`enteredByName`〈手で足した・飛び入りの入れた人〉）・人数（確定・取り消し・来た・来なかった・飛び入り・媒体ごとの確定）・`eventEnded` |
 | POST | `…/entries` | 主催者・受付係 | 1人足す（名前・媒体・メモ。入口は手で足す。201） |
 | PUT | `…/entries/{entryId}/status` | 主催者 | 取り消す・戻す |
-| POST | `…/entries/merge` | 主催者 | 同じ名前の2つの行をまとめる（`{ keepEntryId, removeEntryId }`。まとめる行の当て・アカウント・メモを、残す行になければ移し、まとめる行は取り消しにして `merged_into_id` を入れる〈消さない〉。名前が違えば 400 `BOOKING_MERGE_NAME_MISMATCH`、2つともチェックインに当たっていれば 409 `BOOKING_MERGE_BOTH_MATCHED`） |
+| POST | `…/entries/merge` | 主催者 | 同じ名前の2つの行をまとめる（`{ keepEntryId, removeEntryId }`。まとめる行の当て・アカウント・メモを、残す行になければ移し、まとめる行は取り消しにして `merged_into_id` を入れる〈消さない〉。名前が違えば 400 `BOOKING_MERGE_NAME_MISMATCH`、2つともチェックインに当たっていれば 409 `BOOKING_MERGE_BOTH_MATCHED`、2つとも本人の申込み〈LINE のアカウントか、メールの連絡と札を持つ〉なら 409 `BOOKING_MERGE_BOTH_SELF_APPLIED`〈札が相手の行に移らないように。2回目のセキュリティ点検 F1〉） |
 | POST | `…/entries/import/preview` | 主催者 | 取り込む前の見積もり（書かない） |
 | POST | `…/entries/import` | 主催者 | 取り込む（`{ applicationSource, rows: [{ line, name }], mapping? }`。1〜500行・名前は50文字まで。`mapping` があれば持ち主の列の対応を覚える。画面は、列が50を超える・見出しが100文字を超える CSV では `mapping` を送らない） |
 | GET | `…/import-mappings` | 主催者 | 交流会の持ち主が覚えた列の対応（新しく覚えた順） |
