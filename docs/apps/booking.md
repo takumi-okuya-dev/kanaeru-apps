@@ -63,7 +63,7 @@
 | GET | `…/entries` | 主催者・受付係 | 名簿（行は申し込んだ日時の古い順。行ごとに `sameName`・`attendance`〈`came`・`no_show`・`pending`〉・`match`〈`manual`・`auto`〉・`enteredByName`〈手で足した・飛び入りの入れた人〉）・人数（確定・取り消し・来た・来なかった・飛び入り・媒体ごとの確定）・`eventEnded` |
 | POST | `…/entries` | 主催者・受付係 | 1人足す（名前・媒体・メモ。入口は手で足す。201） |
 | PUT | `…/entries/{entryId}/status` | 主催者 | 取り消す・戻す |
-| POST | `…/entries/merge` | 主催者 | 同じ名前の2つの行をまとめる（`{ keepEntryId, removeEntryId }`。まとめる行の当て・アカウント・メモを、残す行になければ移し、まとめる行は取り消しにして `merged_into_id` を入れる〈消さない〉。名前が違えば 400 `BOOKING_MERGE_NAME_MISMATCH`、2つともチェックインに当たっていれば 409 `BOOKING_MERGE_BOTH_MATCHED`） |
+| POST | `…/entries/merge` | 主催者 | 同じ名前の2つの行をまとめる（`{ keepEntryId, removeEntryId }`。まとめる行の当て・アカウント・メモを、残す行になければ移し、まとめる行は取り消しにして `merged_into_id` を入れる〈消さない〉。名前が違えば 400 `BOOKING_MERGE_NAME_MISMATCH`、2つともチェックインに当たっていれば 409 `BOOKING_MERGE_BOTH_MATCHED`、2つとも本人の申込み〈LINE のアカウントか、メールの連絡と札を持つ〉なら 409 `BOOKING_MERGE_BOTH_SELF_APPLIED`〈札が相手の行に移らないように。2回目のセキュリティ点検 F1〉） |
 | POST | `…/entries/import/preview` | 主催者 | 取り込む前の見積もり（書かない） |
 | POST | `…/entries/import` | 主催者 | 取り込む（`{ applicationSource, rows: [{ line, name }], mapping? }`。1〜500行・名前は50文字まで。`mapping` があれば持ち主の列の対応を覚える。画面は、列が50を超える・見出しが100文字を超える CSV では `mapping` を送らない） |
 | GET | `…/import-mappings` | 主催者 | 交流会の持ち主が覚えた列の対応（新しく覚えた順） |
@@ -165,6 +165,8 @@
 ## 3. ほかの領域が使うもの
 
 API の入口（`apps/api/src/modules/booking/index.ts`）は `routes` と `withdrawal`（退会の確かめの中身だけ：組織に入れていない交流会の名簿の人数と、個人の公式アカウントの設定があること・自分の申込みと案内の同意の件数〈booking-003〉。消すのは外部キー）と `eventLinkRestriction`（`event-links.ts`。見せる範囲が「部員だけ」の交流会では、event の要約の招待のリンクを主催者・受付係・部員に絞る。組み立てが event に渡す。AD-5・research R8）と `scheduledJob`（`scheduled-job.ts`。10分ごと・日本時間 9時〜23時台に `runWaitlistJob`〈片付けと変更の知らせ。答えは数だけ〉。組み立てが共通の窓口 `POST /api/v1/jobs/tick` に渡す。core-017・booking-007）を出す。ほかのアプリに出す関数は、確定した申込みの名簿の `listApplicantRoster`（`repository.ts`。名前と account だけ・まとめた行とキャンセル待ち・打診中・取り消しは出さない・使い方が受付だけなら空。試合表が前もって名簿を入れる。権限は呼ぶ側が event の判定で確かめる。AD-23・match-006）だけ（チェックインした人は reception の `listEventAttendees`・`hasCheckedIn`）。
+
+組み立てが読むもの：`publicReadPaths`（`/api/v1/booking/events/`・`/api/v1/booking/entry-tokens/`。ログインなしで読める申込みのページ・カレンダー・札のページの読む要求に、IP ごとの回数の制限〈60秒に600回〉をかける。交流会の道の頭なので主催者の読む窓口にも効くが、人の使い方では届かない。2026-11-26、2回目のセキュリティ点検の F2）。
 
 booking が読むもの：event の `requireEventRole`・`getEventRole`・`getEventSummary`・`findEventOwnerAccountId`・`findEventOrganizationId`・`listOrganizationEvents`（booking-003）・`listPersonalEventIds`・`eventTable`、reception の `listEventAttendees`・`getCheckin`・`createManualCheckin`・`checkinTable`、account の `requireSession`・`currentAccount`・`findSessionViewer`（booking-003）・`findDisplayNames`・`accountTable`、suite の `findMembership`・`listMemberships`・`findOrganization`・`organizationTable`、共通の `platform/notify`（`verifyLineSignature`・`createNotifier`）と土台の `DomainRouteDeps.notifier`・`secretBox`。
 

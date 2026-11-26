@@ -14,7 +14,14 @@ import { createMiddleware } from "hono/factory";
 import type { Db } from "../../kernel/db.ts";
 import { AppError } from "../../kernel/errors.ts";
 import type { ApiEnv, DomainConfig } from "../../kernel/http.ts";
-import { createSession, deleteSessionByTokenHash, findSessionAccount } from "./repository.ts";
+import {
+  findAccountById,
+  createSession,
+  deleteSessionByTokenHash,
+  findSessionAccount,
+} from "./repository.ts";
+import { internalAuthOf } from "../../kernel/internal-auth.ts";
+import { WINDOW_ALLOWLIST } from "./window-allowlist.ts";
 import type { AccountRecord } from "./repository.ts";
 
 /** セッションの期限（ミリ秒。30日。AD-4）。 */
@@ -148,7 +155,15 @@ export function requireSession(deps: { db: Db; config: Pick<DomainConfig, "webUr
   const cookie = sessionCookie(deps.config);
   return createMiddleware<ApiEnv>(async (c, next) => {
     const token = readSessionToken(c, cookie);
-    const found = token ? await findSessionAccount(deps.db, hashSessionToken(token)) : null;
+    let found = token ? await findSessionAccount(deps.db, hashSessionToken(token)) : null;
+    if (!found) {
+      // 道具（MCP）が内側から呼んだ要求：許可リストの窓口だけ、範囲を確かめて通す（core-021・AD-20）
+      const internal = await accountOfInternalCall(deps.db, c);
+      if (internal) {
+        if (!internal.allowed) throw new AppError("FORBIDDEN");
+        found = internal.record;
+      }
+    }
     if (!found) throw new AppError(ACCOUNT_ERRORS.UNAUTHENTICATED);
     (c as unknown as Context<SessionEnv>).set(CONTEXT_KEY, found);
     await next();
@@ -169,8 +184,33 @@ export async function findSessionViewer(
   c: Context,
 ): Promise<SessionAccount | null> {
   const token = readSessionToken(c, sessionCookie(deps.config));
-  const found = token ? await findSessionAccount(deps.db, hashSessionToken(token)) : null;
+  let found = token ? await findSessionAccount(deps.db, hashSessionToken(token)) : null;
+  if (!found) {
+    const internal = await accountOfInternalCall(deps.db, c);
+    if (internal?.allowed) found = internal.record;
+  }
   return found ? { accountId: found.id, lineUserId: found.lineUserId } : null;
+}
+
+/**
+ * 道具（MCP）が内側から呼んだ要求の利用者を読む（許可リストの窓口だけ）。印がなければ null。
+ * @param db DB
+ * @param c 要求の文脈
+ * @returns 利用者と、範囲が足りているか。許可リストにない窓口なら null（印があっても通さない）
+ */
+async function accountOfInternalCall(
+  db: Db,
+  c: Context,
+): Promise<{ record: AccountRecord; allowed: boolean } | null> {
+  const auth = internalAuthOf(c.req.raw);
+  if (!auth) return null;
+  const entry = WINDOW_ALLOWLIST.find(
+    (w) => w.method === c.req.method && w.routePath === c.req.routePath,
+  );
+  if (!entry) return null;
+  const record = await findAccountById(db, auth.accountId);
+  if (!record) return null;
+  return { record, allowed: auth.scopes.includes(`${entry.appKey}:${entry.access}`) };
 }
 
 /**

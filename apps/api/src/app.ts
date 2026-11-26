@@ -25,6 +25,8 @@ import {
 } from "@workspace/contracts/core";
 import type { AppDefinition, FieldError } from "@workspace/contracts/core";
 import { createSecretBox } from "@workspace/secret-box";
+import type { McpTool } from "./kernel/mcp-tool.ts";
+import { fetchAsInternal } from "./kernel/internal-auth.ts";
 import type { Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { csrf } from "hono/csrf";
@@ -54,7 +56,7 @@ import { createNotifier } from "./platform/notify/index.ts";
 import { createRateLimiter } from "./platform/rate-limit/index.ts";
 import {
   HSTS_MAX_AGE_SECONDS,
-  isApiPath,
+  isServerPath,
   serveWeb,
   webSecureHeaders,
 } from "./platform/web/index.ts";
@@ -99,6 +101,11 @@ export type DomainModule = {
    * 頭は "/api/v1/<自分の領域>/" で始まり "/" で終わる形にする（合わなければ起動を止める）
    */
   publicReadPaths?: readonly string[];
+  /**
+   * MCP の道具（なければ持たない。組み立てが集めて、/api/mcp が範囲で見せる。core-021）。
+   * 道具は窓口を request で呼ぶだけ（権限は窓口の守りが決める。AD-20）。
+   */
+  mcpTools?: (deps: DomainRouteDeps) => readonly McpTool[];
   /**
    * 定期の仕事（なければ持たない。組み立てが集めて、共通の窓口 POST /api/v1/jobs/tick がその回に当たるものを動かす。core-017）。
    * 間隔は 5〜60 の 5 の倍数・時間帯は日本時間の 0〜23（合わなければ起動を止める）
@@ -510,7 +517,7 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
   app.use(
     "*",
     createMiddleware<AppEnv>(async (c, next) => {
-      await (isApiPath(c.req.path) ? apiHeaders(c, next) : webHeaders(c, next));
+      await (isServerPath(c.req.path) ? apiHeaders(c, next) : webHeaders(c, next));
     }),
   );
   app.use("*", async (c, next) => {
@@ -654,8 +661,13 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
       logger,
     }),
     withdrawalSteps: orderWithdrawalSteps(domains, apps),
+    internalFetch: (request, auth) => fetchAsInternal(app, request, auth),
     eventLinkRestrictions: collectEventLinkRestrictions(domains),
   };
+  // MCP の道具（領域が出したものを集める。窓口は app を通して呼ぶ。core-021）
+  routeDeps.mcpTools = domains.flatMap(([, module]) =>
+    "mcpTools" in module && module.mcpTools ? [...module.mcpTools(routeDeps)] : [],
+  );
   for (const [name, domain] of domains) {
     if (!domain.routes) continue;
     const domainRoutes = domain.routes(routeDeps);
