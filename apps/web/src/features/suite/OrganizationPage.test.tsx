@@ -2,7 +2,7 @@
 // 管理者が抜けるときは、引き継ぐ人を選ぶまで「引き継いで抜ける」を押せない。ほかに誰もいなければ、組織を消すよう案内する。
 // API は fetch の差しかえで答える。
 import type { OrganizationDetail } from "@workspace/contracts/suite";
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderWithRouter } from "../../lib/testing.tsx";
@@ -150,6 +150,24 @@ describe("組織の画面", () => {
     await userEvent.click(within(other).getByRole("button", { name: "編集者にする" }));
     expect(await within(other).findByText("鈴木さんを編集者にしました。")).toBeInTheDocument();
     expect(sent.find((item) => item.method === "PUT")?.body).toEqual({ role: "editor" });
+  });
+
+  it("役割を変えている途中は、その人の「外す」を押しても確かめを開かない", async () => {
+    stubApi(organizationOf("admin"));
+    const answer = globalThis.fetch;
+    // 役割の切り替え（PUT）の答えを返さないままにして、変えている途中を保つ
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
+      const method = init?.method ?? (input instanceof Request ? input.method : "GET");
+      return method === "PUT" ? new Promise<Response>(() => {}) : answer(input, init);
+    });
+    renderWithRouter(<OrganizationPage organizationId={ORG_ID} />);
+
+    const other = await screen.findByRole("listitem", { name: "鈴木" });
+    await userEvent.click(within(other).getByRole("button", { name: "編集者にする" }));
+    const remove = within(other).getByRole("button", { name: "外す" });
+    await waitFor(() => expect(remove).toHaveAttribute("aria-disabled", "true"));
+    await userEvent.click(remove);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("管理者が抜けるときは、引き継ぐ人を選ぶまで押せず、選ぶと引き継ぐ人を送る", async () => {
