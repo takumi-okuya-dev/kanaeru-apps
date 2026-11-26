@@ -23,6 +23,7 @@ ephemeral "random_password" "db" {
 
 resource "google_secret_manager_secret" "database_url" {
   secret_id = "${var.name}-database-url"
+  labels    = local.labels
 
   replication {
     user_managed {

@@ -1,5 +1,5 @@
 # 環境ごとの部品（core-018）：DB と DB の利用者・秘密の値・身分と権限・Cloud Run のサービスと DB の変更を当てる job・共通の定期の仕事。
-# 本番（kanaeru）とステージング（kanaeru-stg）が、同じ Cloud SQL のサーバーの中の別の DB を使う（構成 B）。
+# 本番（suite）とステージング（suite-stg）が、同じ Cloud SQL のサーバーの中の別の DB を使う（構成 B）。
 # 別のプロジェクトに環境を移すとき（構成 C）は、移した先で Cloud SQL・ネットワーク・イメージの置き場・WIF を作り、この部品を呼ぶ。
 
 locals {
@@ -8,6 +8,9 @@ locals {
 
   # DB と DB の利用者の名前（- を使わない）
   db_name = replace(var.name, "-", "_")
+
+  # 環境のラベル（サービス名は provider の default_labels の product。名前と違い、あとから変えられる）
+  labels = { env = var.app_env == "production" ? "prod" : "stg" }
 
   # Threads と予約が共に使う秘密（鍵の束・合言葉）を作るか
   shared_secrets_enabled = var.threads_enabled || var.booking_enabled

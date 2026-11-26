@@ -65,7 +65,7 @@ flowchart LR
 
 考え方は [LINEの学び](./study/line.md) 1・2章、値の入れ先は [infra/README.md](../infra/README.md) 4章。
 
-- [ ] プロバイダーを1つ作る（ユーザーID はプロバイダーごとに変わるので、kanaeru のチャネルは全部ここに作る。AD-2）
+- [ ] プロバイダーを1つ作る（ユーザーID はプロバイダーごとに変わるので、PaletKit のチャネルは全部ここに作る。AD-2）
 - [ ] **LINE ミニアプリのチャネルを2つ**作る（本番用とステージング用。LIFF の URL は1つの LIFF アプリに1つのため。どちらも未認証のまま。審査は出さない）
   - それぞれのチャネルID → Terraform の `production`・`staging` の `line_channel_ids`
   - それぞれの LIFF ID → GitHub の環境 `production`・`staging` の変数 `LIFF_ID`（6章）。ミニアプリのチャネルの中は開発用・審査用・公開用に分かれ、LIFF ID もそれぞれ違う（[LINEの学び](./study/line.md) 2.3）。**本番は本番のチャネルの公開用（Published）の LIFF ID**にする（開発用だと、チャネルの管理者とテスターしか開けない）。ステージングは開発用でよい
@@ -77,7 +77,7 @@ flowchart LR
 
 [infra/README.md](../infra/README.md) 4・5章のとおり。
 
-- [ ] `develop` の最新を手元に取り、その `infra/` で流す（`main` にはまだ `infra/` がなく、古い手元ではステージングの身分を `main` から使う許可や `kanaeru-db-waker` がない）
+- [ ] `develop` の最新を手元に取り、その `infra/` で流す（`main` にはまだ `infra/` がなく、古い手元ではステージングの身分を `main` から使う許可や `suite-db-waker` がない）
 - [ ] リポジトリの数字の ID と持ち主の数字の ID を控える（`gh api repos/<owner>/<repo> --jq '.id, .owner.id'`）
 - [ ] `infra/terraform.tfvars` を見本から作り、`production = { … }`・`staging = { … }` に値を入れる（コミットしない）。Threads と予約は、はじめは切のままでよい（[infra/README.md](../infra/README.md) 9・10章）
 - [ ] `terraform init -backend-config="bucket=<バケット>"` → `terraform plan -out=tfplan`
@@ -87,7 +87,7 @@ flowchart LR
 
 最初の apply では、Cloud Run と DB の変更を当てる job は仮のイメージで立ち上がる。本物は 7章のデプロイで出る。
 
-- [ ] 夜間の停止と朝の起動を一度だけ手で動かして確かめる：`gcloud scheduler jobs run kanaeru-db-start --location=asia-northeast1`（[infra/README.md](../infra/README.md) 7章）
+- [ ] 夜間の停止と朝の起動を一度だけ手で動かして確かめる：`gcloud scheduler jobs run suite-db-start --location=asia-northeast1`（[infra/README.md](../infra/README.md) 7章）
 
 ## 5. LINE に URL を入れる
 
@@ -118,7 +118,7 @@ flowchart LR
 
 [infra/README.md](../infra/README.md) 11章の「権限で分かれているかの確かめ」のとおり（core-018 tasks T009）。
 
-- [ ] 手元から一時的に DB につなぎ（`ipv4_enabled` を一時的に `true` にして apply し、Cloud SQL Auth Proxy で。`kanaeru_stg` のパスワードは Secret Manager の `kanaeru-stg-database-url` の中。[infra/README.md](../infra/README.md) 6章）、ステージングの利用者で本番の DB につなげない・本番の利用者の権限を取れない・本番の利用者のパスワードを変えられないことを確かめる
+- [ ] 手元から一時的に DB につなぎ（`ipv4_enabled` を一時的に `true` にして apply し、Cloud SQL Auth Proxy で。`suite_stg` のパスワードは Secret Manager の `suite-stg-database-url` の中。[infra/README.md](../infra/README.md) 6章）、ステージングの利用者で本番の DB につなげない・本番の利用者の権限を取れない・本番の利用者のパスワードを変えられないことを確かめる
 - [ ] 見終わったら `ipv4_enabled` を `false` に戻して apply する（公開の IP の料金と守りのため）
 - [ ] どれかが通ったら、ステージングを使う前に、直し方を Claude Code に相談する（構成 C に移すなど）
 

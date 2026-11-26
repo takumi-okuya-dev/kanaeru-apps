@@ -46,7 +46,7 @@ flowchart LR
 
 ![置き場所の構成図：Google Cloud の東京リージョンに、本番とステージングの Cloud Run、VPC、内部の IP だけの Cloud SQL を置く](./images/infra-architecture.svg)
 
-- 本番（`kanaeru`）とステージング（`kanaeru-stg`）の Cloud Run が、同じ Cloud SQL のサーバーの中の別の DB を使う。Cloud Run は Direct VPC egress で VPC に出て、内部の IP の Cloud SQL に TCP でつなぐ（core-018。構成の決めごと AD-8・AD-11）。
+- 本番（`suite`）とステージング（`suite-stg`）の Cloud Run が、同じ Cloud SQL のサーバーの中の別の DB を使う。Cloud Run は Direct VPC egress で VPC に出て、内部の IP の Cloud SQL に TCP でつなぐ（core-018。構成の決めごと AD-8・AD-11）。
 - デプロイは GitHub Actions が Workload Identity Federation で鍵なしで入り、環境ごとのイメージの置き場所に押し込んで、DB の変更 → 新しい版の順に出す（`develop` → ステージング・`main` → ステージングに出たあと承認で本番。デプロイの身分も置き場所も環境ごとなので、ステージングから本番は触れない。core-019。出し方は[本番に出す手順](./release-guide.md)）。
 - 本番とステージングの DB は、DB の変更を当てる job が毎回、その環境の利用者だけがつなげる形にそろえる（同じサーバーを共にするため）。
 - Cloud Scheduler は、夜間（0時〜8時）に Cloud SQL Admin API で DB を止め、8時〜23時台は環境ごとの共通の定期の仕事（`POST /api/v1/jobs/tick`。core-017）を5分ごとに呼ぶ（Threads か予約を入にした環境だけ）。
@@ -56,7 +56,7 @@ flowchart LR
 
 ### 設定（`apps/api/src/kernel/config.ts`）
 
-環境の違いは設定の値で持つ（見本は `.env.example`）。kanaeru で足したもの：
+環境の違いは設定の値で持つ（見本は `.env.example`）。suite で足したもの：
 
 | 設定 | 何か | staging・production |
 |---|---|---|
