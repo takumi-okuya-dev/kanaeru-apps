@@ -6,6 +6,7 @@ import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoAxeViolations } from "../testing/axe.ts";
 import { Button } from "./button.tsx";
+import { ButtonRow } from "./button-row.tsx";
 import { ConfirmDialog } from "./confirm-dialog.tsx";
 import { Disclosure } from "./disclosure.tsx";
 import { Field } from "./field.tsx";
@@ -165,5 +166,41 @@ describe("「詳しく」の開け閉め", () => {
       </Disclosure>,
     );
     expect(screen.getByText("プロンプトの中身")).toBeVisible();
+  });
+});
+
+describe("ボタンの並べ方（ButtonRow）", () => {
+  it("並べた順のまま描き、右寄せで同じ幅の形（end）と格子の形（grid）を持つ", () => {
+    const { container, rerender } = render(
+      <ButtonRow>
+        <Button>やめる</Button>
+        <Button variant="primary">保存</Button>
+      </ButtonRow>,
+    );
+    const row = container.querySelector('[data-slot="button-row"]');
+    expect(row?.className).toContain("flex-col-reverse");
+    expect(row?.className).toContain("wide:auto-cols-fr");
+    expect(
+      [...(row?.querySelectorAll("button") ?? [])].map((button) => button.textContent),
+    ).toEqual(["やめる", "保存"]);
+    rerender(
+      <ButtonRow layout="grid">
+        <Button>大きく映す</Button>
+        <Button>印刷</Button>
+      </ButtonRow>,
+    );
+    expect(container.querySelector('[data-slot="button-row"]')?.className).toContain("grid-cols-2");
+  });
+
+  it("ボタンの高さはふつう 48px・小 40px（32px は使わない）", () => {
+    render(
+      <>
+        <Button>ふつう</Button>
+        <Button size="small">小</Button>
+      </>,
+    );
+    expect(screen.getByRole("button", { name: "ふつう" }).className).toContain("min-h-xl");
+    expect(screen.getByRole("button", { name: "小" }).className).toContain("min-h-l");
+    expect(screen.getByRole("button", { name: "小" }).className).not.toContain("min-h-m");
   });
 });

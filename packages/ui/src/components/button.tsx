@@ -29,10 +29,10 @@ export const buttonVariants = cva(
         text: "border-transparent bg-transparent px-x3s text-text-link underline-offset-2 hover:not-disabled:underline",
       },
       size: {
-        /** 標準（高さ 40px） */
-        default: "min-h-l px-xs text-m leading-tight",
-        /** 小さいもの（高さ 32px） */
-        small: "min-h-m px-xxs text-s leading-tight",
+        /** 標準（高さ 48px。指で押しやすい高さ。DESIGN.md の「ボタン」） */
+        default: "min-h-xl px-s text-m leading-tight",
+        /** 小さいもの（高さ 40px。表の行・カードの中の小さな操作だけに使う） */
+        small: "min-h-l px-xs text-s leading-tight",
       },
     },
     defaultVariants: { variant: "secondary", size: "default" },
