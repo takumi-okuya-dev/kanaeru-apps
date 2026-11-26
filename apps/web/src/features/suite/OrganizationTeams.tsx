@@ -8,6 +8,7 @@ import { ORGANIZATION_ROLE_LABELS, TeamNameInput } from "@workspace/contracts/su
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Disclosure } from "@workspace/ui/components/disclosure";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { Field, useFieldControl } from "@workspace/ui/components/field";
@@ -107,9 +108,11 @@ function TeamNameForm({
         <Input value={name} onChange={(change) => setName(change.target.value)} />
       </Field>
       <div className="flex flex-col items-start gap-xxs">
-        <Button type="submit" aria-disabled={pending || undefined}>
-          {pending ? pendingLabel : submitLabel}
-        </Button>
+        <ButtonRow>
+          <Button type="submit" aria-disabled={pending || undefined}>
+            {pending ? pendingLabel : submitLabel}
+          </Button>
+        </ButtonRow>
         {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
       </div>
     </form>
@@ -207,7 +210,7 @@ function TeamMemberRow({
       </div>
       {isAdmin ? (
         <div className="flex flex-col items-start gap-x3s" aria-busy={pending || undefined}>
-          <div className="flex flex-wrap gap-xxs">
+          <ButtonRow>
             <Button
               size="small"
               aria-disabled={pending || undefined}
@@ -238,7 +241,7 @@ function TeamMemberRow({
             >
               チームから外す
             </Button>
-          </div>
+          </ButtonRow>
           {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
         </div>
       ) : null}
@@ -296,13 +299,15 @@ function AddTeamMember({
         <AddMemberSelect members={candidates} value={selected} onChange={setSelected} />
       </Field>
       <div className="flex flex-col items-start gap-xxs">
-        <Button
-          disabled={selected === ""}
-          aria-disabled={pending || undefined}
-          onClick={() => void add()}
-        >
-          {pending ? "足しています…" : "チームに足す"}
-        </Button>
+        <ButtonRow>
+          <Button
+            disabled={selected === ""}
+            aria-disabled={pending || undefined}
+            onClick={() => void add()}
+          >
+            {pending ? "足しています…" : "チームに足す"}
+          </Button>
+        </ButtonRow>
         {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
       </div>
     </div>
@@ -380,7 +385,7 @@ function TeamCard({ organization, team }: { organization: OrganizationDetail; te
                   return "名前を直しました。";
                 }}
               />
-              <div>
+              <ButtonRow>
                 <Button
                   variant="danger"
                   onClick={() => {
@@ -390,7 +395,7 @@ function TeamCard({ organization, team }: { organization: OrganizationDetail; te
                 >
                   チームを消す
                 </Button>
-              </div>
+              </ButtonRow>
             </div>
           </Disclosure>
           <ConfirmDialog

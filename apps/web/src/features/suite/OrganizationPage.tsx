@@ -11,6 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link, getRouteApi, useNavigate } from "@tanstack/react-router";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { Field, useFieldControl } from "@workspace/ui/components/field";
 import { Input, inputClassName } from "@workspace/ui/components/input";
@@ -184,14 +185,14 @@ function MemberRow({
       </p>
       {canManage ? (
         <div className="flex flex-col items-start gap-x3s" aria-busy={pending || undefined}>
-          <div className="flex flex-wrap gap-xxs">
+          <ButtonRow>
             <Button aria-disabled={pending || undefined} onClick={() => void changeRole()}>
               {nextRole === "editor" ? "編集者にする" : "メンバーに戻す"}
             </Button>
             <Button variant="danger" onClick={() => onRemove(member)}>
               外す
             </Button>
-          </div>
+          </ButtonRow>
           {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
         </div>
       ) : null}
@@ -347,7 +348,7 @@ function InviteSection({ organization }: { organization: OrganizationDetail }) {
             {link}
           </p>
           <OrganizationQr value={link} label={`組織「${organization.name}」の招待のQR`} />
-          <div className="flex flex-wrap gap-xxs">
+          <ButtonRow>
             <Button onClick={() => void copy()}>リンクを写す</Button>
             <Button
               onClick={() => {
@@ -357,7 +358,7 @@ function InviteSection({ organization }: { organization: OrganizationDetail }) {
             >
               作り直す
             </Button>
-          </div>
+          </ButtonRow>
           {copied === "done" ? (
             <ResponseMessage tone="success">写しました。</ResponseMessage>
           ) : null}
@@ -374,18 +375,20 @@ function InviteSection({ organization }: { organization: OrganizationDetail }) {
               ? "このリンクは、もう一度出せません。作り直すと新しいリンクが出ます（前のリンクは使えなくなります）。"
               : "まだ招待のリンクはありません。"}
           </p>
-          <Button
-            aria-disabled={pending || undefined}
-            onClick={() => {
-              if (pending) return;
-              if (createdAt) {
-                setError(undefined);
-                setConfirming(true);
-              } else void rotate();
-            }}
-          >
-            {createdAt ? "作り直す" : "招待のリンクを作る"}
-          </Button>
+          <ButtonRow>
+            <Button
+              aria-disabled={pending || undefined}
+              onClick={() => {
+                if (pending) return;
+                if (createdAt) {
+                  setError(undefined);
+                  setConfirming(true);
+                } else void rotate();
+              }}
+            >
+              {createdAt ? "作り直す" : "招待のリンクを作る"}
+            </Button>
+          </ButtonRow>
           {error && !confirming ? (
             <ResponseMessage tone="danger">{`作れませんでした。${error}`}</ResponseMessage>
           ) : null}
@@ -460,20 +463,22 @@ function TransferSection({ organization }: { organization: OrganizationDetail })
         <MemberSelect members={others} value={successor} onChange={setSuccessor} />
       </Field>
       <div className="flex flex-col items-start gap-xxs">
-        <Button
-          onClick={() => {
-            setResult(undefined);
-            if (!chosen) {
-              setFieldError("引き継ぐ人を選んでください。");
-              return;
-            }
-            setFieldError(undefined);
-            setError(undefined);
-            setConfirming(true);
-          }}
-        >
-          管理者を引き継ぐ
-        </Button>
+        <ButtonRow>
+          <Button
+            onClick={() => {
+              setResult(undefined);
+              if (!chosen) {
+                setFieldError("引き継ぐ人を選んでください。");
+                return;
+              }
+              setFieldError(undefined);
+              setError(undefined);
+              setConfirming(true);
+            }}
+          >
+            管理者を引き継ぐ
+          </Button>
+        </ButtonRow>
         {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
       </div>
       <ConfirmDialog
@@ -546,9 +551,11 @@ function RenameSection({ organization }: { organization: OrganizationDetail }) {
           <Input value={name} onChange={(change) => setName(change.target.value)} />
         </Field>
         <div className="flex flex-col items-start gap-xxs">
-          <Button type="submit" aria-disabled={pending || undefined}>
-            {pending ? "保存しています…" : "名前を保存する"}
-          </Button>
+          <ButtonRow>
+            <Button type="submit" aria-disabled={pending || undefined}>
+              {pending ? "保存しています…" : "名前を保存する"}
+            </Button>
+          </ButtonRow>
           {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
         </div>
       </form>
@@ -622,17 +629,19 @@ function LeaveSection({ organization }: { organization: OrganizationDetail }) {
         </>
       ) : null}
       <div className="flex flex-col items-start gap-xxs">
-        <Button
-          variant="danger"
-          aria-disabled={blocked || undefined}
-          onClick={() => {
-            if (blocked) return;
-            setError(undefined);
-            setConfirming(true);
-          }}
-        >
-          {isAdmin ? "引き継いで抜ける" : "組織を抜ける"}
-        </Button>
+        <ButtonRow>
+          <Button
+            variant="danger"
+            aria-disabled={blocked || undefined}
+            onClick={() => {
+              if (blocked) return;
+              setError(undefined);
+              setConfirming(true);
+            }}
+          >
+            {isAdmin ? "引き継いで抜ける" : "組織を抜ける"}
+          </Button>
+        </ButtonRow>
       </div>
       <ConfirmDialog
         open={confirming}
@@ -692,7 +701,7 @@ function DeleteSection({ organization }: { organization: OrganizationDetail }) {
       <p className="text-s text-text-sub">
         組織の人・チーム・招待のリンク・アプリの中の担当と「チームに入れる」がすべて消えます。アプリの記録とそのデータは、持ち主の個人のものとして残ります。
       </p>
-      <div>
+      <ButtonRow>
         <Button
           variant="danger"
           onClick={() => {
@@ -702,7 +711,7 @@ function DeleteSection({ organization }: { organization: OrganizationDetail }) {
         >
           組織を消す
         </Button>
-      </div>
+      </ButtonRow>
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}
@@ -779,7 +788,9 @@ function OrganizationContent({ organizationId }: { organizationId: string }) {
     return (
       <Page title="読みこめませんでした" lead={errorMessage(query.error)}>
         <div>
-          <Button onClick={() => void query.refetch()}>もう一度</Button>
+          <ButtonRow>
+            <Button onClick={() => void query.refetch()}>もう一度</Button>
+          </ButtonRow>
         </div>
       </Page>
     );
