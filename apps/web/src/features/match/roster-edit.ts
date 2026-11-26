@@ -36,7 +36,7 @@ export type ImportResult = {
 };
 
 /**
- * 読んだ人を名簿に入れる（置きかえるときは今の名簿と組み合わせを消す。人数の上限を超える人は入れない）。
+ * 読んだ人を名簿に入れる（置きかえるときは今の名簿と組み合わせと前の分け方で終わった試合を消す。人数の上限を超える人は入れない）。
  * 名簿を入れた受付の交流会（中身の receptionEvent。match-007）は、受付の交流会から入れたら（置きかえても足しても）その交流会に
  * 置きかえ、フォームの貼り付け・CSV で置きかえたら外し、貼り付けで足しただけなら残す【仮決め】。
  * @param content 今の中身
@@ -68,13 +68,17 @@ export function importPeople(
       ...(person.accountId ? { accountId: person.accountId } : {}),
     });
   }
-  const { receptionEvent: before, ...rest } = content;
+  const { receptionEvent: before, mini, archive, ...rest } = content;
   const receptionEvent = from ?? (mode === "replace" ? undefined : before);
   return {
     content: {
       ...rest,
       players: [...base, ...added],
       plan: mode === "replace" ? [] : content.plan,
+      // 置きかえたら、ミニゲームのチーム分けも外す（前の名簿の人で分けたものなので。match-009）
+      ...(mini && mode !== "replace" ? { mini } : {}),
+      // 置きかえたら、前の分け方で終わった試合も外す（前の名簿の人の記録なので、残すと名簿にいない人の試合になり保存できない）
+      ...(archive && mode !== "replace" ? { archive } : {}),
       ...(receptionEvent ? { receptionEvent } : {}),
     },
     fullNames,
@@ -107,7 +111,7 @@ export function updatePlayer(
 /**
  * 1人を消す（その人の入った、まだの試合も組み合わせから消す。終わった試合は残す）。
  * 消した人の入った終わった試合（前の分け方で終わった試合も）があるときは、名簿から消さずに「来ない」にする
- * （終わった試合の名前が消えないように）。
+ * （終わった試合の名前が消えないように）。ミニゲームのチームからも外し、チームが空になるならチーム分けを外す。
  * @param content 今の中身
  * @param id 名簿の人の ID
  * @returns 新しい中身
@@ -119,13 +123,18 @@ export function removePlayer(content: MatchTableContent, id: string): MatchTable
     ) ||
     (content.archive ?? []).some((entry) => entry.games.some((game) => game.players.includes(id)));
   if (inDone) return updatePlayer(content, id, { status: "absent" });
+  const { mini, ...rest } = content;
+  // ミニゲームのチームからも外す。チームが空になるならチーム分けを外す（組み直すときに分け直す。match-009）
+  const teams = mini?.teams.map((team) => team.filter((member) => member !== id));
+  const keepMini = teams !== undefined && teams.every((team) => team.length > 0);
   return {
-    ...content,
+    ...rest,
     players: content.players.filter((player) => player.id !== id),
     plan: content.plan.map((plan) => ({
       ...plan,
       games: plan.games.filter((game) => !game.players.includes(id)),
     })),
+    ...(keepMini ? { mini: { teams } } : {}),
   };
 }
 

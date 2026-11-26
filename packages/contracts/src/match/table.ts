@@ -6,11 +6,14 @@ import { z } from "zod";
 import {
   MATCH_FORMATS,
   MATCH_GROUPINGS,
-  MATCH_GROUPS,
   MATCH_GROUP_KEYS,
   MATCH_LEVELS,
+  MATCH_LEVEL_GROUPINGS,
+  MINI_COURTS_MAX,
   PLAYER_STATUSES,
   PLAYERS_PER_GAME,
+  matchGroupsOf,
+  settingsOfGrouping,
 } from "./options.ts";
 
 /** 試合表の名前の文字数の上限（DB の CHECK と同じ）。 */
@@ -31,22 +34,11 @@ export const GAMES_MAX = 60;
  */
 export const PLAN_GAMES_MAX = GAMES_MAX * 4;
 
-/** 1試合の長さの下限と上限（分）。 */
-export const MINUTES_PER_GAME_MIN = 5;
-
-/** 1試合の長さの上限（分）。 */
-export const MINUTES_PER_GAME_MAX = 90;
-
 /** 担当の端末の ID の文字数の上限（DB の CHECK と同じ）。 */
 export const DEVICE_ID_MAX = 64;
 
 /** 時差つきの ISO 8601。 */
 const isoDateTime = z.iso.datetime({ offset: true });
-
-/** 時刻（HH:MM。24時間）。 */
-const clock = z
-  .string()
-  .regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/u, { error: "時刻は 12:30 の形で入れてください。" });
 
 /** 名簿の人の ID（端末が作る短い英数字）。 */
 const PlayerId = z
@@ -123,31 +115,93 @@ export const MatchArchivedGroup = z.strictObject({
 /** 前の分け方・試合の形で終わった試合の型。 */
 export type MatchArchivedGroup = z.infer<typeof MatchArchivedGroup>;
 
-/** 設定（試合の形・レベルの分け方・1試合の長さ・試合の時間）。 */
-export const MatchSettings = z
-  .strictObject({
-    /** 試合の形 */
-    format: z.enum(MATCH_FORMATS),
-    /** レベルの分け方 */
-    grouping: z.enum(MATCH_GROUPINGS),
-    /** 1試合の長さ（分） */
-    minutesPerGame: z
-      .number()
-      .int({ error: "1試合の長さは分の整数で入れてください。" })
-      .min(MINUTES_PER_GAME_MIN, { error: `1試合は${MINUTES_PER_GAME_MIN}分以上にしてください。` })
-      .max(MINUTES_PER_GAME_MAX, { error: `1試合は${MINUTES_PER_GAME_MAX}分までにしてください。` }),
-    /** 試合の始まり（HH:MM） */
-    startTime: clock,
-    /** 試合の終わり（HH:MM） */
-    endTime: clock,
-  })
-  .refine((settings) => settings.startTime < settings.endTime, {
-    error: "試合の終わりは、始まりより後にしてください。",
-    path: ["endTime"],
-  });
+/** 前の形の設定（1試合の長さ・試合の時間・分け方1つ。match-008 まで）。読むときに新しい形へ直す（match-009 research R1）。 */
+const LegacySettings = z.object({
+  format: z.enum(MATCH_FORMATS),
+  grouping: z.enum(MATCH_GROUPINGS),
+  minutesPerGame: z.number(),
+  startTime: z.string(),
+  endTime: z.string(),
+});
+
+/**
+ * 時刻（HH:MM）を分にする（前の形の設定を直すときだけ使う）。
+ * @param clock 時刻
+ * @returns 0時からの分
+ */
+function minutesOf(clock: string): number {
+  const [hours = 0, minutes = 0] = clock.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+/**
+ * 前の形の設定を新しい形に直す（試合の数 = 試合の時間 ÷ 1試合の長さを1〜60に収める・分け方 none は分けない）。
+ * 前の形でなければ、そのまま返す。
+ * @param value 設定
+ * @returns 新しい形の設定（か、そのままの値）
+ */
+function upgradeSettings(value: unknown): unknown {
+  const legacy = LegacySettings.safeParse(value);
+  if (!legacy.success || (value as Record<string, unknown>).gameCount !== undefined) return value;
+  const { format, grouping, minutesPerGame, startTime, endTime } = legacy.data;
+  const span = minutesOf(endTime) - minutesOf(startTime);
+  const count = minutesPerGame > 0 ? Math.floor(span / minutesPerGame) : 0;
+  return {
+    format,
+    gameCount: Math.min(GAMES_MAX, Math.max(1, Number.isFinite(count) ? count : 1)),
+    ...settingsOfGrouping(grouping),
+    courts: null,
+  };
+}
+
+/**
+ * 設定（試合の形・試合の数・分け方〈レベル別・分けない・ミニゲームのコート数〉。match-009）。
+ * 分け方は少なくとも1つ。前の形の設定は、読むときに新しい形に直す。
+ */
+export const MatchSettings = z.preprocess(
+  upgradeSettings,
+  z
+    .strictObject({
+      /** 試合の形 */
+      format: z.enum(MATCH_FORMATS),
+      /** 1つの組の試合の数 */
+      gameCount: z
+        .number({ error: "試合の数を入れてください。" })
+        .int({ error: "試合の数は整数で入れてください。" })
+        .min(1, { error: "試合の数は1以上にしてください。" })
+        .max(GAMES_MAX, { error: `試合の数は${GAMES_MAX}までにしてください。` }),
+      /** レベル別の分け方（null はレベル別をしない） */
+      levels: z.enum(MATCH_LEVEL_GROUPINGS).nullable(),
+      /** 分けない（全員で1つ）もするか */
+      ungrouped: z.boolean(),
+      /** ミニゲームのコート数（null はミニゲームをしない） */
+      courts: z
+        .number({ error: "コート数を入れてください。" })
+        .int({ error: "コート数は整数で入れてください。" })
+        .min(1, { error: "コート数は1以上にしてください。" })
+        .max(MINI_COURTS_MAX, { error: `コート数は${MINI_COURTS_MAX}までにしてください。` })
+        .nullable(),
+    })
+    .refine(
+      (settings) => settings.levels !== null || settings.ungrouped || settings.courts !== null,
+      { error: "分け方を1つ以上選んでください。", path: ["levels"] },
+    ),
+);
 
 /** 設定の型。 */
 export type MatchSettings = z.infer<typeof MatchSettings>;
+
+/**
+ * ミニゲームのチーム分け（チームごとの名簿の人の ID。チームの数 = コート数 × 2。コート1はチーム1と2、コート2は3と4…。
+ * チーム分けだけを持ち、チームの中の出る順・対戦の回し方は持たない。match-009）。
+ */
+export const MatchMini = z.strictObject({
+  /** チーム（コートの順に2つずつ） */
+  teams: z.array(z.array(PlayerId).min(1).max(ROSTER_MAX)).max(MINI_COURTS_MAX * 2),
+});
+
+/** ミニゲームのチーム分けの型。 */
+export type MatchMini = z.infer<typeof MatchMini>;
 
 /** 名簿を入れた受付の交流会の名前の文字数の上限（交流会の名前の上限〈100文字〉より大きくとる。入れたときの写しなので）。 */
 export const RECEPTION_EVENT_NAME_MAX = 200;
@@ -183,6 +237,8 @@ export const MatchTableContent = z
     plan: z.array(MatchGroupPlan).max(MATCH_GROUP_KEYS.length),
     /** 前の分け方・試合の形で終わった試合（組の key ごとに1つ。なければ持たない。match-003） */
     archive: z.array(MatchArchivedGroup).max(MATCH_GROUP_KEYS.length).optional(),
+    /** ミニゲームのチーム分け（ミニゲームを選んで組んだときだけ。match-009） */
+    mini: MatchMini.optional(),
     /** 名簿を入れた受付の交流会（入れたときの写し。受付の交流会から入れていなければ持たない。match-007） */
     receptionEvent: MatchReceptionSource.optional(),
   })
@@ -198,14 +254,14 @@ export const MatchTableContent = z
       }
       ids.add(player.id);
     }
-    const allowed = new Set<string>(MATCH_GROUPS[content.settings.grouping].map((g) => g.key));
+    const allowed = new Set<string>(matchGroupsOf(content.settings).map((g) => g.key));
     const size = PLAYERS_PER_GAME[content.settings.format];
     const seenGroups = new Set<string>();
     for (const [groupIndex, group] of content.plan.entries()) {
       if (!allowed.has(group.key) || seenGroups.has(group.key)) {
         context.addIssue({
           code: "custom",
-          message: "組み合わせの組が、レベルの分け方と合いません。",
+          message: "組み合わせの組が、分け方と合いません。",
           path: ["plan", groupIndex, "key"],
         });
       }
@@ -226,6 +282,30 @@ export const MatchTableContent = z
             path,
           });
         }
+      }
+    }
+    if (content.mini) {
+      const courts = content.settings.courts;
+      if (courts === null || content.mini.teams.length !== courts * 2) {
+        context.addIssue({
+          code: "custom",
+          message: "ミニゲームのチームの数が、コート数×2と合いません。",
+          path: ["mini", "teams"],
+        });
+      }
+      const seenTeam = new Set<string>();
+      for (const [teamIndex, team] of content.mini.teams.entries()) {
+        if (
+          team.some((id) => !ids.has(id) || seenTeam.has(id)) ||
+          new Set(team).size !== team.length
+        ) {
+          context.addIssue({
+            code: "custom",
+            message: "ミニゲームのチームには、名簿の人を1つのチームに1回だけ入れてください。",
+            path: ["mini", "teams", teamIndex],
+          });
+        }
+        for (const id of team) seenTeam.add(id);
       }
     }
     const seenArchive = new Set<string>();
@@ -262,14 +342,14 @@ export const MatchTableContent = z
 /** 試合表の中身の型。 */
 export type MatchTableContent = z.infer<typeof MatchTableContent>;
 
-/** 試合表を作ったときの中身（名簿なし・ダブルス・4つに分ける・1試合15分・12:30〜14:30）。 */
+/** 試合表を作ったときの中身（名簿なし・ダブルス・8試合・レベル別に4つ。match-009）。 */
 export const INITIAL_CONTENT: MatchTableContent = {
   settings: {
     format: "doubles",
-    grouping: "four",
-    minutesPerGame: 15,
-    startTime: "12:30",
-    endTime: "14:30",
+    gameCount: 8,
+    levels: "four",
+    ungrouped: false,
+    courts: null,
   },
   players: [],
   plan: [],

@@ -2,7 +2,7 @@
 # terraform.tfvars はコミットしない（infra/.gitignore）。秘密の値はここにも書かない（DB のパスワードは Terraform が作る）。
 # 値の意味は variables.tf。
 
-project_id         = "kanaeru-prod-xxxx"
+project_id         = "suite-prod-xxxx"
 billing_account_id = "000000-000000-000000"
 github_repository  = "owner/paletkit-apps"
 # 上のリポジトリと持ち主の数字の ID（変わらない値。README の 4）：gh api repos/<owner>/<repo> --jq '.id, .owner.id'
@@ -21,7 +21,7 @@ production = {
   open_chat_url          = "https://line.me/ti/g2/xxxxxxxx"
 
   # 既定のままでよいもの
-  # web_url             = ""          # 空なら https://kanaeru-<プロジェクト番号>.asia-northeast1.run.app。独自ドメインならその URL
+  # web_url             = ""          # 空なら https://suite-<プロジェクト番号>.asia-northeast1.run.app。独自ドメインならその URL
   # app_name            = "PaletKit"
   # db_password_version = 1
 
@@ -38,7 +38,7 @@ staging = {
   open_chat_url          = "https://line.me/ti/g2/xxxxxxxx"
   app_name               = "PaletKit（ステージング）"
 
-  # web_url             = ""          # 空なら https://kanaeru-stg-<プロジェクト番号>.asia-northeast1.run.app
+  # web_url             = ""          # 空なら https://suite-stg-<プロジェクト番号>.asia-northeast1.run.app
   # threads_enabled     = false       # 入にしても、つなぐのは試し用の Threads のアカウントだけ
   # booking_enabled     = false
   # booking_notify_mode = "off"       # off・allowlist だけ（on は止まる）

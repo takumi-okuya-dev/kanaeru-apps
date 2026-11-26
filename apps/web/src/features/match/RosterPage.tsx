@@ -1,22 +1,28 @@
 // M1 名簿と設定（/match/tables/$tableId）。モックアップの M1。
 // - 名簿の入れ方：受付の交流会から（チェックインした人か申込みの名簿。前に入れたレベルを使う。FR-M4・match-006）・
 //   フォームの回答をスプレッドシートからコピーして貼り付ける（主な入れ方。FR-M30）・CSV のファイルを読む（FR-M1）・
-//   1人足す（FR-M3）。貼った表と CSV は画面の中で読み（lib/csv-read.ts）、氏名・レベル・タイムスタンプだけを使う。メール・ラケット・
+//   1人足す（FR-M3）。貼った表と CSV は画面の中で読み（lib/csv-read.ts）、名簿に入れる前に列の確かめ（ColumnCheckDialog.tsx。
+//   match-008）で氏名・レベル・回答の日時の列を確かめ、その3つだけを使う。メール・ラケット・
 //   きっかけ・要望は読まず、サーバーにも送らない。氏名も送らず、呼び名（姓から作る。FR-M2）とレベルだけを送る（Constitution II）。
 //   氏名は、この画面を開いている間だけ「氏名（入れたもの）」の列に出す
+// - 名簿の表は「名簿の一覧（N人）」の開け閉めの中に入れ、初めは閉じておく（人数が多いとスクロールが長くなるため）。
+//   受付の交流会・貼り付け・CSV から取り込んだ直後は開いて、入った人を見せる
 // - 1人ずつ：呼び名・レベル・当日の印（来る・遅れて来る・来ない）を直せる。消せる
-// - 設定：1試合の長さ・試合の時間（→ 組ごとの試合の数）・試合の形・レベルの分け方。レベル別の人数と試合の数を出す
+// - 設定：試合の数・試合の形・分け方（レベル別〈4つ・3つ・2つ〉・分けない・ミニゲーム〈コート数〉を組み合わせる。match-009）。
+//   組ごとの人数と試合の数・ミニゲームのチームの数を出す
 // - 「試合表を作る」（作ってあれば「組み直す」。終わった試合は残す）で組み、試合表の画面へ移る
 // 直すたびに担当の端末から保存する（AD-28。table-editor.ts）。担当でない端末は見るだけ。
 // QR の受付で入った人は、担当の端末で開くと名簿に入る（use-joins.ts。match-004）。同じ呼び名の人には「同じ名前」の印。
 import {
+  GAMES_MAX,
   MATCH_FORMATS,
   MATCH_FORMAT_LABELS,
-  MATCH_GROUPINGS,
   MATCH_GROUPING_LABELS,
+  MATCH_LEVEL_GROUPINGS,
   MATCH_LEVELS,
   MATCH_LEVEL_LABELS,
   MatchSettings,
+  MINI_COURTS_MAX,
   NICKNAME_MAX,
   PLAYERS_PER_GAME,
   PLAYER_STATUSES,
@@ -26,8 +32,8 @@ import {
 import type {
   MatchSettings as MatchSettingsValue,
   MatchFormat,
-  MatchGrouping,
   MatchLevel,
+  MatchLevelGrouping,
   MatchPlayer,
   MatchTable,
   PlayerStatus,
@@ -39,26 +45,30 @@ import { Button } from "@workspace/ui/components/button";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { Dialog } from "@workspace/ui/components/dialog";
+import { Disclosure } from "@workspace/ui/components/disclosure";
 import { Field } from "@workspace/ui/components/field";
 import { Input, inputClassName } from "@workspace/ui/components/input";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { Textarea } from "@workspace/ui/components/textarea";
 import { useRef, useState } from "react";
 import { decodeCsv, parseCsv } from "../../lib/csv-read.ts";
+import type { ParsedCsv } from "../../lib/csv-read.ts";
 import { fieldErrorsFromIssues } from "../../lib/form.ts";
 import type { FieldErrors } from "../../lib/form.ts";
 import { showNotice } from "../../lib/notice.ts";
 import { Page } from "../../lib/page.tsx";
-import { formatPlayDate } from "./format.ts";
+import { formatPlayDate, settingsText } from "./format.ts";
 import { MATCH_ROUTE_PATTERNS, matchPaths } from "./paths.ts";
-import { buildPlan, hasDoneGames, summarizeGroups } from "./plan.ts";
+import { miniSummary } from "./mini-game.ts";
+import { hasDoneGames, rebuild, summarizeGroups } from "./plan.ts";
 import { changeSettings, describeSettingsChange } from "./regroup.ts";
 import { MATCH_QUERY_KEYS } from "./queries.ts";
 import { forgetJoinedPlayer, useJoins } from "./use-joins.ts";
 import { addPlayer, countRoster, importPeople, removePlayer, updatePlayer } from "./roster-edit.ts";
 import type { ImportMode } from "./roster-edit.ts";
-import { assignNicknames, readRoster } from "./roster-read.ts";
+import { assignNicknames } from "./roster-read.ts";
 import type { RosterReadResult } from "./roster-read.ts";
+import { ColumnCheckDialog } from "./ColumnCheckDialog.tsx";
 import { ReceptionImportDialog } from "./ReceptionImportDialog.tsx";
 import { ReceptionEventNote } from "./ReceptionEventNote.tsx";
 import { EditorState, TableFrame } from "./TableFrame.tsx";
@@ -106,34 +116,53 @@ function ImportActions({
   const [text, setText] = useState("");
   const [mode, setMode] = useState<ImportMode>("replace");
   const [message, setMessage] = useState<{ tone: "success" | "danger"; text: string }>();
+  const [pending, setPending] = useState<{
+    parsed: ParsedCsv;
+    mode: ImportMode;
+    sourceLabel: string;
+    /** 読むたびに変える印（列の確かめの枠の選びを、表ごとに作り直す） */
+    key: number;
+  }>();
   const fileRef = useRef<HTMLInputElement>(null);
   const disabled = !editor.isEditor;
   const hasRoster = table.content.players.length > 0;
 
   /**
-   * 読んだ表を名簿に入れる。
+   * 貼った文字かファイルの文字を表として読み、列の確かめの枠を開く。
    * @param raw 貼った文字か、ファイルの文字
    * @param importMode 入れ方
-   * @returns 入れられたら true
+   * @param sourceLabel 読んだもの（ファイルの名前か「貼り付けた表」）
+   * @returns 表が読めたら true
    */
-  const importText = (raw: string, importMode: ImportMode): boolean => {
-    const result = readRoster(parseCsv(raw, { delimiter: "auto" }));
-    if (result.people.length === 0) {
+  const readText = (raw: string, importMode: ImportMode, sourceLabel: string): boolean => {
+    const parsed = parseCsv(raw, { delimiter: "auto" });
+    if (parsed.headers.length === 0 || parsed.rows.length === 0) {
       setMessage({
         tone: "danger",
-        text: "氏名の列が読めませんでした。フォームの回答の表を、見出しの行ごとコピーして貼り付けてください。",
+        text: "表が読めませんでした。フォームの回答の表を、見出しの行ごとコピーして貼り付けてください。",
       });
       return false;
+    }
+    setMessage(undefined);
+    setPending({ parsed, mode: importMode, sourceLabel, key: Date.now() });
+    return true;
+  };
+
+  /**
+   * 列の確かめのあと、読んだ名簿を入れる。
+   * @param result 名簿を読んだ結果（列の確かめで選んだ列で読んだもの）
+   * @param importMode 入れ方
+   * @returns 入れられたら null。入れられなければ理由の文（列の確かめの枠の中に出す）
+   */
+  const importText = (result: RosterReadResult, importMode: ImportMode): string | null => {
+    if (result.people.length === 0) {
+      return "氏名の列が読めませんでした。フォームの回答の表を、見出しの行ごとコピーして貼り付けてください。";
     }
     const keep = importMode === "append" ? table.content.players.map((p) => p.nickname) : [];
     const named = assignNicknames(result.people, keep);
     const base = importMode === "append" ? table.content.players.length : 0;
     if (base + named.length > ROSTER_MAX) {
-      setMessage({
-        tone: "danger",
-        text: `名簿は${ROSTER_MAX}人までです。人数を減らしてから入れてください。`,
-      });
-      return false;
+      return `名簿は${ROSTER_MAX}人までです。人数を減らしてから入れてください。`;
     }
     // 今の中身（apply が渡す、送りの途中の変更を含む中身）から作る。氏名は作った ID と結ぶ
     let fullNames = new Map<string, string>();
@@ -143,15 +172,11 @@ function ImportActions({
       return { ...draft, content: imported.content };
     });
     if (!applied) {
-      setMessage({
-        tone: "danger",
-        text: "送れなかった変更が端末に残っているため、今は入れられません。上の知らせで、捨てるか上書きするかを選んでください。",
-      });
-      return false;
+      return "送れなかった変更が端末に残っているため、今は入れられません。この枠を閉じ、画面の上の知らせで、捨てるか上書きするかを選んでください。";
     }
     setMessage({ tone: "success", text: importSummary(result, named.length) });
     onNames(fullNames, importMode);
-    return true;
+    return null;
   };
 
   return (
@@ -184,7 +209,7 @@ function ImportActions({
               return;
             }
             void file.arrayBuffer().then((buffer) => {
-              importText(decodeCsv(buffer), hasRoster ? "append" : "replace");
+              readText(decodeCsv(buffer), hasRoster ? "append" : "replace", file.name);
             });
           }}
         />
@@ -194,20 +219,20 @@ function ImportActions({
         open={pasteOpen}
         onOpenChange={setPasteOpen}
         title="フォームの回答を貼り付ける"
-        description="Google フォームの回答のスプレッドシートで、見出しの行ごと表を選んでコピーし、ここに貼り付けます。氏名・レベル・タイムスタンプだけを読みます（メールアドレスや要望は読みません）。"
+        description="Google フォームの回答のスプレッドシートで、見出しの行ごと表を選んでコピーし、ここに貼り付けます。次に、どの列を読むかを確かめます（氏名・レベル・回答の日時だけを読み、メールアドレスや要望は読みません）。"
         footer={
           <>
             <Button onClick={() => setPasteOpen(false)}>やめる</Button>
             <Button
               variant="primary"
               onClick={() => {
-                if (importText(text, hasRoster ? mode : "replace")) {
+                if (readText(text, hasRoster ? mode : "replace", "貼り付けた表")) {
                   setPasteOpen(false);
                   setText("");
                 }
               }}
             >
-              名簿に入れる
+              次へ（列を確かめる）
             </Button>
           </>
         }
@@ -229,6 +254,13 @@ function ImportActions({
           ) : null}
         </div>
       </Dialog>
+      <ColumnCheckDialog
+        key={pending?.key ?? 0}
+        parsed={pending?.parsed}
+        sourceLabel={pending?.sourceLabel ?? ""}
+        onClose={() => setPending(undefined)}
+        onImport={(result) => (pending ? importText(result, pending.mode) : null)}
+      />
       <AddPlayerDialog open={addOpen} onOpenChange={setAddOpen} editor={editor} />
       <ReceptionImportDialog
         table={table}
@@ -523,13 +555,17 @@ function SettingInput({
   error,
   disabled,
   onCommit,
+  min,
+  max,
 }: {
   label: string;
   value: string;
-  type: "time" | "number";
+  type: "number";
   error: string | undefined;
   disabled: boolean;
   onCommit: (value: string) => void;
+  min: number;
+  max: number;
 }) {
   const [draft, setDraft] = useState(value);
   const [synced, setSynced] = useState(value);
@@ -541,9 +577,9 @@ function SettingInput({
     <Field label={label} error={error}>
       <Input
         type={type}
-        inputMode={type === "number" ? "numeric" : undefined}
-        min={type === "number" ? 5 : undefined}
-        max={type === "number" ? 90 : undefined}
+        inputMode="numeric"
+        min={min}
+        max={max}
         value={draft}
         disabled={disabled}
         onChange={(change) => setDraft(change.target.value)}
@@ -556,7 +592,7 @@ function SettingInput({
 }
 
 /**
- * 設定とレベル別の試合と「試合表を作る」。
+ * 設定と分け方ごとの試合と「試合表を作る」。
  * @param props 試合表（table）・直す道具（editor）
  * @returns 要素
  */
@@ -572,7 +608,9 @@ function SettingsCard({ table, editor }: BodyProps) {
   const { settings } = table.content;
   const disabled = !editor.isEditor;
   const summaries = summarizeGroups(table.content);
-  const planned = table.content.plan.some((plan) => plan.games.length > 0);
+  const mini = miniSummary(table.content);
+  const planned =
+    table.content.plan.some((plan) => plan.games.length > 0) || table.content.mini !== undefined;
   const noLevel = table.content.players.filter(
     (player) => player.status === "present" && player.level === null,
   ).length;
@@ -608,28 +646,28 @@ function SettingsCard({ table, editor }: BodyProps) {
     const next = checkSettings(patch);
     if (!next) return;
     const { report } = changeSettings(table.content, next);
-    if (report.regrouped && (report.dropped > 0 || report.doneTotal > 0)) {
+    if ((report.regrouped && (report.dropped > 0 || report.doneTotal > 0)) || report.miniCleared) {
       setPendingSettings({ next, lines: describeSettingsChange(report, false) });
     } else saveSettings(next);
   };
 
   /** 組んで、試合表の画面へ移る。 */
   const generate = () => {
-    if (summaries.every((summary) => summary.games === 0)) {
+    if (summaries.every((summary) => summary.games === 0) && (!mini || mini.short)) {
       setFailure(
-        `組める組がありません。${PLAYERS_PER_GAME[settings.format]}人以上が来る組を作るか、試合の時間を長くしてください。`,
+        `組める組がありません。${PLAYERS_PER_GAME[settings.format]}人以上が来る組を作るか、ミニゲームのコート数を減らしてください。`,
       );
       return;
     }
     setFailure(undefined);
-    editor.apply((draft) => ({
-      ...draft,
-      content: { ...draft.content, plan: buildPlan(draft.content, draft.seed) },
-    }));
+    editor.apply((draft) => ({ ...draft, content: rebuild(draft.content, draft.seed) }));
     const path = matchPaths.board(table.id);
+    const miniNote = mini?.short
+      ? `ミニゲームは、来る人がチームの数（${mini.teams}）より少ないため、チームを分けていません。`
+      : "";
     showNotice({
       tone: "success",
-      message: planned ? "まだの試合を組み直しました。" : "試合表を作りました。",
+      message: `${planned ? "まだの試合を組み直しました。" : "試合表を作りました。"}${miniNote}`,
       path,
     });
     void navigate({ to: "/match/tables/$tableId/board", params: { tableId: table.id } });
@@ -645,28 +683,14 @@ function SettingsCard({ table, editor }: BodyProps) {
       </h2>
       <div className="grid grid-cols-1 gap-xs wide:grid-cols-3">
         <SettingInput
-          label="1試合（分）"
+          label="試合の数（1つの組）"
           type="number"
-          value={String(settings.minutesPerGame)}
-          error={errors.minutesPerGame}
+          min={1}
+          max={GAMES_MAX}
+          value={String(settings.gameCount)}
+          error={errors.gameCount}
           disabled={disabled}
-          onCommit={(value) => requestSettings({ minutesPerGame: Number(value) })}
-        />
-        <SettingInput
-          label="試合の始まり"
-          type="time"
-          value={settings.startTime}
-          error={errors.startTime}
-          disabled={disabled}
-          onCommit={(value) => requestSettings({ startTime: value })}
-        />
-        <SettingInput
-          label="試合の終わり"
-          type="time"
-          value={settings.endTime}
-          error={errors.endTime}
-          disabled={disabled}
-          onCommit={(value) => requestSettings({ endTime: value })}
+          onCommit={(value) => requestSettings({ gameCount: Number(value) })}
         />
       </div>
       {disabled ? (
@@ -676,8 +700,8 @@ function SettingsCard({ table, editor }: BodyProps) {
             <dd>{MATCH_FORMAT_LABELS[settings.format]}</dd>
           </div>
           <div className="flex flex-wrap gap-xxs">
-            <dt className="font-bold">レベルの分け方</dt>
-            <dd>{MATCH_GROUPING_LABELS[settings.grouping]}</dd>
+            <dt className="font-bold">分け方</dt>
+            <dd>{settingsText(settings)}</dd>
           </div>
         </dl>
       ) : (
@@ -690,26 +714,88 @@ function SettingsCard({ table, editor }: BodyProps) {
               requestSettings({ format });
             }}
           />
-          <ChoiceChips
-            label="レベルの分け方"
-            description="あとから変えられます。変えたら「組み直す」を押してください。"
-            options={MATCH_GROUPINGS.map((value) => ({
-              value,
-              label: MATCH_GROUPING_LABELS[value],
-            }))}
-            value={settings.grouping}
-            onValueChange={(grouping: MatchGrouping) => {
-              requestSettings({ grouping });
-            }}
-          />
+          <fieldset
+            className="flex flex-col gap-xxs"
+            aria-describedby={errors.levels ? "match-sets-error" : "match-sets-help"}
+          >
+            <legend className="text-m font-bold">分け方</legend>
+            <p id="match-sets-help" className="text-s text-text-sub">
+              いくつでも組み合わせられます（例：レベル別と分けないの両方）。あとから変えられます。変えたら「組み直す」を押してください。
+            </p>
+            <label className="flex min-h-l items-center gap-xxs text-m">
+              <input
+                type="checkbox"
+                checked={settings.levels !== null}
+                onChange={(change) =>
+                  requestSettings({ levels: change.target.checked ? "four" : null })
+                }
+                className="size-s accent-primary"
+              />
+              レベル別
+            </label>
+            {settings.levels !== null ? (
+              <ChoiceChips
+                label="レベル別の分け方"
+                labelHidden
+                className="pl-m"
+                options={MATCH_LEVEL_GROUPINGS.map((value) => ({
+                  value,
+                  label: MATCH_GROUPING_LABELS[value],
+                }))}
+                value={settings.levels}
+                onValueChange={(levels: MatchLevelGrouping) => {
+                  requestSettings({ levels });
+                }}
+              />
+            ) : null}
+            <label className="flex min-h-l items-center gap-xxs text-m">
+              <input
+                type="checkbox"
+                checked={settings.ungrouped}
+                onChange={(change) => requestSettings({ ungrouped: change.target.checked })}
+                className="size-s accent-primary"
+              />
+              分けない（全員で1つ・レベルの差をならす）
+            </label>
+            <label className="flex min-h-l items-center gap-xxs text-m">
+              <input
+                type="checkbox"
+                checked={settings.courts !== null}
+                onChange={(change) => requestSettings({ courts: change.target.checked ? 2 : null })}
+                className="size-s accent-primary"
+              />
+              ミニゲーム（コート数×2 のチームに、レベルを均して分ける）
+            </label>
+            {settings.courts !== null ? (
+              <div className="max-w-menu pl-m">
+                <SettingInput
+                  label="コート数"
+                  type="number"
+                  min={1}
+                  max={MINI_COURTS_MAX}
+                  value={String(settings.courts)}
+                  error={errors.courts}
+                  disabled={disabled}
+                  onCommit={(value) => requestSettings({ courts: Number(value) })}
+                />
+              </div>
+            ) : null}
+            {errors.levels ? (
+              <p id="match-sets-error" className="text-s text-danger-text">
+                {errors.levels}
+              </p>
+            ) : null}
+          </fieldset>
         </>
       )}
       <div className="flex flex-col gap-x3s">
-        <h3 className="text-m font-bold">レベル別の試合</h3>
+        <h3 className="text-m font-bold">分け方ごとの試合</h3>
         <ul className="flex flex-col gap-x3s text-m">
           {summaries.map((summary) => (
             <li key={summary.group.key} className="flex flex-wrap justify-between gap-xxs">
-              <span className="font-bold">{summary.group.label}</span>
+              <span className="font-bold">
+                {summary.group.key === "all" ? "全員（分けない）" : summary.group.label}
+              </span>
               <span className={summary.short ? "text-danger-text" : "text-text-sub"}>
                 {summary.short
                   ? `${summary.players}人（${PLAYERS_PER_GAME[settings.format]}人に足りないので組めません。一緒にする分け方にしてください）`
@@ -717,6 +803,16 @@ function SettingsCard({ table, editor }: BodyProps) {
               </span>
             </li>
           ))}
+          {mini ? (
+            <li className="flex flex-wrap justify-between gap-xxs">
+              <span className="font-bold">ミニゲーム</span>
+              <span className={mini.short ? "text-danger-text" : "text-text-sub"}>
+                {mini.short
+                  ? `${mini.players}人（${mini.teams}チームに1人以上入るには、来る人が${mini.teams}人要ります）`
+                  : `${mini.players}人・${mini.teams}チーム・1チーム${mini.min === mini.max ? mini.min : `${mini.min}〜${mini.max}`}人`}
+              </span>
+            </li>
+          ) : null}
         </ul>
         {noLevel > 0 ? (
           <p className="text-s text-danger-text">{`レベルを選んでいない人が${noLevel}人います。選ぶまで試合に入りません。`}</p>
@@ -781,6 +877,8 @@ function SettingsCard({ table, editor }: BodyProps) {
  */
 function RosterBody({ table, editor }: BodyProps) {
   const [fullNames, setFullNames] = useState<Map<string, string>>(new Map());
+  // 名簿を取り込んだ回数（取り込んだら名簿の一覧を開き直して、入った人を見せる）
+  const [imports, setImports] = useState(0);
   const queryClient = useQueryClient();
   // QR の受付で入った人を名簿に入れる（担当の端末。開いたときに1度読む。match-004）
   useJoins(table, editor, false);
@@ -814,9 +912,12 @@ function RosterBody({ table, editor }: BodyProps) {
           <ImportActions
             table={table}
             editor={editor}
-            onNames={(names, mode) =>
-              setFullNames((before) => (mode === "append" ? new Map([...before, ...names]) : names))
-            }
+            onNames={(names, mode) => {
+              setFullNames((before) =>
+                mode === "append" ? new Map([...before, ...names]) : names,
+              );
+              setImports((count) => count + 1);
+            }}
           />
         </div>
         <p className="flex flex-wrap gap-x-s text-m text-text-sub">
@@ -828,7 +929,25 @@ function RosterBody({ table, editor }: BodyProps) {
           {counts.left > 0 ? <span>帰った {counts.left}人</span> : null}
           {counts.checks > 0 ? <span>確かめる所 {counts.checks}件</span> : null}
         </p>
-        <RosterTable table={table} editor={editor} fullNames={fullNames} onRemoved={removeJoin} />
+        {table.content.players.length > 0 ? (
+          // 人数が多いとスクロールが長くなるので、名簿の表は初めは閉じておく（持ち主が決めた）。
+          // 取り込んだ直後は開く（入った人と確かめる所を見せる）
+          <Disclosure
+            key={imports}
+            defaultOpen={imports > 0}
+            variant="heading"
+            summary={`名簿の一覧（${table.content.players.length}人）`}
+          >
+            <RosterTable
+              table={table}
+              editor={editor}
+              fullNames={fullNames}
+              onRemoved={removeJoin}
+            />
+          </Disclosure>
+        ) : (
+          <RosterTable table={table} editor={editor} fullNames={fullNames} onRemoved={removeJoin} />
+        )}
         <p className="text-s text-text-sub">
           氏名はこの端末の画面にだけ出し、保存しません。保存するのは呼び名・レベル・当日の印だけです。「遅れて来る」「来ない」「帰った」の人は試合に入りません。当日は、試合表の画面の「人を選んで直す」を使うと、その人の組のこれからの試合だけを組み直します。
         </p>

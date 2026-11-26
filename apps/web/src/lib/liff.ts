@@ -25,6 +25,13 @@ export type LiffClient = {
    */
   login(redirectUri?: string): void;
   /**
+   * 古い LINE のログインを捨ててから、LINE のログインの画面へ移る（外のブラウザの「LINEでログインし直す」。仮の形では何もしない）。
+   * LIFF は ID トークンをブラウザ（localStorage）に残し、期限（1時間）が切れても isLoggedIn() は true のままで、login() は
+   * 何もせず古いトークンを使い続ける。先に logout() で消すと、LINE のログインで新しいトークンが取れる。
+   * @param redirectUri ログインのあとに戻る URL（なければ今の URL）
+   */
+  relogin(redirectUri?: string): void;
+  /**
    * 生の ID トークン（API が LINE の verify で確かめる）。
    * @returns ID トークン（ログインしていない・仮の形では null）
    */
@@ -70,6 +77,7 @@ export function createFakeLiff(state: FakeLiffState = {}): LiffClient {
     mode: "fake",
     isLoggedIn: () => loggedIn,
     login: () => {},
+    relogin: () => {},
     getIDToken: () => (loggedIn ? (state.idToken ?? null) : null),
     isInClient: () => state.inClient ?? false,
     requestFriendship: () => Promise.resolve(false),
@@ -93,6 +101,11 @@ async function createLineLiff(
     mode: "line",
     isLoggedIn: () => liff.isLoggedIn(),
     login: (redirectUri) => {
+      liff.login(redirectUri ? { redirectUri } : undefined);
+    },
+    relogin: (redirectUri) => {
+      // 期限の切れた ID トークンが残っていると login() が何もしないので、先に消す
+      if (liff.isLoggedIn()) liff.logout();
       liff.login(redirectUri ? { redirectUri } : undefined);
     },
     getIDToken: () => liff.getIDToken(),

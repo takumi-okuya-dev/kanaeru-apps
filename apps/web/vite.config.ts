@@ -140,6 +140,22 @@ export default defineConfig(({ mode }) => {
       }),
     ],
     define: { __APP_NAME__: JSON.stringify(name), __LIFF_ID__: JSON.stringify(liffId) },
+    build: {
+      rolldownOptions: {
+        output: {
+          advancedChunks: {
+            // zod と zod の設定（src/lib/zod-config.ts の jitless）を同じ束にする。zod を使う束はどれもこの束を先に読むので、
+            // 約束（zod の形）がどの束に分かれても、形は設定のあとに作られる（CSP の eval の違反を出さない。booking-003 R23 の残り）
+            groups: [
+              {
+                name: "zod",
+                test: /[\\/]node_modules[\\/]zod[\\/]|[\\/]src[\\/]lib[\\/]zod-config\.ts$/,
+              },
+            ],
+          },
+        },
+      },
+    },
     server: { host: "localhost", port, strictPort: true, proxy, headers: SECURITY_HEADERS },
     preview: {
       host: "localhost",

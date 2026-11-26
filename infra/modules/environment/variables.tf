@@ -4,7 +4,7 @@
 # ---- 環境の名前と大きさ
 variable "name" {
   type        = string
-  description = "資源の名前の頭（本番は kanaeru・ステージングは kanaeru-stg）。Cloud Run のサービス・秘密・身分の名前になる"
+  description = "資源の名前の頭（本番は suite・ステージングは suite-stg。サービス名を入れない）。Cloud Run のサービス・秘密・身分の名前になる"
 
   validation {
     condition     = can(regex("^[a-z][a-z0-9-]{1,14}$", var.name))
@@ -133,7 +133,7 @@ variable "db_password_version" {
 
 variable "threads_enabled" {
   type        = bool
-  description = "Threads の運用アプリの秘密を作るか（定期の仕事は共通の kanaeru-jobs-tick が動かす）"
+  description = "Threads の運用アプリの秘密を作るか（定期の仕事は共通の suite-jobs-tick が動かす）"
 }
 
 variable "threads_token_key_version" {
@@ -163,7 +163,7 @@ variable "threads_app_id" {
 
 variable "booking_enabled" {
   type        = bool
-  description = "予約（AD-24）の秘密を作るか（定期の仕事は共通の kanaeru-jobs-tick が動かす）"
+  description = "予約（AD-24）の秘密を作るか（定期の仕事は共通の suite-jobs-tick が動かす）"
 }
 
 variable "booking_notify_mode" {

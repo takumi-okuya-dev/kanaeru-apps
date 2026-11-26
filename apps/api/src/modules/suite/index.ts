@@ -5,6 +5,7 @@
 import type { DomainRouteDeps } from "../../kernel/http.ts";
 import { suiteRoutes } from "./routes.ts";
 import { organizationRoutes } from "./routes-organization.ts";
+import { feedbackRoutes } from "./routes-feedback.ts";
 
 export { INITIAL_APP_SETTINGS, restoreInitialAppSettings, upsertVisibility } from "./repository.ts";
 export { appVisibility, isAppVisible, requireApp, requireAppNotOff } from "./visibility.ts";
@@ -47,5 +48,5 @@ export type { EntitlementSubject } from "./entitlement.ts";
  * @returns 道
  */
 export function routes(deps: DomainRouteDeps) {
-  return suiteRoutes(deps).route("/", organizationRoutes(deps));
+  return suiteRoutes(deps).route("/", organizationRoutes(deps)).route("/", feedbackRoutes(deps));
 }

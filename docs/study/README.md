@@ -2,6 +2,7 @@
 
 - 作成日：2026-11-19
 - 直した日：2026-11-22（Service Worker と property-based テストの学びを足した。match-005）
+- 直した日：2026-11-23（MCP の学びを足した。core-021）
 
 ## 1. この文書の置き場所は何のためか
 
@@ -24,3 +25,4 @@ kanaeru で**初めて使う技術**を、**このプロジェクトでの使い
 | [LINEの学び](./line.md) | LINEミニアプリ（未認証）と LIFF、LINE ログインと IDトークンの確かめ、自前のセッション、友だち追加、QR に入れる URL、公式LINE のプランと数える通数 |
 | [Service Worker の学び](./service-worker.md) | 範囲（scope）と置いたフォルダ・一生（install・waiting・activate）・何を持ち何を持たないか・止め方（機能の印と自分を外す Service Worker）・試し方（試合表のネットなし。AD-27） |
 | [property-based テストの学び](./property-based-testing.md) | fast-check の書き方・どんな性質を書くか（往復・範囲・決まり）・失敗したときの読み方（試合表の組み方と QR の中身） |
+| [MCP の学び](./mcp.md) | MCP の登場人物と通信（JSON-RPC・Streamable HTTP）、OAuth 2.1 の認可の流れ（PKCE・resource・iss・CIMD・DCR）、kanaeru の守りと実装の場所（core-021）|

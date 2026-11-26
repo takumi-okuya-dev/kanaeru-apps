@@ -9,6 +9,8 @@ import {
   SUITE_ROUTE_PATTERNS,
   accountSettingsRoute,
   appsRoute,
+  feedbackInboxRoute,
+  feedbackRoute,
   joinRoute,
   ledgerRoute,
   organizationRoute,
@@ -25,7 +27,7 @@ export { ORGANIZATION_QUERY_KEYS } from "./organization-queries.ts";
 export { LegalLink } from "./LegalLink.tsx";
 export type { LegalLinkProps } from "./LegalLink.tsx";
 
-/** スイートの領域が出すもの（ナビには出さない。設定の項目に「アカウント」「組織」と「アプリの台帳」）。 */
+/** スイートの領域が出すもの（ナビには出さない。設定の項目に「アカウント」「組織」「改善点を送る」と「アプリの台帳」「届いた改善点」）。 */
 export const feature = {
   id: "suite",
   routes: [
@@ -33,6 +35,8 @@ export const feature = {
     settingsRoute,
     accountSettingsRoute,
     ledgerRoute,
+    feedbackRoute,
+    feedbackInboxRoute,
     organizationsRoute,
     organizationRoute,
     joinRoute,
@@ -55,11 +59,25 @@ export const feature = {
       icon: "people",
     },
     {
+      id: "suite-feedback",
+      label: "改善点を送る",
+      to: SUITE_ROUTE_PATTERNS.feedback,
+      group: "personal",
+      icon: "pen",
+    },
+    {
       id: "suite-ledger",
       label: "アプリの台帳",
       to: SUITE_ROUTE_PATTERNS.ledger,
       group: "operator",
       icon: "ledger",
+    },
+    {
+      id: "suite-feedback-inbox",
+      label: "届いた改善点",
+      to: SUITE_ROUTE_PATTERNS.feedbackInbox,
+      group: "operator",
+      icon: "concerns",
     },
   ],
 } satisfies WebFeature;

@@ -4,6 +4,7 @@
 // - 担当の端末は、受け付けた人を名簿に入れる（use-joins.ts）。消すと名簿からも消す
 // - 「受付を締める」（受付のページは見られなくなる）・「この名簿で試合表を作る」（名簿と設定へ）
 // - 「参加者の QR を読む」（電波がなくて送れなかった参加者の QR をカメラで読んで名簿に入れる。AD-30。match-005。JoinQrReader）
+// 並びは上から順に1列（受付の状態と QR → 受け付けた人 → 電波がなかった人 → この名簿で試合表を作る）。区分ごとに枠で囲む
 import { MATCH_LEVELS, MATCH_LEVEL_LABELS, joinPlayerId } from "@workspace/contracts/match";
 import type { MatchJoinEntry, MatchJoinList, MatchTable } from "@workspace/contracts/match";
 import { useQueryClient } from "@tanstack/react-query";
@@ -16,7 +17,7 @@ import { useState } from "react";
 import { errorMessage } from "../../lib/api.ts";
 import { Page } from "../../lib/page.tsx";
 import { closeJoin, issueJoinLink } from "./api.ts";
-import { formatClock, formatPlayDate } from "./format.ts";
+import { expiryText, formatClock, formatPlayDate } from "./format.ts";
 import { JoinQrReader } from "./JoinQrReader.tsx";
 import { useStoredLink } from "./link-store.ts";
 import { MATCH_ROUTE_PATTERNS, matchPaths } from "./paths.ts";
@@ -120,125 +121,153 @@ function JoinBody({ table, editor }: { table: MatchTable; editor: TableEditor })
   };
 
   const status = closed ? "受付を締めました" : live ? "受付中" : "まだ受付を始めていません";
+  const card = "flex flex-col gap-xs rounded-md border border-border bg-surface p-xs";
   return (
     <Page title="QR で受け付ける" lead={`${table.name}・${formatPlayDate(table.playDate)}`}>
       <EditorState editor={editor} />
-      <div className="flex flex-col gap-s wide:flex-row wide:items-start">
-        <div className="flex flex-col items-center gap-xxs">
-          {link && live ? (
-            <>
-              <QrCode text={url} label="受付のページの QR" className="border border-border" />
-              <p className="max-w-menu text-s break-all text-text-sub">{url}</p>
-              <Button
-                size="small"
-                onClick={() => {
-                  void copyText(url).then((done) =>
-                    setMessage(
-                      done
-                        ? { tone: "success", text: "リンクをコピーしました。" }
-                        : {
-                            tone: "danger",
-                            text: "コピーできませんでした。リンクを選んで写してください。",
-                          },
-                    ),
-                  );
-                }}
-              >
-                リンクをコピー
-              </Button>
-            </>
-          ) : live ? (
-            <div className="flex max-w-menu flex-col gap-xxs">
-              <p className="text-m">
-                {stale
-                  ? "この端末の受付の QR は古くなりました（ほかの端末でリンクを作り直しました）。この端末で QR を出すには、もう一度作り直します（今のリンクは使えなくなります）。"
-                  : "受付のリンクは、ほかの端末で作りました。この端末で QR を出すには、リンクを作り直します（前の QR とリンクは使えなくなります）。"}
-              </p>
+      <p className="text-m">
+        参加者は QR
+        かリンクから、ログインなしで名前とレベルを答えます。答えはこの試合表の名簿に入ります。
+      </p>
+      {/* 1. 受付の状態と QR（上から順に：受付 → 受け付けた人 → 電波がなかった人 → 試合表を作る） */}
+      <section aria-labelledby="match-join-status" className={card}>
+        <div className="flex flex-wrap items-center gap-xxs">
+          <h2 id="match-join-status" className="text-l font-bold">
+            {status}
+          </h2>
+          {live && state.expiresAt ? (
+            <span className="text-s text-text-sub">{`${expiryText(state.expiresAt)}受け付けます`}</span>
+          ) : null}
+        </div>
+        {link && live ? (
+          <div className="flex flex-col gap-xs wide:flex-row wide:items-start">
+            <QrCode
+              text={url}
+              label="受付のページの QR"
+              className="shrink-0 border border-border"
+            />
+            <div className="flex min-w-0 flex-col gap-xxs">
+              <p className="text-s break-all text-text-sub">{url}</p>
+              <div className="flex flex-wrap gap-xxs">
+                <Button
+                  size="small"
+                  onClick={() => {
+                    void copyText(url).then((done) =>
+                      setMessage(
+                        done
+                          ? { tone: "success", text: "リンクをコピーしました。" }
+                          : {
+                              tone: "danger",
+                              text: "コピーできませんでした。リンクを選んで写してください。",
+                            },
+                      ),
+                    );
+                  }}
+                >
+                  リンクをコピー
+                </Button>
+                <Button size="small" disabled={pending} onClick={() => setConfirm("close")}>
+                  受付を締める
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : live ? (
+          <div className="flex flex-col gap-xxs">
+            <p className="text-m">
+              {stale
+                ? "この端末の受付の QR は古くなりました（ほかの端末でリンクを作り直しました）。この端末で QR を出すには、もう一度作り直します（今のリンクは使えなくなります）。"
+                : "受付のリンクは、ほかの端末で作りました。この端末で QR を出すには、リンクを作り直します（前の QR とリンクは使えなくなります）。"}
+            </p>
+            <div className="flex flex-wrap gap-xxs">
               <Button disabled={pending || !ready} onClick={() => setConfirm("reissue")}>
                 この端末で QR を出す
               </Button>
+              <Button disabled={pending} onClick={() => setConfirm("close")}>
+                受付を締める
+              </Button>
             </div>
-          ) : (
-            <div className="flex max-w-menu flex-col gap-xxs">
-              <p className="text-m">
-                参加者は QR
-                かリンクから、ログインなしで名前とレベルを答えます。答えはこの試合表の名簿に入ります。
+          </div>
+        ) : (
+          <div className="flex flex-col gap-xxs">
+            {closed ? (
+              <p className="text-m text-text-sub">
+                受付のページは開けません。受け付けた人はそのまま残っています。
               </p>
+            ) : null}
+            <div>
               <Button variant="primary" disabled={pending || !ready} onClick={issue}>
                 {closed ? "受付をもう一度開く（新しい QR）" : "受付を始める"}
               </Button>
             </div>
-          )}
-        </div>
-        <section
-          aria-labelledby="match-join-status"
-          className="flex min-w-0 flex-1 flex-col gap-xs"
-        >
-          <h2 id="match-join-status" className="text-l font-bold">
-            {status}
-          </h2>
-          <p className="text-m text-text-sub">
-            受け付けた人：<b className="text-text">{list.length}人</b>（{byLevel}）
-          </p>
-          {joins.error ? (
-            <ResponseMessage tone="danger">{`受け付けた人を読めませんでした。${errorMessage(joins.error)}`}</ResponseMessage>
-          ) : null}
-          {overflow > 0 ? (
-            <ResponseMessage tone="danger">{`名簿の上限（150人）に達したため、受け付けた ${overflow}人を名簿に入れられません。名簿を減らしてください。`}</ResponseMessage>
-          ) : null}
-          {list.length > 0 ? (
-            <ul className="flex flex-col divide-y divide-border rounded-md border border-border bg-surface">
-              {list.map((join) => (
-                <li key={join.id} className="flex flex-wrap items-center gap-xxs px-xs py-xxs">
-                  <span className="text-m font-bold">{join.nickname}</span>
-                  <Badge>{MATCH_LEVEL_LABELS[join.level]}</Badge>
-                  {join.duplicate ? <Badge>同じ名前</Badge> : null}
-                  <span className="text-s text-text-sub">
-                    {formatClock(Date.parse(join.createdAt))}
-                  </span>
-                  <Button
-                    size="small"
-                    variant="text"
-                    className="ml-auto"
-                    aria-label={`${join.nickname}の受付を消す`}
-                    onClick={() => remove(join)}
-                  >
-                    消す
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {!editor.isEditor ? (
-            <p className="text-s text-text-sub">
-              受け付けた人を名簿に入れるのは、担当の端末です（担当の端末でこの画面か名簿と設定を開くと入ります）。
-            </p>
-          ) : list.length > 0 ? (
-            <p className="text-s text-text-sub">
-              受け付けた人は、名簿に入っています（名簿と設定で直せます）。
-            </p>
-          ) : null}
-          <div className="flex flex-wrap gap-xxs">
-            {live ? (
-              <Button disabled={pending} onClick={() => setConfirm("close")}>
-                受付を締める
-              </Button>
-            ) : null}
-            <Link
-              to="/match/tables/$tableId"
-              params={{ tableId: table.id }}
-              className={buttonVariants({ variant: "primary" })}
-            >
-              この名簿で試合表を作る
-            </Link>
           </div>
-          {message ? <ResponseMessage tone={message.tone}>{message.text}</ResponseMessage> : null}
-          <JoinQrReader
-            table={table}
-            editor={editor}
-            joinHint={joins.data?.hint ?? table.links.joinHint}
-          />
-        </section>
+        )}
+        {message ? <ResponseMessage tone={message.tone}>{message.text}</ResponseMessage> : null}
+      </section>
+      {/* 2. 受け付けた人 */}
+      <section aria-labelledby="match-join-list" className={card}>
+        <h2 id="match-join-list" className="text-l font-bold">
+          受け付けた人 {list.length}人
+        </h2>
+        <p className="text-m text-text-sub">{byLevel}</p>
+        {joins.error ? (
+          <ResponseMessage tone="danger">{`受け付けた人を読めませんでした。${errorMessage(joins.error)}`}</ResponseMessage>
+        ) : null}
+        {overflow > 0 ? (
+          <ResponseMessage tone="danger">{`名簿の上限（150人）に達したため、受け付けた ${overflow}人を名簿に入れられません。名簿を減らしてください。`}</ResponseMessage>
+        ) : null}
+        {list.length > 0 ? (
+          <ul className="flex flex-col divide-y divide-border rounded-md border border-border">
+            {list.map((join) => (
+              <li key={join.id} className="flex flex-wrap items-center gap-xxs px-xs py-xxs">
+                <span className="text-m font-bold">{join.nickname}</span>
+                <Badge>{MATCH_LEVEL_LABELS[join.level]}</Badge>
+                {join.duplicate ? <Badge>同じ名前</Badge> : null}
+                <span className="text-s text-text-sub">
+                  {formatClock(Date.parse(join.createdAt))}
+                </span>
+                <Button
+                  size="small"
+                  variant="text"
+                  className="ml-auto"
+                  aria-label={`${join.nickname}の受付を消す`}
+                  onClick={() => remove(join)}
+                >
+                  消す
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-m text-text-sub">まだ受け付けた人はいません。</p>
+        )}
+        {!editor.isEditor ? (
+          <p className="text-s text-text-sub">
+            受け付けた人を名簿に入れるのは、担当の端末です（担当の端末でこの画面か名簿と設定を開くと入ります）。
+          </p>
+        ) : list.length > 0 ? (
+          <p className="text-s text-text-sub">
+            受け付けた人は、名簿に入っています（名簿と設定で直せます）。
+          </p>
+        ) : null}
+      </section>
+      {/* 3. 電波がなくて受付できなかった人 */}
+      <div className={card}>
+        <JoinQrReader
+          table={table}
+          editor={editor}
+          joinHint={joins.data?.hint ?? table.links.joinHint}
+        />
+      </div>
+      {/* 4. 次へ */}
+      <div className="flex justify-end">
+        <Link
+          to="/match/tables/$tableId"
+          params={{ tableId: table.id }}
+          className={buttonVariants({ variant: "primary" })}
+        >
+          この名簿で試合表を作る
+        </Link>
       </div>
       <ConfirmDialog
         open={confirm !== null}

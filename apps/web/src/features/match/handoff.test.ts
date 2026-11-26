@@ -64,7 +64,6 @@ function typicalTable(): HandoffTable {
     hint: "0a1b2c3d",
     name: "12/13(日) 練習会",
     playDate: "2026-12-13",
-    minutesPerGame: 15,
     updatedAt: Date.UTC(2026, 11, 13, 4, 2),
     groups: keys.map((key, g) => {
       const members = NAMES.slice(g * 5, g * 5 + 6);
@@ -132,7 +131,7 @@ const tableArbitrary: fc.Arbitrary<HandoffTable> = fc
     hint: fc.option(fc.stringMatching(/^[0-9a-f]{8}$/u), { nil: null }),
     name: fc.string({ minLength: 1, maxLength: 60 }),
     days: fc.integer({ min: 0, max: 40_000 }),
-    minutesPerGame: fc.integer({ min: 5, max: 90 }),
+    teamCount: fc.constantFrom(0, 2, 4, 6),
     minutes: fc.integer({ min: 0, max: 40_000_000 }),
     names: fc.uniqueArray(fc.string({ minLength: 1, maxLength: 20 }), {
       minLength: 4,
@@ -152,8 +151,17 @@ const tableArbitrary: fc.Arbitrary<HandoffTable> = fc
       hint: value.hint,
       name: value.name,
       playDate: new Date(Date.UTC(2000, 0, 1) + value.days * 86_400_000).toISOString().slice(0, 10),
-      minutesPerGame: value.minutesPerGame,
       updatedAt: value.minutes * 60_000,
+      ...(value.teamCount > 0
+        ? {
+            teams: Array.from({ length: value.teamCount }, () =>
+              Array.from(
+                { length: 1 + (next() % 5) },
+                () => value.names[next() % value.names.length] as string,
+              ),
+            ),
+          }
+        : {}),
       groups: value.groupKeys.map((key) => ({
         key,
         games: Array.from({ length: next() % 20 }, () => ({
@@ -262,12 +270,12 @@ describe("試合表の QR", () => {
     expect(collector.collected()).toEqual([2]);
   });
 
-  it("ありえない値（版0・長すぎる呼び名・1試合の長さ0）の試合表の QR は読まない", () => {
+  it("ありえない値（版0・長すぎる呼び名・前の形の1試合の長さ0）の試合表の QR は読まない", () => {
     const base = typicalTable();
     expect(() => deserializeTable(serializeTable({ ...base, version: 0 }))).toThrow(
       HandoffFormatError,
     );
-    expect(() => deserializeTable(serializeTable({ ...base, minutesPerGame: 0 }))).toThrow(
+    expect(() => deserializeTable(serializeTable(base, { minutesPerGame: 0 }), true)).toThrow(
       HandoffFormatError,
     );
     const long = {
@@ -275,6 +283,22 @@ describe("試合表の QR", () => {
       groups: [{ key: "all" as const, games: [{ players: ["あ".repeat(21), "い"], done: false }] }],
     };
     expect(() => deserializeTable(serializeTable(long))).toThrow(HandoffFormatError);
+  });
+
+  it("前の形（1試合の長さあり・チームなし。形の印1・2）の QR も読み、1試合の長さは読み捨てる（match-009）", async () => {
+    const base = typicalTable();
+    const legacy = serializeTable(base, { minutesPerGame: 15 });
+    expect(deserializeTable(legacy, true)).toEqual(base);
+    const data = encodeBase45(Uint8Array.from([1, ...legacy]));
+    await expect(decodeTableHandoff(data)).resolves.toEqual(base);
+  });
+
+  it("ミニゲームのチームの呼び名も渡せる（match-009）", async () => {
+    const withTeams = { ...typicalTable(), teams: [["高橋", "佐藤"], ["伊藤"]] };
+    const parts = await encodeTableHandoff(withTeams);
+    const part = readHandoffPart(parts[0] as string);
+    if (part?.kind !== "table") throw new Error("読めません");
+    await expect(decodeTableHandoff(part.data)).resolves.toEqual(withTeams);
   });
 
   it("試合表の QR でない文字・崩れた中身は読まない", async () => {
