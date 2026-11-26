@@ -227,6 +227,8 @@ test("受付の交流会からチェックインした人と申込みの名簿�
   await savedAfter(page, () => dialog.getByRole("button", { name: "2人を名簿に入れる" }).click());
   await expect(page.getByRole("combobox", { name: "なかのレベル" })).toHaveValue("intermediate");
 
+  // 名簿が入ったあとは「名簿を足す・入れ直す」から入れ方を開く（match-011）
+  await page.getByRole("button", { name: "名簿を足す・入れ直す" }).click();
   await page.getByRole("button", { name: "受付の交流会から" }).click();
   await dialog
     .getByRole("radio", { name: new RegExp(eventName.replace(/[()（）]/gu, ".")) })
