@@ -80,11 +80,12 @@ test("ログインせずに、利用規約とプライバシーポリシーを�
   await page.goto("/terms");
   await expect(page.getByRole("heading", { level: 1, name: "利用規約" })).toBeVisible();
   await expect(page).toHaveTitle(/^利用規約｜/);
-  await expect(page.getByRole("note", { name: "下書き（公開前）" })).toBeVisible();
+  // 運営者が確かめた本文なので、下書きの帯も、埋める所の印も出さない
+  await expect(page.getByRole("note", { name: "下書き（公開前）" })).toHaveCount(0);
   await expect(
     page.getByRole("heading", { level: 2, name: /^\d+\. Threads のアプリ$/ }),
   ).toBeVisible();
-  await expect(page.locator("mark[data-placeholder]").first()).toBeVisible();
+  await expect(page.locator("mark[data-placeholder]")).toHaveCount(0);
   // ナビのない外枠（ログインしていないので、管理の入口やナビを出さない）
   await expect(page.getByRole("navigation", { name: "メイン" })).toHaveCount(0);
   await checkPage(page, "利用規約");
@@ -96,7 +97,7 @@ test("ログインせずに、利用規約とプライバシーポリシーを�
     .click();
   await expect(page.getByRole("heading", { level: 1, name: "プライバシーポリシー" })).toBeVisible();
   await expect(page).toHaveURL(/\/privacy$/);
-  await expect(page.getByRole("note", { name: "下書き（公開前）" })).toBeVisible();
+  await expect(page.getByRole("note", { name: "下書き（公開前）" })).toHaveCount(0);
   await expect(
     page.getByRole("heading", { level: 2, name: /^\d+\. 組織の中で見えるもの$/ }),
   ).toBeVisible();

@@ -3,7 +3,12 @@
 // 食い違わないこと・運営者が埋める所（〈 〉）がどれも写しの一覧にあること・節の印が重ならないこと・文の印の読み方。
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { LEGAL_DOCUMENTS, legalPlaceholders, legalTexts } from "./legal-content.ts";
+import {
+  LEGAL_DOCUMENTS,
+  LEGAL_TEXT_IS_DRAFT,
+  legalPlaceholders,
+  legalTexts,
+} from "./legal-content.ts";
 import type { LegalDocumentKey } from "./legal-content.ts";
 import {
   LEGAL_MARKDOWN_MARKER,
@@ -33,8 +38,12 @@ describe("正本と写し", () => {
     const current = readFileSync(DRAFT_FILES[key], "utf8");
     const header = current.slice(0, current.indexOf(LEGAL_MARKDOWN_MARKER));
     const placeholders = legalPlaceholders(LEGAL_DOCUMENTS[key]);
-    expect(placeholders.length).toBeGreaterThan(0);
     for (const placeholder of placeholders) expect(header, placeholder).toContain(placeholder);
+  });
+
+  it.each(KEYS)("%s：下書きでなければ、運営者が埋める所（〈 〉）を残さない", (key) => {
+    if (LEGAL_TEXT_IS_DRAFT) return;
+    expect(legalPlaceholders(LEGAL_DOCUMENTS[key])).toEqual([]);
   });
 
   it("写しに印の行がなければ、作り直さずに止める", () => {
