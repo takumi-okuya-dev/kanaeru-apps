@@ -34,10 +34,11 @@ describe("戻り先の照合（FR-033）", () => {
     expect(redirectUriAllowed("http://[::1]:50123/callback", loop)).toBe(true);
     expect(redirectUriAllowed("http://127.0.0.1:1455/other", loop)).toBe(false);
   });
-  it("登録にない別のホスト・http の外の戻り先・localhost・利用者の情報は断る", () => {
+  it("登録にない別のホスト・http の外の戻り先・利用者の情報は断る（localhost はループバックとして受ける）", () => {
     expect(redirectUriAllowed("https://evil.example/callback", registered)).toBe(false);
     expect(redirectUriAllowed("http://example.com/callback", ["http://example.com/callback"])).toBe(false);
-    expect(redirectUriAllowed("http://localhost:3000/callback", ["http://localhost/callback"])).toBe(false);
+    expect(redirectUriAllowed("http://localhost:3000/callback", ["http://localhost/callback"])).toBe(true);
+    expect(redirectUriAllowed("http://localhost:3000/callback", ["http://127.0.0.1/callback"])).toBe(false);
     expect(redirectUriAllowed("http://u:p@127.0.0.1:1/callback", ["http://127.0.0.1/callback"])).toBe(false);
   });
   it("登録の形：https か、ループバックの http だけ", () => {

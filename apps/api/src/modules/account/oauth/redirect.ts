@@ -1,8 +1,10 @@
 // 認可の戻り先（redirect_uri）の確かめ（FR-033・RFC 8252）。
 // - 登録した戻り先と完全一致なら通す。
 // - ループバック（http://127.0.0.1 と http://[::1]）は、ポートだけ任意にしてよい（CLI が空きポートを使うため）。
-// - 利用者の情報（userinfo）・フラグメント・登録にない別のホストは断る。localhost は受けない（ループバックの IP だけ）。
-const LOOPBACK_HOSTS = new Set(["127.0.0.1", "[::1]"]);
+// - 利用者の情報（userinfo）・フラグメント・登録にない別のホストは断る。
+// - localhost も、ループバックとして受ける（Claude Code と Claude の CIMD が http://localhost/callback を使うため。
+//   戻りはこの端末だけに届き、認可のコードは PKCE の検証器がないと使えない）。
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "[::1]", "localhost"]);
 
 /**
  * 文字列を URL として読む（失敗したら null）。
@@ -18,7 +20,7 @@ function parseUrl(value: string): URL | null {
 }
 
 /**
- * 戻り先がループバックの形か（http・127.0.0.1 か [::1]・利用者の情報とフラグメントなし）。
+ * 戻り先がループバックの形か（http・127.0.0.1・[::1]・localhost・利用者の情報とフラグメントなし）。
  * @param url 読めた URL
  * @returns ループバックなら true
  */
