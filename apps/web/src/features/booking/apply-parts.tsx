@@ -86,7 +86,8 @@ export function CalendarSection({ calendar }: { calendar: CalendarLinks }) {
       <h2 id="apply-calendar" className="text-l leading-tight font-bold">
         カレンダーに追加
       </h2>
-      <ButtonRow layout="grid" className="wide:grid-cols-2">
+      {/* スマホは縦に横幅いっぱい（2列だと .ics の文字が細かく折り返す）・PC は右寄せで同じ幅 */}
+      <ButtonRow>
         <a
           href={calendar.googleUrl}
           {...EXTERNAL_LINK}

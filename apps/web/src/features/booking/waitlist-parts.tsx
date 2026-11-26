@@ -127,7 +127,7 @@ export function RespondButtons({
       ) : (
         // 一覧のカードの中：カードの中の操作なので、並びに入れず行の中に置く
         <div className="flex flex-wrap gap-xxs">
-          <Button aria-busy={mutation.isPending || undefined} onClick={accept}>
+          <Button size="small" aria-busy={mutation.isPending || undefined} onClick={accept}>
             参加する
           </Button>
           {status === "offered" ? (
