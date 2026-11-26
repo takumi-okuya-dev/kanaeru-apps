@@ -10,6 +10,7 @@ import type {
   ConsentViewData,
 } from "@workspace/contracts/account";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useEffect, useState } from "react";
 import { errorMessage } from "../../lib/api.ts";
@@ -76,9 +77,9 @@ function ConsentBody({ request }: { request: AuthorizeQuery }) {
     }
     return (
       <Page title="同意の画面を読めません" lead={errorMessage(view.error)}>
-        <div>
+        <ButtonRow>
           <Button onClick={() => void view.refetch()}>もう一度</Button>
-        </div>
+        </ButtonRow>
       </Page>
     );
   }
@@ -179,14 +180,14 @@ function ConsentForm({ request, view }: { request: AuthorizeQuery; view: Consent
         {decision.isError ? (
           <ResponseMessage tone="danger">{errorMessage(decision.error)}</ResponseMessage>
         ) : null}
-        <div className="flex flex-wrap gap-3">
-          <Button type="submit" variant="primary" disabled={granted.length === 0 || locked}>
-            許可する
-          </Button>
+        <ButtonRow>
           <Button type="button" disabled={locked} onClick={() => send("deny", [])}>
             許可しない
           </Button>
-        </div>
+          <Button type="submit" variant="primary" disabled={granted.length === 0 || locked}>
+            許可する
+          </Button>
+        </ButtonRow>
       </form>
     </Page>
   );

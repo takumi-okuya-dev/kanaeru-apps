@@ -6,6 +6,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, getRouteApi, useNavigate } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useState } from "react";
 import { ApiError, errorMessage } from "../../lib/api.ts";
@@ -85,7 +86,9 @@ function JoinContent({ token }: { token: string }) {
     return (
       <Page title="読みこめませんでした" lead={errorMessage(query.error)}>
         <div>
-          <Button onClick={() => void query.refetch()}>もう一度</Button>
+          <ButtonRow>
+            <Button onClick={() => void query.refetch()}>もう一度</Button>
+          </ButtonRow>
         </div>
       </Page>
     );
@@ -161,14 +164,16 @@ function JoinContent({ token }: { token: string }) {
         に書いています（どちらも新しいタブで開きます）。
       </p>
       <div className="flex flex-col items-start gap-xxs">
-        <Button
-          variant="primary"
-          aria-disabled={pending || undefined}
-          aria-busy={pending || undefined}
-          onClick={() => void join()}
-        >
-          {pending ? "入っています…" : "入る"}
-        </Button>
+        <ButtonRow>
+          <Button
+            variant="primary"
+            aria-disabled={pending || undefined}
+            aria-busy={pending || undefined}
+            onClick={() => void join()}
+          >
+            {pending ? "入っています…" : "入る"}
+          </Button>
+        </ButtonRow>
         {failure ? <ResponseMessage tone="danger">{failure}</ResponseMessage> : null}
       </div>
     </Page>

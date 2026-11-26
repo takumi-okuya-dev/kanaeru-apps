@@ -10,6 +10,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listApps } from "@workspace/contracts/core";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useState } from "react";
@@ -95,15 +96,17 @@ function AccountSummary({ account }: { account: CurrentAccountView }) {
         </div>
       </dl>
       <div className="flex flex-col items-start gap-xxs">
-        <Button
-          aria-disabled={pending ? true : undefined}
-          aria-busy={pending ? true : undefined}
-          onClick={() => {
-            if (!pending) void logout();
-          }}
-        >
-          {pending ? "ログアウトしています" : "ログアウト"}
-        </Button>
+        <ButtonRow>
+          <Button
+            aria-disabled={pending ? true : undefined}
+            aria-busy={pending ? true : undefined}
+            onClick={() => {
+              if (!pending) void logout();
+            }}
+          >
+            {pending ? "ログアウトしています" : "ログアウト"}
+          </Button>
+        </ButtonRow>
         {error ? <ResponseMessage tone="danger">{error}</ResponseMessage> : null}
       </div>
     </section>
@@ -235,7 +238,7 @@ function Withdraw() {
       <p className="text-m">
         アカウントと、すべてのアプリのあなたの記録{records}を消します。元に戻せません。
       </p>
-      <div>
+      <ButtonRow>
         <Button
           variant="danger"
           onClick={() => {
@@ -245,7 +248,7 @@ function Withdraw() {
         >
           退会する
         </Button>
-      </div>
+      </ButtonRow>
       <ConfirmDialog
         open={open}
         onOpenChange={setOpen}
