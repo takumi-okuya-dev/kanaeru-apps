@@ -146,7 +146,7 @@ const matchConflictResponse = domainErrorResponse(
 /** まとめられない応答。 */
 const mergeConflictResponse = domainErrorResponse(
   BOOKING_ERRORS.MERGE_BOTH_MATCHED,
-  "2つの行がどちらもチェックインに当たっている（別の人かもしれない）か、名簿を使っていない",
+  "2つの行がどちらもチェックインに当たっている・どちらも本人の申込み（LINE かメール）である（別の人かもしれない）か、名簿を使っていない",
 );
 
 /**
@@ -511,6 +511,17 @@ async function currentMatches(db: Executor, eventId: string) {
 }
 
 /**
+ * 本人の申込みの行か（自前のページで LINE ログインして申し込んだアカウント、またはメールで申し込んだ人の連絡と札を持つ）。
+ * @param entry 名簿の行
+ * @returns 本人の申込みなら true
+ */
+function isSelfApplied(
+  entry: Pick<EntryRecord, "accountId" | "contactEmail" | "entryTokenHash">,
+): boolean {
+  return entry.accountId !== null || entry.contactEmail !== null || entry.entryTokenHash !== null;
+}
+
+/**
  * 行に新しく当てられるか確かめる（確定で、手でも自動でも当たっていない）。
  * @param state 今の当て
  * @param state.byEntry 行ごとの当て
@@ -717,6 +728,11 @@ export function bookingRoutes(deps: DomainRouteDeps) {
           normalizeCheckinName(keep.name) !== normalizeCheckinName(remove.name)
         ) {
           throw new AppError(BOOKING_ERRORS.MERGE_NAME_MISMATCH);
+        }
+        // 2つとも本人の申込み（LINE のアカウントか、メールの連絡と札）なら止める。まとめると、片方の人の札が
+        // もう片方の人の行に移り、その札で相手の申込みを見たり取り消したりできてしまう（2回目のセキュリティ点検 F1）
+        if (isSelfApplied(keep) && isSelfApplied(remove)) {
+          throw new AppError(BOOKING_ERRORS.MERGE_BOTH_SELF_APPLIED);
         }
         // 2つともチェックインに当たっている（手でも自動でも）なら、別の人なので止める（当てを1つ失わないように）
         const { byEntry } = await currentMatches(tx, eventId);

@@ -9,7 +9,12 @@ import { buildApp } from "../../../test/helpers/app.ts";
 import type { TestApp } from "../../../test/helpers/app.ts";
 import { loginAs } from "../../../test/helpers/account.ts";
 import { bookingBase, readRoster } from "../../../test/helpers/booking.ts";
-import { anonymous, entryTokenOf, openSelfPage } from "../../../test/helpers/booking-apply.ts";
+import {
+  anonymous,
+  apply,
+  entryTokenOf,
+  openSelfPage,
+} from "../../../test/helpers/booking-apply.ts";
 import { notifyConfig, readOutbox } from "../../../test/helpers/booking-notify.ts";
 import type { OutboxMessage } from "../../../test/helpers/booking-notify.ts";
 import { truncateAllTables, useTestDatabase } from "../../../test/helpers/db.ts";
@@ -427,5 +432,35 @@ describe("メールで申し込む", () => {
     const view = await anonymous(app, `/api/v1/booking/entry-tokens/${token}`);
     expect(view.status).toBe(200);
     expect(await view.json()).toMatchObject({ state: "entry", name: "小林はると" });
+  });
+  it("LINE で申し込んだ人と同じ名前でメールで申し込んでも、主催者は2つをまとめられない（札が相手の行に移らない。点検 F1）", async () => {
+    const guest = await loginAs(app, { displayName: "小林（LINE）" });
+    expect((await apply(app, guest.cookie, eventId, { name: "小林 はると" })).status).toBe(201);
+    const token = await requestToken();
+    expect(
+      (await anonymous(app, `/api/v1/booking/entry-tokens/${token}/confirm`, "POST")).status,
+    ).toBe(200);
+    const roster = await readRoster(app, owner.cookie, eventId);
+    expect(roster.entries).toHaveLength(2);
+    const [first, second] = roster.entries;
+    for (const [keep, remove] of [
+      [first, second],
+      [second, first],
+    ]) {
+      const merged = await call(app, owner.cookie, `${base}/entries/merge`, "POST", {
+        keepEntryId: keep?.id,
+        removeEntryId: remove?.id,
+      });
+      expect(merged.status).toBe(409);
+      expect(((await merged.json()) as ErrorBody).error.code).toBe(
+        "BOOKING_MERGE_BOTH_SELF_APPLIED",
+      );
+    }
+    // 2つの行はそのまま。メールの札で見えるのは、メールで申し込んだ自分の行だけ
+    expect((await readRoster(app, owner.cookie, eventId)).entries).toHaveLength(2);
+    const view = (await (
+      await anonymous(app, `/api/v1/booking/entry-tokens/${token}`)
+    ).json()) as EntryTokenView;
+    expect(view).toMatchObject({ state: "entry", entry: { status: "confirmed" } });
   });
 });
