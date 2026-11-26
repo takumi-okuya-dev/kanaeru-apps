@@ -1,6 +1,6 @@
 # スイート（suite）の地図
 
-2026-11-20 作成（core-005。決めた理由と仮決めは [specs/core/005-app-switcher/spec.md](../../specs/core/005-app-switcher/spec.md)、範囲は [PRD](../../_bmad-output/prd-kanaeru-suite/prd-kanaeru-suite.md)）。同じ日に suite-001（組織と退会の手順の組み立て。[specs/suite/001-organization](../../specs/suite/001-organization/spec.md)・[PRD 組織](../../_bmad-output/prd-kanaeru-org/prd-kanaeru-org.md)・AD-22）を足した。同じ日に event-002 で、組織を使う領域と退会の手順を出す領域に event を足した。同じ日に suite-002（利用規約とプライバシーポリシーのページ。[specs/suite/002-legal-pages](../../specs/suite/002-legal-pages/spec.md)）を足した。
+2026-11-20 作成（core-005。決めた理由と仮決めは [specs/core/005-app-switcher/spec.md](../../specs/core/005-app-switcher/spec.md)、範囲は [PRD](../../_bmad-output/prd-kanaeru-suite/prd-kanaeru-suite.md)）。同じ日に suite-001（組織と退会の手順の組み立て。[specs/suite/001-organization](../../specs/suite/001-organization/spec.md)・[PRD 組織](../../_bmad-output/prd-kanaeru-org/prd-kanaeru-org.md)・AD-22）を足した。同じ日に event-002 で、組織を使う領域と退会の手順を出す領域に event を足した。同じ日に suite-002（利用規約とプライバシーポリシーのページ。[specs/suite/002-legal-pages](../../specs/suite/002-legal-pages/spec.md)）を足した。2026-11-26 直した（suite-004 の1つ目：改善点の表 `feedback`。[specs/suite/004-feedback](../../specs/suite/004-feedback/spec.md)）。
 
 スイートの共通の領域（どのアプリにも属さない）。アプリの台帳（公開の状態）を持ち、アプリが見えるかを決める1か所（構成の決めごと AD-15・AD-16）。組織（人と役割・招待）と、契約の持ち主の形（`entitlement`。払うしくみと売り方は売り始めるときに足す）も持つ（AD-22）。画面では、すべてのアプリ・設定（一覧・アカウント・組織・アプリの台帳）・組織の招待の確かめの画面・利用規約とプライバシーポリシーのページを持つ。
 
@@ -45,6 +45,7 @@
 | `team` | `id`・`organization_id`・`name`（1〜30文字の CHECK）・`created_at`・`updated_at` | suite-003（組織の中のチーム。`0014_suite_team.sql`）。`(organization_id, name)` と `(id, organization_id)` が一意。組織が消えると消える。1つの組織に20まで（窓口が数える） |
 | `team_member` | `team_id`・`account_id`（主キーはこの組）・`organization_id`・`leader`（リーダー）・`joined_at` | `team(id, organization_id)` と `organization_member(organization_id, account_id)` を指す複合の外部キーを CASCADE（チームが消える・組織から抜けると消える）。アプリの「チームに入れる」・担当の表は、この組を指す外部キーを CASCADE で持つ |
 | `organization_invite` | `organization_id`（主キー）・`token_hash`（一意）・`token_ciphertext`・`token_iv`・`key_version`・`created_at` | 照らし合わせは SHA-256 だけ。出し直すための写しを秘密の箱で包む（箱がなければ空） |
+| `feedback` | `id`（uuid）・`account_id`・`app_key`・`body`・`done_at`・`created_at`・`updated_at` | 改善点（suite-004。ログインした人が送り、運営者だけが読む）。`body` は1〜2000文字（`feedback_body_check`）・`app_key` は空か1〜40文字（`feedback_app_key_check`）。`account_id` は `CASCADE`（本人のデータ。退会すると消える。AD-7）。索引 `created_at`（一覧）・`(account_id, created_at)`（1日の数）。DB の変更は `0024_suite_feedback.sql`。窓口と画面は suite-004 の2つ目の PR |
 | `entitlement` | `id`・`app_key`・`holder_account_id`・`holder_organization_id`・`created_at`・`updated_at` | 持ち主はどちらか1つ（`entitlement_holder_check`）。どちらも CASCADE。売り始めるまで使わない（料金などの列はそのときに足す） |
 
 ## 3. 窓口
