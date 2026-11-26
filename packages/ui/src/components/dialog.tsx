@@ -1,6 +1,7 @@
 // 重ねる枠（DESIGN.md Components の「ダイアログ」）。shadcn/ui（Base UI の形）の Dialog を、値だけ直したもの。
 // surface・角 lg・影 layer3・うしろは scrim。ふだんの操作は画面の中で行い、影響が大きい操作だけに使う（EXPERIENCE.md 3）。
 // Base UI が、開いたら中にフォーカスを置き、Tab を枠の中で回し、Esc で閉じ、閉じたら開いた所へフォーカスを戻す。
+import { buttonRowEndClassName } from "./button-row.tsx";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import type * as React from "react";
 import { cn } from "../lib/cn.ts";
@@ -50,11 +51,7 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
             </DialogPrimitive.Description>
           ) : null}
           {children}
-          {footer ? (
-            <div className="flex flex-col-reverse gap-xxs wide:flex-row wide:justify-end">
-              {footer}
-            </div>
-          ) : null}
+          {footer ? <div className={buttonRowEndClassName}>{footer}</div> : null}
         </DialogPrimitive.Popup>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>

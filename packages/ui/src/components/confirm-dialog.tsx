@@ -2,6 +2,7 @@
 // shadcn/ui（Base UI の形）の AlertDialog を、値だけ直したもの。幕を押しても閉じない（Base UI の AlertDialog の既定）。
 // 開くと「キャンセル」にフォーカスを置く（うっかり Enter で消さない）。確かめのボタンは押しても閉じない（呼ぶ側が、
 // 処理に成功したら open を false にする）。処理中は Esc・キャンセルで閉じず、確かめのボタンを押せない形にする。
+import { buttonRowEndClassName } from "./button-row.tsx";
 import { AlertDialog } from "@base-ui/react/alert-dialog";
 import { useRef } from "react";
 import type * as React from "react";
@@ -74,7 +75,7 @@ export function ConfirmDialog({
             {children}
           </AlertDialog.Description>
           {error ? <ResponseMessage tone="danger">{error}</ResponseMessage> : null}
-          <div className="flex flex-col-reverse gap-xxs wide:flex-row wide:justify-end">
+          <div className={buttonRowEndClassName}>
             <Button
               ref={cancelRef}
               type="button"
