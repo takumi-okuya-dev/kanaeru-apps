@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { renderWithRouter } from "../../lib/testing.tsx";
 import { LegalLink } from "./LegalLink.tsx";
 import { PrivacyPage, TermsPage } from "./LegalPage.tsx";
-import { LEGAL_TEXT_IS_DRAFT, PRIVACY, TERMS } from "./legal-content.ts";
+import { LEGAL_TEXT_IS_DRAFT, PRIVACY, TERMS, legalPlaceholders } from "./legal-content.ts";
 
 describe("利用規約のページ", () => {
   it("題・節の見出し（番号つき）・最後の行を、本文のとおりに出す", async () => {
@@ -24,14 +24,13 @@ describe("利用規約のページ", () => {
     else expect(banner).not.toBeInTheDocument();
   });
 
-  it("運営者が埋める所に印を付け、文の中のリンクとほかのページへのリンクを出す", async () => {
+  it("運営者が埋める所（残っていれば）に印を付け、文の中のリンクとほかのページへのリンクを出す", async () => {
     const { container } = renderWithRouter(<TermsPage />);
     await screen.findByRole("heading", { level: 1, name: TERMS.title });
     const marks = [...container.querySelectorAll("mark[data-placeholder]")].map(
       (mark) => mark.textContent,
     );
-    expect(marks).toContain("〈運営者の名前〉");
-    expect(marks).toContain("〈施行日〉");
+    expect([...new Set(marks)].toSorted()).toEqual(legalPlaceholders(TERMS).toSorted());
     for (const link of screen.getAllByRole("link", { name: "プライバシーポリシー" })) {
       expect(link).toHaveAttribute("href", "/privacy");
     }
