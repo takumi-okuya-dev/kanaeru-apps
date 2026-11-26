@@ -53,6 +53,7 @@ async function renderShell(start: string, items: readonly NavItem[] = ITEMS, app
       page("/apps", "すべてのアプリの画面"),
       page("/settings", "設定の画面"),
       page("/settings/account", "アカウントの画面"),
+      page("/settings/feedback", "改善点を送るの画面"),
       page("/sample", "見本のアプリの画面"),
     ]),
     history: createMemoryHistory({ initialEntries: [start] }),
@@ -274,6 +275,24 @@ describe("外枠のアプリの切り替え（core-005）", () => {
     const link = screen.getByRole("link", { name: "改善点を送る" });
     expect(link).toHaveAttribute("href", "/settings/feedback");
     expect(link).not.toHaveAttribute("aria-current");
+  });
+
+  it("改善点のページでは、ヘッダーの「今のページ」は改善点を送るの1つだけ", async () => {
+    await renderShell(
+      "/settings/feedback",
+      [],
+      appsView({ apps: [RECEPTION, SAMPLE], place: { kind: "settings" } }),
+    );
+    expect(screen.getByRole("link", { name: "改善点を送る" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    const header = screen.getByRole("banner");
+    const current = within(header)
+      .getAllByRole("link")
+      .filter((link) => link.getAttribute("aria-current") === "page")
+      .map((link) => `${link.textContent ?? ""} ${link.getAttribute("href") ?? ""}`);
+    expect(current).toEqual(["改善点を送る /settings/feedback"]);
   });
 
   it("見えるアプリが2つなら、PC は切り替えのメニューに使えるアプリ・運営者だけの札・すべてのアプリを出す", async () => {
