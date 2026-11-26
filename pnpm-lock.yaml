@@ -226,9 +226,6 @@ importers:
       '@hono/zod-openapi':
         specifier: ^1.6.3
         version: 1.6.3(hono@4.13.19)(zod@4.6.7)
-      '@modelcontextprotocol/hono':
-        specifier: ^2.0.2
-        version: 2.0.2(@modelcontextprotocol/server@2.4.0)(hono@4.13.19)
       '@modelcontextprotocol/server':
         specifier: ^2.4.0
         version: 2.4.0
@@ -1251,13 +1248,6 @@ packages:
   '@modelcontextprotocol/core@2.4.0':
     resolution: {integrity: sha512-z8QBKqdfXLPzkLQuG4xp8hrVEMm1PZ1IgxMN2sMbJiFiAKOWXnAzogXn2W4aqIBlP1ea6U5yiqVquvUNM1Cj6Q==}
     engines: {node: '>=20'}
-
-  '@modelcontextprotocol/hono@2.0.2':
-    resolution: {integrity: sha512-hXtSVm0S6d0EJWMVoaeAWevATQLzHrHiPuPBLxW5vM5OQJG+SFlm7D9iJT5cG3p84DDahCD4bAuqcCPdgNFAEw==}
-    engines: {node: '>=20'}
-    peerDependencies:
-      '@modelcontextprotocol/server': ^2.3.0
-      hono: ^4.11.4
 
   '@modelcontextprotocol/server@2.4.0':
     resolution: {integrity: sha512-rgR9yxSaAJ+bcsi/XroT/S2AfPiIWloXAnrdfYSCms9ivVju0ishu/wW0J21Ho6+ZOR1r7RyeRbjiRuF87ix5Q==}
@@ -4170,11 +4160,6 @@ snapshots:
   '@modelcontextprotocol/core@2.4.0':
     dependencies:
       zod: 4.6.7
-
-  '@modelcontextprotocol/hono@2.0.2(@modelcontextprotocol/server@2.4.0)(hono@4.13.19)':
-    dependencies:
-      '@modelcontextprotocol/server': 2.4.0
-      hono: 4.13.19
 
   '@modelcontextprotocol/server@2.4.0':
     dependencies:
