@@ -94,7 +94,14 @@ export function ManualCheckinForm({
       <CheckinFields values={values} onChange={setValues} errors={errors} discounts={discounts} />
       <div className="flex flex-col gap-xxs">
         <ButtonRow>
-          <Button type="button" onClick={onCancel}>
+          <Button
+            type="button"
+            aria-disabled={mutation.isPending || undefined}
+            onClick={() => {
+              // 送っている途中でやめると、チェックインは入ったのに知らせが出ない
+              if (!mutation.isPending) onCancel();
+            }}
+          >
             やめる
           </Button>
           <Button type="submit" variant="primary" aria-disabled={mutation.isPending || undefined}>
