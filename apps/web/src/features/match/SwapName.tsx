@@ -46,14 +46,20 @@ export function SwapName<Slot>({
 }) {
   const picked = edit.picked !== null && same(edit.picked, slot);
   return (
-    <button
-      type="button"
+    // button 要素は Firefox がドラッグを始めないので、role="button" の div にする（Enter・Space で押せる）
+    <div
+      role="button"
+      tabIndex={0}
       draggable
       aria-pressed={picked}
       aria-label={label}
       onClick={() => edit.onSelect(slot)}
       onKeyDown={(keyEvent) => {
         if (keyEvent.key === "Escape") edit.onCancel();
+        if (keyEvent.key === "Enter" || keyEvent.key === " ") {
+          keyEvent.preventDefault();
+          edit.onSelect(slot);
+        }
       }}
       onDragStart={(dragEvent) => {
         dragEvent.dataTransfer.setData(DRAG_TYPE, JSON.stringify(slot));
@@ -71,12 +77,12 @@ export function SwapName<Slot>({
         edit.onDrop(JSON.parse(raw) as Slot, slot);
       }}
       className={cn(
-        "w-full cursor-grab truncate rounded-sm border border-dashed px-x3s text-left",
+        "w-full cursor-grab truncate rounded-sm border border-dashed px-x3s text-left select-none",
         inverted ? "border-on-primary" : "border-border-input",
         picked && "border-2 border-solid border-warning bg-warning text-text",
       )}
     >
       {name}
-    </button>
+    </div>
   );
 }

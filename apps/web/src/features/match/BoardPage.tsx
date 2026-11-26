@@ -122,7 +122,7 @@ function GameTable({ table, group, plan, editable, onToggle, edit }: GameTablePr
                       name={names.get(id) ?? ""}
                       slot={{ key: group.key, game: index, column }}
                       edit={edit}
-                      same={(a, b) => a.game === b.game && a.column === b.column}
+                      same={(a, b) => a.key === b.key && a.game === b.game && a.column === b.column}
                       label={`第${index + 1}試合の${names.get(id) ?? ""}`}
                       inverted={isNow}
                     />
@@ -218,17 +218,19 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
   const applySwap = (run: (content: MatchTable["content"]) => SwapResult, done: string) => {
     setPickedGame(null);
     setPickedMember(null);
-    const result = run(table.content);
-    if (!result.ok) {
-      if (result.reason !== "same") {
-        setChangeNote({ tone: "danger", text: SWAP_REASON_TEXT[result.reason] });
+    // 保存する中身（送っていない変更を含む）で入れかえ、その結果で知らせる（画面の中身より新しいことがあるため）
+    let result: SwapResult = run(table.content);
+    const applied = editor.apply((draft) => {
+      result = run(draft.content);
+      return result.ok ? { ...draft, content: result.content } : draft;
+    });
+    const outcome = result;
+    if (applied && !outcome.ok) {
+      if (outcome.reason !== "same") {
+        setChangeNote({ tone: "danger", text: SWAP_REASON_TEXT[outcome.reason] });
       }
       return;
     }
-    const applied = editor.apply((draft) => {
-      const next = run(draft.content);
-      return next.ok ? { ...draft, content: next.content } : draft;
-    });
     setChangeNote(
       applied
         ? { tone: "info", text: done }
@@ -266,7 +268,11 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
     picked: pickedGame,
     onSelect: (slot) => {
       if (!pickedGame) setPickedGame(slot);
-      else if (pickedGame.game === slot.game && pickedGame.column === slot.column) {
+      else if (
+        pickedGame.key === slot.key &&
+        pickedGame.game === slot.game &&
+        pickedGame.column === slot.column
+      ) {
         setPickedGame(null);
       } else swapGames(pickedGame, slot);
     },
@@ -328,6 +334,8 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
    */
   const chooseSet = (next: MatchSet) => {
     setChosenSet(next);
+    setPickedGame(null);
+    setPickedMember(null);
     const first = groupsOfSet(table.content, next)[0];
     if (first) setSelected(first.key);
   };
@@ -489,17 +497,19 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
     >
       <ReceptionEventNote source={table.content.receptionEvent} link={table.receptionEvent} />
       <EditorState editor={editor} />
-      {changeNote ? (
-        <div
-          role="status"
-          className={cn(
-            "rounded-md border bg-surface px-xs py-xxs text-m",
-            changeNote.tone === "danger" ? "border-danger text-danger-text" : "border-warning",
-          )}
-        >
-          {changeNote.text}
-        </div>
-      ) : null}
+      {/* 知らせの枠はいつも置き、中の文だけを替える（読み上げが入れかえの結果を確かに読むように。match-010） */}
+      <div role="status">
+        {changeNote ? (
+          <div
+            className={cn(
+              "rounded-md border bg-surface px-xs py-xxs text-m",
+              changeNote.tone === "danger" ? "border-danger text-danger-text" : "border-warning",
+            )}
+          >
+            {changeNote.text}
+          </div>
+        ) : null}
+      </div>
       {!planned ? (
         <p className="text-m text-text-sub">
           まだ試合表を作っていません。
@@ -557,7 +567,10 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
                   <GroupTabs
                     groups={groups}
                     selected={group.key}
-                    onSelect={setSelected}
+                    onSelect={(key) => {
+                      setSelected(key);
+                      setPickedGame(null);
+                    }}
                     baseId={baseId}
                     nowOf={(key) => currentGameNumber(planOf(key))}
                   />

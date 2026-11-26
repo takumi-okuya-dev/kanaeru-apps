@@ -28,6 +28,7 @@ import { useState } from "react";
 import type * as React from "react";
 import { ATTENDANCE_ACTION_LABELS, actionsFor, groupOfPlayer } from "./day-of.ts";
 import type { AttendanceAction } from "./day-of.ts";
+import { miniSummary } from "./mini-game.ts";
 import { groupsOf } from "./plan.ts";
 import { changeSettings, describeSettingsChange } from "./regroup.ts";
 
@@ -189,10 +190,18 @@ export function RegroupDialog({ open, onOpenChange, table, onApply }: RegroupDia
   const report = next ? changeSettings(table.content, next).report : undefined;
   const lines = report ? describeSettingsChange(report, true) : [];
   // 組み合わせが変わる・コート数が変わる（チームを組めていないミニゲームを外すときも）・まだのチーム分けを作るときに押せる
+  // まだチームのないミニゲームを足すとき、来る人がチームの数より少なければ分けられない
+  const miniShort =
+    next !== undefined &&
+    mini &&
+    !table.content.mini &&
+    miniSummary({ ...table.content, settings: next })?.short === true;
   const changed =
     report !== undefined &&
     next !== undefined &&
-    (report.regrouped || next.courts !== settings.courts || (mini && !table.content.mini));
+    (report.regrouped ||
+      next.courts !== settings.courts ||
+      (mini && !table.content.mini && !miniShort));
   return (
     <Dialog
       open={open}
@@ -264,6 +273,11 @@ export function RegroupDialog({ open, onOpenChange, table, onApply }: RegroupDia
           </Field>
         ) : null}
         {issue ? <p className="text-s text-danger-text">{issue}</p> : null}
+        {miniShort ? (
+          <p className="text-s text-danger-text">
+            来る人がチームの数（コート数×2）より少ないため、ミニゲームのチームは分けられません。
+          </p>
+        ) : null}
         <section
           aria-label="変わること"
           className="flex flex-col gap-x3s rounded-md bg-surface-sunken p-xs"
@@ -271,7 +285,9 @@ export function RegroupDialog({ open, onOpenChange, table, onApply }: RegroupDia
           <h3 className="text-m font-bold">変わること</h3>
           {lines.length === 0 ? (
             <p className="text-m text-text-sub">
-              {mini && !table.content.mini ? "ミニゲームのチームを分けます。" : "今と同じです。"}
+              {mini && !table.content.mini && !miniShort
+                ? "ミニゲームのチームを分けます。"
+                : "今と同じです。"}
             </p>
           ) : (
             <ul className="flex list-disc flex-col gap-x3s pl-s text-m">

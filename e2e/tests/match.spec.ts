@@ -518,6 +518,15 @@ test("組み合わせを直す：ドラッグか2人を順に押して入れか�
     await waitSaved(page);
   }
 
+  // 選んだまま分け方のタブを替えると、選んだ印は消える
+  await page.getByRole("button", { name: "第2試合の内田" }).click();
+  await page.getByRole("tab", { name: "ミニゲーム" }).click();
+  await page.getByRole("tab", { name: "レベル別" }).click();
+  await expect(page.getByRole("button", { name: "第2試合の内田" })).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+
   // ミニゲーム：1人をほかのチームへ移す
   await page.getByRole("tab", { name: "ミニゲーム" }).click();
   await page.getByRole("button", { name: "チーム1の安藤" }).click();
