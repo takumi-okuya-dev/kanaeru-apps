@@ -235,19 +235,18 @@ export function CheckinEditDialog({ event, checkin, onClose, onDone }: CheckinEd
           {sections.map(({ id, Component }) => (
             <Component key={id} event={event} checkin={checkin} />
           ))}
+          {/* 取り消す（消す操作）は、すぐ上の「保存」と押し間違えないよう、線の下の左に離して置く（ButtonRow にしない） */}
           <div className="flex flex-col items-start gap-xxs border-t border-border pt-xs">
-            <ButtonRow>
-              <Button
-                type="button"
-                variant="danger"
-                aria-disabled={pending || undefined}
-                onClick={() => {
-                  if (!pending) setConfirming(true);
-                }}
-              >
-                取り消す
-              </Button>
-            </ButtonRow>
+            <Button
+              type="button"
+              variant="danger"
+              aria-disabled={pending || undefined}
+              onClick={() => {
+                if (!pending) setConfirming(true);
+              }}
+            >
+              取り消す
+            </Button>
           </div>
         </div>
       )}
