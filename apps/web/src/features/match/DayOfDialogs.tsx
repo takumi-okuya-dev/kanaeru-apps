@@ -1,19 +1,21 @@
-// 当日の直しの枠（モックアップ M2 の「人を選んで直す」「レベルの分け方」。PRD FR-M14・FR-M6・FR-M10。match-003）。
+// 当日の直しの枠（モックアップ M2 の「人を選んで直す」「分け方と試合の形」。PRD FR-M14・FR-M6・FR-M10。match-003・match-009）。
 // - 人を選んで直す：人を選び、「来なかった・来た・帰る」を押すと、その人の組のこれからの試合だけを組み直す（day-of.ts）
-// - 分け方と試合の形を変える：変えると何が変わるか（残す試合・移す試合・組から外す終わった試合・組み直す試合）を先に出し、
+// - 分け方と試合の形を変える（レベル別〈なし・4つ・3つ・2つ〉・分けない・ミニゲーム〈コート数〉・試合の形）：変えると何が変わるか（残す試合・移す試合・組から外す終わった試合・組み直す試合）を先に出し、
 //   押すと終わった試合をできるだけ残して組み直す（regroup.ts）
 // どちらも担当の端末だけが開く（呼ぶ側がボタンを出し分ける）。呼ぶ側は開いている間だけ描く（開くたびに今の値から始める）。
 import {
   MATCH_FORMATS,
   MATCH_FORMAT_LABELS,
-  MATCH_GROUPINGS,
   MATCH_GROUPING_LABELS,
+  MATCH_LEVEL_GROUPINGS,
   MATCH_LEVEL_LABELS,
+  MINI_COURTS_MAX,
+  MatchSettings as MatchSettingsSchema,
   PLAYER_STATUS_LABELS,
 } from "@workspace/contracts/match";
 import type {
   MatchFormat,
-  MatchGrouping,
+  MatchLevelGrouping,
   MatchSettings,
   MatchTable,
 } from "@workspace/contracts/match";
@@ -21,7 +23,7 @@ import { Button } from "@workspace/ui/components/button";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { Dialog } from "@workspace/ui/components/dialog";
 import { Field, useFieldControl } from "@workspace/ui/components/field";
-import { inputClassName } from "@workspace/ui/components/input";
+import { Input, inputClassName } from "@workspace/ui/components/input";
 import { useState } from "react";
 import type * as React from "react";
 import { ATTENDANCE_ACTION_LABELS, actionsFor, groupOfPlayer } from "./day-of.ts";
@@ -160,28 +162,51 @@ type RegroupDialogProps = {
   onApply: (next: MatchSettings) => void;
 };
 
+/** レベル別の選び（なしと4つ・3つ・2つ）。 */
+type LevelChoice = MatchLevelGrouping | "off";
+
 /**
- * レベルの分け方と試合の形を当日に変える枠（何が変わるかを先に出す）。
+ * 分け方と試合の形を当日に変える枠（何が変わるかを先に出す。match-009 research R5）。
  * @param props 開いているか（open）・開け閉め（onOpenChange）・試合表（table）・押したとき（onApply）
  * @returns 枠の要素
  */
 export function RegroupDialog({ open, onOpenChange, table, onApply }: RegroupDialogProps) {
   const { settings } = table.content;
   const [format, setFormat] = useState<MatchFormat>(settings.format);
-  const [grouping, setGrouping] = useState<MatchGrouping>(settings.grouping);
-  const next: MatchSettings = { ...settings, format, grouping };
-  const { report } = changeSettings(table.content, next);
-  const lines = describeSettingsChange(report, true);
+  const [levels, setLevels] = useState<LevelChoice>(settings.levels ?? "off");
+  const [ungrouped, setUngrouped] = useState(settings.ungrouped);
+  const [mini, setMini] = useState(settings.courts !== null);
+  const [courts, setCourts] = useState(String(settings.courts ?? 2));
+  const parsed = MatchSettingsSchema.safeParse({
+    ...settings,
+    format,
+    levels: levels === "off" ? null : levels,
+    ungrouped,
+    courts: mini ? Number(courts) : null,
+  });
+  const next = parsed.success ? parsed.data : undefined;
+  const issue = parsed.success ? undefined : parsed.error.issues[0]?.message;
+  const report = next ? changeSettings(table.content, next).report : undefined;
+  const lines = report ? describeSettingsChange(report, true) : [];
+  const changed =
+    report !== undefined &&
+    (report.regrouped || report.miniCleared || (mini && !table.content.mini));
   return (
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title="レベルの分け方と試合の形"
+      title="分け方と試合の形"
       description="当日に変えても、終わった試合はできるだけ残し、まだの試合だけを組み直します。"
       footer={
         <>
           <Button onClick={() => onOpenChange(false)}>やめる</Button>
-          <Button variant="primary" disabled={!report.regrouped} onClick={() => onApply(next)}>
+          <Button
+            variant="primary"
+            disabled={!next || !changed}
+            onClick={() => {
+              if (next) onApply(next);
+            }}
+          >
             変えて組み直す
           </Button>
         </>
@@ -195,18 +220,57 @@ export function RegroupDialog({ open, onOpenChange, table, onApply }: RegroupDia
           onValueChange={setFormat}
         />
         <ChoiceChips
-          label="レベルの分け方"
-          options={MATCH_GROUPINGS.map((value) => ({ value, label: MATCH_GROUPING_LABELS[value] }))}
-          value={grouping}
-          onValueChange={setGrouping}
+          label="レベル別"
+          options={[
+            { value: "off" as const, label: "しない" },
+            ...MATCH_LEVEL_GROUPINGS.map((value) => ({
+              value,
+              label: MATCH_GROUPING_LABELS[value],
+            })),
+          ]}
+          value={levels}
+          onValueChange={setLevels}
         />
+        <label className="flex min-h-l items-center gap-xxs text-m">
+          <input
+            type="checkbox"
+            checked={ungrouped}
+            onChange={(change) => setUngrouped(change.target.checked)}
+            className="size-s accent-primary"
+          />
+          分けない（全員で1つ）もする
+        </label>
+        <label className="flex min-h-l items-center gap-xxs text-m">
+          <input
+            type="checkbox"
+            checked={mini}
+            onChange={(change) => setMini(change.target.checked)}
+            className="size-s accent-primary"
+          />
+          ミニゲームもする
+        </label>
+        {mini ? (
+          <Field label="コート数">
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={MINI_COURTS_MAX}
+              value={courts}
+              onChange={(change) => setCourts(change.target.value)}
+            />
+          </Field>
+        ) : null}
+        {issue ? <p className="text-s text-danger-text">{issue}</p> : null}
         <section
           aria-label="変わること"
           className="flex flex-col gap-x3s rounded-md bg-surface-sunken p-xs"
         >
           <h3 className="text-m font-bold">変わること</h3>
           {lines.length === 0 ? (
-            <p className="text-m text-text-sub">今と同じです。</p>
+            <p className="text-m text-text-sub">
+              {mini && !table.content.mini ? "ミニゲームのチームを分けます。" : "今と同じです。"}
+            </p>
           ) : (
             <ul className="flex list-disc flex-col gap-x3s pl-s text-m">
               {lines.map((line) => (

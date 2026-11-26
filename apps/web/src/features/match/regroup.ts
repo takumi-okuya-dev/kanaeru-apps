@@ -9,7 +9,16 @@
 //   差を組の offset に持つ（進んだ試合の数は、前のすべての組の「最後に終わった試合の番号 − その組の offset」のいちばん大きいもの。
 //   どの組も同じ時間に進むため）
 // 【仮決め】research R3。
-import { MATCH_GROUPS, PLAN_GAMES_MAX, PLAYERS_PER_GAME } from "@workspace/contracts/match";
+// 分け方を組み合わせる（match-009）：組の並びは matchGroupsOf（レベル別の組 + all）。進んだ試合の数は「外す組 + 同じ分け方の組」で
+// 数える（分けないを足すだけなら、足した組は進んでいない。match-009 research R3）。ミニゲームはコート数が変わる・外すとチーム分けを
+// 消す（組み直すときに分ける。research R5）。
+import {
+  MATCH_GROUPS,
+  PLAN_GAMES_MAX,
+  PLAYERS_PER_GAME,
+  groupSetOf,
+  matchGroupsOf,
+} from "@workspace/contracts/match";
 import { tableElapsed } from "./plan.ts";
 import type {
   MatchArchivedGroup,
@@ -53,6 +62,10 @@ export type SettingsChangeReport = {
   archived: { key: MatchGroupKey; count: number }[];
   /** 外したまだの試合の数（組み直すと、また組まれる） */
   dropped: number;
+  /** ミニゲームのチーム分けを消したか（ミニゲームを外した・コート数を変えた） */
+  miniCleared: boolean;
+  /** ミニゲームを外したか（コート数を変えたときは false） */
+  miniRemoved: boolean;
 };
 
 /** 変えないときの答え。 */
@@ -63,6 +76,8 @@ const UNCHANGED: Omit<SettingsChangeReport, "carried"> = {
   moved: 0,
   archived: [],
   dropped: 0,
+  miniCleared: false,
+  miniRemoved: false,
 };
 
 /**
@@ -99,13 +114,30 @@ export function changeSettings(
 ): { content: MatchTableContent; report: SettingsChangeReport } {
   const before = content.settings;
   const formatChanged = before.format !== next.format;
-  if (!formatChanged && before.grouping === next.grouping) {
+  // ミニゲーム：外した・コート数を変えたらチーム分けを消す（組み直すときに分ける）
+  const miniCleared = content.mini !== undefined && before.courts !== next.courts;
+  const miniRemoved = miniCleared && next.courts === null;
+  const { mini: _mini, ...withoutMini } = content;
+  const base: MatchTableContent = miniCleared ? withoutMini : content;
+  const sameGroups =
+    matchGroupsOf(before)
+      .map((group) => group.key)
+      .join() ===
+    matchGroupsOf(next)
+      .map((group) => group.key)
+      .join();
+  if (!formatChanged && sameGroups) {
     return {
-      content: { ...content, settings: next },
-      report: { ...UNCHANGED, carried: content.plan.map((plan) => plan.key) },
+      content: { ...base, settings: next },
+      report: {
+        ...UNCHANGED,
+        carried: content.plan.map((plan) => plan.key),
+        miniCleared,
+        miniRemoved,
+      },
     };
   }
-  const newGroups: readonly MatchGroup[] = MATCH_GROUPS[next.grouping];
+  const newGroups: readonly MatchGroup[] = matchGroupsOf(next);
   const size = PLAYERS_PER_GAME[next.format];
   const levelOf = new Map(content.players.map((player) => [player.id, player.level]));
   const carriedKeys = new Set<string>(
@@ -149,6 +181,7 @@ export function changeSettings(
     });
   });
 
+  const newSets = new Set(newGroups.map((group) => groupSetOf(group.key)));
   const plan: MatchGroupPlan[] = [];
   let movedCount = 0;
   for (const group of newGroups) {
@@ -168,8 +201,13 @@ export function changeSettings(
     }
     const games = entries.slice(overflow.length).map((entry) => entry.game);
     movedCount += games.length;
-    // 進んだ試合の数：どの組も同じ時間に進むので、前のすべての組でいちばん進んだもの
-    const elapsed = tableElapsed(content.plan);
+    // 進んだ試合の数：同じ時間に進む組（同じ分け方の組と、なくなる分け方の組〈分け方を入れかえたとき〉）でいちばん進んだもの
+    const set = groupSetOf(group.key);
+    const elapsed = tableElapsed(
+      content.plan.filter(
+        (entry) => groupSetOf(entry.key) === set || !newSets.has(groupSetOf(entry.key)),
+      ),
+    );
     const offset = Math.max(-PLAN_GAMES_MAX, Math.min(PLAN_GAMES_MAX, games.length - elapsed));
     if (games.length > 0 || offset !== 0) {
       plan.push({ key: group.key, games, ...(offset !== 0 ? { offset } : {}) });
@@ -178,7 +216,7 @@ export function changeSettings(
 
   const archive = mergeArchive(content.archive ?? [], archived);
   const nextContent: MatchTableContent = {
-    ...content,
+    ...base,
     settings: next,
     plan,
     ...(archive.length > 0 ? { archive } : {}),
@@ -193,6 +231,8 @@ export function changeSettings(
       moved: movedCount,
       archived: [...archived].map(([key, games]) => ({ key, count: games.length })),
       dropped,
+      miniCleared,
+      miniRemoved,
     },
   };
 }
@@ -204,8 +244,15 @@ export function changeSettings(
  * @returns 文の並び（変わらなければ空）
  */
 export function describeSettingsChange(report: SettingsChangeReport, replanNow: boolean): string[] {
-  if (!report.regrouped) return [];
-  const lines: string[] = [];
+  const miniLine = report.miniRemoved
+    ? "ミニゲームのチーム分けを消します。"
+    : report.miniCleared
+      ? replanNow
+        ? "コート数が変わるので、ミニゲームのチームを分け直します。"
+        : "コート数が変わるので、ミニゲームのチーム分けを消します。「組み直す」で分け直します。"
+      : undefined;
+  if (!report.regrouped) return miniLine ? [miniLine] : [];
+  const lines: string[] = miniLine ? [miniLine] : [];
   if (report.carried.length > 0) {
     lines.push(`${report.carried.map(groupLabelOf).join("・")}の試合は、そのまま残します。`);
   }

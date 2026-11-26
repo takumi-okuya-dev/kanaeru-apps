@@ -1,10 +1,11 @@
 // M2・M6 試合表（/match/tables/$tableId/board）。モックアップの M2（ダブルス）と M6（シングルス）。
-// - 組（レベルの分け方で分けた組）をタブで選び、1つずつ出す（PC もスマホも。FR-M11）。分けないときはタブを出さない
+// - 分け方（レベル別・分けない・ミニゲーム）が2つ以上なら分け方のタブ（SetTabs）、レベル別の中で組が2つ以上なら組のタブで選び、
+//   1つずつ出す（PC もスマホも。FR-M11・match-009）。ミニゲームはコートごとのチーム（MiniTeams）と「チーム分けをやり直す」
 // - 1行が1試合。名前だけを並べ（ダブルスは4人・シングルスは2人）、列の見出しは付けず、左に試合の番号、名前の列の間に縦線
 // - 担当の端末は、終わった試合の行にチェックを付けて進める。チェックのない最初の試合が今（墨の地）、その次が次（薄い地。FR-M12・FR-M15）
 // - 「別の組み合わせにする」はくじの種を変えて、まだの試合を組み直す（終わった試合は残す）
 // - 当日（match-003）：「人を選んで直す」（来なかった・来た・帰る → その人の組のこれからの試合だけを組み直す。FR-M14）・
-//   「レベルの分け方」（当日に分け方や試合の形を変えても、終わった試合はできるだけ残す。何が変わるかを先に出す）・
+//   「分け方と試合の形」（当日に分け方や試合の形を変えても、終わった試合はできるだけ残す。何が変わるかを先に出す）・
 //   「大きく映す」（M3）。組み直したら、画面の上に何を変えたかを出す。前の分け方で終わった試合は、下に畳んで出す
 // 「電波なしで渡す」（M4。match-005）：今の表を QR にして出し、見るだけのページのスマホがネットなしで読む（HandoffDialog）。
 // 1人ひとりの試合の数は出さない（FR-M13）。
@@ -12,6 +13,7 @@ import { MATCH_FORMAT_LABELS, PLAYERS_PER_GAME } from "@workspace/contracts/matc
 import type {
   MatchGroup,
   MatchGroupPlan,
+  MatchSet,
   MatchSettings,
   MatchTable,
 } from "@workspace/contracts/match";
@@ -27,8 +29,11 @@ import { AttendanceDialog, RegroupDialog } from "./DayOfDialogs.tsx";
 import { formatPlayDate } from "./format.ts";
 import { GroupTabs, currentGameIndex, currentGameNumber } from "./GroupTabs.tsx";
 import { HandoffDialog } from "./HandoffDialog.tsx";
+import { buildMini, miniTeamsView } from "./mini-game.ts";
+import { MiniTeams } from "./MiniTeams.tsx";
 import { MATCH_ROUTE_PATTERNS } from "./paths.ts";
-import { buildPlan, groupsOf, newSeed, presentPlayersOf } from "./plan.ts";
+import { buildPlan, groupsOfSet, newSeed, presentPlayersOf, rebuild, setsOf } from "./plan.ts";
+import { SetTabs } from "./SetTabs.tsx";
 import { changeSettings, groupLabelOf } from "./regroup.ts";
 import { countRoster } from "./roster-edit.ts";
 import { ReceptionEventNote } from "./ReceptionEventNote.tsx";
@@ -153,11 +158,22 @@ function ArchivedGames({ table }: { table: MatchTable }) {
  */
 function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }) {
   const baseId = useId();
-  const groups = groupsOf(table.content);
+  const { settings } = table.content;
+  const sets = setsOf(settings);
   const planOf = (key: string) => table.content.plan.find((plan) => plan.key === key);
+  const hasContent = (set: MatchSet) =>
+    set === "mini"
+      ? table.content.mini !== undefined
+      : groupsOfSet(table.content, set).some((group) => (planOf(group.key)?.games.length ?? 0) > 0);
+  const [chosenSet, setChosenSet] = useState<MatchSet | undefined>(
+    () => sets.find(hasContent) ?? sets[0],
+  );
+  const set = chosenSet && sets.includes(chosenSet) ? chosenSet : (sets[0] ?? "levels");
+  const groups = groupsOfSet(table.content, set);
   const firstWithGames = groups.find((group) => (planOf(group.key)?.games.length ?? 0) > 0);
   const [selected, setSelected] = useState(firstWithGames?.key ?? groups[0]?.key ?? "");
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [teamsOpen, setTeamsOpen] = useState(false);
   const [attendanceOpen, setAttendanceOpen] = useState(false);
   const [regroupOpen, setRegroupOpen] = useState(false);
   const [handoffOpen, setHandoffOpen] = useState(false);
@@ -165,10 +181,21 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
   const group = groups.find((entry) => entry.key === selected) ?? groups[0];
   const plan = group ? planOf(group.key) : undefined;
   const counts = countRoster(table.content.players);
-  const { settings } = table.content;
-  const planned = table.content.plan.some((entry) => entry.games.length > 0);
-  const lead = `${formatPlayDate(table.playDate)}・${MATCH_FORMAT_LABELS[settings.format]}・1試合${settings.minutesPerGame}分・${counts.present}人${counts.absent > 0 ? `（来ない ${counts.absent}人）` : ""}${counts.left > 0 ? `（帰った ${counts.left}人）` : ""}`;
+  const planned =
+    table.content.plan.some((entry) => entry.games.length > 0) || table.content.mini !== undefined;
+  const lead = `${formatPlayDate(table.playDate)}・${MATCH_FORMAT_LABELS[settings.format]}・${settings.gameCount}試合・${counts.present}人${counts.absent > 0 ? `（来ない ${counts.absent}人）` : ""}${counts.left > 0 ? `（帰った ${counts.left}人）` : ""}`;
   const archive = table.content.archive ?? [];
+  const teams = miniTeamsView(table.content);
+
+  /**
+   * 分け方を選ぶ（その分け方の最初の組を選ぶ）。
+   * @param next 分け方
+   */
+  const chooseSet = (next: MatchSet) => {
+    setChosenSet(next);
+    const first = groupsOfSet(table.content, next)[0];
+    if (first) setSelected(first.key);
+  };
 
   /**
    * 人に「来なかった・来た・帰る」を付け、その人の組のこれからの試合だけを組み直す。
@@ -199,7 +226,12 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
   const regroup = (next: MatchSettings) => {
     const applied = editor.apply((draft) => {
       const changed = changeSettings(draft.content, next).content;
-      return { ...draft, content: { ...changed, plan: buildPlan(changed, draft.seed) } };
+      // ミニゲームのチームは、外したとき・コート数を変えたときだけ分け直す（changeSettings が消したときだけ作る）
+      const mini = changed.mini ?? buildMini(changed, draft.seed);
+      return {
+        ...draft,
+        content: { ...changed, plan: buildPlan(changed, draft.seed), ...(mini ? { mini } : {}) },
+      };
     });
     setRegroupOpen(false);
     setChangeNote(
@@ -210,8 +242,37 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
             text: "送れなかった変更が端末に残っているため、今は変えられません。上の知らせで、捨てるか上書きするかを選んでください。",
           },
     );
-    const firstGroup = groupsOf({ settings: next })[0];
-    if (firstGroup) setSelected(firstGroup.key);
+    const firstSet = setsOf(next)[0];
+    if (firstSet) {
+      setChosenSet(firstSet);
+      const firstGroup = groupsOfSet({ settings: next }, firstSet)[0];
+      if (firstGroup) setSelected(firstGroup.key);
+    }
+  };
+
+  /** ミニゲームのチームを、今の来る人だけで分け直す（当日の印を変えてもチームは変えないため。research R5）。 */
+  const redoTeams = () => {
+    setTeamsOpen(false);
+    let short = false;
+    const applied = editor.apply((draft) => {
+      const { mini: _old, ...rest } = draft.content;
+      const mini = buildMini(draft.content, draft.seed);
+      short = mini === undefined;
+      return { ...draft, content: { ...rest, ...(mini ? { mini } : {}) } };
+    });
+    setChangeNote(
+      !applied
+        ? {
+            tone: "danger",
+            text: "送れなかった変更が端末に残っているため、今は直せません。上の知らせで、捨てるか上書きするかを選んでください。",
+          }
+        : short
+          ? {
+              tone: "danger",
+              text: "来る人がチームの数より少ないため、チームを分けられませんでした。",
+            }
+          : { tone: "info", text: "今の来る人で、ミニゲームのチームを分け直しました。" },
+    );
   };
 
   /**
@@ -252,7 +313,7 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
                   人を選んで直す
                 </Button>
                 <Button size="small" onClick={() => setRegroupOpen(true)}>
-                  レベルの分け方
+                  分け方と試合の形
                 </Button>
               </>
             ) : null}
@@ -293,7 +354,7 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
           {changeNote.text}
         </div>
       ) : null}
-      {!planned || !group ? (
+      {!planned ? (
         <p className="text-m text-text-sub">
           まだ試合表を作っていません。
           <Link
@@ -307,34 +368,70 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
         </p>
       ) : (
         <div className="flex flex-col gap-xs">
-          {groups.length > 1 ? (
-            <GroupTabs
-              groups={groups}
-              selected={group.key}
-              onSelect={setSelected}
-              baseId={baseId}
-              nowOf={(key) => currentGameNumber(planOf(key))}
-            />
+          {sets.length > 1 ? (
+            <SetTabs sets={sets} selected={set} onSelect={chooseSet} baseId={baseId} />
           ) : null}
           <div
-            id={`${baseId}-panel`}
-            role={groups.length > 1 ? "tabpanel" : undefined}
-            aria-labelledby={groups.length > 1 ? `${baseId}-tab-${group.key}` : undefined}
-            className="flex flex-col gap-xxs"
+            id={`${baseId}-set-panel`}
+            role={sets.length > 1 ? "tabpanel" : undefined}
+            aria-labelledby={sets.length > 1 ? `${baseId}-set-${set}` : undefined}
+            className="flex flex-col gap-xs"
           >
-            {plan && plan.games.length > 0 ? (
-              <GameTable
-                table={table}
-                group={group}
-                plan={plan}
-                editable={editor.isEditor}
-                onToggle={(index, done) => toggle(group.key, index, done)}
-              />
-            ) : (
-              <p className="text-m text-text-sub">
-                {`${group.label}は${presentPlayersOf(table.content, group).length}人で、${PLAYERS_PER_GAME[settings.format]}人に足りないため組めませんでした。名簿と設定で、一緒にする分け方にしてください。`}
-              </p>
-            )}
+            {set === "mini" ? (
+              <div className="flex flex-col gap-xs">
+                {teams ? (
+                  <>
+                    <MiniTeams teams={teams.teams} />
+                    {teams.unassigned.length > 0 ? (
+                      <p className="text-m">{`チームに入っていない人：${teams.unassigned.join("・")}`}</p>
+                    ) : null}
+                  </>
+                ) : (
+                  <p className="text-m text-text-sub">
+                    来る人がチームの数（コート数×2）より少ないため、チームを分けられませんでした。
+                  </p>
+                )}
+                {editor.isEditor ? (
+                  <div>
+                    <Button size="small" onClick={() => setTeamsOpen(true)}>
+                      チーム分けをやり直す
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            ) : group ? (
+              <>
+                {groups.length > 1 ? (
+                  <GroupTabs
+                    groups={groups}
+                    selected={group.key}
+                    onSelect={setSelected}
+                    baseId={baseId}
+                    nowOf={(key) => currentGameNumber(planOf(key))}
+                  />
+                ) : null}
+                <div
+                  id={`${baseId}-panel`}
+                  role={groups.length > 1 ? "tabpanel" : undefined}
+                  aria-labelledby={groups.length > 1 ? `${baseId}-tab-${group.key}` : undefined}
+                  className="flex flex-col gap-xxs"
+                >
+                  {plan && plan.games.length > 0 ? (
+                    <GameTable
+                      table={table}
+                      group={group}
+                      plan={plan}
+                      editable={editor.isEditor}
+                      onToggle={(index, done) => toggle(group.key, index, done)}
+                    />
+                  ) : (
+                    <p className="text-m text-text-sub">
+                      {`${group.label}は${presentPlayersOf(table.content, group).length}人で、${PLAYERS_PER_GAME[settings.format]}人に足りないため組めませんでした。名簿と設定で、一緒にする分け方にしてください。`}
+                    </p>
+                  )}
+                </div>
+              </>
+            ) : null}
           </div>
           {archive.length > 0 ? <ArchivedGames table={table} /> : null}
         </div>
@@ -363,12 +460,24 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
           setConfirmOpen(false);
           editor.apply((draft) => {
             const seed = newSeed();
-            return { seed, content: { ...draft.content, plan: buildPlan(draft.content, seed) } };
+            return { seed, content: rebuild(draft.content, seed) };
           });
         }}
       >
         <p className="text-m">
           くじを引き直して、まだの試合を組み直します。チェックの付いた試合（と、それより前の試合）はそのまま残します。
+          {settings.courts !== null ? "ミニゲームのチームも分け直します。" : ""}
+        </p>
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={teamsOpen}
+        onOpenChange={setTeamsOpen}
+        title="チーム分けをやり直しますか？"
+        confirmLabel="やり直す"
+        onConfirm={redoTeams}
+      >
+        <p className="text-m">
+          今の来る人だけで、レベルを均してチームを分け直します。帰った人・来ない人はチームから外れ、あとから来た人が入ります。
         </p>
       </ConfirmDialog>
     </Page>

@@ -8,18 +8,21 @@
 // - 名簿の表は「名簿の一覧（N人）」の開け閉めの中に入れ、初めは閉じておく（人数が多いとスクロールが長くなるため）。
 //   受付の交流会・貼り付け・CSV から取り込んだ直後は開いて、入った人を見せる
 // - 1人ずつ：呼び名・レベル・当日の印（来る・遅れて来る・来ない）を直せる。消せる
-// - 設定：1試合の長さ・試合の時間（→ 組ごとの試合の数）・試合の形・レベルの分け方。レベル別の人数と試合の数を出す
+// - 設定：試合の数・試合の形・分け方（レベル別〈4つ・3つ・2つ〉・分けない・ミニゲーム〈コート数〉を組み合わせる。match-009）。
+//   組ごとの人数と試合の数・ミニゲームのチームの数を出す
 // - 「試合表を作る」（作ってあれば「組み直す」。終わった試合は残す）で組み、試合表の画面へ移る
 // 直すたびに担当の端末から保存する（AD-28。table-editor.ts）。担当でない端末は見るだけ。
 // QR の受付で入った人は、担当の端末で開くと名簿に入る（use-joins.ts。match-004）。同じ呼び名の人には「同じ名前」の印。
 import {
+  GAMES_MAX,
   MATCH_FORMATS,
   MATCH_FORMAT_LABELS,
-  MATCH_GROUPINGS,
   MATCH_GROUPING_LABELS,
+  MATCH_LEVEL_GROUPINGS,
   MATCH_LEVELS,
   MATCH_LEVEL_LABELS,
   MatchSettings,
+  MINI_COURTS_MAX,
   NICKNAME_MAX,
   PLAYERS_PER_GAME,
   PLAYER_STATUSES,
@@ -29,8 +32,8 @@ import {
 import type {
   MatchSettings as MatchSettingsValue,
   MatchFormat,
-  MatchGrouping,
   MatchLevel,
+  MatchLevelGrouping,
   MatchPlayer,
   MatchTable,
   PlayerStatus,
@@ -54,9 +57,10 @@ import { fieldErrorsFromIssues } from "../../lib/form.ts";
 import type { FieldErrors } from "../../lib/form.ts";
 import { showNotice } from "../../lib/notice.ts";
 import { Page } from "../../lib/page.tsx";
-import { formatPlayDate } from "./format.ts";
+import { formatPlayDate, settingsText } from "./format.ts";
 import { MATCH_ROUTE_PATTERNS, matchPaths } from "./paths.ts";
-import { buildPlan, hasDoneGames, summarizeGroups } from "./plan.ts";
+import { miniSummary } from "./mini-game.ts";
+import { hasDoneGames, rebuild, summarizeGroups } from "./plan.ts";
 import { changeSettings, describeSettingsChange } from "./regroup.ts";
 import { MATCH_QUERY_KEYS } from "./queries.ts";
 import { forgetJoinedPlayer, useJoins } from "./use-joins.ts";
@@ -551,13 +555,17 @@ function SettingInput({
   error,
   disabled,
   onCommit,
+  min,
+  max,
 }: {
   label: string;
   value: string;
-  type: "time" | "number";
+  type: "number";
   error: string | undefined;
   disabled: boolean;
   onCommit: (value: string) => void;
+  min: number;
+  max: number;
 }) {
   const [draft, setDraft] = useState(value);
   const [synced, setSynced] = useState(value);
@@ -569,9 +577,9 @@ function SettingInput({
     <Field label={label} error={error}>
       <Input
         type={type}
-        inputMode={type === "number" ? "numeric" : undefined}
-        min={type === "number" ? 5 : undefined}
-        max={type === "number" ? 90 : undefined}
+        inputMode="numeric"
+        min={min}
+        max={max}
         value={draft}
         disabled={disabled}
         onChange={(change) => setDraft(change.target.value)}
@@ -584,7 +592,7 @@ function SettingInput({
 }
 
 /**
- * 設定とレベル別の試合と「試合表を作る」。
+ * 設定と分け方ごとの試合と「試合表を作る」。
  * @param props 試合表（table）・直す道具（editor）
  * @returns 要素
  */
@@ -600,7 +608,9 @@ function SettingsCard({ table, editor }: BodyProps) {
   const { settings } = table.content;
   const disabled = !editor.isEditor;
   const summaries = summarizeGroups(table.content);
-  const planned = table.content.plan.some((plan) => plan.games.length > 0);
+  const mini = miniSummary(table.content);
+  const planned =
+    table.content.plan.some((plan) => plan.games.length > 0) || table.content.mini !== undefined;
   const noLevel = table.content.players.filter(
     (player) => player.status === "present" && player.level === null,
   ).length;
@@ -636,24 +646,21 @@ function SettingsCard({ table, editor }: BodyProps) {
     const next = checkSettings(patch);
     if (!next) return;
     const { report } = changeSettings(table.content, next);
-    if (report.regrouped && (report.dropped > 0 || report.doneTotal > 0)) {
+    if ((report.regrouped && (report.dropped > 0 || report.doneTotal > 0)) || report.miniCleared) {
       setPendingSettings({ next, lines: describeSettingsChange(report, false) });
     } else saveSettings(next);
   };
 
   /** 組んで、試合表の画面へ移る。 */
   const generate = () => {
-    if (summaries.every((summary) => summary.games === 0)) {
+    if (summaries.every((summary) => summary.games === 0) && (!mini || mini.short)) {
       setFailure(
-        `組める組がありません。${PLAYERS_PER_GAME[settings.format]}人以上が来る組を作るか、試合の時間を長くしてください。`,
+        `組める組がありません。${PLAYERS_PER_GAME[settings.format]}人以上が来る組を作るか、ミニゲームのコート数を減らしてください。`,
       );
       return;
     }
     setFailure(undefined);
-    editor.apply((draft) => ({
-      ...draft,
-      content: { ...draft.content, plan: buildPlan(draft.content, draft.seed) },
-    }));
+    editor.apply((draft) => ({ ...draft, content: rebuild(draft.content, draft.seed) }));
     const path = matchPaths.board(table.id);
     showNotice({
       tone: "success",
@@ -673,28 +680,14 @@ function SettingsCard({ table, editor }: BodyProps) {
       </h2>
       <div className="grid grid-cols-1 gap-xs wide:grid-cols-3">
         <SettingInput
-          label="1試合（分）"
+          label="試合の数（1つの組）"
           type="number"
-          value={String(settings.minutesPerGame)}
-          error={errors.minutesPerGame}
+          min={1}
+          max={GAMES_MAX}
+          value={String(settings.gameCount)}
+          error={errors.gameCount}
           disabled={disabled}
-          onCommit={(value) => requestSettings({ minutesPerGame: Number(value) })}
-        />
-        <SettingInput
-          label="試合の始まり"
-          type="time"
-          value={settings.startTime}
-          error={errors.startTime}
-          disabled={disabled}
-          onCommit={(value) => requestSettings({ startTime: value })}
-        />
-        <SettingInput
-          label="試合の終わり"
-          type="time"
-          value={settings.endTime}
-          error={errors.endTime}
-          disabled={disabled}
-          onCommit={(value) => requestSettings({ endTime: value })}
+          onCommit={(value) => requestSettings({ gameCount: Number(value) })}
         />
       </div>
       {disabled ? (
@@ -704,8 +697,8 @@ function SettingsCard({ table, editor }: BodyProps) {
             <dd>{MATCH_FORMAT_LABELS[settings.format]}</dd>
           </div>
           <div className="flex flex-wrap gap-xxs">
-            <dt className="font-bold">レベルの分け方</dt>
-            <dd>{MATCH_GROUPING_LABELS[settings.grouping]}</dd>
+            <dt className="font-bold">分け方</dt>
+            <dd>{settingsText(settings)}</dd>
           </div>
         </dl>
       ) : (
@@ -718,26 +711,88 @@ function SettingsCard({ table, editor }: BodyProps) {
               requestSettings({ format });
             }}
           />
-          <ChoiceChips
-            label="レベルの分け方"
-            description="あとから変えられます。変えたら「組み直す」を押してください。"
-            options={MATCH_GROUPINGS.map((value) => ({
-              value,
-              label: MATCH_GROUPING_LABELS[value],
-            }))}
-            value={settings.grouping}
-            onValueChange={(grouping: MatchGrouping) => {
-              requestSettings({ grouping });
-            }}
-          />
+          <fieldset
+            className="flex flex-col gap-xxs"
+            aria-describedby={errors.levels ? "match-sets-error" : "match-sets-help"}
+          >
+            <legend className="text-m font-bold">分け方</legend>
+            <p id="match-sets-help" className="text-s text-text-sub">
+              いくつでも組み合わせられます（例：レベル別と分けないの両方）。あとから変えられます。変えたら「組み直す」を押してください。
+            </p>
+            <label className="flex min-h-l items-center gap-xxs text-m">
+              <input
+                type="checkbox"
+                checked={settings.levels !== null}
+                onChange={(change) =>
+                  requestSettings({ levels: change.target.checked ? "four" : null })
+                }
+                className="size-s accent-primary"
+              />
+              レベル別
+            </label>
+            {settings.levels !== null ? (
+              <ChoiceChips
+                label="レベル別の分け方"
+                labelHidden
+                className="pl-m"
+                options={MATCH_LEVEL_GROUPINGS.map((value) => ({
+                  value,
+                  label: MATCH_GROUPING_LABELS[value],
+                }))}
+                value={settings.levels}
+                onValueChange={(levels: MatchLevelGrouping) => {
+                  requestSettings({ levels });
+                }}
+              />
+            ) : null}
+            <label className="flex min-h-l items-center gap-xxs text-m">
+              <input
+                type="checkbox"
+                checked={settings.ungrouped}
+                onChange={(change) => requestSettings({ ungrouped: change.target.checked })}
+                className="size-s accent-primary"
+              />
+              分けない（全員で1つ・レベルの差をならす）
+            </label>
+            <label className="flex min-h-l items-center gap-xxs text-m">
+              <input
+                type="checkbox"
+                checked={settings.courts !== null}
+                onChange={(change) => requestSettings({ courts: change.target.checked ? 2 : null })}
+                className="size-s accent-primary"
+              />
+              ミニゲーム（コート数×2 のチームに、レベルを均して分ける）
+            </label>
+            {settings.courts !== null ? (
+              <div className="max-w-menu pl-m">
+                <SettingInput
+                  label="コート数"
+                  type="number"
+                  min={1}
+                  max={MINI_COURTS_MAX}
+                  value={String(settings.courts)}
+                  error={errors.courts}
+                  disabled={disabled}
+                  onCommit={(value) => requestSettings({ courts: Number(value) })}
+                />
+              </div>
+            ) : null}
+            {errors.levels ? (
+              <p id="match-sets-error" className="text-s text-danger-text">
+                {errors.levels}
+              </p>
+            ) : null}
+          </fieldset>
         </>
       )}
       <div className="flex flex-col gap-x3s">
-        <h3 className="text-m font-bold">レベル別の試合</h3>
+        <h3 className="text-m font-bold">分け方ごとの試合</h3>
         <ul className="flex flex-col gap-x3s text-m">
           {summaries.map((summary) => (
             <li key={summary.group.key} className="flex flex-wrap justify-between gap-xxs">
-              <span className="font-bold">{summary.group.label}</span>
+              <span className="font-bold">
+                {summary.group.key === "all" ? "全員（分けない）" : summary.group.label}
+              </span>
               <span className={summary.short ? "text-danger-text" : "text-text-sub"}>
                 {summary.short
                   ? `${summary.players}人（${PLAYERS_PER_GAME[settings.format]}人に足りないので組めません。一緒にする分け方にしてください）`
@@ -745,6 +800,16 @@ function SettingsCard({ table, editor }: BodyProps) {
               </span>
             </li>
           ))}
+          {mini ? (
+            <li className="flex flex-wrap justify-between gap-xxs">
+              <span className="font-bold">ミニゲーム</span>
+              <span className={mini.short ? "text-danger-text" : "text-text-sub"}>
+                {mini.short
+                  ? `${mini.players}人（${mini.teams}チームに1人以上入るには、来る人が${mini.teams}人要ります）`
+                  : `${mini.players}人・${mini.teams}チーム・1チーム${mini.min === mini.max ? mini.min : `${mini.min}〜${mini.max}`}人`}
+              </span>
+            </li>
+          ) : null}
         </ul>
         {noLevel > 0 ? (
           <p className="text-s text-danger-text">{`レベルを選んでいない人が${noLevel}人います。選ぶまで試合に入りません。`}</p>

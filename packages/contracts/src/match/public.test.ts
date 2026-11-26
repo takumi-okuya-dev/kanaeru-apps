@@ -1,6 +1,12 @@
 // 見るだけのページと受付の形（match-004）：受付の入力は呼び名とレベルだけ（strict）・受付から入れた人の ID は名簿の ID の形。
 import { describe, expect, it } from "vitest";
-import { INITIAL_CONTENT, MatchJoinInput, MatchTableContent, joinPlayerId } from "./index.ts";
+import {
+  INITIAL_CONTENT,
+  MatchJoinInput,
+  MatchTableContent,
+  MatchView,
+  joinPlayerId,
+} from "./index.ts";
 
 describe("受付の入力", () => {
   it("呼び名（前後の空白を除いて1〜20文字）とレベルだけを受ける", () => {
@@ -33,5 +39,23 @@ describe("受付から入れた人の ID", () => {
       players: [{ id: a, nickname: "石川", level: "novice" as const, status: "present" as const }],
     };
     expect(MatchTableContent.safeParse(content).success).toBe(true);
+  });
+});
+
+describe("見るだけのページの答え（match-009）", () => {
+  it("ミニゲームのチームの呼び名を持て、端末に残した前の答え（1試合の長さあり）も読める", () => {
+    const base = {
+      name: "練習会",
+      playDate: "2026-12-13",
+      version: 3,
+      groups: [{ key: "all", label: "全員", games: [] }],
+      updatedAt: "2026-12-13T03:00:00.000Z",
+      expiresAt: "2026-12-13T15:00:00.000Z",
+    };
+    const withTeams = MatchView.parse({ ...base, teams: [["石川"], ["森"]] });
+    expect(withTeams.teams).toEqual([["石川"], ["森"]]);
+    const legacy = MatchView.parse({ ...base, minutesPerGame: 15 });
+    expect(legacy).not.toHaveProperty("minutesPerGame");
+    expect(legacy.teams).toBeUndefined();
   });
 });

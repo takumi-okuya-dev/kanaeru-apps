@@ -68,7 +68,6 @@ function serverView(version: number, savedAt: number): MatchView {
     name: "12/13(日) 練習会",
     playDate: "2026-12-13",
     version,
-    minutesPerGame: 15,
     groups: [],
     updatedAt: new Date(savedAt).toISOString(),
     expiresAt: EXPIRES_AT,

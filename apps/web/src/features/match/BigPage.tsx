@@ -3,9 +3,10 @@
 // - 担当の端末で出すのを基本にする（試合表の画面でチェックを付けると、同じ端末のこの画面もすぐ進む）。担当でない端末は、
 //   つながっている間だけ30秒おきに読み直す（直さないので、読み直しても上書きしない。AD-28）
 // - ナビのない外枠（"bare"）。「戻る」で試合表へ。全画面にできるブラウザでは「全画面にする」を出す
+// - 分け方が2つ以上なら分け方のタブ。ミニゲームはコートごとのチームの呼び名を大きな字で出す（レベルは出さない。match-009）
 // 名前は SVG で描き、画面の幅に合わせて大きくする（tokens.css の文字の段〈いちばん大きくて 32px〉では足りないため。
 // 印刷の版と同じく、字の大きさは SVG の単位で決める。research R5）。1人ひとりの試合の数は出さない（FR-M13）。
-import type { MatchGroup, MatchGroupPlan, MatchTable } from "@workspace/contracts/match";
+import type { MatchGroup, MatchGroupPlan, MatchSet, MatchTable } from "@workspace/contracts/match";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
@@ -13,11 +14,13 @@ import { cn } from "@workspace/ui/lib/cn";
 import { useEffect, useId, useState } from "react";
 import { GroupTabs, currentGameIndex, currentGameNumber } from "./GroupTabs.tsx";
 import { MatchGate } from "./MatchGate.tsx";
+import { MiniTeams } from "./MiniTeams.tsx";
 import { useOnline } from "./online.ts";
 import { loadTable } from "./offline/table-sync.ts";
 import { MATCH_ROUTE_PATTERNS } from "./paths.ts";
 import { textWidthEm } from "./print-layout.ts";
-import { groupsOf } from "./plan.ts";
+import { groupsOfSet, setsOf } from "./plan.ts";
+import { SetTabs } from "./SetTabs.tsx";
 import { MATCH_QUERY_KEYS } from "./queries.ts";
 import { useTableEditor } from "./table-editor.ts";
 
@@ -184,11 +187,25 @@ function BigBody({
   loadedAt: number;
 }) {
   const baseId = useId();
-  const groups = groupsOf(table.content);
+  const sets = setsOf(table.content.settings);
   const planOf = (key: string) => table.content.plan.find((plan) => plan.key === key);
+  const [chosenSet, setChosenSet] = useState<MatchSet | undefined>(sets[0]);
+  const set = chosenSet && sets.includes(chosenSet) ? chosenSet : (sets[0] ?? "levels");
+  const groups = groupsOfSet(table.content, set);
   const firstWithGames = groups.find((group) => (planOf(group.key)?.games.length ?? 0) > 0);
   const [selected, setSelected] = useState(firstWithGames?.key ?? groups[0]?.key ?? "");
   const group = groups.find((entry) => entry.key === selected) ?? groups[0];
+  const names = new Map(table.content.players.map((player) => [player.id, player.nickname]));
+
+  /**
+   * 分け方を選ぶ（その分け方の最初の組を選ぶ）。
+   * @param next 分け方
+   */
+  const chooseSet = (next: MatchSet) => {
+    setChosenSet(next);
+    const first = groupsOfSet(table.content, next)[0];
+    if (first) setSelected(first.key);
+  };
   useEffect(() => {
     document.title = `${table.name}（大きく映す）`;
   }, [table.name]);
@@ -216,22 +233,49 @@ function BigBody({
       {!isEditor ? (
         <p className="text-s text-text-sub">{`${loaded} に読んだ表です。つながっている間は30秒おきに読み直します。`}</p>
       ) : null}
-      {groups.length > 1 ? (
-        <GroupTabs
-          groups={groups}
-          selected={group?.key ?? ""}
-          onSelect={setSelected}
-          baseId={baseId}
-          size="large"
-          nowOf={(key) => currentGameNumber(planOf(key))}
-        />
+      {sets.length > 1 ? (
+        <SetTabs sets={sets} selected={set} onSelect={chooseSet} baseId={baseId} size="large" />
       ) : null}
       <div
-        id={`${baseId}-panel`}
-        role={groups.length > 1 ? "tabpanel" : undefined}
-        aria-labelledby={groups.length > 1 && group ? `${baseId}-tab-${group.key}` : undefined}
+        id={`${baseId}-set-panel`}
+        role={sets.length > 1 ? "tabpanel" : undefined}
+        aria-labelledby={sets.length > 1 ? `${baseId}-set-${set}` : undefined}
+        className="flex flex-col gap-xs"
       >
-        {group ? <BigGroup table={table} group={group} /> : null}
+        {set === "mini" ? (
+          table.content.mini ? (
+            <MiniTeams
+              size="large"
+              teams={table.content.mini.teams.map((team) =>
+                team.map((id) => ({ name: names.get(id) ?? "" })),
+              )}
+            />
+          ) : (
+            <p className="text-l text-text-sub">ミニゲームのチームはまだありません。</p>
+          )
+        ) : (
+          <>
+            {groups.length > 1 ? (
+              <GroupTabs
+                groups={groups}
+                selected={group?.key ?? ""}
+                onSelect={setSelected}
+                baseId={baseId}
+                size="large"
+                nowOf={(key) => currentGameNumber(planOf(key))}
+              />
+            ) : null}
+            <div
+              id={`${baseId}-panel`}
+              role={groups.length > 1 ? "tabpanel" : undefined}
+              aria-labelledby={
+                groups.length > 1 && group ? `${baseId}-tab-${group.key}` : undefined
+              }
+            >
+              {group ? <BigGroup table={table} group={group} /> : null}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

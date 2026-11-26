@@ -1,53 +1,73 @@
 // 試合表の中身から組ごとの試合を組む（組み方は pairing.ts の planGames。AD-29）。状態を持たない関数だけ。
-// - 組はレベルの分け方（MATCH_GROUPS）で決め、組ごとに別のくじ（種と組の key から deriveSeed）で組む
-// - 試合の数は、試合の時間を1試合の長さで割った数（組ごとに同じ。FR-M7）
+// - 組は分け方で決める（レベル別の組 +〈分けないなら〉全員の組 all。matchGroupsOf。match-009）。組ごとに別のくじ（種と組の key から
+//   deriveSeed）で組む。分けない組（all）は、1試合の中のレベルの差の上限を守る
+// - 試合の数は、設定の試合の数（組ごとに同じ。FR-M7。match-009）
 // - 出られるのは当日の印が「来る」の人だけ（「遅れて来る」「来ない」は入れない。来たら当日の組み直しで足す【仮決め】research R6）
 // - 組み直し：同じ組の、最後に終わった（チェックの付いた）試合までをそのまま残し、その先だけを組む（addendum.md 2章）
 // - 当日の「来なかった・来た・帰る」は、その人の組だけを組み直す（replanGroup。今の試合も入る人がみな出られれば残す。match-003）
 // - 当日に分け方や試合の形を変えたときの終わった試合の移し方は regroup.ts（組の行の数の差 offset と、前の分け方の試合 archive）
+// - ミニゲームのチーム分けは mini-game.ts。rebuild で組み合わせとチーム分けをまとめて作る
 import {
-  GAMES_MAX,
-  MATCH_GROUPS,
   MATCH_LEVELS,
   PLAYERS_PER_GAME,
   UNGROUPED_MAX_LEVEL_SPREAD,
+  groupSetOf,
+  matchGroupsOf,
 } from "@workspace/contracts/match";
 import type {
   MatchGroup,
+  MatchGroupKey,
   MatchGroupPlan,
+  MatchSet,
   MatchSettings,
   MatchTableContent,
 } from "@workspace/contracts/match";
+import { buildMini } from "./mini-game.ts";
 import { deriveSeed, planGames } from "./pairing.ts";
 
 /**
- * 時刻（HH:MM）を分にする。
- * @param clock 時刻
- * @returns 0時からの分
- */
-function minutesOf(clock: string): number {
-  const [hours = 0, minutes = 0] = clock.split(":").map(Number);
-  return hours * 60 + minutes;
-}
-
-/**
- * 組ごとの試合の数（試合の時間 ÷ 1試合の長さ。上限は GAMES_MAX）。
+ * 組ごとの試合の数（設定の試合の数。match-009）。
  * @param settings 設定
  * @returns 試合の数
  */
 export function gameCountFor(settings: MatchSettings): number {
-  const span = minutesOf(settings.endTime) - minutesOf(settings.startTime);
-  if (span <= 0 || settings.minutesPerGame <= 0) return 0;
-  return Math.min(GAMES_MAX, Math.floor(span / settings.minutesPerGame));
+  return settings.gameCount;
 }
 
 /**
- * 今のレベルの分け方の組。
+ * 今の分け方の組（レベル別の組 +〈分けないなら〉全員の組）。
  * @param content 試合表の中身
- * @returns 組（上のレベルから）
+ * @returns 組（レベル別の組を上のレベルから、そのあとに全員）
  */
 export function groupsOf(content: Pick<MatchTableContent, "settings">): readonly MatchGroup[] {
-  return MATCH_GROUPS[content.settings.grouping];
+  return matchGroupsOf(content.settings);
+}
+
+/**
+ * 選んだ分け方（試合表の画面の「分け方」のタブの順：レベル別・分けない・ミニゲーム）。
+ * @param settings 設定
+ * @returns 分け方
+ */
+export function setsOf(settings: MatchSettings): MatchSet[] {
+  return [
+    ...(settings.levels ? (["levels"] as const) : []),
+    ...(settings.ungrouped ? (["ungrouped"] as const) : []),
+    ...(settings.courts !== null ? (["mini"] as const) : []),
+  ];
+}
+
+/**
+ * 分け方の組（レベル別ならレベル別の組、分けないなら全員の組。ミニゲームは組を持たない）。
+ * @param content 試合表の中身
+ * @param set 分け方
+ * @returns 組
+ */
+export function groupsOfSet(
+  content: Pick<MatchTableContent, "settings">,
+  set: MatchSet,
+): readonly MatchGroup[] {
+  if (set === "mini") return [];
+  return groupsOf(content).filter((group) => groupSetOf(group.key) === set);
 }
 
 /**
@@ -157,14 +177,15 @@ function planGroup(
   const before = content.plan.find((plan) => plan.key === group.key);
   // 試合のなかった組（人が足りなかった組）を当日に組むときは、ほかの組が進んだ分だけ行を減らす（時間は同じだけ進んでいる）
   const fresh = !before || (before.games.length === 0 && before.offset === undefined);
-  const offset = before?.offset ?? (fresh && kept.length === 0 ? -tableElapsed(content.plan) : 0);
+  const offset =
+    before?.offset ?? (fresh && kept.length === 0 ? -setElapsed(content.plan, group.key) : 0);
   const games = planGames({
     players: pairingPlayersOf(content, group),
     playersPerGame: size,
     gameCount: Math.max(0, targetGameCount(content.settings, { offset }) - kept.length),
     seed: deriveSeed(seed, `${group.key}:${kept.length}`),
     history: [...archivedHistoryOf(content, group), ...kept.map((game) => game.players)],
-    ...(content.settings.grouping === "none" ? { maxLevelSpread: UNGROUPED_MAX_LEVEL_SPREAD } : {}),
+    ...(group.key === "all" ? { maxLevelSpread: UNGROUPED_MAX_LEVEL_SPREAD } : {}),
   });
   return {
     key: group.key,
@@ -209,6 +230,17 @@ export function tableElapsed(plan: readonly MatchGroupPlan[]): number {
 }
 
 /**
+ * 同じ分け方の組の進んだ試合の数（レベル別の組どうし・全員の組だけ。別の分け方は別の時間に進むため。match-009 research R3）。
+ * @param plan 組ごとの試合
+ * @param key 組の key（この組と同じ分け方の組で数える）
+ * @returns 進んだ試合の数
+ */
+export function setElapsed(plan: readonly MatchGroupPlan[], key: MatchGroupKey): number {
+  const set = groupSetOf(key);
+  return tableElapsed(plan.filter((entry) => groupSetOf(entry.key) === set));
+}
+
+/**
  * 試合表を組む（組み直す）。終わった試合までは残し、その先を組む。試合の形が変わった組の試合は残さない
  * （人数が合わないため。当日に試合の形や分け方を変えたときは、先に regroup.ts の changeSettings で終わった試合を移しておく）。
  * 前の分け方・試合の形で終わった試合（archive）も数に入れて、試合の数を均す。
@@ -223,6 +255,18 @@ export function buildPlan(content: MatchTableContent, seed: number): MatchGroupP
     const kept = keptGames(before).filter((game) => game.players.length === size);
     return planGroup(content, seed, group, kept);
   });
+}
+
+/**
+ * 組み合わせとミニゲームのチーム分けをまとめて作る（「試合表を作る」「組み直す」「別の組み合わせにする」）。
+ * @param content 試合表の中身
+ * @param seed くじの種
+ * @returns 組み合わせとチーム分けを入れた中身（ミニゲームを選んでいない・組めないときはチーム分けを持たない）
+ */
+export function rebuild(content: MatchTableContent, seed: number): MatchTableContent {
+  const { mini: _old, ...rest } = content;
+  const mini = buildMini(content, seed);
+  return { ...rest, plan: buildPlan(content, seed), ...(mini ? { mini } : {}) };
 }
 
 /**

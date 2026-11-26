@@ -1,6 +1,7 @@
 // 見せる・受け付ける窓口の結合のテスト（本物の PostgreSQL。match-004）：
 // - 見るだけの札：作る・作り直すと前の札は 404・期限を過ぎた札は 404・形の違う札は 404・権限・期限の決め方
-// - 見るだけのページ：ログインなし・no-store と noindex・呼び名と組み合わせと進み具合だけ（レベル・名簿の人の ID・氏名は出さない）
+// - 見るだけのページ：ログインなし・no-store と noindex・呼び名と組み合わせと進み具合だけ（レベル・名簿の人の ID・氏名は出さない）・
+//   ミニゲームのチームは呼び名だけ・前の形の中身も読める（match-009）
 // - 受付：ログインなしで呼び名とレベルだけを受ける（strict）・締めた札と期限を過ぎた札は 404・100人まで・同じ名前の印・
 //   一覧と消す・アプリが見えないときの 404
 import "@hono/zod-openapi";
@@ -125,13 +126,80 @@ describe("見せる・受け付ける窓口", () => {
     // 人ごとのレベル・名簿の人の ID・当日の印・担当の端末・持ち主は出さない（組の key と言葉は、どのレベルの表かを示すだけ）
     expect(text).not.toMatch(/"level"|"status"|"players":\[\{|"id"|editorDeviceId|owner|"a","b"/u);
     expect(Object.keys(view).sort()).toEqual(
-      ["expiresAt", "groups", "minutesPerGame", "name", "playDate", "updatedAt", "version"].sort(),
+      ["expiresAt", "groups", "name", "playDate", "updatedAt", "version"].sort(),
     );
 
     const version = await call(app, "", `/api/v1/match/views/${link.token}/version`);
     expect(version.status).toBe(200);
     expect(version.headers.get("x-robots-tag")).toContain("noindex");
     expect(await version.json()).toEqual({ version: table.version });
+  });
+
+  it("ミニゲームのチームは呼び名だけ、分けないの組も並べて返す（match-009）", async () => {
+    const both: MatchTableContent = {
+      ...CONTENT,
+      settings: { ...CONTENT.settings, ungrouped: true, courts: 1 },
+      plan: [
+        ...CONTENT.plan,
+        { key: "all", games: [{ players: ["a", "c", "b", "d"], done: false }] },
+      ],
+      mini: {
+        teams: [
+          ["a", "d"],
+          ["b", "c"],
+        ],
+      },
+    };
+    const saved = await updateTable(app, owner.cookie, table, both);
+    expect(saved.status).toBe(200);
+    const link = await issueView();
+    const response = await call(app, "", `/api/v1/match/views/${link.token}`);
+    const text = await response.text();
+    const view = JSON.parse(text) as MatchView;
+    expect(view.groups.map((group) => group.key)).toEqual([
+      "advanced",
+      "intermediate",
+      "beginner",
+      "novice",
+      "all",
+    ]);
+    expect(view.teams).toEqual([
+      ["高橋", "渡辺"],
+      ["佐藤美", "伊藤"],
+    ]);
+    expect(text).not.toMatch(/"level"|"courts"|"a","d"/u);
+  });
+
+  it("前の形の中身（1試合の長さと試合の時間）を DB に持つ試合表も、読めて直せる（match-009）", async () => {
+    await database.db
+      .update(matchTable)
+      .set({
+        content: {
+          ...CONTENT,
+          settings: {
+            format: "doubles",
+            grouping: "four",
+            minutesPerGame: 15,
+            startTime: "12:30",
+            endTime: "14:30",
+          },
+        },
+      })
+      .where(eq(matchTable.id, table.id));
+    const read = await call(app, owner.cookie, `${MATCH_TABLES}/${table.id}`);
+    expect(read.status).toBe(200);
+    const current = (await read.json()) as MatchTable;
+    expect(current.content.settings).toEqual({
+      format: "doubles",
+      gameCount: 8,
+      levels: "four",
+      ungrouped: false,
+      courts: null,
+    });
+    const link = await issueView();
+    const view = await call(app, "", `/api/v1/match/views/${link.token}`);
+    expect(view.status).toBe(200);
+    expect(((await view.json()) as MatchView).groups[0]?.games).toHaveLength(2);
   });
 
   it("作り直すと前の札は 404・期限を過ぎた札は 404・形の違う札は 404（どれも同じ答え）", async () => {
