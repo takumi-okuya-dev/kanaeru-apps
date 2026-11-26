@@ -11,22 +11,12 @@ import { useState } from "react";
 import { errorMessage } from "../../lib/api.ts";
 import { Page } from "../../lib/page.tsx";
 import { issueViewLink } from "./api.ts";
-import { formatPlayDate } from "./format.ts";
+import { expiryText } from "./format.ts";
 import { useStoredLink } from "./link-store.ts";
 import { MATCH_ROUTE_PATTERNS, matchPaths } from "./paths.ts";
 import { QrCode } from "./qr.tsx";
 import { MATCH_QUERY_KEYS } from "./queries.ts";
 import { TableFrame } from "./TableFrame.tsx";
-
-/**
- * 期限の文（例：「2026/12/13(日) の終わりまで」）。期限は日本時間の翌日0時なので、1ミリ秒前の日付を出す。
- * @param expiresAt 期限（ISO 8601）
- * @returns 文
- */
-export function expiryText(expiresAt: string): string {
-  const last = new Date(Date.parse(expiresAt) - 1 + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  return `${formatPlayDate(last)} の終わりまで`;
-}
 
 /**
  * 見るだけのページのリンクの中身。
