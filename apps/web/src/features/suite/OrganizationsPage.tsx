@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Field } from "@workspace/ui/components/field";
 import { Input } from "@workspace/ui/components/input";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
@@ -83,14 +84,16 @@ function CreateForm({ adminCount, adminLimit }: { adminCount: number; adminLimit
           <Input value={name} onChange={(change) => setName(change.target.value)} />
         </Field>
         <div className="flex flex-col items-start gap-xxs">
-          <Button
-            type="submit"
-            variant="primary"
-            aria-disabled={pending || undefined}
-            aria-busy={pending || undefined}
-          >
-            {pending ? "作っています…" : "組織を作る"}
-          </Button>
+          <ButtonRow>
+            <Button
+              type="submit"
+              variant="primary"
+              aria-disabled={pending || undefined}
+              aria-busy={pending || undefined}
+            >
+              {pending ? "作っています…" : "組織を作る"}
+            </Button>
+          </ButtonRow>
           {failure ? <ResponseMessage tone="danger">{failure}</ResponseMessage> : null}
         </div>
       </form>
@@ -116,7 +119,9 @@ function OrganizationsContent() {
       ) : query.isError ? (
         <div className="flex flex-col items-start gap-xxs">
           <p className="text-m">{errorMessage(query.error)}</p>
-          <Button onClick={() => void query.refetch()}>もう一度</Button>
+          <ButtonRow>
+            <Button onClick={() => void query.refetch()}>もう一度</Button>
+          </ButtonRow>
         </div>
       ) : (
         <>
