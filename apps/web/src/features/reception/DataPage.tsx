@@ -9,6 +9,7 @@ import type { CheckinView } from "@workspace/contracts/reception";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useState } from "react";
@@ -67,14 +68,16 @@ function ExportSection({ event }: { event: EventView }) {
         で開ける CSV にします。
       </p>
       <div className="flex flex-col items-start gap-xxs">
-        <Button
-          aria-disabled={mutation.isPending || undefined}
-          onClick={() => {
-            if (!mutation.isPending) mutation.mutate();
-          }}
-        >
-          {mutation.isPending ? "書き出しています…" : "参加者をCSVで書き出す"}
-        </Button>
+        <ButtonRow>
+          <Button
+            aria-disabled={mutation.isPending || undefined}
+            onClick={() => {
+              if (!mutation.isPending) mutation.mutate();
+            }}
+          >
+            {mutation.isPending ? "書き出しています…" : "参加者をCSVで書き出す"}
+          </Button>
+        </ButtonRow>
         {mutation.isSuccess ? (
           <ResponseMessage tone="success">{`${mutation.data.filename} を保存しました。`}</ResponseMessage>
         ) : null}
