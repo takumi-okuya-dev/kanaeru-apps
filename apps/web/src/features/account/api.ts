@@ -1,8 +1,18 @@
 // アカウントの窓口の呼び出し（型は apps/api/src/client.ts の ModuleRoutes["account"] から import type で読む）。
 // 読み書きはすべて lib/api.ts の request を通す（エラーの読み方と 401 の知らせをそろえる）。
-import type { TestLoginInput } from "@workspace/contracts/account";
+import {
+  ConsentResponse as ConsentResponseSchema,
+  ConsentViewResult as ConsentViewResultSchema,
+  OAuthErrorResponse,
+} from "@workspace/contracts/account";
+import type {
+  AuthorizeQuery,
+  ConsentViewResultData,
+  ConsentDecisionInput,
+  TestLoginInput,
+} from "@workspace/contracts/account";
 import type { ModuleRoutes } from "../../../../api/src/client.ts";
-import { createApiClient, request } from "../../lib/api.ts";
+import { NetworkError, apiErrorFrom, createApiClient, request } from "../../lib/api.ts";
 
 let client: ReturnType<typeof createApiClient<ModuleRoutes["account"]>> | undefined;
 
@@ -64,4 +74,63 @@ export function fetchWithdrawalPreview() {
  */
 export function deleteMe() {
   return request(() => api().api.v1.accounts.me.$delete());
+}
+
+/** 同意の表示の窓口が、戻り先を信じられない要求として断ったとき（RFC 6749 の形。もう一度では直らない）。 */
+export class ConsentRequestError extends Error {
+  /** RFC 6749 の error */
+  readonly error: string;
+
+  /**
+   * 断られた理由から作る。
+   * @param error RFC 6749 の error
+   * @param description 説明
+   */
+  constructor(error: string, description: string) {
+    super(description);
+    this.name = "ConsentRequestError";
+    this.error = error;
+  }
+}
+
+/**
+ * 同意の画面に出すもの（クライアントの名前・戻り先・範囲の説明）を読む。
+ * 戻り先へ返すべき失敗なら、進む先（redirectTo）が返る。
+ * 同意の道（/api/oauth）は領域の型の外なので、fetch を直接呼び、形は contract で確かめる。
+ * @param query 認可の要求の項目
+ * @returns 同意の画面に出すもの、または進む先
+ * @throws {ConsentRequestError} 戻り先を信じられない要求のとき
+ * @throws {ApiError} ほかの失敗（ログインしていないなど）
+ */
+export async function fetchConsentView(query: AuthorizeQuery): Promise<ConsentViewResultData> {
+  const params = new URLSearchParams(query);
+  let response: Response;
+  try {
+    response = await fetch(`/api/oauth/authorize/consent?${params.toString()}`, { credentials: "same-origin" });
+  } catch (error) {
+    throw new NetworkError(error);
+  }
+  if (response.status === 400) {
+    const body = OAuthErrorResponse.safeParse(await response.clone().json().catch(() => undefined));
+    if (body.success) throw new ConsentRequestError(body.data.error, body.data.error_description ?? "");
+  }
+  if (!response.ok) throw await apiErrorFrom(response);
+  return ConsentViewResultSchema.parse(await response.json());
+}
+
+/**
+ * 同意の決め（許す・断る）を送り、戻り先の URL を受け取る。
+ * @param input 認可の要求の項目と、決め・許した範囲
+ * @returns 戻り先の URL
+ */
+export async function decideConsent(input: ConsentDecisionInput): Promise<{ redirectTo: string }> {
+  const body = await request(() =>
+    fetch("/api/oauth/authorize/decision", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+  );
+  return ConsentResponseSchema.parse(body);
 }
