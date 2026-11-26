@@ -12,6 +12,7 @@ import {
   REFERRAL_LABELS,
 } from "@workspace/contracts/reception";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { errorMessage } from "../../lib/api.ts";
 import { formatFee } from "../event/index.ts";
@@ -228,9 +229,11 @@ export function TotalsTab({
                 {`内訳を読みこめませんでした。${errorMessage(breakdownError)}`}
               </ResponseMessage>
               {onRetryBreakdown ? (
-                <Button type="button" className="min-h-xl" onClick={onRetryBreakdown}>
-                  もう一度
-                </Button>
+                <ButtonRow>
+                  <Button type="button" onClick={onRetryBreakdown}>
+                    もう一度
+                  </Button>
+                </ButtonRow>
               ) : null}
             </div>
           ) : (

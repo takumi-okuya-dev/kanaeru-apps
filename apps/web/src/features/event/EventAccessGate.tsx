@@ -5,6 +5,7 @@ import { isNightStopWindow } from "@workspace/contracts/core";
 import type { EventRole, EventView } from "@workspace/contracts/event";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import type * as React from "react";
 import { ApiError, errorMessage } from "../../lib/api.ts";
 import { Page } from "../../lib/page.tsx";
@@ -85,9 +86,9 @@ export function EventLoadFailure({ error, retry }: LoadFailureProps) {
   }
   return (
     <Page title="読みこめませんでした" lead={errorMessage(error)}>
-      <div>
+      <ButtonRow>
         <Button onClick={retry}>もう一度</Button>
-      </div>
+      </ButtonRow>
     </Page>
   );
 }
