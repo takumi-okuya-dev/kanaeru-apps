@@ -78,8 +78,9 @@ function FeedbackForm() {
     setPending(true);
     sendFeedback(parsed.data)
       .then(() => {
-        setBody("");
-        setAppKey("");
+        // 送っている間に書き直した分は消さない（送った値のままの欄だけ空にする）
+        setBody((current) => (current === body ? "" : current));
+        setAppKey((current) => (current === appKey ? "" : current));
         setResult({ tone: "success", text: "送りました。ありがとうございます。" });
       })
       .catch((caught: unknown) => {

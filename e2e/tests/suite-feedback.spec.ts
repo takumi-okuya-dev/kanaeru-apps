@@ -65,6 +65,24 @@ test("改善点を送り、運営者が届いた改善点で読んで済みに�
   await expect(page.getByText("送りました。ありがとうございます。")).toBeVisible();
   await expect(page.getByRole("textbox", { name: "困ったこと・ほしいこと" })).toHaveValue("");
 
+  // 送っている間に書き直した分は、送り終えても消えない（送りを遅らせて確かめる）
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/v1/suite/feedback", async (route) => {
+    await gate;
+    await route.continue();
+  });
+  const textbox = page.getByRole("textbox", { name: "困ったこと・ほしいこと" });
+  await textbox.fill("2回目の要望");
+  await page.getByRole("button", { name: "送る" }).click();
+  await textbox.fill("書きかけの次の要望");
+  release();
+  await expect(page.getByText("送りました。ありがとうございます。")).toBeVisible();
+  await expect(textbox).toHaveValue("書きかけの次の要望");
+  await page.unroute("**/api/v1/suite/feedback");
+
   // 運営者でない人は、届いた改善点を開けない
   await page.goto("/settings/feedback/inbox");
   await expect(page.getByText("運営者だけが開ける画面です")).toBeVisible();
