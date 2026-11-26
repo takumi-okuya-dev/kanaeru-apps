@@ -227,7 +227,7 @@ function ImportActions({
       {hasRoster ? (
         // 名簿が入ったあとは、ボタン1つから入れ方を開く（画面をすっきりさせる。match-011）
         <div className="flex flex-col items-start gap-xxs">
-          <ButtonRow className="w-full">
+          <ButtonRow>
             <Button
               disabled={disabled}
               aria-expanded={methodsOpen}
