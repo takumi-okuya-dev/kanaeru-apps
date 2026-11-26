@@ -1,5 +1,5 @@
 // M1 名簿と設定（/match/tables/$tableId）。モックアップの M1。
-// - 名簿の入れ方：受付の交流会から（チェックインした人か申込みの名簿。前に入れたレベルを使う。FR-M4・match-006）・
+// - 名簿の入れ方（空のときは1行の説明つきのカード、入ったあとは「名簿を足す・入れ直す」から開く。match-011）：受付の交流会から（チェックインした人か申込みの名簿。前に入れたレベルを使う。FR-M4・match-006）・
 //   フォームの回答をスプレッドシートからコピーして貼り付ける（主な入れ方。FR-M30）・CSV のファイルを読む（FR-M1）・
 //   1人足す（FR-M3）。貼った表と CSV は画面の中で読み（lib/csv-read.ts）、名簿に入れる前に列の確かめ（ColumnCheckDialog.tsx。
 //   match-008）で氏名・レベル・回答の日時の列を確かめ、その3つだけを使う。メール・ラケット・
@@ -11,6 +11,7 @@
 // - 設定：試合の数・試合の形・分け方（レベル別〈4つ・3つ・2つ〉・分けない・ミニゲーム〈コート数〉を組み合わせる。match-009）。
 //   組ごとの人数と試合の数・ミニゲームのチームの数を出す
 // - 「試合表を作る」（作ってあれば「組み直す」。終わった試合は残す）で組み、試合表の画面へ移る
+// - 題の下に手順（① 名簿を入れる → ② 分け方と試合の数を選ぶ → ③ 試合表を作る。RosterSteps.tsx。match-011）
 // 直すたびに担当の端末から保存する（AD-28。table-editor.ts）。担当でない端末は見るだけ。
 // QR の受付で入った人は、担当の端末で開くと名簿に入る（use-joins.ts。match-004）。同じ呼び名の人には「同じ名前」の印。
 import {
@@ -50,7 +51,7 @@ import { Field } from "@workspace/ui/components/field";
 import { Input, inputClassName } from "@workspace/ui/components/input";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { Textarea } from "@workspace/ui/components/textarea";
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { decodeCsv, parseCsv } from "../../lib/csv-read.ts";
 import type { ParsedCsv } from "../../lib/csv-read.ts";
 import { fieldErrorsFromIssues } from "../../lib/form.ts";
@@ -71,6 +72,8 @@ import type { RosterReadResult } from "./roster-read.ts";
 import { ColumnCheckDialog } from "./ColumnCheckDialog.tsx";
 import { ReceptionImportDialog } from "./ReceptionImportDialog.tsx";
 import { ReceptionEventNote } from "./ReceptionEventNote.tsx";
+import { RosterSteps } from "./RosterSteps.tsx";
+import { rosterSteps } from "./steps.ts";
 import { EditorState, TableFrame } from "./TableFrame.tsx";
 import type { TableEditor } from "./table-editor.ts";
 
@@ -116,6 +119,14 @@ function ImportActions({
   const [text, setText] = useState("");
   const [mode, setMode] = useState<ImportMode>("replace");
   const [message, setMessage] = useState<{ tone: "success" | "danger"; text: string }>();
+  const [methodsOpen, setMethodsOpen] = useState(false);
+  // 名簿が空になった・入ったら、「名簿を足す・入れ直す」は閉じた形から始める
+  const [rosterShown, setRosterShown] = useState(table.content.players.length > 0);
+  if (rosterShown !== table.content.players.length > 0) {
+    setRosterShown(table.content.players.length > 0);
+    setMethodsOpen(false);
+  }
+  const methodsId = useId();
   const [pending, setPending] = useState<{
     parsed: ParsedCsv;
     mode: ImportMode;
@@ -126,6 +137,37 @@ function ImportActions({
   const fileRef = useRef<HTMLInputElement>(null);
   const disabled = !editor.isEditor;
   const hasRoster = table.content.players.length > 0;
+  /** 名簿の入れ方（よく使うものを上に。カードの説明は1行で、いつ使うかが分かる言葉にする。match-011）。 */
+  const methods = [
+    {
+      key: "paste",
+      label: "フォームから貼り付ける",
+      note: "Google フォームの回答を、スプレッドシートからコピーして貼る",
+      recommended: true,
+      run: () => setPasteOpen(true),
+    },
+    {
+      key: "reception",
+      label: "受付の交流会から",
+      note: "受付アプリでチェックインした人・申込みの名簿を入れる",
+      recommended: false,
+      run: () => setReceptionOpen(true),
+    },
+    {
+      key: "csv",
+      label: "Google フォームの CSV を読む",
+      note: "フォームの回答の画面から「CSV をダウンロード」したファイルを選ぶ",
+      recommended: false,
+      run: () => fileRef.current?.click(),
+    },
+    {
+      key: "add",
+      label: "1人足す",
+      note: "人が少ないとき・当日に来た人を、手で1人ずつ",
+      recommended: false,
+      run: () => setAddOpen(true),
+    },
+  ];
 
   /**
    * 貼った文字かファイルの文字を表として読み、列の確かめの枠を開く。
@@ -181,19 +223,55 @@ function ImportActions({
 
   return (
     <div className="flex flex-col gap-xxs">
-      <div className="flex flex-wrap gap-xxs">
-        <Button size="small" disabled={disabled} onClick={() => setReceptionOpen(true)}>
-          受付の交流会から
-        </Button>
-        <Button size="small" disabled={disabled} onClick={() => setPasteOpen(true)}>
-          フォームから貼り付ける
-        </Button>
-        <Button size="small" disabled={disabled} onClick={() => fileRef.current?.click()}>
-          CSV を読む
-        </Button>
-        <Button size="small" disabled={disabled} onClick={() => setAddOpen(true)}>
-          1人足す
-        </Button>
+      {hasRoster ? (
+        // 名簿が入ったあとは、ボタン1つから入れ方を開く（画面をすっきりさせる。match-011）
+        <div className="flex flex-col items-start gap-xxs">
+          <Button
+            size="small"
+            disabled={disabled}
+            aria-expanded={methodsOpen}
+            aria-controls={methodsId}
+            onClick={() => setMethodsOpen(!methodsOpen)}
+          >
+            {methodsOpen ? "名簿を足す・入れ直す（閉じる）" : "名簿を足す・入れ直す"}
+          </Button>
+          {methodsOpen ? (
+            <div id={methodsId} className="flex flex-wrap gap-xxs">
+              {methods.map((method) => (
+                <Button
+                  key={method.key}
+                  size="small"
+                  disabled={disabled}
+                  // 選んでも閉じない（押したボタンを残し、ダイアログを閉じたらフォーカスがここへ戻るように）
+                  onClick={method.run}
+                >
+                  {method.label}
+                </Button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        // 名簿が空のときは、入れ方を1行の説明つきのカードで並べ、よく使うものを上に（match-011）
+        <ul aria-label="名簿の入れ方" className="grid grid-cols-1 gap-xxs wide:grid-cols-2">
+          {methods.map((method) => (
+            <li key={method.key}>
+              <Button
+                disabled={disabled}
+                onClick={method.run}
+                className="h-auto w-full flex-col items-start gap-x3s py-xxs text-left whitespace-normal"
+              >
+                <span className="flex flex-wrap items-center gap-xxs text-m font-bold">
+                  {method.label}
+                  {method.recommended ? <Badge>よく使う</Badge> : null}
+                </span>
+                <span className="text-s font-normal text-text-sub">{method.note}</span>
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div>
         <input
           ref={fileRef}
           type="file"
@@ -424,7 +502,7 @@ function RosterTable({
   if (players.length === 0) {
     return (
       <p className="text-m text-text-sub">
-        まだ名簿はありません。「受付の交流会から」「フォームから貼り付ける」か「1人足す」で入れてください。
+        まだ名簿はありません。上の入れ方から1つ選んで入れてください。
       </p>
     );
   }
@@ -609,11 +687,10 @@ function SettingsCard({ table, editor }: BodyProps) {
   const disabled = !editor.isEditor;
   const summaries = summarizeGroups(table.content);
   const mini = miniSummary(table.content);
-  const planned =
-    table.content.plan.some((plan) => plan.games.length > 0) || table.content.mini !== undefined;
-  const noLevel = table.content.players.filter(
-    (player) => player.status === "present" && player.level === null,
-  ).length;
+  // 組んだか・レベルのない人の数は、手順（steps.ts）と同じ決め方を使う
+  const steps = rosterSteps(table.content);
+  const planned = steps.done.includes("build");
+  const noLevel = steps.noLevel;
 
   /**
    * 設定を確かめる（誤りは欄のそば）。
@@ -678,7 +755,7 @@ function SettingsCard({ table, editor }: BodyProps) {
       aria-labelledby="match-settings"
       className="flex flex-col gap-xs rounded-md border border-border bg-surface p-xs"
     >
-      <h2 id="match-settings" className="text-l font-bold">
+      <h2 id="match-settings" tabIndex={-1} className="scroll-mt-s text-l font-bold outline-none">
         試合の設定
       </h2>
       <div className="grid grid-cols-1 gap-xs wide:grid-cols-3">
@@ -820,6 +897,7 @@ function SettingsCard({ table, editor }: BodyProps) {
       </div>
       <div className="flex flex-col items-start gap-xxs">
         <Button
+          id="match-build"
           variant="primary"
           disabled={disabled}
           onClick={() => {
@@ -904,22 +982,19 @@ function RosterBody({ table, editor }: BodyProps) {
     <Page title={table.name} lead={formatPlayDate(table.playDate)}>
       <ReceptionEventNote source={table.content.receptionEvent} link={table.receptionEvent} />
       <EditorState editor={editor} />
+      <RosterSteps table={table} />
       <section aria-labelledby="match-roster" className="flex flex-col gap-xs">
-        <div className="flex flex-wrap items-center justify-between gap-xxs">
-          <h2 id="match-roster" className="text-l font-bold">
-            名簿
-          </h2>
-          <ImportActions
-            table={table}
-            editor={editor}
-            onNames={(names, mode) => {
-              setFullNames((before) =>
-                mode === "append" ? new Map([...before, ...names]) : names,
-              );
-              setImports((count) => count + 1);
-            }}
-          />
-        </div>
+        <h2 id="match-roster" tabIndex={-1} className="scroll-mt-s text-l font-bold outline-none">
+          名簿
+        </h2>
+        <ImportActions
+          table={table}
+          editor={editor}
+          onNames={(names, mode) => {
+            setFullNames((before) => (mode === "append" ? new Map([...before, ...names]) : names));
+            setImports((count) => count + 1);
+          }}
+        />
         <p className="flex flex-wrap gap-x-s text-m text-text-sub">
           <span>
             <b className="text-text">{counts.present}人</b>（{levels}）

@@ -184,6 +184,14 @@ test("貼り付けた名簿から試合表を作り、進めて、印刷の版�
   await page.getByRole("button", { name: "作る" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "12/13(日) 練習会" })).toBeVisible();
   await expect(page.getByText("まだ名簿はありません。")).toBeVisible();
+  // 手順（match-011）：①が今。押すと名簿の見出しへ移る
+  const steps = page.getByRole("navigation", { name: "試合表を作る手順" });
+  await expect(steps.getByRole("button", { name: /名簿を入れる（今）/u })).toHaveAttribute(
+    "aria-current",
+    "step",
+  );
+  await steps.getByRole("button", { name: /名簿を入れる/u }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "名簿" })).toBeFocused();
 
   // M1 フォームから貼り付ける：氏名とレベルだけを読み、呼び名は姓（同じ姓は名の1字・空白なしは印）
   await page.getByRole("button", { name: "フォームから貼り付ける" }).click();
@@ -198,6 +206,9 @@ test("貼り付けた名簿から試合表を作り、進めて、印刷の版�
   await checkPage(page, "列の確かめ");
   await check.getByRole("button", { name: "この列で16人を取り込む" }).click();
   await expect(page.getByText("16人を名簿に入れました。")).toBeVisible();
+  // 名簿を入れると①は済み・②が今
+  await expect(steps.getByRole("button", { name: /分け方と試合の数を選ぶ（今）/u })).toBeVisible();
+  await expect(steps.getByRole("button", { name: /名簿を入れる\s*（済み）/u })).toBeVisible();
   await waitSaved(page);
   await expect(page.getByRole("textbox", { name: "佐藤美の呼び名" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "佐藤健の呼び名" })).toBeVisible();
@@ -215,7 +226,7 @@ test("貼り付けた名簿から試合表を作り、進めて、印刷の版�
   await expect(page.getByText("7人・8試合")).toBeVisible();
 
   // 試合表を作る → M2 試合表（上級・中級・初級＆入門のタブ。1行に4人・見出しなし）
-  await page.getByRole("button", { name: "試合表を作る" }).click();
+  await page.getByRole("button", { name: "試合表を作る", exact: true }).click();
   await expect(page.getByText("試合表を作りました。")).toBeVisible();
   await waitSaved(page);
   await expect(page.getByRole("tab", { name: /上級/u })).toHaveAttribute("aria-selected", "true");
@@ -262,10 +273,16 @@ test("貼り付けた名簿から試合表を作り、進めて、印刷の版�
 
   // M6 シングルス：試合の形を変えると合わない試合を外す（確かめる）→ 作り直すと、名前は2列
   await page.goto(page.url().replace(/\/print$/u, ""));
+  // 組んだあとは手順がみな済み。「試合表を見る」から試合表へ進める
+  await expect(
+    page
+      .getByRole("navigation", { name: "試合表を作る手順" })
+      .getByRole("link", { name: /試合表を見る/u }),
+  ).toBeVisible();
   await page.getByRole("radio", { name: "シングルス" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "変える" }).click();
   await waitSaved(page);
-  await page.getByRole("button", { name: "試合表を作る" }).click();
+  await page.getByRole("button", { name: "試合表を作る", exact: true }).click();
   await waitSaved(page);
   const singles = page.getByRole("table", { name: "上級の試合表" });
   await expect(singles.getByRole("row").first().getByRole("cell")).toHaveCount(4);
@@ -376,7 +393,7 @@ test("試合の数を入れ、レベル別と分けないとミニゲームを�
   await waitSaved(page);
 
   // 試合表：分け方のタブで切り替える
-  await page.getByRole("button", { name: "試合表を作る" }).click();
+  await page.getByRole("button", { name: "試合表を作る", exact: true }).click();
   await waitSaved(page);
   await expect(page.getByRole("tab", { name: "レベル別" })).toHaveAttribute(
     "aria-selected",
@@ -607,7 +624,7 @@ test("当日：人を選んで直す・分け方を変える・大きく映す�
 
   // 組む → 上級の第1試合にチェック
   await page.goto(`/match/tables/${table.id}`);
-  await page.getByRole("button", { name: "試合表を作る" }).click();
+  await page.getByRole("button", { name: "試合表を作る", exact: true }).click();
   await waitSaved(page);
   const advanced = page.getByRole("table", { name: "上級の試合表" });
   await advanced.getByRole("checkbox", { name: "第1試合を終えた" }).check();
