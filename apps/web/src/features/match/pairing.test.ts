@@ -8,14 +8,14 @@
 import {
   INITIAL_CONTENT,
   MATCH_GROUPINGS,
-  MATCH_GROUPS,
   MATCH_LEVELS,
+  settingsOfGrouping,
 } from "@workspace/contracts/match";
 import type { MatchPlayer, MatchTableContent } from "@workspace/contracts/match";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { createRandom, deriveSeed, planGames } from "./pairing.ts";
-import { buildPlan, gameCountFor } from "./plan.ts";
+import { buildPlan, gameCountFor, groupsOf } from "./plan.ts";
 
 /**
  * 人ごとの出た数を数える。
@@ -63,10 +63,9 @@ const contentArb = fc
     ...INITIAL_CONTENT,
     settings: {
       format,
-      grouping,
-      minutesPerGame: 10,
-      startTime: "10:00",
-      endTime: `${String(10 + Math.floor((games * 10) / 60)).padStart(2, "0")}:${String((games * 10) % 60).padStart(2, "0")}`,
+      gameCount: games,
+      ...settingsOfGrouping(grouping),
+      courts: null,
     },
     players: [...players],
     plan: [],
@@ -203,9 +202,8 @@ describe("組む処理（buildPlan）", () => {
           for (const id of ids) expect(statusOf.get(id)).toBe("present");
           if (group.games.length > 0) expect(group.games).toHaveLength(total);
           const count = countGames(group.games.map((game) => game.players));
-          const levels = MATCH_GROUPS[content.settings.grouping].find(
-            (entry) => entry.key === group.key,
-          )?.levels as readonly string[];
+          const levels = groupsOf(content).find((entry) => entry.key === group.key)
+            ?.levels as readonly string[];
           const values = content.players
             .filter(
               (player) =>

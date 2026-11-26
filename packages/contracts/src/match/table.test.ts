@@ -1,5 +1,5 @@
 // 試合表の中身の形：名簿・組み合わせ・設定の確かめ（ほかの欄〈氏名など〉を受けない・ID の重なり・試合の人数・名簿にいない人・
-// 組とレベルの分け方の食い違い・試合の時間の前後）と、選択肢の言葉と組の決まり。
+// 組と分け方の食い違い・試合の数・分け方を1つ以上・ミニゲームのチーム・前の形の設定を直す）と、選択肢の言葉と組の決まり。
 import { describe, expect, it } from "vitest";
 import {
   INITIAL_CONTENT,
@@ -13,6 +13,7 @@ import {
   MatchTableCreateInput,
   PLAYER_STATUSES,
   PLAYER_STATUS_LABELS,
+  matchGroupsOf,
 } from "./index.ts";
 import type { MatchTableContent as Content } from "./index.ts";
 
@@ -169,22 +170,149 @@ describe("試合表の中身", () => {
     );
   });
 
-  it("試合の終わりは始まりより後、1試合は5〜90分、呼び名は1〜20文字", () => {
+  it("試合の数は1〜60の整数、コート数は1〜20、呼び名は1〜20文字（match-009）", () => {
     const content = sample();
-    const reversed = { ...content, settings: { ...content.settings, endTime: "12:00" } };
-    const result = MatchTableContent.safeParse(reversed);
-    expect(result.success).toBe(false);
-    expect(result.error?.issues[0]?.message).toBe("試合の終わりは、始まりより後にしてください。");
-    for (const minutesPerGame of [4, 91, 10.5]) {
+    for (const gameCount of [0, 61, 2.5]) {
       expect(
-        MatchTableContent.safeParse({
-          ...content,
-          settings: { ...content.settings, minutesPerGame },
-        }).success,
+        MatchTableContent.safeParse({ ...content, settings: { ...content.settings, gameCount } })
+          .success,
+      ).toBe(false);
+    }
+    for (const courts of [0, 21, 1.5]) {
+      expect(
+        MatchTableContent.safeParse({ ...content, settings: { ...content.settings, courts } })
+          .success,
       ).toBe(false);
     }
     const long = content.players.map((player) => ({ ...player, nickname: "あ".repeat(21) }));
     expect(MatchTableContent.safeParse({ ...content, players: long }).success).toBe(false);
+  });
+
+  it("分け方を1つも選ばないと、欄のそばに出せる誤りの文を返す（match-009）", () => {
+    const content = sample();
+    const none = {
+      ...content,
+      settings: { ...content.settings, levels: null, ungrouped: false, courts: null },
+      plan: [],
+    };
+    const result = MatchTableContent.safeParse(none);
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toBe("分け方を1つ以上選んでください。");
+    expect(result.error?.issues[0]?.path).toEqual(["settings", "levels"]);
+  });
+
+  it("レベル別と分けないの両方の組を持てる。選んでいない分け方の組は持てない（match-009）", () => {
+    const content = sample();
+    const both = {
+      ...content,
+      settings: { ...content.settings, ungrouped: true },
+      plan: [
+        ...content.plan,
+        { key: "all", games: [{ players: ["a", "b", "c", "d"], done: true }] },
+      ],
+    };
+    expect(MatchTableContent.safeParse(both).success).toBe(true);
+    expect(matchGroupsOf(both.settings).map((group) => group.key)).toEqual([
+      "advanced",
+      "intermediate",
+      "beginner",
+      "novice",
+      "all",
+    ]);
+    const onlyAll = { ...both, settings: { ...both.settings, levels: null }, plan: both.plan };
+    expect(MatchTableContent.safeParse(onlyAll).success).toBe(false);
+  });
+
+  it("ミニゲームのチームは、コート数×2・同じ人は1つのチームまで・名簿にいる人だけ（match-009）", () => {
+    const content = sample();
+    const mini = (teams: string[][], courts: number | null = 1) => ({
+      ...content,
+      settings: { ...content.settings, courts },
+      mini: { teams },
+    });
+    expect(
+      MatchTableContent.safeParse(
+        mini([
+          ["a", "b"],
+          ["c", "d"],
+        ]),
+      ).success,
+    ).toBe(true);
+    expect(MatchTableContent.safeParse(mini([["a", "b"], ["c"]])).success).toBe(true);
+    expect(MatchTableContent.safeParse(mini([["a", "b", "c", "d"]])).success).toBe(false);
+    expect(
+      MatchTableContent.safeParse(
+        mini([
+          ["a", "b"],
+          ["b", "c"],
+        ]),
+      ).success,
+    ).toBe(false);
+    expect(
+      MatchTableContent.safeParse(
+        mini([
+          ["a", "z"],
+          ["c", "d"],
+        ]),
+      ).success,
+    ).toBe(false);
+    expect(
+      MatchTableContent.safeParse(
+        mini(
+          [
+            ["a", "b"],
+            ["c", "d"],
+          ],
+          null,
+        ),
+      ).success,
+    ).toBe(false);
+    expect(MatchTableContent.safeParse(mini([["a", "b"], []])).success).toBe(false);
+  });
+
+  it("前の形の設定（1試合の長さと試合の時間・分け方1つ）は、新しい形に直して読む（match-009）", () => {
+    const content = sample();
+    const legacy = (settings: Record<string, unknown>, plan = content.plan) =>
+      MatchTableContent.parse({ ...content, settings, plan });
+    expect(
+      legacy({
+        format: "doubles",
+        grouping: "four",
+        minutesPerGame: 15,
+        startTime: "12:30",
+        endTime: "14:30",
+      }).settings,
+    ).toEqual({ format: "doubles", gameCount: 8, levels: "four", ungrouped: false, courts: null });
+    const ungrouped = MatchTableContent.parse({
+      ...content,
+      settings: {
+        format: "doubles",
+        grouping: "none",
+        minutesPerGame: 20,
+        startTime: "10:00",
+        endTime: "10:10",
+      },
+      plan: [{ key: "all", games: [] }],
+    });
+    expect(ungrouped.settings).toEqual({
+      format: "doubles",
+      gameCount: 1,
+      levels: null,
+      ungrouped: true,
+      courts: null,
+    });
+    expect(
+      legacy(
+        {
+          format: "singles",
+          grouping: "two",
+          minutesPerGame: 5,
+          startTime: "08:00",
+          endTime: "20:00",
+        },
+        [],
+      ).settings.gameCount,
+    ).toBe(60);
   });
 
   it("作る入力は名前の前後の空白を消し、空なら誤りの文を返す", () => {

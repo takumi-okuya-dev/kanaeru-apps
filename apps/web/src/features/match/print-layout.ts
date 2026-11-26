@@ -177,3 +177,95 @@ export function layoutSheet(input: {
     tooSmall: fontSize < MIN_READABLE_FONT_MM,
   };
 }
+
+/** ミニゲームの印刷の版の大きさ（どれも mm。match-009）。 */
+export type TeamsSheetLayout = {
+  /** 版の幅 */
+  width: number;
+  /** 版の高さ */
+  height: number;
+  /** 題の字の大きさ */
+  titleSize: number;
+  /** 題の下の説明の字の大きさ */
+  subtitleSize: number;
+  /** コートの枠の並びの上の端 */
+  gridTop: number;
+  /** コートの枠の列の数 */
+  cols: number;
+  /** コートの枠の行の数 */
+  rows: number;
+  /** コートの枠1つの幅 */
+  cellWidth: number;
+  /** コートの枠1つの高さ */
+  cellHeight: number;
+  /** 枠の中の1行の高さ */
+  lineHeight: number;
+  /** 名前の字の大きさ */
+  fontSize: number;
+  /** 「コート N」「チーム N」の字の大きさ */
+  headSize: number;
+  /** 下の「PaletKit で作った試合表」の字の大きさ */
+  footerSize: number;
+  /** 名前の字が小さすぎて読みにくい（大きい紙をすすめる） */
+  tooSmall: boolean;
+};
+
+/** ミニゲームの版の、1行の高さと名前の字の大きさの比。 */
+const TEAM_LINE_TO_FONT = 1.6;
+
+/**
+ * ミニゲームの印刷の版の大きさを決める（コートの枠を並べ、枠の中を2つのチームの列に分ける。紙1枚に収め、字は上限まで）。
+ * @param input 紙・コート数・1チームのいちばん多い人数・いちばん長い呼び名の幅
+ * @param input.size 紙の大きさ
+ * @param input.orientation 向き
+ * @param input.courts コート数
+ * @param input.members 1チームのいちばん多い人数
+ * @param input.longestNameEm いちばん長い呼び名の幅（textWidthEm）
+ * @returns 版の大きさ
+ */
+export function layoutTeamsSheet(input: {
+  size: PaperSize;
+  orientation: Orientation;
+  courts: number;
+  members: number;
+  longestNameEm: number;
+}): TeamsSheetLayout {
+  const { width, height } = printableArea(input.size, input.orientation);
+  const titleSize = Math.min(height * 0.05, width * 0.07, MAX_TITLE_MM);
+  const subtitleSize = Math.max(3, titleSize * 0.4);
+  const gridTop = titleSize * 1.3 + subtitleSize * 1.8;
+  const footerSize = Math.min(5, Math.max(3, height * 0.012));
+  const courts = Math.max(1, input.courts);
+  const cols = courts === 1 ? 1 : width > height ? Math.min(3, courts) : 2;
+  const rows = Math.ceil(courts / cols);
+  const cellWidth = width / cols;
+  // 枠の中は「コート N」「チーム N」の2行と、人の行。行の高さは上限までにし、枠は中身の高さに縮める（紙を埋めるまで広げない）
+  const lines = Math.max(1, input.members) + 2.5;
+  const lineHeight = Math.min(
+    (height - gridTop - footerSize * 2) / rows / lines,
+    MAX_FONT_MM * TEAM_LINE_TO_FONT,
+  );
+  const cellHeight = lineHeight * lines;
+  const fontSize = Math.min(
+    lineHeight / TEAM_LINE_TO_FONT,
+    MAX_FONT_MM,
+    (cellWidth * 0.45) / Math.max(2, input.longestNameEm),
+  );
+  const headSize = Math.min(fontSize * 1.1, lineHeight * 0.8);
+  return {
+    width,
+    height,
+    titleSize,
+    subtitleSize,
+    gridTop,
+    cols,
+    rows,
+    cellWidth,
+    cellHeight,
+    lineHeight,
+    fontSize,
+    headSize,
+    footerSize,
+    tooSmall: fontSize < MIN_READABLE_FONT_MM,
+  };
+}

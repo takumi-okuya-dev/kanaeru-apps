@@ -1,6 +1,6 @@
 // 見るだけの札・受付の札・受付の行の読み書き（match の表だけを触る。AD-3・AD-26・AD-30）。
 // 札は SHA-256 だけを持つ（tokens.ts）。受付の行は試合表の中身に直に書かず、1行ずつ足す（担当の端末が名簿に取り込む）。
-import { MATCH_GROUPS, MatchTableContent, joinPlayerId } from "@workspace/contracts/match";
+import { MatchTableContent, joinPlayerId, matchGroupsOf } from "@workspace/contracts/match";
 import type { MatchJoinEntry, MatchLevel, MatchView } from "@workspace/contracts/match";
 import { and, asc, count, eq, gt, isNull } from "drizzle-orm";
 import type { Executor } from "../../kernel/db.ts";
@@ -78,8 +78,7 @@ export async function readView(
     name: row.name,
     playDate: row.playDate,
     version: row.version,
-    minutesPerGame: content.settings.minutesPerGame,
-    groups: MATCH_GROUPS[content.settings.grouping].map((group) => ({
+    groups: matchGroupsOf(content.settings).map((group) => ({
       key: group.key,
       label: group.label,
       games: (content.plan.find((plan) => plan.key === group.key)?.games ?? []).map((game) => ({
@@ -87,6 +86,9 @@ export async function readView(
         done: game.done,
       })),
     })),
+    ...(content.mini
+      ? { teams: content.mini.teams.map((team) => team.map((id) => names.get(id) ?? "")) }
+      : {}),
     updatedAt: row.updatedAt.toISOString(),
     expiresAt: row.expiresAt.toISOString(),
   };
