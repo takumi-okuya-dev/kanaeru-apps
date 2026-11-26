@@ -17,6 +17,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Disclosure } from "@workspace/ui/components/disclosure";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { Field } from "@workspace/ui/components/field";
 import { Input } from "@workspace/ui/components/input";
@@ -108,9 +109,11 @@ function NameSection({ account }: SectionProps) {
           />
         </Field>
         <div className="flex flex-col items-start gap-xxs">
-          <Button type="submit" aria-disabled={pending || undefined}>
-            {pending ? "保存しています…" : "名前を保存"}
-          </Button>
+          <ButtonRow>
+            <Button type="submit" aria-disabled={pending || undefined}>
+              {pending ? "保存しています…" : "名前を保存"}
+            </Button>
+          </ButtonRow>
           {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
         </div>
       </form>
@@ -189,9 +192,11 @@ function CoreRulesSection({ accountId, rules }: RulesSectionProps) {
           />
         </Field>
         <div className="flex flex-col items-start gap-xxs">
-          <Button type="submit" aria-disabled={pending || undefined}>
-            {pending ? "保存しています…" : "投稿のルールを保存"}
-          </Button>
+          <ButtonRow>
+            <Button type="submit" aria-disabled={pending || undefined}>
+              {pending ? "保存しています…" : "投稿のルールを保存"}
+            </Button>
+          </ButtonRow>
           {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
         </div>
       </form>
@@ -350,9 +355,11 @@ function NgWordsSection({ accountId, rules }: RulesSectionProps) {
           />
         </Field>
         <div className="flex flex-col items-start gap-xxs">
-          <Button type="submit" disabled={atLimit} aria-disabled={pending || undefined}>
-            {pending ? "足しています…" : "NGワードを足す"}
-          </Button>
+          <ButtonRow>
+            <Button type="submit" disabled={atLimit} aria-disabled={pending || undefined}>
+              {pending ? "足しています…" : "NGワードを足す"}
+            </Button>
+          </ButtonRow>
           {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
         </div>
       </form>
@@ -430,11 +437,11 @@ function DeleteSection({ account }: SectionProps) {
       <p className="text-m">
         戦略・投稿の案・投稿のルール・NGワード・Threads への接続も一緒に消えます。元に戻せません。
       </p>
-      <div>
+      <ButtonRow>
         <Button variant="danger" onClick={() => setOpen(true)}>
           このアカウントを消す
         </Button>
-      </div>
+      </ButtonRow>
       <ConfirmDialog
         open={open}
         onOpenChange={changeOpen}

@@ -14,6 +14,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Disclosure } from "@workspace/ui/components/disclosure";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { Field } from "@workspace/ui/components/field";
@@ -103,9 +104,15 @@ function MessageForm({ accountId, settings }: { accountId: string; settings: Men
         onValueChange={setDelay}
       />
       <div className="flex flex-col items-start gap-xxs">
-        <Button variant="primary" onClick={() => void save()} aria-disabled={pending || undefined}>
-          {pending ? "保存しています…" : "メンションの設定を保存"}
-        </Button>
+        <ButtonRow>
+          <Button
+            variant="primary"
+            onClick={() => void save()}
+            aria-disabled={pending || undefined}
+          >
+            {pending ? "保存しています…" : "メンションの設定を保存"}
+          </Button>
+        </ButtonRow>
         {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
       </div>
     </div>
@@ -200,9 +207,11 @@ function AddPersonForm({ accountId, count }: { accountId: string; count: number 
         いつも付ける（メンションを付けるとき、はじめから選ぶ）
       </label>
       <div className="flex flex-col items-start gap-xxs">
-        <Button type="submit" aria-disabled={pending || full || undefined}>
-          メンションする人を足す
-        </Button>
+        <ButtonRow>
+          <Button type="submit" aria-disabled={pending || full || undefined}>
+            メンションする人を足す
+          </Button>
+        </ButtonRow>
         {full ? (
           <p className="text-s text-text-sub">{`${MENTION_PEOPLE_MAX}人まで足せます。`}</p>
         ) : null}

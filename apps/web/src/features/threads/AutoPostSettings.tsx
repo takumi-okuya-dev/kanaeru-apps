@@ -14,6 +14,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Disclosure } from "@workspace/ui/components/disclosure";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { Input } from "@workspace/ui/components/input";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
@@ -194,14 +195,15 @@ function ConnectionBody({ accountId, connection }: { accountId: string; connecti
       />
       {connected ? (
         <div className="flex flex-col items-start gap-xxs">
-          <div className="flex flex-wrap gap-xxs">
-            <Button onClick={() => void check()} aria-disabled={checking || undefined}>
-              {checking ? "確かめています…" : "接続を確かめる"}
-            </Button>
+          {/* 危ない操作（接続を切る）は最後（PC の右・スマホの上）に置かない */}
+          <ButtonRow>
             <Button variant="danger" onClick={() => setConfirmOpen(true)}>
               接続を切る
             </Button>
-          </div>
+            <Button onClick={() => void check()} aria-disabled={checking || undefined}>
+              {checking ? "確かめています…" : "接続を確かめる"}
+            </Button>
+          </ButtonRow>
           {checkResult ? (
             <ResponseMessage tone={checkResult.tone}>{checkResult.message}</ResponseMessage>
           ) : null}
@@ -370,15 +372,14 @@ function ScheduleForm({ accountId, view }: { accountId: string; view: PostingSch
             </li>
           ))}
         </ul>
-        <div>
+        <ButtonRow>
           <Button
-            size="small"
             disabled={rows.length >= AUTOPOST_SLOT_LIMIT}
             onClick={() => setRows((current) => [...current, timeRow("")])}
           >
             時刻を足す
           </Button>
-        </div>
+        </ButtonRow>
         {timesError ? (
           <p id={timesErrorId} className="text-s text-danger-text">
             {timesError}
@@ -396,9 +397,11 @@ function ScheduleForm({ accountId, view }: { accountId: string; view: PostingSch
         {limits.minGapMinutes}分以上あけます）
       </label>
       <div className="flex flex-col items-start gap-xxs">
-        <Button type="submit" variant="primary" aria-disabled={pending || undefined}>
-          {pending ? "保存しています…" : "自動投稿の設定を保存"}
-        </Button>
+        <ButtonRow>
+          <Button type="submit" variant="primary" aria-disabled={pending || undefined}>
+            {pending ? "保存しています…" : "自動投稿の設定を保存"}
+          </Button>
+        </ButtonRow>
         {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
       </div>
     </form>

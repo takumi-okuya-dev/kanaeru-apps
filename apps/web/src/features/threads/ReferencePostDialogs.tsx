@@ -7,6 +7,7 @@ import { REFERENCE_BATCH_MAX, isBlank } from "@workspace/contracts/threads";
 import type { ReferencePost } from "@workspace/contracts/threads";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { Dialog } from "@workspace/ui/components/dialog";
 import { Field } from "@workspace/ui/components/field";
@@ -206,7 +207,7 @@ export function AddReferenceDialog({
       title="参考の投稿を足す"
       description="Threads で見つけた反応の良い投稿を、何件かためてまとめて足せます。"
       footer={
-        <div className="flex flex-col-reverse gap-xxs wide:flex-row wide:justify-end">
+        <>
           <Button onClick={requestClose} aria-disabled={pending || undefined}>
             キャンセル
           </Button>
@@ -221,7 +222,7 @@ export function AddReferenceDialog({
                 ? "足す"
                 : `${total.toString()}件を足す`}
           </Button>
-        </div>
+        </>
       }
     >
       <div className="flex flex-col gap-xs">
@@ -265,9 +266,11 @@ export function AddReferenceDialog({
           whyGoodNote="空のままで大丈夫です。足したあとに、解説がまだの参考の投稿をまとめて AI に解説してもらえます。"
         />
         <div className="flex flex-col items-start gap-xxs border-t border-border pt-xs">
-          <Button aria-disabled={pending || !canQueue || undefined} onClick={enqueue}>
-            ＋この投稿をためて、次の投稿を入れる
-          </Button>
+          <ButtonRow>
+            <Button aria-disabled={pending || !canQueue || undefined} onClick={enqueue}>
+              ＋この投稿をためて、次の投稿を入れる
+            </Button>
+          </ButtonRow>
           <p className="text-s text-text-sub">
             参考の投稿はあと{remaining}件まで足せます
             {cap === REFERENCE_BATCH_MAX && queue.length + 1 > cap
@@ -333,7 +336,9 @@ function ExplainOne({ accountId, postId, onUse, paste, setPaste }: ExplainOnePro
         に送り、返ってきた解説を貼ります。画像の投稿なら、画像も一緒に送ってください。
       </p>
       <div className="flex flex-col items-start gap-xxs">
-        <Button onClick={() => void make()}>解説のプロンプトを作る</Button>
+        <ButtonRow>
+          <Button onClick={() => void make()}>解説のプロンプトを作る</Button>
+        </ButtonRow>
         {failure ? <ResponseMessage tone="danger">{failure}</ResponseMessage> : null}
       </div>
       {prompt ? (
@@ -347,7 +352,7 @@ function ExplainOne({ accountId, postId, onUse, paste, setPaste }: ExplainOnePro
       <Field label="AI の解説を貼る">
         <Textarea rows={3} value={paste} onChange={(change) => setPaste(change.target.value)} />
       </Field>
-      <div>
+      <ButtonRow>
         <Button
           aria-disabled={paste.trim() === "" || undefined}
           onClick={() => {
@@ -358,7 +363,7 @@ function ExplainOne({ accountId, postId, onUse, paste, setPaste }: ExplainOnePro
         >
           なぜ良いかに入れる
         </Button>
-      </div>
+      </ButtonRow>
     </div>
   );
 }
@@ -430,7 +435,7 @@ export function EditReferenceDialog({
       }}
       title="参考の投稿を直す"
       footer={
-        <div className="flex flex-col-reverse gap-xxs wide:flex-row wide:justify-end">
+        <>
           <Button onClick={requestClose} aria-disabled={pending || undefined}>
             キャンセル
           </Button>
@@ -441,7 +446,7 @@ export function EditReferenceDialog({
           >
             {pending ? "保存しています…" : "保存"}
           </Button>
-        </div>
+        </>
       }
     >
       <div className="flex flex-col gap-xs">

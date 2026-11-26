@@ -193,7 +193,7 @@ function PasteBackDialog({
         title={title}
         description="プロンプトをコピーして外の AI に貼り、やりとりのあとに出た完成版を、下に貼ります。"
         footer={
-          <div className="flex flex-wrap justify-end gap-xxs">
+          <>
             <Button variant="secondary" onClick={requestClose}>
               やめる
             </Button>
@@ -207,7 +207,7 @@ function PasteBackDialog({
             >
               この項目に入れる
             </Button>
-          </div>
+          </>
         }
       >
         <div className="flex flex-col gap-xs">
@@ -435,7 +435,7 @@ function SparringDialog({
         title={title}
         description="この区分の項目を AI に質問してもらい、やりとりのあとに出た完成版を貼って、選んだ項目に入れます。"
         footer={
-          <div className="flex flex-wrap justify-end gap-xxs">
+          <>
             <Button variant="secondary" onClick={requestClose}>
               やめる
             </Button>
@@ -457,7 +457,7 @@ function SparringDialog({
             >
               選んだ項目に入れる
             </Button>
-          </div>
+          </>
         }
       >
         <div className="flex flex-col gap-xs">

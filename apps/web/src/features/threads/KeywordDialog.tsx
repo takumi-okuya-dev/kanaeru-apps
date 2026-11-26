@@ -89,7 +89,7 @@ export function EditKeywordDialog({
       }}
       title="キーワードを直す"
       footer={
-        <div className="flex flex-col-reverse gap-xxs wide:flex-row wide:justify-end">
+        <>
           <Button onClick={requestClose} aria-disabled={pending || undefined}>
             キャンセル
           </Button>
@@ -100,7 +100,7 @@ export function EditKeywordDialog({
           >
             {pending ? "保存しています…" : "保存"}
           </Button>
-        </div>
+        </>
       }
     >
       <div className="flex flex-col gap-xs">

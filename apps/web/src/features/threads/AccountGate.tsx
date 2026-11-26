@@ -5,6 +5,7 @@ import type { ThreadsAccount } from "@workspace/contracts/threads";
 import { isNightStopWindow } from "@workspace/contracts/core";
 import { Link } from "@tanstack/react-router";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import type * as React from "react";
 import { ApiError, errorMessage } from "../../lib/api.ts";
 import { ThreadsPage } from "./ThreadsPage.tsx";
@@ -34,11 +35,11 @@ export function Loading() {
  */
 function BackToAccounts() {
   return (
-    <div>
+    <ButtonRow>
       <Link to="/threads/accounts" className={buttonVariants({ variant: "secondary" })}>
         アカウントの一覧へ
       </Link>
-    </div>
+    </ButtonRow>
   );
 }
 
@@ -80,9 +81,9 @@ export function LoadFailure({
   }
   return (
     <ThreadsPage title="読みこめませんでした" lead={errorMessage(error)}>
-      <div>
+      <ButtonRow>
         <Button onClick={retry}>もう一度</Button>
-      </div>
+      </ButtonRow>
     </ThreadsPage>
   );
 }

@@ -27,6 +27,7 @@ import type {
 import { useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useBlocker } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { Disclosure } from "@workspace/ui/components/disclosure";
 import { Field } from "@workspace/ui/components/field";
@@ -203,26 +204,28 @@ function SettingsForm({ accountId, settings }: SettingsFormProps) {
             </Field>
           ))}
         </div>
-        <Button
-          type="button"
-          size="small"
-          className="self-start"
-          onClick={() =>
-            setValues((current) => ({
-              ...current,
-              ...Object.fromEntries(
-                LENGTH_FIELDS.map(({ key }) => [key, String(POST_LENGTH_DEFAULTS[key])]),
-              ),
-            }))
-          }
-        >
-          文字数と割合をはじめの値に戻す（保存はまだ）
-        </Button>
+        <ButtonRow>
+          <Button
+            type="button"
+            onClick={() =>
+              setValues((current) => ({
+                ...current,
+                ...Object.fromEntries(
+                  LENGTH_FIELDS.map(({ key }) => [key, String(POST_LENGTH_DEFAULTS[key])]),
+                ),
+              }))
+            }
+          >
+            文字数と割合をはじめの値に戻す（保存はまだ）
+          </Button>
+        </ButtonRow>
       </Disclosure>
       <div className="flex flex-col items-start gap-xxs">
-        <Button type="submit" aria-disabled={pending || undefined}>
-          {pending ? "保存しています…" : "設定を保存"}
-        </Button>
+        <ButtonRow>
+          <Button type="submit" aria-disabled={pending || undefined}>
+            {pending ? "保存しています…" : "設定を保存"}
+          </Button>
+        </ButtonRow>
         {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
       </div>
     </form>
@@ -408,13 +411,15 @@ function PromptSection({ accountId }: PromptSectionProps) {
         戦略・NGワード・最近の案などから作ります。アプリから AI には何も送りません。
       </p>
       <div className="flex flex-col items-start gap-xxs">
-        <Button
-          variant={prompt ? "secondary" : "primary"}
-          onClick={() => void generate()}
-          aria-disabled={pending || undefined}
-        >
-          {pending ? "作っています…" : prompt ? "プロンプトを作り直す" : "プロンプトを作る"}
-        </Button>
+        <ButtonRow>
+          <Button
+            variant={prompt ? "secondary" : "primary"}
+            onClick={() => void generate()}
+            aria-disabled={pending || undefined}
+          >
+            {pending ? "作っています…" : prompt ? "プロンプトを作り直す" : "プロンプトを作る"}
+          </Button>
+        </ButtonRow>
         {failure ? <ResponseMessage tone="danger">{failure}</ResponseMessage> : null}
       </div>
       {prompt ? (
@@ -442,9 +447,11 @@ function PromptSection({ accountId }: PromptSectionProps) {
                   </Field>
                 </Disclosure>
                 <div className="flex flex-col items-start gap-xxs">
-                  <Button variant="primary" onClick={() => void copy(part, index)}>
-                    {parts.length > 1 ? `${index + 1}つ目をコピー` : "コピー"}
-                  </Button>
+                  <ButtonRow>
+                    <Button variant="primary" onClick={() => void copy(part, index)}>
+                      {parts.length > 1 ? `${index + 1}つ目をコピー` : "コピー"}
+                    </Button>
+                  </ButtonRow>
                   {copied === index ? (
                     <ResponseMessage tone="success">コピーしました。</ResponseMessage>
                   ) : null}
@@ -617,14 +624,16 @@ function PasteSection({ accountId, needsReview }: PasteSectionProps) {
           </p>
         ) : null}
         <div className="flex flex-col items-start gap-xxs">
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={atLimit}
-            aria-disabled={pending || undefined}
-          >
-            {pending ? "ためています…" : "案をためる"}
-          </Button>
+          <ButtonRow>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={atLimit}
+              aria-disabled={pending || undefined}
+            >
+              {pending ? "ためています…" : "案をためる"}
+            </Button>
+          </ButtonRow>
           {failure ? <ResponseMessage tone="danger">{failure}</ResponseMessage> : null}
           {registered ? (
             <div

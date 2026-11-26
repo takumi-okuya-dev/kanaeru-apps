@@ -25,6 +25,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, getRouteApi } from "@tanstack/react-router";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { Textarea } from "@workspace/ui/components/textarea";
@@ -86,13 +87,15 @@ function SummarySection({
             反応を読む権限（threads_manage_insights）がないため、取りこめません。Meta
             のアプリで権限を足し、トークンを作り直してつなぎ直してください。
           </p>
-          <Link
-            to={threadsPaths.settings(accountId)}
-            hash="threads-connection"
-            className={buttonVariants({ variant: "secondary", size: "small" })}
-          >
-            つなぎ直す（設定の「Threads への接続」へ）
-          </Link>
+          <ButtonRow>
+            <Link
+              to={threadsPaths.settings(accountId)}
+              hash="threads-connection"
+              className={buttonVariants({ variant: "secondary" })}
+            >
+              つなぎ直す（設定の「Threads への接続」へ）
+            </Link>
+          </ButtonRow>
         </div>
       ) : null}
     </section>
@@ -356,7 +359,7 @@ function ExportSection({ accountId }: { accountId: string }) {
         にします。投稿ごと（今の値と判定）と、取りこみごと（24時間・3日・7日の値）があります。
       </p>
       <div className="flex flex-col items-start gap-xxs">
-        <div className="flex flex-wrap gap-xxs">
+        <ButtonRow>
           <Button
             aria-disabled={mutation.isPending || undefined}
             onClick={() => !mutation.isPending && mutation.mutate("posts")}
@@ -369,7 +372,7 @@ function ExportSection({ accountId }: { accountId: string }) {
           >
             取りこみごとに書き出す
           </Button>
-        </div>
+        </ButtonRow>
         {mutation.isSuccess ? (
           <ResponseMessage tone="success">{`${mutation.data.filename} を保存しました。`}</ResponseMessage>
         ) : null}
@@ -425,13 +428,15 @@ function PerformanceContent({ account }: { account: ThreadsAccount }) {
       )}
       {query.hasNextPage ? (
         <div className="flex flex-col items-start gap-xxs">
-          <Button
-            variant="secondary"
-            aria-disabled={query.isFetchingNextPage || undefined}
-            onClick={() => !query.isFetchingNextPage && void query.fetchNextPage()}
-          >
-            {query.isFetchingNextPage ? "読みこんでいます…" : "さらに表示する"}
-          </Button>
+          <ButtonRow>
+            <Button
+              variant="secondary"
+              aria-disabled={query.isFetchingNextPage || undefined}
+              onClick={() => !query.isFetchingNextPage && void query.fetchNextPage()}
+            >
+              {query.isFetchingNextPage ? "読みこんでいます…" : "さらに表示する"}
+            </Button>
+          </ButtonRow>
           {query.isFetchNextPageError ? (
             <ResponseMessage tone="danger">{`続きを読みこめませんでした。${errorMessage(query.error)}`}</ResponseMessage>
           ) : null}

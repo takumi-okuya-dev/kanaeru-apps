@@ -158,7 +158,7 @@ function SimilarityLabel({ result, find, onJump }: SimilarityLabelProps) {
                 <Button
                   variant="text"
                   size="small"
-                  className="min-h-l w-full flex-col items-start gap-x3s p-x3s text-left font-normal whitespace-normal"
+                  className="w-full flex-col items-start gap-x3s p-x3s text-left font-normal whitespace-normal"
                   onClick={() => onJump(match.target)}
                 >
                   <span className="text-text-sub">

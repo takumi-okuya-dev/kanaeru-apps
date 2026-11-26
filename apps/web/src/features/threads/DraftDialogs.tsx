@@ -84,7 +84,7 @@ export function EditDialog({ accountId, draft, ngWords, onClose, onDone }: EditD
           : undefined
       }
       footer={
-        <div className="flex flex-col-reverse gap-xxs wide:flex-row wide:justify-end">
+        <>
           <Button onClick={onClose} aria-disabled={pending || undefined}>
             キャンセル
           </Button>
@@ -95,7 +95,7 @@ export function EditDialog({ accountId, draft, ngWords, onClose, onDone }: EditD
           >
             {pending ? "保存しています…" : "保存"}
           </Button>
-        </div>
+        </>
       }
     >
       <div className="flex flex-col gap-xs">
@@ -194,14 +194,14 @@ export function RejectDialog({
       title={count > 1 ? `${count}件の案を却下する` : "案を却下する"}
       description="理由とメモは、次に作るプロンプトに「避けること」として入ります。"
       footer={
-        <div className="flex flex-col-reverse gap-xxs wide:flex-row wide:justify-end">
+        <>
           <Button onClick={onClose} aria-disabled={pending || undefined}>
             キャンセル
           </Button>
           <Button variant="primary" onClick={reject} aria-disabled={pending || undefined}>
             {pending ? "却下しています…" : "却下する"}
           </Button>
-        </div>
+        </>
       }
     >
       <div className="flex flex-col gap-s">

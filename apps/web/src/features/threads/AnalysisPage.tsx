@@ -30,6 +30,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link, getRouteApi } from "@tanstack/react-router";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Disclosure } from "@workspace/ui/components/disclosure";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { Dialog } from "@workspace/ui/components/dialog";
@@ -179,13 +180,15 @@ function TrendsSection({ accountId, view }: { accountId: string; view: AnalysisV
               ? `今の自動投稿の時刻：${view.schedule.slotTimes.join("・")}。時刻は自動では変えません（設定で直せます）。`
               : "自動投稿の時刻は、まだ決めていません（設定で決められます）。"}
           </p>
-          <Link
-            to={threadsPaths.settings(accountId)}
-            hash="threads-schedule"
-            className={buttonVariants({ variant: "secondary", size: "small" })}
-          >
-            投稿の時刻を開く
-          </Link>
+          <ButtonRow>
+            <Link
+              to={threadsPaths.settings(accountId)}
+              hash="threads-schedule"
+              className={buttonVariants({ variant: "secondary" })}
+            >
+              投稿の時刻を開く
+            </Link>
+          </ButtonRow>
         </div>
       ) : null}
       <p className="text-s text-text-sub">
@@ -524,7 +527,7 @@ function ClassifySection({ accountId }: { accountId: string }) {
               ) : null}
             </div>
           ) : null}
-          <div className="flex flex-col items-start gap-xxs">
+          <ButtonRow>
             <Button
               variant="primary"
               onClick={() => void save()}
@@ -532,7 +535,7 @@ function ClassifySection({ accountId }: { accountId: string }) {
             >
               {pending ? "保存しています…" : "分類を保存"}
             </Button>
-          </div>
+          </ButtonRow>
         </>
       )}
       {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
@@ -595,7 +598,7 @@ function CandidateDialog({ index, body, initial, themes, onApply, onClose }: Can
       }}
       title={`【${index}】の分類を直す`}
       footer={
-        <div className="flex flex-wrap justify-end gap-xxs">
+        <>
           <Button variant="secondary" onClick={onClose}>
             やめる
           </Button>
@@ -608,7 +611,7 @@ function CandidateDialog({ index, body, initial, themes, onApply, onClose }: Can
           >
             候補を直す
           </Button>
-        </div>
+        </>
       }
     >
       <div className="flex flex-col gap-xs">
@@ -700,7 +703,7 @@ function EditClassificationDialog({
       }}
       title="分類を直す"
       footer={
-        <div className="flex flex-wrap justify-end gap-xxs">
+        <>
           <Button variant="secondary" onClick={onClose}>
             やめる
           </Button>
@@ -711,7 +714,7 @@ function EditClassificationDialog({
           >
             {pending ? "保存しています…" : "保存"}
           </Button>
-        </div>
+        </>
       }
     >
       <div className="flex flex-col gap-xs">
@@ -901,6 +904,7 @@ function SettingsSection({
             </Field>
             <Button
               variant="secondary"
+              size="small"
               onClick={() => setThemes((current) => current.filter((_, at) => at !== index))}
             >
               {`テーマ ${index + 1} を外す`}
@@ -908,7 +912,7 @@ function SettingsSection({
           </div>
         ))}
         {errors.themes ? <ResponseMessage tone="danger">{errors.themes}</ResponseMessage> : null}
-        <div>
+        <ButtonRow>
           <Button
             variant="secondary"
             aria-disabled={themes.length >= ANALYSIS_THEMES_MAX || undefined}
@@ -919,12 +923,18 @@ function SettingsSection({
           >
             テーマを足す
           </Button>
-        </div>
+        </ButtonRow>
       </div>
       <div className="flex flex-col items-start gap-xxs">
-        <Button variant="primary" onClick={() => void save()} aria-disabled={pending || undefined}>
-          {pending ? "保存しています…" : "分析の設定を保存"}
-        </Button>
+        <ButtonRow>
+          <Button
+            variant="primary"
+            onClick={() => void save()}
+            aria-disabled={pending || undefined}
+          >
+            {pending ? "保存しています…" : "分析の設定を保存"}
+          </Button>
+        </ButtonRow>
         {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
       </div>
     </section>

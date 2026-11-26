@@ -27,6 +27,7 @@ import { jstDateTime } from "@workspace/contracts/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, useBlocker, useRouterState } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { Dialog } from "@workspace/ui/components/dialog";
@@ -424,17 +425,17 @@ function StrategyForm({ accountId, strategy }: StrategyFormProps) {
           );
         })}
       </section>
-      <div className="flex flex-wrap items-center justify-between gap-xxs border-t border-border pt-xs">
-        {previous ? (
-          <Button onClick={() => selectSection(previous.id)}>{`← ${previous.chip}`}</Button>
-        ) : (
-          <span />
-        )}
-        {following ? (
-          <Button variant="primary" onClick={() => selectSection(following.id)}>
-            {`次の区分へ：${following.chip} →`}
-          </Button>
-        ) : null}
+      <div className="border-t border-border pt-xs">
+        <ButtonRow>
+          {previous ? (
+            <Button onClick={() => selectSection(previous.id)}>{`← ${previous.chip}`}</Button>
+          ) : null}
+          {following ? (
+            <Button variant="primary" onClick={() => selectSection(following.id)}>
+              {`次の区分へ：${following.chip} →`}
+            </Button>
+          ) : null}
+        </ButtonRow>
       </div>
       <div>
         <Button
@@ -474,7 +475,7 @@ function StrategyForm({ accountId, strategy }: StrategyFormProps) {
             : "ほかの画面で戦略が保存されています。どちらにするかを選んでください。"
         }
         footer={
-          <div className="flex flex-wrap justify-end gap-xxs">
+          <>
             <Button
               onClick={() => {
                 if (!conflict) return;
@@ -499,7 +500,7 @@ function StrategyForm({ accountId, strategy }: StrategyFormProps) {
             >
               上書きする
             </Button>
-          </div>
+          </>
         }
       >
         <ul className="list-disc pl-s text-s">
