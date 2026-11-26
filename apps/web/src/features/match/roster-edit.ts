@@ -36,7 +36,7 @@ export type ImportResult = {
 };
 
 /**
- * 読んだ人を名簿に入れる（置きかえるときは今の名簿と組み合わせを消す。人数の上限を超える人は入れない）。
+ * 読んだ人を名簿に入れる（置きかえるときは今の名簿と組み合わせと前の分け方で終わった試合を消す。人数の上限を超える人は入れない）。
  * 名簿を入れた受付の交流会（中身の receptionEvent。match-007）は、受付の交流会から入れたら（置きかえても足しても）その交流会に
  * 置きかえ、フォームの貼り付け・CSV で置きかえたら外し、貼り付けで足しただけなら残す【仮決め】。
  * @param content 今の中身
@@ -68,7 +68,7 @@ export function importPeople(
       ...(person.accountId ? { accountId: person.accountId } : {}),
     });
   }
-  const { receptionEvent: before, mini, ...rest } = content;
+  const { receptionEvent: before, mini, archive, ...rest } = content;
   const receptionEvent = from ?? (mode === "replace" ? undefined : before);
   return {
     content: {
@@ -77,6 +77,8 @@ export function importPeople(
       plan: mode === "replace" ? [] : content.plan,
       // 置きかえたら、ミニゲームのチーム分けも外す（前の名簿の人で分けたものなので。match-009）
       ...(mini && mode !== "replace" ? { mini } : {}),
+      // 置きかえたら、前の分け方で終わった試合も外す（前の名簿の人の記録なので、残すと名簿にいない人の試合になり保存できない）
+      ...(archive && mode !== "replace" ? { archive } : {}),
       ...(receptionEvent ? { receptionEvent } : {}),
     },
     fullNames,
