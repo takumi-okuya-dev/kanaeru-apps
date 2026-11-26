@@ -1,6 +1,7 @@
 // スイートの画面の道（core-005）。どれもどのアプリにも属さない外枠の画面（staticData.section）。
 // - /apps：すべてのアプリ
 // - /settings：設定の一覧。/settings/account：アカウント。/settings/apps：アプリの台帳（運営者だけ）
+// - /settings/feedback：改善点を送る。/settings/feedback/inbox：届いた改善点（運営者だけ。suite-004）
 // - /settings/organizations：組織の一覧と作る。/settings/organizations/{id}：組織の画面（suite-001）
 // - /join/{token}：組織の招待（外から開く道。外枠のナビを出さない。AD-14・AD-22）
 // - /terms・/privacy：利用規約・プライバシーポリシー（ログインなしで開ける。外枠のナビを出さない。suite-002）
@@ -23,6 +24,10 @@ export const SUITE_ROUTE_PATTERNS = {
   account: "/settings/account",
   /** 設定 › アプリの台帳 */
   ledger: "/settings/apps",
+  /** 設定 › 改善点を送る（suite-004） */
+  feedback: "/settings/feedback",
+  /** 設定 › 届いた改善点（運営者だけ。suite-004） */
+  feedbackInbox: "/settings/feedback/inbox",
   /** 設定 › 組織 */
   organizations: ORGANIZATION_ROUTE_PATTERNS.list,
   /** 利用規約（suite-002） */
@@ -61,6 +66,22 @@ export const ledgerRoute = createRoute({
   path: SUITE_ROUTE_PATTERNS.ledger,
   staticData: { section: "settings" },
   component: lazyRouteComponent(() => import("./LedgerPage.tsx"), "LedgerPage"),
+});
+
+/** 設定 › 改善点を送る（suite-004）。 */
+export const feedbackRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: SUITE_ROUTE_PATTERNS.feedback,
+  staticData: { section: "settings" },
+  component: lazyRouteComponent(() => import("./FeedbackPage.tsx"), "FeedbackPage"),
+});
+
+/** 設定 › 届いた改善点（運営者だけ。suite-004）。 */
+export const feedbackInboxRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: SUITE_ROUTE_PATTERNS.feedbackInbox,
+  staticData: { section: "settings" },
+  component: lazyRouteComponent(() => import("./FeedbackInboxPage.tsx"), "FeedbackInboxPage"),
 });
 
 /** 設定 › 組織（一覧と作る。suite-001）。 */

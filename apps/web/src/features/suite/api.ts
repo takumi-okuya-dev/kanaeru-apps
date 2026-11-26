@@ -1,6 +1,6 @@
 // スイートの窓口の呼び出し（型は apps/api/src/client.ts の ModuleRoutes["suite"] から import type で読む）。
 // 読み書きはすべて lib/api.ts の request を通す（エラーの読み方と 401 の知らせをそろえる）。
-import type { AppSettingInput } from "@workspace/contracts/suite";
+import type { AppSettingInput, FeedbackInput } from "@workspace/contracts/suite";
 import type { ModuleRoutes } from "../../../../api/src/client.ts";
 import { createApiClient, request } from "../../lib/api.ts";
 
@@ -40,5 +40,47 @@ export function fetchAppSettings() {
 export function updateAppSetting(appKey: string, input: AppSettingInput) {
   return request(() =>
     api().api.v1.suite["app-settings"][":appKey"].$put({ param: { appKey }, json: input }),
+  );
+}
+
+/**
+ * 改善点を送る（ログインした人。suite-004）。
+ * @param input 本文とアプリの key
+ * @returns 送った改善点の ID
+ */
+export function sendFeedback(input: FeedbackInput) {
+  return request(() => api().api.v1.suite.feedback.$post({ json: input }));
+}
+
+/**
+ * 届いた改善点を読む（運営者だけ。新しい順）。
+ * @param filter 絞り方（アプリの key・まだのものだけ）
+ * @param filter.app アプリの key
+ * @param filter.pending まだのものだけか
+ * @returns 改善点
+ */
+export function fetchFeedback(filter: { app?: string; pending?: boolean }) {
+  return request(() =>
+    api().api.v1.suite.feedback.$get({
+      query: {
+        ...(filter.app ? { app: filter.app } : {}),
+        ...(filter.pending ? { pending: "true" as const } : {}),
+      },
+    }),
+  );
+}
+
+/**
+ * 改善点に済みを付け外す（運営者だけ）。
+ * @param feedbackId 改善点の ID
+ * @param done 済みか
+ * @returns 付け外したあとの1行
+ */
+export function setFeedbackDone(feedbackId: string, done: boolean) {
+  return request(() =>
+    api().api.v1.suite.feedback[":feedbackId"].done.$put({
+      param: { feedbackId },
+      json: { done },
+    }),
   );
 }

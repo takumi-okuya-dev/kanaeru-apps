@@ -1,8 +1,8 @@
 # スイート（suite）の地図
 
-2026-11-20 作成（core-005。決めた理由と仮決めは [specs/core/005-app-switcher/spec.md](../../specs/core/005-app-switcher/spec.md)、範囲は [PRD](../../_bmad-output/prd-kanaeru-suite/prd-kanaeru-suite.md)）。同じ日に suite-001（組織と退会の手順の組み立て。[specs/suite/001-organization](../../specs/suite/001-organization/spec.md)・[PRD 組織](../../_bmad-output/prd-kanaeru-org/prd-kanaeru-org.md)・AD-22）を足した。同じ日に event-002 で、組織を使う領域と退会の手順を出す領域に event を足した。同じ日に suite-002（利用規約とプライバシーポリシーのページ。[specs/suite/002-legal-pages](../../specs/suite/002-legal-pages/spec.md)）を足した。2026-11-26 直した（suite-004 の1つ目：改善点の表 `feedback`。[specs/suite/004-feedback](../../specs/suite/004-feedback/spec.md)）。
+2026-11-20 作成（core-005。決めた理由と仮決めは [specs/core/005-app-switcher/spec.md](../../specs/core/005-app-switcher/spec.md)、範囲は [PRD](../../_bmad-output/prd-kanaeru-suite/prd-kanaeru-suite.md)）。同じ日に suite-001（組織と退会の手順の組み立て。[specs/suite/001-organization](../../specs/suite/001-organization/spec.md)・[PRD 組織](../../_bmad-output/prd-kanaeru-org/prd-kanaeru-org.md)・AD-22）を足した。同じ日に event-002 で、組織を使う領域と退会の手順を出す領域に event を足した。同じ日に suite-002（利用規約とプライバシーポリシーのページ。[specs/suite/002-legal-pages](../../specs/suite/002-legal-pages/spec.md)）を足した。2026-11-26 直した（suite-004：改善点の表 `feedback`・送る窓口と画面・運営者の届いた改善点。[specs/suite/004-feedback](../../specs/suite/004-feedback/spec.md)）。
 
-スイートの共通の領域（どのアプリにも属さない）。アプリの台帳（公開の状態）を持ち、アプリが見えるかを決める1か所（構成の決めごと AD-15・AD-16）。組織（人と役割・招待）と、契約の持ち主の形（`entitlement`。払うしくみと売り方は売り始めるときに足す）も持つ（AD-22）。画面では、すべてのアプリ・設定（一覧・アカウント・組織・アプリの台帳）・組織の招待の確かめの画面・利用規約とプライバシーポリシーのページを持つ。
+スイートの共通の領域（どのアプリにも属さない）。アプリの台帳（公開の状態）を持ち、アプリが見えるかを決める1か所（構成の決めごと AD-15・AD-16）。組織（人と役割・招待）と、契約の持ち主の形（`entitlement`。払うしくみと売り方は売り始めるときに足す）も持つ（AD-22）。画面では、すべてのアプリ・設定（一覧・アカウント・組織・改善点を送る・アプリの台帳・届いた改善点）・組織の招待の確かめの画面・利用規約とプライバシーポリシーのページを持つ。
 
 ## 1. アプリの一覧（`packages/contracts/src/core/apps.list.ts`）
 
@@ -45,7 +45,7 @@
 | `team` | `id`・`organization_id`・`name`（1〜30文字の CHECK）・`created_at`・`updated_at` | suite-003（組織の中のチーム。`0014_suite_team.sql`）。`(organization_id, name)` と `(id, organization_id)` が一意。組織が消えると消える。1つの組織に20まで（窓口が数える） |
 | `team_member` | `team_id`・`account_id`（主キーはこの組）・`organization_id`・`leader`（リーダー）・`joined_at` | `team(id, organization_id)` と `organization_member(organization_id, account_id)` を指す複合の外部キーを CASCADE（チームが消える・組織から抜けると消える）。アプリの「チームに入れる」・担当の表は、この組を指す外部キーを CASCADE で持つ |
 | `organization_invite` | `organization_id`（主キー）・`token_hash`（一意）・`token_ciphertext`・`token_iv`・`key_version`・`created_at` | 照らし合わせは SHA-256 だけ。出し直すための写しを秘密の箱で包む（箱がなければ空） |
-| `feedback` | `id`（uuid）・`account_id`・`app_key`・`body`・`done_at`・`created_at`・`updated_at` | 改善点（suite-004。ログインした人が送り、運営者だけが読む）。`body` は1〜2000文字（`feedback_body_check`）・`app_key` は空か1〜40文字（`feedback_app_key_check`）。`account_id` は `CASCADE`（本人のデータ。退会すると消える。AD-7）。索引 `created_at`（一覧）・`(account_id, created_at)`（1日の数）。DB の変更は `0024_suite_feedback.sql`。窓口と画面は suite-004 の2つ目の PR |
+| `feedback` | `id`（uuid）・`account_id`・`app_key`・`body`・`done_at`・`created_at`・`updated_at` | 改善点（suite-004。ログインした人が送り、運営者だけが読む）。`body` は1〜2000文字（`feedback_body_check`）・`app_key` は空か1〜40文字（`feedback_app_key_check`）。`account_id` は `CASCADE`（本人のデータ。退会すると消える。AD-7）。索引 `created_at`（一覧）・`(account_id, created_at)`（1日の数）。DB の変更は `0024_suite_feedback.sql` |
 | `entitlement` | `id`・`app_key`・`holder_account_id`・`holder_organization_id`・`created_at`・`updated_at` | 持ち主はどちらか1つ（`entitlement_holder_check`）。どちらも CASCADE。売り始めるまで使わない（料金などの列はそのときに足す） |
 
 ## 3. 窓口
@@ -55,6 +55,9 @@
 | GET | `/api/v1/suite/apps` | 見る人に見えるアプリ（登録の順。名前・説明・アイコン・領域・道の頭・公開の状態）と、運営者か。ログインの前でも答える（公開のアプリだけ） | — |
 | GET | `/api/v1/suite/app-settings` | 台帳（登録されたアプリごとに1行。行がなければ `operator_only`・`stored: false`）。運営者だけ | 401・403 |
 | PUT | `/api/v1/suite/app-settings/{appKey}` | 公開の状態を変える（`{ visibility }`）。すぐ効く。運営者だけ | 400・401・403・404（登録されていない key） |
+| POST | `/api/v1/suite/feedback` | 改善点を送る（`{ body, appKey? }`。本文1〜2000文字・strict・アプリの key はその人に見えるアプリだけ）。ログインした人。1人1日（日本時間）20件まで（人ごとの鍵をかけて数えてから足すので、同時に送っても超えない）。本文はログに書かない（suite-004。`routes-feedback.ts`・`feedback.ts`） | 400・401・429 `FEEDBACK_DAILY_LIMIT` |
+| GET | `/api/v1/suite/feedback` | 届いた改善点（新しい順・500件まで。超えたら `truncated: true`。`?app=` で絞る・`?pending=true` でまだのものだけ）。行ごとにアプリの名前と送った人の表示名。運営者だけ | 401・403 |
+| PUT | `/api/v1/suite/feedback/{feedbackId}/done` | 済みを付け外す（`{ done }`。もう済みなら、済みにした日時は変えない）。運営者だけ | 400・401・403・404 |
 | GET・POST | `/api/v1/suite/organizations` | 入っている組織（入った順・役割・人数）／組織を作る（作った人が管理者。管理者として持てる組織は20まで） | 400・401・409 `ORGANIZATION_LIMIT` |
 | GET | `/api/v1/suite/organizations/{id}` | 組織の画面（人の表示名・役割・入った日・あなた・新しい人〈管理者だけ〉）。組織の人の全員 | 401・404 `ORGANIZATION_NOT_FOUND` |
 | PATCH・DELETE | `/api/v1/suite/organizations/{id}` | 名前を直す・組織を消す（管理者だけ） | 403 `ORGANIZATION_ADMIN_ONLY`・404 |
@@ -106,6 +109,8 @@ API（`apps/api/src/modules/suite/index.ts`）：
 | `/apps` | すべてのアプリ（`staticData.section: "apps"`） | 見えるアプリのカード。最後に使ったアプリの「開く」が主のボタン。運営者には「運営者だけに見えています」の札と台帳への入口。ログインの前でも公開のアプリを出す |
 | `/settings` | 設定の一覧（`section: "settings"`） | まとまり（個人の設定・アプリの設定・運営）ごとの項目。スマホはここから入る |
 | `/settings/account` | アカウント | 表示名・ログインの方法・登録した日・使えるアプリ・ログアウト・規約とポリシー（利用規約とプライバシーポリシーへのリンク）・退会（確かめの枠）。ログアウトと退会のあとは `/apps` に知らせの帯 |
+| `/settings/feedback` | 改善点を送る（suite-004。設定の項目は個人の設定のまとまり） | どのアプリについてか（任意。見えるアプリ）・本文・個人の情報を書かない案内・「送りました」。ログインが要る |
+| `/settings/feedback/inbox` | 届いた改善点（運営者だけ。設定の項目は運営のまとまり） | 新しい順のカード（日時・アプリ・送った人・本文・済みの札）・アプリで絞る（登録されたすべてのアプリ）・まだのものだけ（既定）・「済みにする」「まだに戻す」（送っている間は押せない）・500件を超えたら知らせ。運営者でなければ「運営者だけが開ける画面です」 |
 | `/settings/apps` | アプリの台帳（運営者だけ） | 行ごとのチップで、押すとすぐ保存し、結果を行のそばに出す。今見える人と凡例 |
 | `/settings/organizations` | 組織（個人の設定） | 入っている組織の一覧と「組織を作る」 |
 | `/settings/organizations/$organizationId` | 組織の画面 | 人の一覧（あなた・新しい人）。管理者は役割の切り替え・外す・招待のリンクと QR・作り直す・名前・消す・引き継ぐ。抜ける（管理者は引き継ぐ人を選ぶ）。アプリの組織の画面への入口（`feature.organization.links`。見えるアプリだけ） |
