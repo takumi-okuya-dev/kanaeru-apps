@@ -1,17 +1,21 @@
 // M2・M6 試合表（/match/tables/$tableId/board）。モックアップの M2（ダブルス）と M6（シングルス）。
-// - 組（レベルの分け方で分けた組）をタブで選び、1つずつ出す（PC もスマホも。FR-M11）。分けないときはタブを出さない
+// - 分け方（レベル別・分けない・ミニゲーム）が2つ以上なら分け方のタブ（SetTabs）、レベル別の中で組が2つ以上なら組のタブで選び、
+//   1つずつ出す（PC もスマホも。FR-M11・match-009）。ミニゲームはコートごとのチーム（MiniTeams）と「チーム分けをやり直す」
 // - 1行が1試合。名前だけを並べ（ダブルスは4人・シングルスは2人）、列の見出しは付けず、左に試合の番号、名前の列の間に縦線
 // - 担当の端末は、終わった試合の行にチェックを付けて進める。チェックのない最初の試合が今（墨の地）、その次が次（薄い地。FR-M12・FR-M15）
 // - 「別の組み合わせにする」はくじの種を変えて、まだの試合を組み直す（終わった試合は残す）
 // - 当日（match-003）：「人を選んで直す」（来なかった・来た・帰る → その人の組のこれからの試合だけを組み直す。FR-M14）・
-//   「レベルの分け方」（当日に分け方や試合の形を変えても、終わった試合はできるだけ残す。何が変わるかを先に出す）・
+//   「分け方と試合の形」（当日に分け方や試合の形を変えても、終わった試合はできるだけ残す。何が変わるかを先に出す）・
 //   「大きく映す」（M3）。組み直したら、画面の上に何を変えたかを出す。前の分け方で終わった試合は、下に畳んで出す
 // 「電波なしで渡す」（M4。match-005）：今の表を QR にして出し、見るだけのページのスマホがネットなしで読む（HandoffDialog）。
+// 「組み合わせを直す」（担当の端末。match-010）：直す形では名前がボタンになり、パソコンはドラッグ、スマホとキーボードは
+// 「名前を押す → 相手の名前を押す」で、まだの試合の名前どうし・ミニゲームのチームの人どうしを入れかえる（swap.ts）。
 // 1人ひとりの試合の数は出さない（FR-M13）。
 import { MATCH_FORMAT_LABELS, PLAYERS_PER_GAME } from "@workspace/contracts/match";
 import type {
   MatchGroup,
   MatchGroupPlan,
+  MatchSet,
   MatchSettings,
   MatchTable,
 } from "@workspace/contracts/match";
@@ -27,8 +31,15 @@ import { AttendanceDialog, RegroupDialog } from "./DayOfDialogs.tsx";
 import { formatPlayDate } from "./format.ts";
 import { GroupTabs, currentGameIndex, currentGameNumber } from "./GroupTabs.tsx";
 import { HandoffDialog } from "./HandoffDialog.tsx";
+import { buildMini, miniTeamsView } from "./mini-game.ts";
+import { MiniTeams } from "./MiniTeams.tsx";
 import { MATCH_ROUTE_PATTERNS } from "./paths.ts";
-import { buildPlan, groupsOf, newSeed, presentPlayersOf } from "./plan.ts";
+import { buildPlan, groupsOfSet, newSeed, presentPlayersOf, rebuild, setsOf } from "./plan.ts";
+import { SetTabs } from "./SetTabs.tsx";
+import { SwapName } from "./SwapName.tsx";
+import type { SwapEdit } from "./SwapName.tsx";
+import { SWAP_REASON_TEXT, moveTeamMember, swapGameSlots, swapTeamMembers } from "./swap.ts";
+import type { GameSlot, SwapResult, TeamSlot } from "./swap.ts";
 import { changeSettings, groupLabelOf } from "./regroup.ts";
 import { countRoster } from "./roster-edit.ts";
 import { ReceptionEventNote } from "./ReceptionEventNote.tsx";
@@ -47,6 +58,8 @@ type GameTableProps = {
   editable: boolean;
   /** チェックを付け外したとき */
   onToggle: (index: number, done: boolean) => void;
+  /** 組み合わせを直す形（なければ名前は文字だけ） */
+  edit?: SwapEdit<GameSlot> | undefined;
 };
 
 /**
@@ -54,7 +67,7 @@ type GameTableProps = {
  * @param props 試合表（table）・組（group）・組の試合（plan）・チェックを付けられるか（editable）・付け外し（onToggle）
  * @returns 表の要素
  */
-function GameTable({ table, group, plan, editable, onToggle }: GameTableProps) {
+function GameTable({ table, group, plan, editable, onToggle, edit }: GameTableProps) {
   const names = new Map(table.content.players.map((player) => [player.id, player.nickname]));
   const now = currentGameIndex(plan);
   return (
@@ -104,7 +117,18 @@ function GameTable({ table, group, plan, editable, onToggle }: GameTableProps) {
                     game.done ? "font-normal" : "font-bold",
                   )}
                 >
-                  {names.get(id) ?? ""}
+                  {edit && !game.done ? (
+                    <SwapName
+                      name={names.get(id) ?? ""}
+                      slot={{ key: group.key, game: index, column }}
+                      edit={edit}
+                      same={(a, b) => a.key === b.key && a.game === b.game && a.column === b.column}
+                      label={`第${index + 1}試合の${names.get(id) ?? ""}`}
+                      inverted={isNow}
+                    />
+                  ) : (
+                    (names.get(id) ?? "")
+                  )}
                 </td>
               ))}
             </tr>
@@ -153,11 +177,22 @@ function ArchivedGames({ table }: { table: MatchTable }) {
  */
 function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }) {
   const baseId = useId();
-  const groups = groupsOf(table.content);
+  const { settings } = table.content;
+  const sets = setsOf(settings);
   const planOf = (key: string) => table.content.plan.find((plan) => plan.key === key);
+  const hasContent = (set: MatchSet) =>
+    set === "mini"
+      ? table.content.mini !== undefined
+      : groupsOfSet(table.content, set).some((group) => (planOf(group.key)?.games.length ?? 0) > 0);
+  const [chosenSet, setChosenSet] = useState<MatchSet | undefined>(
+    () => sets.find(hasContent) ?? sets[0],
+  );
+  const set = chosenSet && sets.includes(chosenSet) ? chosenSet : (sets[0] ?? "levels");
+  const groups = groupsOfSet(table.content, set);
   const firstWithGames = groups.find((group) => (planOf(group.key)?.games.length ?? 0) > 0);
   const [selected, setSelected] = useState(firstWithGames?.key ?? groups[0]?.key ?? "");
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [teamsOpen, setTeamsOpen] = useState(false);
   const [attendanceOpen, setAttendanceOpen] = useState(false);
   const [regroupOpen, setRegroupOpen] = useState(false);
   const [handoffOpen, setHandoffOpen] = useState(false);
@@ -165,10 +200,151 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
   const group = groups.find((entry) => entry.key === selected) ?? groups[0];
   const plan = group ? planOf(group.key) : undefined;
   const counts = countRoster(table.content.players);
-  const { settings } = table.content;
-  const planned = table.content.plan.some((entry) => entry.games.length > 0);
-  const lead = `${formatPlayDate(table.playDate)}・${MATCH_FORMAT_LABELS[settings.format]}・1試合${settings.minutesPerGame}分・${counts.present}人${counts.absent > 0 ? `（来ない ${counts.absent}人）` : ""}${counts.left > 0 ? `（帰った ${counts.left}人）` : ""}`;
+  const planned =
+    table.content.plan.some((entry) => entry.games.length > 0) || table.content.mini !== undefined;
+  const lead = `${formatPlayDate(table.playDate)}・${MATCH_FORMAT_LABELS[settings.format]}・${settings.gameCount}試合・${counts.present}人${counts.absent > 0 ? `（来ない ${counts.absent}人）` : ""}${counts.left > 0 ? `（帰った ${counts.left}人）` : ""}`;
   const archive = table.content.archive ?? [];
+  const teams = miniTeamsView(table.content);
+  const [editing, setEditing] = useState(false);
+  const [pickedGame, setPickedGame] = useState<GameSlot | null>(null);
+  const [pickedMember, setPickedMember] = useState<TeamSlot | null>(null);
+  const canEdit = editing && editor.isEditor;
+
+  /** 選んだ名前を外す（組み直し・やり直し・当日の直しで、選んだ場所に別の人が入ることがあるため）。 */
+  const clearPicks = () => {
+    setPickedGame(null);
+    setPickedMember(null);
+  };
+
+  /**
+   * 入れかえの結果を保存し、帯に知らせる。
+   * @param run 入れかえる（今の中身から結果を作る）
+   * @param done できたときの文
+   */
+  const applySwap = (run: (content: MatchTable["content"]) => SwapResult, done: string) => {
+    setPickedGame(null);
+    setPickedMember(null);
+    // 保存する中身（送っていない変更を含む）で入れかえ、その結果で知らせる（画面の中身より新しいことがあるため）
+    let result: SwapResult = run(table.content);
+    const applied = editor.apply((draft) => {
+      result = run(draft.content);
+      return result.ok ? { ...draft, content: result.content } : draft;
+    });
+    const outcome = result;
+    if (applied && !outcome.ok) {
+      if (outcome.reason !== "same") {
+        setChangeNote({ tone: "danger", text: SWAP_REASON_TEXT[outcome.reason] });
+      }
+      return;
+    }
+    setChangeNote(
+      applied
+        ? { tone: "info", text: done }
+        : {
+            tone: "danger",
+            text: "送れなかった変更が端末に残っているため、今は直せません。上の知らせで、捨てるか上書きするかを選んでください。",
+          },
+    );
+  };
+
+  /**
+   * 試合の名前の場所の呼び名。
+   * @param slot 場所
+   * @returns 呼び名
+   */
+  const nameAt = (slot: GameSlot) => {
+    const id = planOf(slot.key)?.games[slot.game]?.players[slot.column];
+    return table.content.players.find((player) => player.id === id)?.nickname ?? "";
+  };
+
+  /**
+   * 試合の2つの名前を入れかえる。
+   * @param from 1人目
+   * @param to 2人目
+   */
+  const swapGames = (from: GameSlot, to: GameSlot) => {
+    applySwap(
+      (content) => swapGameSlots(content, from, to),
+      `第${from.game + 1}試合の「${nameAt(from)}」と第${to.game + 1}試合の「${nameAt(to)}」を入れかえました。`,
+    );
+  };
+
+  /** 試合の名前を直す道具。 */
+  const gameEdit: SwapEdit<GameSlot> = {
+    picked: pickedGame,
+    onSelect: (slot) => {
+      if (!pickedGame) setPickedGame(slot);
+      else if (
+        pickedGame.key === slot.key &&
+        pickedGame.game === slot.game &&
+        pickedGame.column === slot.column
+      ) {
+        setPickedGame(null);
+      } else swapGames(pickedGame, slot);
+    },
+    onDrop: swapGames,
+    onCancel: () => setPickedGame(null),
+  };
+
+  /**
+   * チームの人の呼び名。
+   * @param slot 場所
+   * @returns 呼び名
+   */
+  const memberAt = (slot: TeamSlot) => {
+    const id = table.content.mini?.teams[slot.team]?.[slot.index];
+    return table.content.players.find((player) => player.id === id)?.nickname ?? "";
+  };
+
+  /**
+   * チームの2人を入れかえる。
+   * @param from 1人目
+   * @param to 2人目
+   */
+  const swapMembers = (from: TeamSlot, to: TeamSlot) => {
+    applySwap(
+      (content) => swapTeamMembers(content, from, to),
+      `チーム${from.team + 1}の「${memberAt(from)}」とチーム${to.team + 1}の「${memberAt(to)}」を入れかえました。`,
+    );
+  };
+
+  /**
+   * チームの人をほかのチームへ移す。
+   * @param from 移す人
+   * @param team 移す先のチーム（0から）
+   */
+  const moveMember = (from: TeamSlot, team: number) => {
+    applySwap(
+      (content) => moveTeamMember(content, from, team),
+      `「${memberAt(from)}」をチーム${team + 1}へ移しました。`,
+    );
+  };
+
+  /** ミニゲームのチームを直す道具。 */
+  const teamEdit = {
+    picked: pickedMember,
+    onSelect: (slot: TeamSlot) => {
+      if (!pickedMember) setPickedMember(slot);
+      else if (pickedMember.team === slot.team && pickedMember.index === slot.index) {
+        setPickedMember(null);
+      } else swapMembers(pickedMember, slot);
+    },
+    onDrop: swapMembers,
+    onCancel: () => setPickedMember(null),
+    onMove: moveMember,
+  };
+
+  /**
+   * 分け方を選ぶ（その分け方の最初の組を選ぶ）。
+   * @param next 分け方
+   */
+  const chooseSet = (next: MatchSet) => {
+    setChosenSet(next);
+    setPickedGame(null);
+    setPickedMember(null);
+    const first = groupsOfSet(table.content, next)[0];
+    if (first) setSelected(first.key);
+  };
 
   /**
    * 人に「来なかった・来た・帰る」を付け、その人の組のこれからの試合だけを組み直す。
@@ -176,6 +352,7 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
    * @param action 直し方
    */
   const mark = (playerId: string, action: AttendanceAction) => {
+    clearPicks();
     let text = "";
     const applied = editor.apply((draft) => {
       const result = markAttendance(draft.content, draft.seed, playerId, action);
@@ -197,9 +374,15 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
    * @param next 新しい設定
    */
   const regroup = (next: MatchSettings) => {
+    clearPicks();
     const applied = editor.apply((draft) => {
       const changed = changeSettings(draft.content, next).content;
-      return { ...draft, content: { ...changed, plan: buildPlan(changed, draft.seed) } };
+      // ミニゲームのチームは、外したとき・コート数を変えたときだけ分け直す（changeSettings が消したときだけ作る）
+      const mini = changed.mini ?? buildMini(changed, draft.seed);
+      return {
+        ...draft,
+        content: { ...changed, plan: buildPlan(changed, draft.seed), ...(mini ? { mini } : {}) },
+      };
     });
     setRegroupOpen(false);
     setChangeNote(
@@ -210,8 +393,38 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
             text: "送れなかった変更が端末に残っているため、今は変えられません。上の知らせで、捨てるか上書きするかを選んでください。",
           },
     );
-    const firstGroup = groupsOf({ settings: next })[0];
-    if (firstGroup) setSelected(firstGroup.key);
+    const firstSet = setsOf(next)[0];
+    if (firstSet) {
+      setChosenSet(firstSet);
+      const firstGroup = groupsOfSet({ settings: next }, firstSet)[0];
+      if (firstGroup) setSelected(firstGroup.key);
+    }
+  };
+
+  /** ミニゲームのチームを、今の来る人だけで分け直す（当日の印を変えてもチームは変えないため。research R5）。 */
+  const redoTeams = () => {
+    setTeamsOpen(false);
+    clearPicks();
+    let short = false;
+    const applied = editor.apply((draft) => {
+      const mini = buildMini(draft.content, draft.seed);
+      short = mini === undefined;
+      // 人が足りなくて分けられないときは、今のチームを残す（消さない）
+      return mini ? { ...draft, content: { ...draft.content, mini } } : draft;
+    });
+    setChangeNote(
+      !applied
+        ? {
+            tone: "danger",
+            text: "送れなかった変更が端末に残っているため、今は直せません。上の知らせで、捨てるか上書きするかを選んでください。",
+          }
+        : short
+          ? {
+              tone: "danger",
+              text: "来る人がチームの数より少ないため、チームを分けられませんでした。",
+            }
+          : { tone: "info", text: "今の来る人で、ミニゲームのチームを分け直しました。" },
+    );
   };
 
   /**
@@ -252,7 +465,18 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
                   人を選んで直す
                 </Button>
                 <Button size="small" onClick={() => setRegroupOpen(true)}>
-                  レベルの分け方
+                  分け方と試合の形
+                </Button>
+                <Button
+                  size="small"
+                  aria-pressed={editing}
+                  onClick={() => {
+                    setEditing(!editing);
+                    setPickedGame(null);
+                    setPickedMember(null);
+                  }}
+                >
+                  {editing ? "直し終える" : "組み合わせを直す"}
                 </Button>
               </>
             ) : null}
@@ -282,18 +506,20 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
     >
       <ReceptionEventNote source={table.content.receptionEvent} link={table.receptionEvent} />
       <EditorState editor={editor} />
-      {changeNote ? (
-        <div
-          role="status"
-          className={cn(
-            "rounded-md border bg-surface px-xs py-xxs text-m",
-            changeNote.tone === "danger" ? "border-danger text-danger-text" : "border-warning",
-          )}
-        >
-          {changeNote.text}
-        </div>
-      ) : null}
-      {!planned || !group ? (
+      {/* 知らせの枠はいつも置き、中の文だけを替える（読み上げが入れかえの結果を確かに読むように。match-010） */}
+      <div role="status">
+        {changeNote ? (
+          <div
+            className={cn(
+              "rounded-md border bg-surface px-xs py-xxs text-m",
+              changeNote.tone === "danger" ? "border-danger text-danger-text" : "border-warning",
+            )}
+          >
+            {changeNote.text}
+          </div>
+        ) : null}
+      </div>
+      {!planned ? (
         <p className="text-m text-text-sub">
           まだ試合表を作っていません。
           <Link
@@ -307,34 +533,80 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
         </p>
       ) : (
         <div className="flex flex-col gap-xs">
-          {groups.length > 1 ? (
-            <GroupTabs
-              groups={groups}
-              selected={group.key}
-              onSelect={setSelected}
-              baseId={baseId}
-              nowOf={(key) => currentGameNumber(planOf(key))}
-            />
+          {canEdit ? (
+            <p className="rounded-md border border-border bg-surface-over px-xs py-xxs text-s">
+              入れかえる2人を順に押すか、名前を相手の名前の上へドラッグしてください（Esc
+              でやめる）。終わった試合は動かせません。あとで組み直すと、まだの試合の直しは消えます。
+            </p>
+          ) : null}
+          {sets.length > 1 ? (
+            <SetTabs sets={sets} selected={set} onSelect={chooseSet} baseId={baseId} />
           ) : null}
           <div
-            id={`${baseId}-panel`}
-            role={groups.length > 1 ? "tabpanel" : undefined}
-            aria-labelledby={groups.length > 1 ? `${baseId}-tab-${group.key}` : undefined}
-            className="flex flex-col gap-xxs"
+            id={`${baseId}-set-panel`}
+            role={sets.length > 1 ? "tabpanel" : undefined}
+            aria-labelledby={sets.length > 1 ? `${baseId}-set-${set}` : undefined}
+            className="flex flex-col gap-xs"
           >
-            {plan && plan.games.length > 0 ? (
-              <GameTable
-                table={table}
-                group={group}
-                plan={plan}
-                editable={editor.isEditor}
-                onToggle={(index, done) => toggle(group.key, index, done)}
-              />
-            ) : (
-              <p className="text-m text-text-sub">
-                {`${group.label}は${presentPlayersOf(table.content, group).length}人で、${PLAYERS_PER_GAME[settings.format]}人に足りないため組めませんでした。名簿と設定で、一緒にする分け方にしてください。`}
-              </p>
-            )}
+            {set === "mini" ? (
+              <div className="flex flex-col gap-xs">
+                {teams ? (
+                  <>
+                    <MiniTeams teams={teams.teams} edit={canEdit ? teamEdit : undefined} />
+                    {teams.unassigned.length > 0 ? (
+                      <p className="text-m">{`チームに入っていない人：${teams.unassigned.join("・")}`}</p>
+                    ) : null}
+                  </>
+                ) : (
+                  <p className="text-m text-text-sub">
+                    来る人がチームの数（コート数×2）より少ないため、チームを分けられませんでした。
+                  </p>
+                )}
+                {editor.isEditor ? (
+                  <div>
+                    <Button size="small" onClick={() => setTeamsOpen(true)}>
+                      チーム分けをやり直す
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            ) : group ? (
+              <>
+                {groups.length > 1 ? (
+                  <GroupTabs
+                    groups={groups}
+                    selected={group.key}
+                    onSelect={(key) => {
+                      setSelected(key);
+                      setPickedGame(null);
+                    }}
+                    baseId={baseId}
+                    nowOf={(key) => currentGameNumber(planOf(key))}
+                  />
+                ) : null}
+                <div
+                  id={`${baseId}-panel`}
+                  role={groups.length > 1 ? "tabpanel" : undefined}
+                  aria-labelledby={groups.length > 1 ? `${baseId}-tab-${group.key}` : undefined}
+                  className="flex flex-col gap-xxs"
+                >
+                  {plan && plan.games.length > 0 ? (
+                    <GameTable
+                      table={table}
+                      group={group}
+                      plan={plan}
+                      editable={editor.isEditor}
+                      onToggle={(index, done) => toggle(group.key, index, done)}
+                      edit={canEdit ? gameEdit : undefined}
+                    />
+                  ) : (
+                    <p className="text-m text-text-sub">
+                      {`${group.label}は${presentPlayersOf(table.content, group).length}人で、${PLAYERS_PER_GAME[settings.format]}人に足りないため組めませんでした。名簿と設定で、一緒にする分け方にしてください。`}
+                    </p>
+                  )}
+                </div>
+              </>
+            ) : null}
           </div>
           {archive.length > 0 ? <ArchivedGames table={table} /> : null}
         </div>
@@ -361,14 +633,27 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
         confirmLabel="別の組み合わせにする"
         onConfirm={() => {
           setConfirmOpen(false);
+          clearPicks();
           editor.apply((draft) => {
             const seed = newSeed();
-            return { seed, content: { ...draft.content, plan: buildPlan(draft.content, seed) } };
+            return { seed, content: rebuild(draft.content, seed, { reshuffleMini: true }) };
           });
         }}
       >
         <p className="text-m">
           くじを引き直して、まだの試合を組み直します。チェックの付いた試合（と、それより前の試合）はそのまま残します。
+          {settings.courts !== null ? "ミニゲームのチームも分け直します。" : ""}
+        </p>
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={teamsOpen}
+        onOpenChange={setTeamsOpen}
+        title="チーム分けをやり直しますか？"
+        confirmLabel="やり直す"
+        onConfirm={redoTeams}
+      >
+        <p className="text-m">
+          今の来る人だけで、レベルを均してチームを分け直します。帰った人・来ない人はチームから外れ、あとから来た人が入ります。
         </p>
       </ConfirmDialog>
     </Page>

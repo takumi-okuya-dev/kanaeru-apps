@@ -3,11 +3,22 @@
 // - 今の試合は、入る人がみな出られるなら残る
 // - 来なかった人・帰った人は、組み直した試合に入らない
 // - 試合の数の差は、いた間で1以内（ずっといた人どうし・遅れて来た人は来た時の周に入る）
-import { INITIAL_CONTENT, MATCH_GROUPINGS, MatchTableContent } from "@workspace/contracts/match";
+import {
+  INITIAL_CONTENT,
+  MATCH_GROUPINGS,
+  MatchTableContent,
+  settingsOfGrouping,
+} from "@workspace/contracts/match";
 import type { MatchPlayer, PlayerStatus } from "@workspace/contracts/match";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { actionsFor, describeAttendance, groupOfPlayer, markAttendance } from "./day-of.ts";
+import {
+  actionsFor,
+  attendanceGroups,
+  describeAttendance,
+  groupOfPlayer,
+  markAttendance,
+} from "./day-of.ts";
 import type { AttendanceAction } from "./day-of.ts";
 import { buildPlan } from "./plan.ts";
 import { changeSettings } from "./regroup.ts";
@@ -24,15 +35,13 @@ function oneGroup(
   games: number,
   format: "doubles" | "singles" = "doubles",
 ): MatchTableContent {
-  const minutes = games * 10;
   return {
     ...INITIAL_CONTENT,
     settings: {
       format,
-      grouping: "four",
-      minutesPerGame: 10,
-      startTime: "10:00",
-      endTime: `${String(10 + Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`,
+      gameCount: games,
+      ...settingsOfGrouping("four"),
+      courts: null,
     },
     players: statuses.map((status, index): MatchPlayer => ({
       id: `p${index}`,
@@ -105,7 +114,7 @@ describe("人を選んで直す（markAttendance）", () => {
         );
         const content: MatchTableContent = {
           ...base,
-          settings: { ...base.settings, grouping },
+          settings: { ...base.settings, ...settingsOfGrouping(grouping) },
           players: base.players.map((player, index) => ({
             ...player,
             level: levels[index % 4] ?? "advanced",
@@ -183,7 +192,11 @@ describe("人を選んで直す（markAttendance）", () => {
             })),
           };
           const first = markDone({ ...content, plan: buildPlan(content, seed) }, firstDone);
-          const changed = changeSettings(first, { ...first.settings, grouping, format }).content;
+          const changed = changeSettings(first, {
+            ...first.settings,
+            ...settingsOfGrouping(grouping),
+            format,
+          }).content;
           const rebuilt = { ...changed, plan: buildPlan(changed, seed) };
           const planned: MatchTableContent = {
             ...rebuilt,
@@ -418,5 +431,81 @@ describe("人を選んで直す（markAttendance）", () => {
     expect(actionsFor("late")).toEqual(["arrived", "absent"]);
     expect(actionsFor("absent")).toEqual(["arrived"]);
     expect(actionsFor("left")).toEqual(["arrived"]);
+  });
+});
+
+describe("当日の印とミニゲーム（match-009）", () => {
+  it("当日の印を変えても、ミニゲームのチーム分けは変えない", () => {
+    const base = oneGroup(["present", "present", "present", "present", "present", "late"], 4);
+    const content: MatchTableContent = {
+      ...base,
+      settings: { ...base.settings, courts: 1 },
+      mini: {
+        teams: [
+          ["p0", "p1", "p2"],
+          ["p3", "p4"],
+        ],
+      },
+    };
+    const planned = { ...content, plan: buildPlan(content, 5) };
+    const left = markAttendance(planned, 5, "p0", "left");
+    expect(left?.content.mini).toEqual(content.mini);
+    const arrived = markAttendance(planned, 5, "p5", "arrived");
+    expect(arrived?.content.mini).toEqual(content.mini);
+  });
+});
+
+describe("レベル別と分けないの両方（match-009 のセルフレビュー）", () => {
+  it("帰った人は、レベル別の組と全員の組のどちらのこれからの試合にも入らない", () => {
+    const base = oneGroup(["present", "present", "present", "present", "present", "present"], 6);
+    const both = { ...base, settings: { ...base.settings, ungrouped: true } };
+    const planned = { ...both, plan: buildPlan(both, 9) };
+    const result = markAttendance(planned, 9, "p0", "left");
+    for (const key of ["advanced", "all"]) {
+      const games = result?.content.plan.find((group) => group.key === key)?.games ?? [];
+      const from =
+        key === "advanced"
+          ? (result?.report.fromGame ?? 1) - 1
+          : (result?.report.others?.[0]?.fromGame ?? 1) - 1;
+      for (const game of games.slice(from)) expect(game.players).not.toContain("p0");
+    }
+    expect(describeAttendance(result!.report)).toMatch(/上級の第\d+試合から・全員の第\d+試合から/u);
+  });
+});
+
+describe("人を選んで直すの選ぶ欄と、ミニゲームだけの試合表（リリースの PR の Codex の指摘）", () => {
+  it("選ぶ欄の組は、レベル別があればその組・なければ全員の1つ（同じ人を2回並べない）", () => {
+    const settings = INITIAL_CONTENT.settings;
+    expect(attendanceGroups({ ...settings, levels: "two" }).map((group) => group.key)).toEqual([
+      "advanced_intermediate",
+      "beginner_novice",
+    ]);
+    expect(
+      attendanceGroups({ ...settings, levels: "four", ungrouped: true }).map((group) => group.key),
+    ).toEqual(["advanced", "intermediate", "beginner", "novice"]);
+    expect(
+      attendanceGroups({ ...settings, levels: null, ungrouped: false, courts: 2 }).map(
+        (group) => group.key,
+      ),
+    ).toEqual(["all"]);
+  });
+
+  it("ミニゲームだけでも当日の印を直せ、チームは変えないと知らせる", () => {
+    const base = oneGroup(["present", "present", "present", "present"], 4);
+    const content: MatchTableContent = {
+      ...base,
+      settings: { ...base.settings, levels: null, ungrouped: false, courts: 1 },
+      plan: [],
+      mini: {
+        teams: [
+          ["p0", "p1"],
+          ["p2", "p3"],
+        ],
+      },
+    };
+    const result = markAttendance(content, 3, "p0", "left");
+    expect(result?.content.players.find((player) => player.id === "p0")?.status).toBe("left");
+    expect(result?.content.mini).toEqual(content.mini);
+    expect(describeAttendance(result!.report)).toContain("ミニゲームのチームは変えません");
   });
 });

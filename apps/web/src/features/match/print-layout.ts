@@ -1,7 +1,8 @@
 // 印刷の版の大きさを決める（PRD FR-M19・モックアップ R1・M5）。状態を持たない関数だけ。
 // 1つの組を紙1枚に、名前の列に縦線を引いて並べる。字の大きさと行の高さは、選んだ紙1枚にちょうど収まるよう自動で合わせる
-// （試合が少ないときは大きく、多いときは小さく。持ち主が決めた）。版は SVG で描き、大きさはどれも紙の上の mm で決める
-// （画面の値ではないので tokens.css に置かない。research R10）。
+// （試合が少ないときは大きく、多いときは小さく。持ち主が決めた）。ただし大きくなりすぎないよう、名前の字は行の高さの
+// 45%・上限 MAX_FONT_MM まで、題は上限 16mm まで（刷ると大きすぎた。持ち主が決めた）。
+// 版は SVG で描き、大きさはどれも紙の上の mm で決める（画面の値ではないので tokens.css に置かない。research R10）。
 
 /** 紙の大きさの code（A5〜A2・B5〜B3。B は日本の JIS の B 列）。 */
 export const PAPER_SIZES = ["a5", "b5", "a4", "b4", "a3", "b3", "a2"] as const;
@@ -51,6 +52,15 @@ const SAFETY_MM = 1;
 
 /** 名前の字がこれより小さいと読みにくい（mm。約10ポイント）。大きい紙をすすめる【仮決め】。 */
 export const MIN_READABLE_FONT_MM = 3.5;
+
+/** 名前の字の大きさの上限（mm。約34ポイント）。試合が少ないときに字が大きくなりすぎないため。 */
+export const MAX_FONT_MM = 12;
+
+/** 名前の字の大きさの、行の高さに対する割合。 */
+const FONT_TO_ROW = 0.45;
+
+/** 題（組の名前）の字の大きさの上限（mm）。 */
+const MAX_TITLE_MM = 16;
 
 /** 既定の紙（A3 縦。PRD FR-M19【仮決め】）。 */
 export const DEFAULT_PAPER: { size: PaperSize; orientation: Orientation } = {
@@ -135,7 +145,7 @@ export function layoutSheet(input: {
   longestNameEm: number;
 }): SheetLayout {
   const { width, height } = printableArea(input.size, input.orientation);
-  const titleSize = Math.min(height * 0.05, width * 0.07, 24);
+  const titleSize = Math.min(height * 0.05, width * 0.07, MAX_TITLE_MM);
   const subtitleSize = Math.max(3, titleSize * 0.4);
   const tableTop = titleSize * 1.3 + subtitleSize * 1.8;
   const footerSize = Math.min(5, Math.max(3, height * 0.012));
@@ -145,7 +155,11 @@ export function layoutSheet(input: {
   const digits = String(rows).length;
   const numberWidth = Math.max(width * 0.06, Math.min(rowHeight * 0.5, 12) * 0.6 * digits + 4);
   const nameWidth = (width - numberWidth) / Math.max(1, input.columns);
-  const fontSize = Math.min(rowHeight * 0.6, (nameWidth * 0.86) / Math.max(2, input.longestNameEm));
+  const fontSize = Math.min(
+    rowHeight * FONT_TO_ROW,
+    MAX_FONT_MM,
+    (nameWidth * 0.86) / Math.max(2, input.longestNameEm),
+  );
   const numberSize = Math.min(fontSize * 0.7, (numberWidth * 0.8) / (digits * 0.6));
   return {
     width,
@@ -159,6 +173,98 @@ export function layoutSheet(input: {
     nameWidth,
     fontSize,
     numberSize,
+    footerSize,
+    tooSmall: fontSize < MIN_READABLE_FONT_MM,
+  };
+}
+
+/** ミニゲームの印刷の版の大きさ（どれも mm。match-009）。 */
+export type TeamsSheetLayout = {
+  /** 版の幅 */
+  width: number;
+  /** 版の高さ */
+  height: number;
+  /** 題の字の大きさ */
+  titleSize: number;
+  /** 題の下の説明の字の大きさ */
+  subtitleSize: number;
+  /** コートの枠の並びの上の端 */
+  gridTop: number;
+  /** コートの枠の列の数 */
+  cols: number;
+  /** コートの枠の行の数 */
+  rows: number;
+  /** コートの枠1つの幅 */
+  cellWidth: number;
+  /** コートの枠1つの高さ */
+  cellHeight: number;
+  /** 枠の中の1行の高さ */
+  lineHeight: number;
+  /** 名前の字の大きさ */
+  fontSize: number;
+  /** 「コート N」「チーム N」の字の大きさ */
+  headSize: number;
+  /** 下の「PaletKit で作った試合表」の字の大きさ */
+  footerSize: number;
+  /** 名前の字が小さすぎて読みにくい（大きい紙をすすめる） */
+  tooSmall: boolean;
+};
+
+/** ミニゲームの版の、1行の高さと名前の字の大きさの比。 */
+const TEAM_LINE_TO_FONT = 1.6;
+
+/**
+ * ミニゲームの印刷の版の大きさを決める（コートの枠を並べ、枠の中を2つのチームの列に分ける。紙1枚に収め、字は上限まで）。
+ * @param input 紙・コート数・1チームのいちばん多い人数・いちばん長い呼び名の幅
+ * @param input.size 紙の大きさ
+ * @param input.orientation 向き
+ * @param input.courts コート数
+ * @param input.members 1チームのいちばん多い人数
+ * @param input.longestNameEm いちばん長い呼び名の幅（textWidthEm）
+ * @returns 版の大きさ
+ */
+export function layoutTeamsSheet(input: {
+  size: PaperSize;
+  orientation: Orientation;
+  courts: number;
+  members: number;
+  longestNameEm: number;
+}): TeamsSheetLayout {
+  const { width, height } = printableArea(input.size, input.orientation);
+  const titleSize = Math.min(height * 0.05, width * 0.07, MAX_TITLE_MM);
+  const subtitleSize = Math.max(3, titleSize * 0.4);
+  const gridTop = titleSize * 1.3 + subtitleSize * 1.8;
+  const footerSize = Math.min(5, Math.max(3, height * 0.012));
+  const courts = Math.max(1, input.courts);
+  const cols = courts === 1 ? 1 : width > height ? Math.min(3, courts) : 2;
+  const rows = Math.ceil(courts / cols);
+  const cellWidth = width / cols;
+  // 枠の中は「コート N」「チーム N」の2行と、人の行。行の高さは上限までにし、枠は中身の高さに縮める（紙を埋めるまで広げない）
+  const lines = Math.max(1, input.members) + 2.5;
+  const lineHeight = Math.min(
+    (height - gridTop - footerSize * 2) / rows / lines,
+    MAX_FONT_MM * TEAM_LINE_TO_FONT,
+  );
+  const cellHeight = lineHeight * lines;
+  const fontSize = Math.min(
+    lineHeight / TEAM_LINE_TO_FONT,
+    MAX_FONT_MM,
+    (cellWidth * 0.45) / Math.max(2, input.longestNameEm),
+  );
+  const headSize = Math.min(fontSize * 1.1, lineHeight * 0.8);
+  return {
+    width,
+    height,
+    titleSize,
+    subtitleSize,
+    gridTop,
+    cols,
+    rows,
+    cellWidth,
+    cellHeight,
+    lineHeight,
+    fontSize,
+    headSize,
     footerSize,
     tooSmall: fontSize < MIN_READABLE_FONT_MM,
   };

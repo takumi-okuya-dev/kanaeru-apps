@@ -37,7 +37,7 @@ export const PLAYERS_PER_GAME = {
   singles: 2,
 } as const satisfies Record<MatchFormat, number>;
 
-/** レベルの分け方の code（FR-M6。既定は four）。 */
+/** レベルの分け方の code（FR-M6。前の形の設定の grouping と、組の決まり MATCH_GROUPS の key。none は分けない）。 */
 export const MATCH_GROUPINGS = ["four", "three", "two", "none"] as const;
 
 /** レベルの分け方。 */
@@ -50,6 +50,40 @@ export const MATCH_GROUPING_LABELS = {
   two: "上級＆中級・初級＆入門",
   none: "分けない（全員で1つ・レベルの差をならす）",
 } as const satisfies Record<MatchGrouping, string>;
+
+/**
+ * レベル別の分け方の code（設定の levels。分けない〈none〉は分け方の ungrouped で選ぶ。match-009）。
+ */
+export const MATCH_LEVEL_GROUPINGS = ["four", "three", "two"] as const;
+
+/** レベル別の分け方。 */
+export type MatchLevelGrouping = (typeof MATCH_LEVEL_GROUPINGS)[number];
+
+/**
+ * 分け方の code（レベル別・分けない・ミニゲーム。組み合わせて選ぶ。試合表の画面の「分け方」のタブの順。match-009）。
+ */
+export const MATCH_SETS = ["levels", "ungrouped", "mini"] as const;
+
+/** 分け方。 */
+export type MatchSet = (typeof MATCH_SETS)[number];
+
+/** 分け方の画面の言葉。 */
+export const MATCH_SET_LABELS = {
+  levels: "レベル別",
+  ungrouped: "分けない",
+  mini: "ミニゲーム",
+} as const satisfies Record<MatchSet, string>;
+
+/** ミニゲームのコート数の上限（チームはコート数×2。match-009）。 */
+export const MINI_COURTS_MAX = 20;
+
+/** ミニゲームのチーム分けで均すレベルの点（上級4・中級3・初級2・入門1。match-009 research R4）。 */
+export const LEVEL_POINTS = {
+  advanced: 4,
+  intermediate: 3,
+  beginner: 2,
+  novice: 1,
+} as const satisfies Record<MatchLevel, number>;
 
 /** 組の key（レベルの分け方で分けた1つの組。試合表の中身の組み合わせの key）。 */
 export const MATCH_GROUP_KEYS = [
@@ -94,6 +128,47 @@ export const MATCH_GROUPS = {
   ],
   none: [{ key: "all", label: "全員", levels: ["advanced", "intermediate", "beginner", "novice"] }],
 } as const satisfies Record<MatchGrouping, readonly MatchGroup[]>;
+
+/**
+ * 設定から、今の組の並びを決める（レベル別の組 +〈分けないなら〉全員の組 all。組の key は分け方をまたいで重ならない。
+ * match-009 research R2）。
+ * @param settings 設定のうち、レベル別の分け方（levels）と分けないか（ungrouped）
+ * @param settings.levels レベル別の分け方（null はレベル別をしない）
+ * @param settings.ungrouped 分けない（全員で1つ）もするか
+ * @returns 組（レベル別の組を上のレベルから、そのあとに all）
+ */
+export function matchGroupsOf(settings: {
+  levels: MatchLevelGrouping | null;
+  ungrouped: boolean;
+}): readonly MatchGroup[] {
+  return [
+    ...(settings.levels ? MATCH_GROUPS[settings.levels] : []),
+    ...(settings.ungrouped ? MATCH_GROUPS.none : []),
+  ];
+}
+
+/**
+ * 前の形の分け方1つ（4つ・3つ・2つ・分けない）を、新しい設定のレベル別の分け方と分けないかにする（前の形の設定を直すとき・試験）。
+ * @param grouping 前の形の分け方
+ * @returns レベル別の分け方と、分けないか
+ */
+export function settingsOfGrouping(grouping: MatchGrouping): {
+  levels: MatchLevelGrouping | null;
+  ungrouped: boolean;
+} {
+  return grouping === "none"
+    ? { levels: null, ungrouped: true }
+    : { levels: grouping, ungrouped: false };
+}
+
+/**
+ * 組の key が属する分け方（all は分けない、ほかはレベル別）。
+ * @param key 組の key
+ * @returns 分け方
+ */
+export function groupSetOf(key: MatchGroupKey): "levels" | "ungrouped" {
+  return key === "all" ? "ungrouped" : "levels";
+}
 
 /** 分けないときの、1試合の中のレベルの差の上限（段。PRD FR-M6【仮決め】）。 */
 export const UNGROUPED_MAX_LEVEL_SPREAD = 2;

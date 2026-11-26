@@ -2,7 +2,9 @@
 //
 // ■ 試合表の QR（M4：担当の端末 → 見るだけのページ）
 // - 入れるのは、版の番号・見るだけの札の印（SHA-256 の頭8文字。どの試合表かを見分ける。札は分からない）・試合表の名前と日付・
-//   1試合の長さ・中身の時刻・組ごとの呼び名の組み合わせと終わったか、だけ（レベル・氏名・名簿の人の ID は入れない。AD-28）
+//   中身の時刻・組ごとの呼び名の組み合わせと終わったか・ミニゲームのチームの呼び名、だけ（レベル・氏名・名簿の人の ID は入れない。
+//   AD-28）。match-009 から、中身の形の印は 3（そのまま）・4（縮めた）で、1試合の長さを外しチームを足した。前の形（印 1・2。
+//   1試合の長さあり・チームなし）も読む
 // - 呼び名は1度だけ並べて番号で指し、数は可変長の整数（varint）、終わったかはビットで持つ。縮むときは deflate（raw）で縮める
 //   （CompressionStream があるブラウザだけ。縮まなければそのまま）
 // - 文字は Base45（RFC 9285）にする。QR の英数字の形（1文字 5.5 ビット）にそのまま入り、バイトの形より小さく、読み取りの道具が
@@ -17,6 +19,8 @@ import {
   MATCH_GROUPS,
   MATCH_GROUP_KEYS,
   MATCH_LEVELS,
+  MINI_COURTS_MAX,
+  matchGroupsOf,
   MatchJoinInput,
   NICKNAME_MAX,
   TABLE_NAME_MAX,
@@ -42,10 +46,14 @@ export const HANDOFF_TIME_UNIT_MS = 60_000;
 /** 戻したあとの大きさの上限（バイト。読む端末を重くする QR を止める）。 */
 const MAX_INFLATED_BYTES = 256 * 1024;
 
-/** 中身の形の印（先頭の1バイト）：そのまま。 */
-const FORMAT_RAW = 1;
+/** 前の形の中身の印（先頭の1バイト。1試合の長さあり・チームなし。match-008 まで）：そのまま。 */
+const FORMAT_RAW_V1 = 1;
+/** 前の形の中身の印：deflate（raw）で縮めた。 */
+const FORMAT_DEFLATE_V1 = 2;
+/** 中身の形の印（1試合の長さなし・チームあり。match-009）：そのまま。 */
+const FORMAT_RAW = 3;
 /** 中身の形の印：deflate（raw）で縮めた。 */
-const FORMAT_DEFLATE = 2;
+const FORMAT_DEFLATE = 4;
 
 /** 渡す試合表（見るだけのページに入れる形）。 */
 export type HandoffTable = {
@@ -57,12 +65,12 @@ export type HandoffTable = {
   name: string;
   /** 試合の日（YYYY-MM-DD） */
   playDate: string;
-  /** 1試合の長さ（分） */
-  minutesPerGame: number;
   /** 中身の時刻（ミリ秒。分の単位に丸める〈HANDOFF_TIME_UNIT_MS〉。サーバーの時刻と比べるときは丸めた幅を見込む。view-import.ts） */
   updatedAt: number;
   /** 組ごとの試合（分け方の順） */
   groups: { key: MatchGroupKey; games: { players: string[]; done: boolean }[] }[];
+  /** ミニゲームのチームごとの呼び名（組んでいなければ持たない。match-009） */
+  teams?: string[][];
 };
 
 /** 受付の QR の中身。 */
@@ -359,22 +367,26 @@ const DAY_MS = 86_400_000;
 /**
  * 試合表をバイトにする（縮める前）。
  * @param table 渡す試合表
+ * @param legacy 前の形（1試合の長さあり・チームなし）で書くときの1試合の長さ（前の形を読めるかの試験だけで使う）
  * @returns バイト
  */
-export function serializeTable(table: HandoffTable): Uint8Array {
+export function serializeTable(
+  table: HandoffTable,
+  legacy?: { minutesPerGame: number },
+): Uint8Array {
   const writer = new ByteWriter();
   const names: string[] = [];
   const index = new Map<string, number>();
-  for (const group of table.groups) {
-    for (const game of group.games) {
-      for (const name of game.players) {
-        if (!index.has(name)) {
-          index.set(name, names.length);
-          names.push(name);
-        }
-      }
+  const remember = (name: string) => {
+    if (!index.has(name)) {
+      index.set(name, names.length);
+      names.push(name);
     }
+  };
+  for (const group of table.groups) {
+    for (const game of group.games) for (const name of game.players) remember(name);
   }
+  if (!legacy) for (const team of table.teams ?? []) for (const name of team) remember(name);
   writer.varint(table.version);
   if (table.hint && /^[0-9a-f]{8}$/u.test(table.hint)) {
     writer.u8(1);
@@ -387,7 +399,7 @@ export function serializeTable(table: HandoffTable): Uint8Array {
   writer.varint(
     Math.round((Date.UTC(year ?? 2000, (month ?? 1) - 1, day ?? 1) - DAY_ZERO) / DAY_MS),
   );
-  writer.varint(table.minutesPerGame);
+  if (legacy) writer.varint(legacy.minutesPerGame);
   writer.varint(Math.floor(table.updatedAt / HANDOFF_TIME_UNIT_MS));
   writer.varint(names.length);
   for (const name of names) writer.text(name);
@@ -408,16 +420,25 @@ export function serializeTable(table: HandoffTable): Uint8Array {
       }
     });
   }
+  if (!legacy) {
+    const teams = table.teams ?? [];
+    writer.varint(teams.length);
+    for (const team of teams) {
+      writer.varint(team.length);
+      for (const name of team) writer.varint(index.get(name) ?? 0);
+    }
+  }
   return Uint8Array.from(writer.bytes);
 }
 
 /**
  * バイトを試合表に戻す。
  * @param bytes バイト
+ * @param legacy 前の形（1試合の長さあり・チームなし）か
  * @returns 渡された試合表
  * @throws {HandoffFormatError} 形が違うとき
  */
-export function deserializeTable(bytes: Uint8Array): HandoffTable {
+export function deserializeTable(bytes: Uint8Array, legacy = false): HandoffTable {
   const reader = new ByteReader(bytes);
   const version = reader.varint();
   if (!Number.isSafeInteger(version) || version < 1) throw new HandoffFormatError();
@@ -426,8 +447,11 @@ export function deserializeTable(bytes: Uint8Array): HandoffTable {
   if (name.length > TABLE_NAME_MAX) throw new HandoffFormatError();
   const date = new Date(DAY_ZERO + reader.varint() * DAY_MS);
   const playDate = date.toISOString().slice(0, 10);
-  const minutesPerGame = reader.varint();
-  if (minutesPerGame < 1 || minutesPerGame > 600) throw new HandoffFormatError();
+  if (legacy) {
+    // 前の形の1試合の長さ（もう使わないので読み捨てる）
+    const minutesPerGame = reader.varint();
+    if (minutesPerGame < 1 || minutesPerGame > 600) throw new HandoffFormatError();
+  }
   const updatedAt = reader.varint() * HANDOFF_TIME_UNIT_MS;
   const nameCount = reader.varint();
   if (nameCount > 1000) throw new HandoffFormatError();
@@ -462,8 +486,24 @@ export function deserializeTable(bytes: Uint8Array): HandoffTable {
     }
     groups.push({ key, games });
   }
+  let teams: string[][] | undefined;
+  if (!legacy) {
+    const teamCount = reader.varint();
+    if (teamCount > MINI_COURTS_MAX * 2) throw new HandoffFormatError();
+    if (teamCount > 0) {
+      teams = Array.from({ length: teamCount }, () => {
+        const size = reader.varint();
+        if (size > 1000) throw new HandoffFormatError();
+        return Array.from({ length: size }, () => {
+          const player = names[reader.varint()];
+          if (player === undefined) throw new HandoffFormatError();
+          return player;
+        });
+      });
+    }
+  }
   if (!reader.done()) throw new HandoffFormatError();
-  return { version, hint, name, playDate, minutesPerGame, updatedAt, groups };
+  return { version, hint, name, playDate, updatedAt, groups, ...(teams ? { teams } : {}) };
 }
 
 /**
@@ -584,6 +624,8 @@ export async function decodeTableHandoff(data: string): Promise<HandoffTable> {
   const rest = body.subarray(1);
   if (format === FORMAT_RAW) return deserializeTable(rest);
   if (format === FORMAT_DEFLATE) return deserializeTable(await inflate(rest));
+  if (format === FORMAT_RAW_V1) return deserializeTable(rest, true);
+  if (format === FORMAT_DEFLATE_V1) return deserializeTable(await inflate(rest), true);
   throw new HandoffFormatError();
 }
 
@@ -602,9 +644,11 @@ export function handoffOfTable(table: MatchTable, version: number, now: number):
     hint: table.links.viewHint,
     name: table.name,
     playDate: table.playDate,
-    minutesPerGame: content.settings.minutesPerGame,
     updatedAt: Math.floor(now / HANDOFF_TIME_UNIT_MS) * HANDOFF_TIME_UNIT_MS,
-    groups: MATCH_GROUPS[content.settings.grouping].map((group) => ({
+    ...(content.mini
+      ? { teams: content.mini.teams.map((team) => team.map((id) => names.get(id) ?? "")) }
+      : {}),
+    groups: matchGroupsOf(content.settings).map((group) => ({
       key: group.key,
       games: (content.plan.find((plan) => plan.key === group.key)?.games ?? []).map((game) => ({
         players: game.players.map((id) => names.get(id) ?? ""),
@@ -638,12 +682,12 @@ export function viewFromHandoff(table: HandoffTable, expiresAt: string): MatchVi
     name: table.name,
     playDate: table.playDate,
     version: table.version,
-    minutesPerGame: table.minutesPerGame,
     groups: table.groups.map((group) => ({
       key: group.key,
       label: groupLabel(group.key),
       games: group.games,
     })),
+    ...(table.teams ? { teams: table.teams } : {}),
     updatedAt: new Date(table.updatedAt).toISOString(),
     expiresAt,
   };
