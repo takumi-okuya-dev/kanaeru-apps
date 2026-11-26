@@ -177,6 +177,26 @@ describe("SessionGate と useSession", () => {
     expect(countOf(sent, "/api/v1/auth/line")).toBe(1);
   });
 
+  it("外のブラウザで「LINEでログインし直す」を押すと、古い LINE のログインを捨ててからログインし直す", async () => {
+    const relogin = vi.fn();
+    const login = vi.fn();
+    liffState.client = {
+      ...createFakeLiff({ loggedIn: true, idToken: "expired", inClient: false }),
+      mode: "line",
+      login,
+      relogin,
+    };
+    stubApi((item) =>
+      item.path === "/api/v1/auth/line"
+        ? errorResponse(401, "LINE_LOGIN_FAILED")
+        : errorResponse(401, "UNAUTHENTICATED"),
+    );
+    renderGate();
+    (await screen.findByRole("button", { name: "LINEでログインし直す" })).click();
+    expect(relogin).toHaveBeenCalledTimes(1);
+    expect(login).not.toHaveBeenCalled();
+  });
+
   it("LIFF ID のない画面で未ログインなら、手元のログインへ案内する（LINE に送らない）", async () => {
     const sent = stubApi(() => errorResponse(401, "UNAUTHENTICATED"));
     renderGate();

@@ -3,10 +3,10 @@ mock_provider "google" {
     defaults = { number = "123456789012" }
   }
   mock_resource "google_sql_database_instance" {
-    defaults = { private_ip_address = "10.20.0.3", name = "kanaeru-db", connection_name = "p:r:kanaeru-db" }
+    defaults = { private_ip_address = "10.20.0.3", name = "suite-db", connection_name = "p:r:suite-db" }
   }
   mock_resource "google_cloud_run_v2_service" {
-    defaults = { uri = "https://kanaeru-123456789012.asia-northeast1.run.app" }
+    defaults = { uri = "https://suite-123456789012.asia-northeast1.run.app" }
   }
   mock_resource "google_secret_manager_secret_version" {
     defaults = { version = "1" }
@@ -41,19 +41,19 @@ variables {
 run "both" {
   command = plan
   assert {
-    condition     = module.production.github_environment_variables.CLOUD_RUN_SERVICE == "kanaeru"
+    condition     = module.production.github_environment_variables.CLOUD_RUN_SERVICE == "suite"
     error_message = "prod name"
   }
   assert {
-    condition     = module.staging[0].github_environment_variables.CLOUD_RUN_SERVICE == "kanaeru-stg"
+    condition     = module.staging[0].github_environment_variables.CLOUD_RUN_SERVICE == "suite-stg"
     error_message = "stg name"
   }
   assert {
-    condition     = module.staging[0].web_url == "https://kanaeru-stg-123456789012.asia-northeast1.run.app"
+    condition     = module.staging[0].web_url == "https://suite-stg-123456789012.asia-northeast1.run.app"
     error_message = "stg url"
   }
   assert {
-    condition     = endswith(module.production.github_environment_variables.IMAGE_REPOSITORY, "/kanaeru/app") && endswith(module.staging[0].github_environment_variables.IMAGE_REPOSITORY, "/kanaeru-stg/app")
+    condition     = endswith(module.production.github_environment_variables.IMAGE_REPOSITORY, "/suite/app") && endswith(module.staging[0].github_environment_variables.IMAGE_REPOSITORY, "/suite-stg/app")
     error_message = "image repositories must be separate per environment"
   }
 }

@@ -1,13 +1,13 @@
 # 夜間（0時〜8時。日本時間）に Cloud SQL を止める（core-002。AD-10）。サーバーを共にする本番とステージングの両方が止まる。
 # Cloud Scheduler が Cloud SQL Admin API に PATCH を送り、activationPolicy を NEVER（止める）・ALWAYS（動かす）にする。
 # Google の API（*.googleapis.com）を呼ぶので、OIDC ではなく OAuth のトークンを使う。間に関数を挟まない。
-# 交流会が0時を越える日は、主催者が `gcloud scheduler jobs pause kanaeru-db-stop --location=asia-northeast1` で止める。
+# 交流会が0時を越える日は、主催者が `gcloud scheduler jobs pause suite-db-stop --location=asia-northeast1` で止める。
 # Terraform はその paused の差を無視する（次の apply で戻さない）。翌日に resume を忘れないこと（README の 7）。
 
 locals {
   db_schedules = {
-    stop  = { schedule = "0 0 * * *", policy = "NEVER", description = "毎日0時に kanaeru の DB を止める" }
-    start = { schedule = "0 8 * * *", policy = "ALWAYS", description = "毎日8時に kanaeru の DB を動かす" }
+    stop  = { schedule = "0 0 * * *", policy = "NEVER", description = "毎日0時に DB を止める" }
+    start = { schedule = "0 8 * * *", policy = "ALWAYS", description = "毎日8時に DB を動かす" }
   }
 }
 
@@ -48,4 +48,4 @@ resource "google_cloud_scheduler_job" "db" {
   ]
 }
 
-# 共通の定期の仕事（core-017。kanaeru-jobs-tick など）は、環境ごとの部品が作る（modules/environment/run.tf）。
+# 共通の定期の仕事（core-017。suite-jobs-tick など）は、環境ごとの部品が作る（modules/environment/run.tf）。

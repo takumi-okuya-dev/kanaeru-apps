@@ -2,22 +2,22 @@
 #
 # | 身分 | 使う所 | 役割 |
 # |---|---|---|
-# | kanaeru-db-scheduler | Cloud Scheduler（夜間の停止と朝の起動） | Cloud SQL の台を読む・直す（自前の役割で2つの権限だけ） |
-# | kanaeru-db-waker | GitHub Actions の夜の緊急デプロイ（main からだけ。core-019） | 同じ役割。DB を一時的に起こし、決めた時間のあと止め直す |
+# | suite-db-scheduler | Cloud Scheduler（夜間の停止と朝の起動） | Cloud SQL の台を読む・直す（自前の役割で2つの権限だけ） |
+# | suite-db-waker | GitHub Actions の夜の緊急デプロイ（main からだけ。core-019） | 同じ役割。DB を一時的に起こし、決めた時間のあと止め直す |
 #
 # cloudsql.instances.update は止める・動かすのほかに、台の設定（ネットワーク・バックアップ・消す守り）も直せる。
-# そのため、この役割を持つ身分は、Cloud Scheduler と、main からだけなりすませる kanaeru-db-waker に限る（デプロイの身分には付けない）。
+# そのため、この役割を持つ身分は、Cloud Scheduler と、main からだけなりすませる suite-db-waker に限る（デプロイの身分には付けない）。
 
 resource "google_service_account" "db_scheduler" {
   account_id   = "${local.name}-db-scheduler"
-  display_name = "kanaeru の DB を止める・動かす（Cloud Scheduler）"
+  display_name = "DB を止める・動かす（Cloud Scheduler）"
   depends_on   = [google_project_service.apis]
 }
 
 # roles/cloudsql.editor は広いので、止める・動かすのに要る2つの権限だけの役割を作る
 resource "google_project_iam_custom_role" "sql_activation" {
-  role_id     = "kanaeruSqlActivation"
-  title       = "kanaeru の Cloud SQL を止める・動かす"
+  role_id     = "suiteSqlActivation"
+  title       = "Cloud SQL を止める・動かす"
   description = "Cloud SQL の activationPolicy を直す（夜間の停止と朝の起動・夜の緊急デプロイ）ための役割（core-002・core-019）"
   permissions = [
     "cloudsql.instances.get",
@@ -37,7 +37,7 @@ resource "google_project_iam_member" "db_scheduler_sql_activation" {
 # なりすませるのは main のブランチから入った GitHub Actions だけ（develop に入ったコードからは、DB を止めたり設定を変えたりできない）
 resource "google_service_account" "db_waker" {
   account_id   = "${local.name}-db-waker"
-  display_name = "kanaeru の DB を夜の緊急デプロイで一時的に起こす（GitHub Actions・main だけ）"
+  display_name = "DB を夜の緊急デプロイで一時的に起こす（GitHub Actions・main だけ）"
   depends_on   = [google_project_service.apis]
 }
 

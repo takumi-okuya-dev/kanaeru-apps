@@ -54,9 +54,10 @@ function LoginRequired() {
         <Button
           variant="primary"
           onClick={() => {
-            // LINE の中は開き直せば liff.init() でログインが済む。外のブラウザは LINE のログインへ移り、同じ道に戻る
+            // LINE の中は開き直せば liff.init() でログインが済む。外のブラウザは、ブラウザに残った古い（期限の切れた）
+            // LINE のログインを捨ててから LINE のログインへ移り、同じ道に戻る（新しい ID トークンが取れる）
             if (liff.isInClient()) window.location.reload();
-            else liff.login();
+            else liff.relogin();
           }}
         >
           LINEでログインし直す

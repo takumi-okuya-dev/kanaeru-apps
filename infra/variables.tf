@@ -62,7 +62,7 @@ variable "budget_currency" {
 
 # ---- 環境ごとの値（core-018）。資源の名前・台数・DB の接続の数は environments.tf で決める
 variable "production" {
-  description = "本番（kanaeru。main のマージで出る）の値"
+  description = "本番（suite。main のマージで出る）の値"
   type = object({
     # Cloud Run のサービスを消せないようにするか。環境を消すときだけ、先に false にして apply する（README の 11）
     deletion_protection = optional(bool, true)
@@ -95,7 +95,7 @@ variable "production" {
 }
 
 variable "staging" {
-  description = "ステージング（kanaeru-stg。develop のマージと、main のマージ〈本番の前〉で出る。本番と同じ Cloud SQL のサーバーの中の別の DB を使う）の値。null なら作らない"
+  description = "ステージング（suite-stg。develop のマージと、main のマージ〈本番の前〉で出る。本番と同じ Cloud SQL のサーバーの中の別の DB を使う）の値。null なら作らない"
   type = object({
     # Cloud Run のサービスを消せないようにするか。環境を消すときだけ、先に false にして apply する（README の 11）
     deletion_protection = optional(bool, true)

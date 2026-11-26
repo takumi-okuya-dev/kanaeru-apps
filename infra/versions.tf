@@ -19,7 +19,7 @@ terraform {
   }
 
   backend "gcs" {
-    prefix = "kanaeru/project"
+    prefix = "suite/project"
   }
 }
 
@@ -30,4 +30,9 @@ provider "google" {
   # 請求の予算（google_billing_budget）を手元の資格（ADC）で作るときに要る
   user_project_override = true
   billing_project       = var.project_id
+
+  # サービス名はラベルに持たせる（名前と違い、あとから変えられる。docs/rules/coding.md 2章）。環境は名前の -stg とラベル env
+  default_labels = {
+    product = "paletkit"
+  }
 }
