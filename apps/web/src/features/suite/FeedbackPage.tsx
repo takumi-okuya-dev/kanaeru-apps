@@ -3,6 +3,7 @@
 // 送った改善点は運営者だけが「届いた改善点」で読む。送った人が自分の改善点を見る画面は作らない（この版）。
 import { FEEDBACK_BODY_MAX, FeedbackInput } from "@workspace/contracts/suite";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Field, useFieldControl } from "@workspace/ui/components/field";
 import { inputClassName } from "@workspace/ui/components/input";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
@@ -121,11 +122,11 @@ function FeedbackForm() {
           }}
         />
       </Field>
-      <div>
+      <ButtonRow>
         <Button type="submit" variant="primary" disabled={pending}>
           送る
         </Button>
-      </div>
+      </ButtonRow>
       {result ? <ResponseMessage tone={result.tone}>{result.text}</ResponseMessage> : null}
     </form>
   );

@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { listApps } from "@workspace/contracts/core";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useState } from "react";
 import { errorMessage } from "../../lib/api.ts";
@@ -112,7 +113,9 @@ function InboxContent() {
       ) : query.isError ? (
         <div className="flex flex-col items-start gap-xxs">
           <p className="text-m">{errorMessage(query.error)}</p>
-          <Button onClick={() => void query.refetch()}>もう一度</Button>
+          <ButtonRow>
+            <Button onClick={() => void query.refetch()}>もう一度</Button>
+          </ButtonRow>
         </div>
       ) : query.data.items.length === 0 ? (
         <p className="text-m text-text-sub">届いた改善点はありません。</p>
