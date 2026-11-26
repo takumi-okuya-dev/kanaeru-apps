@@ -35,6 +35,7 @@ import type { ClientRow } from "./store.ts";
 import { generateOpaqueToken, hashOpaqueToken } from "./tokens.ts";
 import { currentAccount, requireSession } from "../session.ts";
 import { registerMcpRoute } from "./mcp.ts";
+import { registerConnectionRoutes } from "./connections.ts";
 
 /** DCR の登録の数の上限（1日あたり。仮決め）。 */
 export const DCR_DAILY_LIMIT = 500;
@@ -446,6 +447,7 @@ export function registerOAuthRoutes<T extends OpenAPIHono<ApiEnv>>(app: T, deps:
     return c.json(await issueTokens(deps.db, row.grantId, row.resource, row.scopes), 200);
   });
 
+  registerConnectionRoutes(app, deps);
   registerMcpRoute(app, deps);
   return app;
 }

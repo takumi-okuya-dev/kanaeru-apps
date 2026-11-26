@@ -302,3 +302,19 @@ export async function findGrantById(
   if (!row) return null;
   return { accountId: row.accountId, clientRowId: row.clientRowId, scopes: row.scopes, revoked: row.revokedAt !== null };
 }
+
+/**
+ * 自分の同意を取り消す（ほかの人の同意は触らない。見つからなければ false）。
+ * @param db DB
+ * @param grantId 同意の ID
+ * @param accountId 持ち主（今の利用者）
+ * @returns 取り消したなら true
+ */
+export async function revokeGrantOwnedBy(db: Executor, grantId: string, accountId: string): Promise<boolean> {
+  const rows = await db
+    .update(oauthGrant)
+    .set({ revokedAt: sql`now()` })
+    .where(and(eq(oauthGrant.id, grantId), eq(oauthGrant.accountId, accountId), isNull(oauthGrant.revokedAt)))
+    .returning({ id: oauthGrant.id });
+  return rows.length > 0;
+}
