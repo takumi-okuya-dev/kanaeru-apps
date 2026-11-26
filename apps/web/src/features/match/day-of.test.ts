@@ -448,3 +448,21 @@ describe("当日の印とミニゲーム（match-009）", () => {
     expect(arrived?.content.mini).toEqual(content.mini);
   });
 });
+
+describe("レベル別と分けないの両方（match-009 のセルフレビュー）", () => {
+  it("帰った人は、レベル別の組と全員の組のどちらのこれからの試合にも入らない", () => {
+    const base = oneGroup(["present", "present", "present", "present", "present", "present"], 6);
+    const both = { ...base, settings: { ...base.settings, ungrouped: true } };
+    const planned = { ...both, plan: buildPlan(both, 9) };
+    const result = markAttendance(planned, 9, "p0", "left");
+    for (const key of ["advanced", "all"]) {
+      const games = result?.content.plan.find((group) => group.key === key)?.games ?? [];
+      const from =
+        key === "advanced"
+          ? (result?.report.fromGame ?? 1) - 1
+          : (result?.report.others?.[0]?.fromGame ?? 1) - 1;
+      for (const game of games.slice(from)) expect(game.players).not.toContain("p0");
+    }
+    expect(describeAttendance(result!.report)).toMatch(/上級の第\d+試合から・全員の第\d+試合から/u);
+  });
+});

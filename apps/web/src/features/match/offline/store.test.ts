@@ -2,7 +2,12 @@
 import { INITIAL_CONTENT } from "@workspace/contracts/match";
 import type { MatchTable, MatchTableContent } from "@workspace/contracts/match";
 import { afterEach, describe, expect, it } from "vitest";
-import { createMemoryStore, offlineStore, setOfflineStoreForTest } from "./store.ts";
+import {
+  createMemoryStore,
+  offlineStore,
+  setOfflineStoreForTest,
+  upgradeContent,
+} from "./store.ts";
 
 /** 前の形の設定の中身（15分・12:30〜14:30・分けない）。 */
 const legacyContent = {
@@ -45,5 +50,15 @@ describe("端末に置いた前の形の中身", () => {
     };
     expect((await store.readSnapshot("t1"))?.table.content.settings).toEqual(expected);
     expect((await store.listChanges("t1"))[0]?.content.settings).toEqual(expected);
+  });
+});
+
+describe("今の確かめに通らない前の形の写し（match-009 のセルフレビュー）", () => {
+  it("中身のほかの所が通らなくても、設定だけは今の形に直す", () => {
+    const broken = {
+      ...legacyContent,
+      plan: [{ key: "advanced", games: [] }],
+    } as MatchTableContent;
+    expect(upgradeContent(broken).settings).toMatchObject({ gameCount: 8, ungrouped: true });
   });
 });
