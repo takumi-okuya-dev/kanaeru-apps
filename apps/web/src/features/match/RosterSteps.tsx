@@ -4,6 +4,7 @@
 // - ①②は押すと、その所の見出しへ移ってフォーカスを移す。③は、組んでいなければ「試合表を作る」のボタンへ、組んでいれば試合表の画面へ
 import type { MatchTable } from "@workspace/contracts/match";
 import { Link } from "@tanstack/react-router";
+import { Button, buttonVariants } from "@workspace/ui/components/button";
 import { cn } from "@workspace/ui/lib/cn";
 import { ROSTER_STEPS, ROSTER_STEP_LABELS, rosterSteps } from "./steps.ts";
 import type { RosterStep } from "./steps.ts";
@@ -20,9 +21,14 @@ export const ROSTER_STEP_TARGETS = {
  * @param id 要素の ID
  */
 function moveTo(id: string): void {
-  const target = document.getElementById(id);
+  let target = document.getElementById(id);
+  // 押せない所（担当でない端末の「試合表を作る」）にはフォーカスを移せないので、試合の設定の見出しへ移る
+  if (target instanceof HTMLButtonElement && target.disabled) {
+    target = document.getElementById(ROSTER_STEP_TARGETS.settings);
+  }
   if (!target) return;
-  target.scrollIntoView?.({ block: "start", behavior: "smooth" });
+  const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+  target.scrollIntoView?.({ block: "start", behavior: reduced ? "auto" : "smooth" });
   target.focus({ preventScroll: true });
 }
 
@@ -80,13 +86,11 @@ export function RosterSteps({ table }: { table: MatchTable }) {
         {ROSTER_STEPS.map((step, index) => {
           const current = state.current === step;
           const done = state.done.includes(step);
+          // 部品は @workspace/ui の Button（の見た目）を使い、中身を2行で左に寄せる形だけを足す
           const className = cn(
-            "flex min-h-xl w-full items-center gap-xxs rounded-md border px-xs py-x3s text-left text-m",
-            current
-              ? "border-primary bg-primary font-bold text-on-primary"
-              : done
-                ? "border-border bg-surface text-text"
-                : "border-border bg-surface-sunken text-text-sub",
+            buttonVariants({ variant: current ? "primary" : "secondary" }),
+            "h-auto w-full justify-start py-x3s text-left whitespace-normal",
+            current ? "" : done ? "font-normal" : "bg-surface-sunken font-normal text-text-sub",
           );
           const body = (
             <>
@@ -118,14 +122,13 @@ export function RosterSteps({ table }: { table: MatchTable }) {
                   <span className="ml-auto text-s text-text-link underline">試合表を見る</span>
                 </Link>
               ) : (
-                <button
-                  type="button"
+                <Button
                   aria-current={current ? "step" : undefined}
                   onClick={() => moveTo(ROSTER_STEP_TARGETS[step])}
-                  className={cn(className, "cursor-pointer")}
+                  className={className}
                 >
                   {body}
-                </button>
+                </Button>
               )}
             </li>
           );

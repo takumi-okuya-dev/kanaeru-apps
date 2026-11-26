@@ -73,6 +73,7 @@ import { ColumnCheckDialog } from "./ColumnCheckDialog.tsx";
 import { ReceptionImportDialog } from "./ReceptionImportDialog.tsx";
 import { ReceptionEventNote } from "./ReceptionEventNote.tsx";
 import { RosterSteps } from "./RosterSteps.tsx";
+import { rosterSteps } from "./steps.ts";
 import { EditorState, TableFrame } from "./TableFrame.tsx";
 import type { TableEditor } from "./table-editor.ts";
 
@@ -119,6 +120,12 @@ function ImportActions({
   const [mode, setMode] = useState<ImportMode>("replace");
   const [message, setMessage] = useState<{ tone: "success" | "danger"; text: string }>();
   const [methodsOpen, setMethodsOpen] = useState(false);
+  // 名簿が空になった・入ったら、「名簿を足す・入れ直す」は閉じた形から始める
+  const [rosterShown, setRosterShown] = useState(table.content.players.length > 0);
+  if (rosterShown !== table.content.players.length > 0) {
+    setRosterShown(table.content.players.length > 0);
+    setMethodsOpen(false);
+  }
   const methodsId = useId();
   const [pending, setPending] = useState<{
     parsed: ParsedCsv;
@@ -231,7 +238,15 @@ function ImportActions({
           {methodsOpen ? (
             <div id={methodsId} className="flex flex-wrap gap-xxs">
               {methods.map((method) => (
-                <Button key={method.key} size="small" disabled={disabled} onClick={method.run}>
+                <Button
+                  key={method.key}
+                  size="small"
+                  disabled={disabled}
+                  onClick={() => {
+                    setMethodsOpen(false);
+                    method.run();
+                  }}
+                >
                   {method.label}
                 </Button>
               ))}
@@ -243,18 +258,17 @@ function ImportActions({
         <ul aria-label="名簿の入れ方" className="grid grid-cols-1 gap-xxs wide:grid-cols-2">
           {methods.map((method) => (
             <li key={method.key}>
-              <button
-                type="button"
+              <Button
                 disabled={disabled}
                 onClick={method.run}
-                className="flex min-h-xl w-full cursor-pointer flex-col items-start gap-x3s rounded-md border border-border-input bg-surface px-xs py-xxs text-left hover:bg-surface-over disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-auto w-full flex-col items-start gap-x3s py-xxs text-left whitespace-normal"
               >
                 <span className="flex flex-wrap items-center gap-xxs text-m font-bold">
                   {method.label}
                   {method.recommended ? <Badge>よく使う</Badge> : null}
                 </span>
-                <span className="text-s text-text-sub">{method.note}</span>
-              </button>
+                <span className="text-s font-normal text-text-sub">{method.note}</span>
+              </Button>
             </li>
           ))}
         </ul>
@@ -675,11 +689,10 @@ function SettingsCard({ table, editor }: BodyProps) {
   const disabled = !editor.isEditor;
   const summaries = summarizeGroups(table.content);
   const mini = miniSummary(table.content);
-  const planned =
-    table.content.plan.some((plan) => plan.games.length > 0) || table.content.mini !== undefined;
-  const noLevel = table.content.players.filter(
-    (player) => player.status === "present" && player.level === null,
-  ).length;
+  // 組んだか・レベルのない人の数は、手順（steps.ts）と同じ決め方を使う
+  const steps = rosterSteps(table.content);
+  const planned = steps.done.includes("build");
+  const noLevel = steps.noLevel;
 
   /**
    * 設定を確かめる（誤りは欄のそば）。
