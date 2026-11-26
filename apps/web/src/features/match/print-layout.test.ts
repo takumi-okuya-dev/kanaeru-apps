@@ -97,7 +97,7 @@ describe("ミニゲームの印刷の版の大きさ（match-009）", () => {
           expect(layout.cols * layout.rows).toBeGreaterThanOrEqual(courts);
           expect(layout.cellWidth * layout.cols).toBeCloseTo(layout.width, 6);
           const bottom = layout.gridTop + layout.cellHeight * layout.rows + layout.footerSize * 2;
-          expect(bottom).toBeCloseTo(layout.height, 6);
+          expect(bottom).toBeLessThanOrEqual(layout.height + 1e-6);
           expect(layout.lineHeight * 8.5).toBeCloseTo(layout.cellHeight, 6);
           expect(layout.fontSize * 4).toBeLessThanOrEqual(layout.cellWidth / 2);
           expect(layout.fontSize).toBeLessThanOrEqual(MAX_FONT_MM);

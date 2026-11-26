@@ -210,8 +210,11 @@ export type TeamsSheetLayout = {
   tooSmall: boolean;
 };
 
+/** ミニゲームの版の、1行の高さと名前の字の大きさの比。 */
+const TEAM_LINE_TO_FONT = 1.6;
+
 /**
- * ミニゲームの印刷の版の大きさを決める（コートの枠を並べ、枠の中を2つのチームの列に分ける。紙1枚に収める）。
+ * ミニゲームの印刷の版の大きさを決める（コートの枠を並べ、枠の中を2つのチームの列に分ける。紙1枚に収め、字は上限まで）。
  * @param input 紙・コート数・1チームのいちばん多い人数・いちばん長い呼び名の幅
  * @param input.size 紙の大きさ
  * @param input.orientation 向き
@@ -236,11 +239,15 @@ export function layoutTeamsSheet(input: {
   const cols = courts === 1 ? 1 : width > height ? Math.min(3, courts) : 2;
   const rows = Math.ceil(courts / cols);
   const cellWidth = width / cols;
-  const cellHeight = (height - gridTop - footerSize * 2) / rows;
-  // 枠の中は「コート N」「チーム N」の2行と、人の行
-  const lineHeight = cellHeight / (Math.max(1, input.members) + 2.5);
+  // 枠の中は「コート N」「チーム N」の2行と、人の行。行の高さは上限までにし、枠は中身の高さに縮める（紙を埋めるまで広げない）
+  const lines = Math.max(1, input.members) + 2.5;
+  const lineHeight = Math.min(
+    (height - gridTop - footerSize * 2) / rows / lines,
+    MAX_FONT_MM * TEAM_LINE_TO_FONT,
+  );
+  const cellHeight = lineHeight * lines;
   const fontSize = Math.min(
-    lineHeight * 0.7,
+    lineHeight / TEAM_LINE_TO_FONT,
     MAX_FONT_MM,
     (cellWidth * 0.45) / Math.max(2, input.longestNameEm),
   );

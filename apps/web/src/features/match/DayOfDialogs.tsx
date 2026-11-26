@@ -188,9 +188,11 @@ export function RegroupDialog({ open, onOpenChange, table, onApply }: RegroupDia
   const issue = parsed.success ? undefined : parsed.error.issues[0]?.message;
   const report = next ? changeSettings(table.content, next).report : undefined;
   const lines = report ? describeSettingsChange(report, true) : [];
+  // 組み合わせが変わる・コート数が変わる（チームを組めていないミニゲームを外すときも）・まだのチーム分けを作るときに押せる
   const changed =
     report !== undefined &&
-    (report.regrouped || report.miniCleared || (mini && !table.content.mini));
+    next !== undefined &&
+    (report.regrouped || next.courts !== settings.courts || (mini && !table.content.mini));
   return (
     <Dialog
       open={open}

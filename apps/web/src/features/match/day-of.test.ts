@@ -434,7 +434,12 @@ describe("当日の印とミニゲーム（match-009）", () => {
     const content: MatchTableContent = {
       ...base,
       settings: { ...base.settings, courts: 1 },
-      mini: { teams: [["p0", "p1", "p2"], ["p3", "p4"]] },
+      mini: {
+        teams: [
+          ["p0", "p1", "p2"],
+          ["p3", "p4"],
+        ],
+      },
     };
     const planned = { ...content, plan: buildPlan(content, 5) };
     const left = markAttendance(planned, 5, "p0", "left");
