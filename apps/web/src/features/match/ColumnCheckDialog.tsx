@@ -39,7 +39,12 @@ export type ColumnCheckDialogProps = {
  * @param props 読んだ表（parsed）・読んだもの（sourceLabel）・閉じるとき（onClose）・取り込むとき（onImport）
  * @returns 枠の要素
  */
-export function ColumnCheckDialog({ parsed, sourceLabel, onClose, onImport }: ColumnCheckDialogProps) {
+export function ColumnCheckDialog({
+  parsed,
+  sourceLabel,
+  onClose,
+  onImport,
+}: ColumnCheckDialogProps) {
   return (
     <Dialog
       open={parsed !== undefined}
@@ -66,7 +71,8 @@ export function ColumnCheckDialog({ parsed, sourceLabel, onClose, onImport }: Co
  */
 function initialPicks(parsed: ParsedCsv, levelIndex: number): Record<string, LevelPick> {
   const picks: Record<string, LevelPick> = {};
-  for (const choice of levelChoices(parsed, levelIndex).choices) picks[choice.value] = choice.level ?? "";
+  for (const choice of levelChoices(parsed, levelIndex).choices)
+    picks[choice.value] = choice.level ?? "";
   return picks;
 }
 
@@ -90,7 +96,9 @@ function ColumnCheckBody({
   const [failure, setFailure] = useState<string>();
   const [detected] = useState(() => detectColumns(parsed));
   const [selection, setSelection] = useState<ColumnSelection>(detected);
-  const [picks, setPicks] = useState<Record<string, LevelPick>>(() => initialPicks(parsed, detected.level));
+  const [picks, setPicks] = useState<Record<string, LevelPick>>(() =>
+    initialPicks(parsed, detected.level),
+  );
 
   const { choices, overflow } = levelChoices(parsed, selection.level);
   const unresolved = choices.filter((choice) => (picks[choice.value] ?? "") === "");
@@ -156,7 +164,10 @@ function ColumnCheckBody({
             onChange={changeLevel}
           />
         </Field>
-        <Field label="回答の日時の列" description="同じ人が2回答えたときに、新しいほうを使うために読みます">
+        <Field
+          label="回答の日時の列"
+          description="同じ人が2回答えたときに、新しいほうを使うために読みます"
+        >
           <ColumnSelect
             value={selection.timestamp}
             options={options}
@@ -188,7 +199,8 @@ function ColumnCheckBody({
           </div>
           {overflow > 0 ? (
             <p className="text-s text-text-sub">
-              ほかに{overflow}個の値があります（自由記述の列かもしれません）。それらは言葉と数字で読み、読めないものはレベルなしで入れます。
+              ほかに{overflow}
+              個の値があります（自由記述の列かもしれません）。それらは言葉と数字で読み、読めないものはレベルなしで入れます。
             </p>
           ) : null}
         </section>
@@ -204,7 +216,10 @@ function ColumnCheckBody({
           <>
             <ul className="flex flex-col">
               {result.people.slice(0, PREVIEW_COUNT).map((person) => (
-                <li key={person.fullName} className="grid grid-cols-2 gap-xs border-b border-border py-xxs text-m">
+                <li
+                  key={person.fullName}
+                  className="grid grid-cols-2 gap-xs border-b border-border py-xxs text-m"
+                >
                   <span>{person.fullName}</span>
                   <span>{person.level ? MATCH_LEVEL_LABELS[person.level] : "レベルなし"}</span>
                 </li>
@@ -214,7 +229,9 @@ function ColumnCheckBody({
               <p className="text-s text-text-sub">ほか{result.people.length - PREVIEW_COUNT}人</p>
             ) : null}
             {result.replaced > 0 ? (
-              <p className="text-s text-text-sub">同じ氏名の古い回答 {result.replaced}件は入れません。</p>
+              <p className="text-s text-text-sub">
+                同じ氏名の古い回答 {result.replaced}件は入れません。
+              </p>
             ) : null}
           </>
         )}

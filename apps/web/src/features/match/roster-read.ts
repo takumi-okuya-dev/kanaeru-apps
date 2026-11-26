@@ -28,7 +28,17 @@ export type RosterReadResult = {
 };
 
 /** 名前の列とみなす見出し（上ほど先に選ぶ）。 */
-const NAME_HEADERS = [/^氏名/u, /^お名前/u, /^名前/u, /^フルネーム/u, /^name$/iu, /氏名/u, /名前/u, /フルネーム/u, /full\s*name/iu];
+const NAME_HEADERS = [
+  /^氏名/u,
+  /^お名前/u,
+  /^名前/u,
+  /^フルネーム/u,
+  /^name$/iu,
+  /氏名/u,
+  /名前/u,
+  /フルネーム/u,
+  /full\s*name/iu,
+];
 
 /** レベルの列とみなす見出し。 */
 const LEVEL_HEADERS = [/レベル/u, /level/iu];
@@ -123,7 +133,9 @@ export function timestampKey(raw: string): string {
   const pm = /午後|(?<![a-z])(?:pm|p\.m\.)(?![a-z])/iu.test(text);
   const am = /午前|(?<![a-z])(?:am|a\.m\.)(?![a-z])/iu.test(text);
   if (time && (pm || am)) hour = pm ? (hour % 12) + 12 : hour % 12;
-  return [year, month, day, hour, minute, second].map((value) => String(value).padStart(4, "0")).join("");
+  return [year, month, day, hour, minute, second]
+    .map((value) => String(value).padStart(4, "0"))
+    .join("");
 }
 
 /** 選んだ列（列の番号。読まないなら -1）。 */
@@ -143,7 +155,9 @@ export type ColumnSelection = {
  * @returns ほとんどの行で言葉が読めれば true
  */
 function looksLikeLevelColumn(parsed: ParsedCsv, index: number): boolean {
-  const values = parsed.rows.map((row) => (row.cells[index] ?? "").trim()).filter((value) => value !== "");
+  const values = parsed.rows
+    .map((row) => (row.cells[index] ?? "").trim())
+    .filter((value) => value !== "");
   if (values.length === 0) return false;
   const readable = values.filter((value) => readLevelWord(value).level !== null).length;
   return readable / values.length >= LEVEL_GUESS_RATIO;
