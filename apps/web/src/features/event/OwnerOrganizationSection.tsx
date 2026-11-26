@@ -3,6 +3,7 @@
 // 持ち主でない主催者には今の組織と、その旨だけを出す。送った結果は押したボタンの近く（ResponseMessage）。
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useState } from "react";
@@ -100,16 +101,18 @@ export function OwnerOrganizationSection({ eventId }: OwnerOrganizationSectionPr
                     : undefined
                 }
               />
-              <Button
-                aria-disabled={mutation.isPending || undefined}
-                onClick={() => {
-                  if (mutation.isPending) return;
-                  const value = selected ?? query.data.organization?.id ?? PERSONAL;
-                  mutation.mutate(value === PERSONAL ? null : value);
-                }}
-              >
-                {mutation.isPending ? "保存しています…" : "保存"}
-              </Button>
+              <ButtonRow>
+                <Button
+                  aria-disabled={mutation.isPending || undefined}
+                  onClick={() => {
+                    if (mutation.isPending) return;
+                    const value = selected ?? query.data.organization?.id ?? PERSONAL;
+                    mutation.mutate(value === PERSONAL ? null : value);
+                  }}
+                >
+                  {mutation.isPending ? "保存しています…" : "保存"}
+                </Button>
+              </ButtonRow>
               {saved ? <ResponseMessage tone="success">{saved}</ResponseMessage> : null}
               {mutation.isError ? (
                 <ResponseMessage tone="danger">

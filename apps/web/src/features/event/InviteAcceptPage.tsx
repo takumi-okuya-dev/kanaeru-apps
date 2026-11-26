@@ -4,6 +4,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useEffect, useState } from "react";
 import { ApiError, errorMessage } from "../../lib/api.ts";
@@ -84,9 +85,9 @@ function InviteAccept({ inviteToken }: { inviteToken: string }) {
     if (query.error instanceof ApiError && query.error.status === 404) return <InvalidInvite />;
     return (
       <Page title="読みこめませんでした" lead={errorMessage(query.error)}>
-        <div>
+        <ButtonRow>
           <Button onClick={() => void query.refetch()}>もう一度</Button>
-        </div>
+        </ButtonRow>
       </Page>
     );
   }
@@ -118,13 +119,15 @@ function InviteAccept({ inviteToken }: { inviteToken: string }) {
         受けると、この交流会の参加者の一覧と合計を見て、手でチェックインできるようになります。
       </p>
       <div className="flex flex-col items-start gap-xxs">
-        <Button
-          variant="primary"
-          aria-disabled={pending || undefined}
-          onClick={() => void accept()}
-        >
-          {pending ? "受けています…" : "受ける"}
-        </Button>
+        <ButtonRow>
+          <Button
+            variant="primary"
+            aria-disabled={pending || undefined}
+            onClick={() => void accept()}
+          >
+            {pending ? "受けています…" : "受ける"}
+          </Button>
+        </ButtonRow>
         {failure ? <ResponseMessage tone="danger">{failure.message}</ResponseMessage> : null}
       </div>
     </Page>

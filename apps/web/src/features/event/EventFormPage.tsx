@@ -6,6 +6,7 @@ import type { EventView } from "@workspace/contracts/event";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, getRouteApi, useNavigate } from "@tanstack/react-router";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Field } from "@workspace/ui/components/field";
 import { Input } from "@workspace/ui/components/input";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
@@ -252,14 +253,14 @@ function EventForm({ event }: EventFormProps) {
         <Input type="url" autoComplete="off" spellCheck={false} {...bind("lineGroupUrl")} />
       </Field>
       <div className="flex flex-col items-start gap-xxs">
-        <div className="flex flex-wrap gap-xxs">
-          <Button type="submit" variant="primary" aria-disabled={pending || undefined}>
-            {event ? (pending ? "保存しています…" : "保存") : pending ? "作っています…" : "作る"}
-          </Button>
+        <ButtonRow>
           <Link to="/admin/events" className={buttonVariants({ variant: "secondary" })}>
             やめる
           </Link>
-        </div>
+          <Button type="submit" variant="primary" aria-disabled={pending || undefined}>
+            {event ? (pending ? "保存しています…" : "保存") : pending ? "作っています…" : "作る"}
+          </Button>
+        </ButtonRow>
         {failure ? <ResponseMessage tone="danger">{failure}</ResponseMessage> : null}
       </div>
     </form>

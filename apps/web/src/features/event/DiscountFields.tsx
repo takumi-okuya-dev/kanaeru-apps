@@ -138,7 +138,7 @@ export function DiscountFields({ rows, onChange, errors, editing }: DiscountFiel
                 </label>
                 <Button
                   type="button"
-                  className="min-h-xl"
+                  size="small"
                   onClick={() => onChange(rows.filter((item) => item.key !== row.key))}
                 >
                   外す
@@ -155,10 +155,10 @@ export function DiscountFields({ rows, onChange, errors, editing }: DiscountFiel
         </p>
       ) : null}
       {rows.length < EVENT_DISCOUNTS_MAX ? (
+        // 行を足す操作は、送る（作る・保存）と見分けやすいよう左に置く（右寄せの ButtonRow にしない）
         <div>
           <Button
             type="button"
-            className="min-h-xl"
             onClick={() =>
               onChange([...rows, { key: newKey(), name: "", amount: "", asksReferrer: false }])
             }
