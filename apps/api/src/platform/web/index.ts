@@ -7,6 +7,7 @@ export {
   allowsCamera,
   WEB_CSP_DIRECTIVES,
   isApiPath,
+  isServerPath,
   serveWeb,
   webSecureHeaders,
 } from "./web.ts";
