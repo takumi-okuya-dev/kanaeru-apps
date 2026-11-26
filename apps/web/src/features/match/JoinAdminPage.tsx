@@ -11,6 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useState } from "react";
@@ -148,9 +149,8 @@ function JoinBody({ table, editor }: { table: MatchTable; editor: TableEditor })
             />
             <div className="flex min-w-0 flex-col gap-xxs">
               <p className="text-s break-all text-text-sub">{url}</p>
-              <div className="flex flex-wrap gap-xxs">
+              <ButtonRow layout="grid" className="wide:grid-cols-2">
                 <Button
-                  size="small"
                   onClick={() => {
                     void copyText(url).then((done) =>
                       setMessage(
@@ -166,10 +166,10 @@ function JoinBody({ table, editor }: { table: MatchTable; editor: TableEditor })
                 >
                   リンクをコピー
                 </Button>
-                <Button size="small" disabled={pending} onClick={() => setConfirm("close")}>
+                <Button disabled={pending} onClick={() => setConfirm("close")}>
                   受付を締める
                 </Button>
-              </div>
+              </ButtonRow>
             </div>
           </div>
         ) : live ? (
@@ -179,14 +179,18 @@ function JoinBody({ table, editor }: { table: MatchTable; editor: TableEditor })
                 ? "この端末の受付の QR は古くなりました（ほかの端末でリンクを作り直しました）。この端末で QR を出すには、もう一度作り直します（今のリンクは使えなくなります）。"
                 : "受付のリンクは、ほかの端末で作りました。この端末で QR を出すには、リンクを作り直します（前の QR とリンクは使えなくなります）。"}
             </p>
-            <div className="flex flex-wrap gap-xxs">
-              <Button disabled={pending || !ready} onClick={() => setConfirm("reissue")}>
-                この端末で QR を出す
-              </Button>
+            <ButtonRow>
               <Button disabled={pending} onClick={() => setConfirm("close")}>
                 受付を締める
               </Button>
-            </div>
+              <Button
+                variant="primary"
+                disabled={pending || !ready}
+                onClick={() => setConfirm("reissue")}
+              >
+                この端末で QR を出す
+              </Button>
+            </ButtonRow>
           </div>
         ) : (
           <div className="flex flex-col gap-xxs">
@@ -195,11 +199,11 @@ function JoinBody({ table, editor }: { table: MatchTable; editor: TableEditor })
                 受付のページは開けません。受け付けた人はそのまま残っています。
               </p>
             ) : null}
-            <div>
+            <ButtonRow>
               <Button variant="primary" disabled={pending || !ready} onClick={issue}>
                 {closed ? "受付をもう一度開く（新しい QR）" : "受付を始める"}
               </Button>
-            </div>
+            </ButtonRow>
           </div>
         )}
         {message ? <ResponseMessage tone={message.tone}>{message.text}</ResponseMessage> : null}
@@ -260,7 +264,7 @@ function JoinBody({ table, editor }: { table: MatchTable; editor: TableEditor })
         />
       </div>
       {/* 4. 次へ */}
-      <div className="flex justify-end">
+      <ButtonRow>
         <Link
           to="/match/tables/$tableId"
           params={{ tableId: table.id }}
@@ -268,7 +272,7 @@ function JoinBody({ table, editor }: { table: MatchTable; editor: TableEditor })
         >
           この名簿で試合表を作る
         </Link>
-      </div>
+      </ButtonRow>
       <ConfirmDialog
         open={confirm !== null}
         onOpenChange={(open) => {

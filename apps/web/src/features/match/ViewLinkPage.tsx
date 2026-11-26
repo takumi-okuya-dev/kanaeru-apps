@@ -4,7 +4,8 @@
 import type { MatchTable } from "@workspace/contracts/match";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
-import { Button } from "@workspace/ui/components/button";
+import { Button, buttonVariants } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useState } from "react";
@@ -74,9 +75,8 @@ function ViewLinkBody({ table }: { table: MatchTable }) {
           <QrCode text={url} label="見るだけのページの QR" className="border border-border" />
           <p className="max-w-menu text-s break-all text-text-sub">{url}</p>
           <p className="text-m">{`${expiryText(link.expiresAt)}見られます。`}</p>
-          <div className="flex flex-wrap gap-xxs">
+          <ButtonRow layout="grid" className="w-full">
             <Button
-              size="small"
               onClick={() => {
                 void navigator.clipboard
                   .writeText(url)
@@ -91,18 +91,13 @@ function ViewLinkBody({ table }: { table: MatchTable }) {
             >
               リンクをコピー
             </Button>
-            <a
-              href={url}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex min-h-m items-center text-m text-text-link underline"
-            >
+            <a href={url} target="_blank" rel="noreferrer" className={buttonVariants()}>
               開く（新しいタブ）
             </a>
-            <Button size="small" disabled={pending} onClick={() => setConfirmOpen(true)}>
+            <Button disabled={pending} onClick={() => setConfirmOpen(true)}>
               作り直す
             </Button>
-          </div>
+          </ButtonRow>
           <p className="text-s text-text-sub">
             <Link
               to="/match/tables/$tableId/print"
@@ -123,13 +118,15 @@ function ViewLinkBody({ table }: { table: MatchTable }) {
                 : "見るだけのリンクは、ほかの端末で作りました。この端末で QR を出すには、リンクを作り直します（前のリンクと刷った QR は使えなくなります）。"}
             </p>
           ) : null}
-          <Button
-            variant="primary"
-            disabled={pending}
-            onClick={() => (serverLive ? setConfirmOpen(true) : issue())}
-          >
-            {serverLive ? "この端末で QR を出す（作り直す）" : "見るだけのリンクを作る"}
-          </Button>
+          <ButtonRow className="w-full">
+            <Button
+              variant="primary"
+              disabled={pending}
+              onClick={() => (serverLive ? setConfirmOpen(true) : issue())}
+            >
+              {serverLive ? "この端末で QR を出す（作り直す）" : "見るだけのリンクを作る"}
+            </Button>
+          </ButtonRow>
         </div>
       )}
       {message ? <ResponseMessage tone={message.tone}>{message.text}</ResponseMessage> : null}

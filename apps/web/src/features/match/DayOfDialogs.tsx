@@ -20,6 +20,7 @@ import type {
   MatchTable,
 } from "@workspace/contracts/match";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { Dialog } from "@workspace/ui/components/dialog";
 import { Field, useFieldControl } from "@workspace/ui/components/field";
@@ -129,8 +130,9 @@ export function AttendanceDialog({ open, onOpenChange, table, onApply }: Attenda
                 player.level ? MATCH_LEVEL_LABELS[player.level] : "レベルなし"
               }${group ? `（${group.label}の組）` : ""}`}
             </p>
-            <div className="flex flex-wrap gap-xxs">
-              {actionsFor(player.status).map((action) => (
+            {/* 並べる順は「二番 → 主」（主は右・スマホは上。DESIGN.md の「ボタンの並べ方」） */}
+            <ButtonRow>
+              {[...actionsFor(player.status)].reverse().map((action) => (
                 <Button
                   key={action}
                   variant={action === actionsFor(player.status)[0] ? "primary" : undefined}
@@ -142,7 +144,7 @@ export function AttendanceDialog({ open, onOpenChange, table, onApply }: Attenda
                   {ATTENDANCE_ACTION_LABELS[action]}
                 </Button>
               ))}
-            </div>
+            </ButtonRow>
           </div>
         ) : null}
       </div>

@@ -7,6 +7,7 @@ import { jstDate } from "@workspace/contracts/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Field, useFieldControl } from "@workspace/ui/components/field";
 import { Input, inputClassName } from "@workspace/ui/components/input";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
@@ -163,10 +164,12 @@ function CreateForm({
           />
         </Field>
       ) : null}
-      <div className="flex flex-col items-start gap-xxs">
-        <Button type="submit" variant="primary" aria-disabled={pending || undefined}>
-          {pending ? "作っています…" : "作る"}
-        </Button>
+      <div className="flex flex-col gap-xxs">
+        <ButtonRow>
+          <Button type="submit" variant="primary" aria-disabled={pending || undefined}>
+            {pending ? "作っています…" : "作る"}
+          </Button>
+        </ButtonRow>
         {failure ? <ResponseMessage tone="danger">{failure}</ResponseMessage> : null}
       </div>
     </form>

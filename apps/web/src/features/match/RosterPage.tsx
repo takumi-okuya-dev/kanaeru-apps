@@ -43,6 +43,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { Dialog } from "@workspace/ui/components/dialog";
@@ -227,7 +228,6 @@ function ImportActions({
         // 名簿が入ったあとは、ボタン1つから入れ方を開く（画面をすっきりさせる。match-011）
         <div className="flex flex-col items-start gap-xxs">
           <Button
-            size="small"
             disabled={disabled}
             aria-expanded={methodsOpen}
             aria-controls={methodsId}
@@ -236,18 +236,19 @@ function ImportActions({
             {methodsOpen ? "名簿を足す・入れ直す（閉じる）" : "名簿を足す・入れ直す"}
           </Button>
           {methodsOpen ? (
-            <div id={methodsId} className="flex flex-wrap gap-xxs">
-              {methods.map((method) => (
-                <Button
-                  key={method.key}
-                  size="small"
-                  disabled={disabled}
-                  // 選んでも閉じない（押したボタンを残し、ダイアログを閉じたらフォーカスがここへ戻るように）
-                  onClick={method.run}
-                >
-                  {method.label}
-                </Button>
-              ))}
+            <div id={methodsId} className="w-full">
+              <ButtonRow layout="grid" className="wide:grid-cols-2">
+                {methods.map((method) => (
+                  <Button
+                    key={method.key}
+                    disabled={disabled}
+                    // 選んでも閉じない（押したボタンを残し、ダイアログを閉じたらフォーカスがここへ戻るように）
+                    onClick={method.run}
+                  >
+                    {method.label}
+                  </Button>
+                ))}
+              </ButtonRow>
             </div>
           ) : null}
         </div>
@@ -895,18 +896,20 @@ function SettingsCard({ table, editor }: BodyProps) {
           <p className="text-s text-danger-text">{`レベルを選んでいない人が${noLevel}人います。選ぶまで試合に入りません。`}</p>
         ) : null}
       </div>
-      <div className="flex flex-col items-start gap-xxs">
-        <Button
-          id="match-build"
-          variant="primary"
-          disabled={disabled}
-          onClick={() => {
-            if (hasDoneGames(table.content)) setConfirmOpen(true);
-            else generate();
-          }}
-        >
-          {planned ? "組み直す" : "試合表を作る"}
-        </Button>
+      <div className="flex flex-col gap-xxs">
+        <ButtonRow>
+          <Button
+            id="match-build"
+            variant="primary"
+            disabled={disabled}
+            onClick={() => {
+              if (hasDoneGames(table.content)) setConfirmOpen(true);
+              else generate();
+            }}
+          >
+            {planned ? "組み直す" : "試合表を作る"}
+          </Button>
+        </ButtonRow>
         {planned ? (
           <p className="text-s text-text-sub">名簿や設定を変えたら「組み直す」を押してください。</p>
         ) : null}

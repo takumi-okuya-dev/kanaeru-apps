@@ -8,6 +8,7 @@ import type { MatchTable } from "@workspace/contracts/match";
 import { MATCH_LEVEL_LABELS, ROSTER_MAX } from "@workspace/contracts/match";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Dialog } from "@workspace/ui/components/dialog";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useState } from "react";
@@ -113,9 +114,8 @@ export function JoinQrReader({ table, editor, joinHint }: JoinQrReaderProps) {
         参加者のスマホに出た
         QR（名前とレベル）を、この端末のカメラで読むと名簿に入ります。電波がなくても入ります。
       </p>
-      <div>
+      <ButtonRow>
         <Button
-          size="small"
           aria-disabled={!editor.isEditor || undefined}
           onClick={() => {
             if (!editor.isEditor) return;
@@ -125,7 +125,7 @@ export function JoinQrReader({ table, editor, joinHint }: JoinQrReaderProps) {
         >
           参加者の QR を読む
         </Button>
-      </div>
+      </ButtonRow>
       {!editor.isEditor ? (
         <p className="text-s text-text-sub">参加者の QR を読めるのは、担当の端末です。</p>
       ) : null}
