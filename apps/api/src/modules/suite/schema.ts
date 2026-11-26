@@ -5,7 +5,7 @@
 // 書くのは suite だけ。ほかの領域は index.ts の organizationTable・organizationMemberTable を外部キーにだけ使う。
 // organization_member.account_id は本人のデータなので ON DELETE CASCADE（AD-7）。アプリの「組織に入れる」・担当の表は、
 // organization_member(organization_id, account_id) を指す複合の外部キーを CASCADE で持つ（人が抜けると、その人の分が消える）。
-// 改善点（suite-004）：feedback はログインした人が送った改善点。送った人は SET NULL（退会しても本文は残し、つながりだけ外す）。
+// 改善点（suite-004）：feedback はログインした人が送った改善点。本人のデータなので ON DELETE CASCADE（退会すると消える。AD-7・Constitution II）。
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -193,14 +193,16 @@ export const entitlement = pgTable(
 
 /**
  * 改善点（ログインした人が送った、アプリの困りごと・ほしいこと。運営者だけが読む。suite-004）。
- * 送った人は退会すると空になる（本文は残す）。アプリの key は任意（どのアプリでもないとき空）。
+ * 本人のデータなので、退会すると消える（AD-7）。アプリの key は任意（どのアプリでもないとき空）。
  */
 export const feedback = pgTable(
   "feedback",
   {
     id: primaryId(),
-    /** 送った人（退会すると空） */
-    accountId: uuid("account_id").references(() => accountTable.id, { onDelete: "set null" }),
+    /** 送った人（退会すると改善点も消える） */
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accountTable.id, { onDelete: "cascade" }),
     /** どのアプリについてか（packages/contracts/src/core/apps.list.ts の key。任意） */
     appKey: text("app_key"),
     /** 本文（1〜2000文字） */
