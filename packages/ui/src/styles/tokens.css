@@ -52,7 +52,7 @@
   --font-weight-normal: 400;
   --font-weight-bold: 700;
 
-  /* 余白（DESIGN.md spacing。1文字＝16px を単位にした段）。高さ・幅にも使う（ボタンの高さ 40px は l、小さいもの 32px は m） */
+  /* 余白（DESIGN.md spacing。1文字＝16px を単位にした段）。高さ・幅にも使う（ボタンの高さ 48px は xl、小さいもの 40px は l） */
   --spacing-*: initial;
   /* 0（余白なし。DESIGN.md の段ではないが、inset-0・p-0 などに要る） */
   --spacing-0: 0px;
