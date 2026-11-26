@@ -7,6 +7,7 @@
 import { MATCH_LEVELS, MATCH_LEVEL_LABELS } from "@workspace/contracts/match";
 import type { MatchLevel } from "@workspace/contracts/match";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Dialog } from "@workspace/ui/components/dialog";
 import { Field, useFieldControl } from "@workspace/ui/components/field";
 import { inputClassName } from "@workspace/ui/components/input";
@@ -238,7 +239,7 @@ function ColumnCheckBody({
       </section>
 
       {failure ? <ResponseMessage tone="danger">{failure}</ResponseMessage> : null}
-      <div className="flex flex-wrap justify-end gap-xxs">
+      <ButtonRow>
         <Button onClick={onClose}>やめる</Button>
         <Button
           variant="primary"
@@ -255,7 +256,7 @@ function ColumnCheckBody({
               ? "取り込む（レベルを選んでください）"
               : `この列で${result.people.length}人を取り込む`}
         </Button>
-      </div>
+      </ButtonRow>
     </div>
   );
 }

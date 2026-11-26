@@ -21,6 +21,7 @@ import type {
 } from "@workspace/contracts/match";
 import { Link, useParams } from "@tanstack/react-router";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { cn } from "@workspace/ui/lib/cn";
 import { useId, useState } from "react";
@@ -453,59 +454,53 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
   };
 
   return (
-    <Page
-      title={table.name}
-      lead={lead}
-      actions={
-        planned ? (
-          <>
-            {editor.isEditor ? (
-              <>
-                <Button size="small" onClick={() => setAttendanceOpen(true)}>
-                  人を選んで直す
-                </Button>
-                <Button size="small" onClick={() => setRegroupOpen(true)}>
-                  分け方と試合の形
-                </Button>
-                <Button
-                  size="small"
-                  aria-pressed={editing}
-                  onClick={() => {
-                    setEditing(!editing);
-                    setPickedGame(null);
-                    setPickedMember(null);
-                  }}
-                >
-                  {editing ? "直し終える" : "組み合わせを直す"}
-                </Button>
-              </>
-            ) : null}
-            <Link
-              to="/match/tables/$tableId/big"
-              params={{ tableId: table.id }}
-              className={buttonVariants({ size: "small" })}
-            >
-              大きく映す
-            </Link>
-            <Link
-              to="/match/tables/$tableId/print"
-              params={{ tableId: table.id }}
-              className={buttonVariants({ size: "small" })}
-            >
-              印刷
-            </Link>
-            <Button size="small" onClick={() => setHandoffOpen(true)}>
-              電波なしで渡す
-            </Button>
-            <Button size="small" disabled={!editor.isEditor} onClick={() => setConfirmOpen(true)}>
-              別の組み合わせにする
-            </Button>
-          </>
-        ) : null
-      }
-    >
+    <Page title={table.name} lead={lead}>
       <ReceptionEventNote source={table.content.receptionEvent} link={table.receptionEvent} />
       <EditorState editor={editor} />
+      {planned ? (
+        // 画面の操作は、題の下に同じ幅の格子で並べる（DESIGN.md の「ボタンの並べ方」。直す操作は担当の端末だけ）
+        // スマホの2列では文字が長いので、ボタンの左右の余白を小さくして途中の折り返しを減らす。
+        // 数が奇数のときは、最後の1つをスマホで2列分の幅にする（空きを作らない）
+        <ButtonRow
+          layout="grid"
+          className="*:px-xxs *:last:odd:col-span-2 wide:*:last:odd:col-span-1"
+        >
+          {editor.isEditor ? (
+            <>
+              <Button onClick={() => setAttendanceOpen(true)}>人を選んで直す</Button>
+              <Button onClick={() => setRegroupOpen(true)}>分け方と試合の形</Button>
+              <Button
+                aria-pressed={editing}
+                onClick={() => {
+                  setEditing(!editing);
+                  setPickedGame(null);
+                  setPickedMember(null);
+                }}
+              >
+                {editing ? "直し終える" : "組み合わせを直す"}
+              </Button>
+            </>
+          ) : null}
+          <Link
+            to="/match/tables/$tableId/big"
+            params={{ tableId: table.id }}
+            className={buttonVariants()}
+          >
+            大きく映す
+          </Link>
+          <Link
+            to="/match/tables/$tableId/print"
+            params={{ tableId: table.id }}
+            className={buttonVariants()}
+          >
+            印刷
+          </Link>
+          <Button onClick={() => setHandoffOpen(true)}>電波なしで渡す</Button>
+          <Button disabled={!editor.isEditor} onClick={() => setConfirmOpen(true)}>
+            別の組み合わせにする
+          </Button>
+        </ButtonRow>
+      ) : null}
       {/* 知らせの枠はいつも置き、中の文だけを替える（読み上げが入れかえの結果を確かに読むように。match-010） */}
       <div role="status">
         {changeNote ? (
@@ -563,11 +558,9 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
                   </p>
                 )}
                 {editor.isEditor ? (
-                  <div>
-                    <Button size="small" onClick={() => setTeamsOpen(true)}>
-                      チーム分けをやり直す
-                    </Button>
-                  </div>
+                  <ButtonRow>
+                    <Button onClick={() => setTeamsOpen(true)}>チーム分けをやり直す</Button>
+                  </ButtonRow>
                 ) : null}
               </div>
             ) : group ? (

@@ -158,7 +158,6 @@ function FullscreenButton() {
   if (!supported) return null;
   return (
     <Button
-      size="small"
       onClick={() => {
         if (document.fullscreenElement) void document.exitFullscreen();
         else void document.documentElement.requestFullscreen().catch(() => undefined);
@@ -232,7 +231,7 @@ function BigBody({
           <Link
             to="/match/tables/$tableId/board"
             params={{ tableId: table.id }}
-            className={buttonVariants({ size: "small" })}
+            className={buttonVariants()}
           >
             戻る
           </Link>

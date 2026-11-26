@@ -12,6 +12,7 @@ import type { MatchSet, MatchView } from "@workspace/contracts/match";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { cn } from "@workspace/ui/lib/cn";
 import { useEffect, useId, useState } from "react";
 import { Dialog } from "@workspace/ui/components/dialog";
@@ -540,10 +541,12 @@ export function ViewRoute() {
     }
     return (
       <Page title="読みこめませんでした" lead={errorMessage(failure)}>
-        <div className="flex flex-wrap gap-xxs">
-          <Button onClick={() => void view.refetch()}>もう一度</Button>
+        <ButtonRow>
           <Button onClick={() => setQrOpen(true)}>QR を読む</Button>
-        </div>
+          <Button variant="primary" onClick={() => void view.refetch()}>
+            もう一度
+          </Button>
+        </ButtonRow>
         {dialog}
       </Page>
     );
