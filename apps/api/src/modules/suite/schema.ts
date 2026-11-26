@@ -5,6 +5,7 @@
 // 書くのは suite だけ。ほかの領域は index.ts の organizationTable・organizationMemberTable を外部キーにだけ使う。
 // organization_member.account_id は本人のデータなので ON DELETE CASCADE（AD-7）。アプリの「組織に入れる」・担当の表は、
 // organization_member(organization_id, account_id) を指す複合の外部キーを CASCADE で持つ（人が抜けると、その人の分が消える）。
+// 改善点（suite-004）：feedback はログインした人が送った改善点。送った人は SET NULL（退会しても本文は残し、つながりだけ外す）。
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -187,5 +188,34 @@ export const entitlement = pgTable(
     ),
     index("entitlement_holder_account_id_idx").on(table.holderAccountId),
     index("entitlement_holder_organization_id_idx").on(table.holderOrganizationId),
+  ],
+);
+
+/**
+ * 改善点（ログインした人が送った、アプリの困りごと・ほしいこと。運営者だけが読む。suite-004）。
+ * 送った人は退会すると空になる（本文は残す）。アプリの key は任意（どのアプリでもないとき空）。
+ */
+export const feedback = pgTable(
+  "feedback",
+  {
+    id: primaryId(),
+    /** 送った人（退会すると空） */
+    accountId: uuid("account_id").references(() => accountTable.id, { onDelete: "set null" }),
+    /** どのアプリについてか（packages/contracts/src/core/apps.list.ts の key。任意） */
+    appKey: text("app_key"),
+    /** 本文（1〜2000文字） */
+    body: text("body").notNull(),
+    /** 運営者が「済み」を付けた日時（まだなら空） */
+    doneAt: timestamptz("done_at"),
+    ...timestamps(),
+  },
+  (table) => [
+    check("feedback_body_check", sql`char_length(${table.body}) between 1 and 2000`),
+    check(
+      "feedback_app_key_check",
+      sql`${table.appKey} is null or char_length(${table.appKey}) between 1 and 40`,
+    ),
+    index("feedback_created_at_idx").on(table.createdAt),
+    index("feedback_account_id_created_at_idx").on(table.accountId, table.createdAt),
   ],
 );
