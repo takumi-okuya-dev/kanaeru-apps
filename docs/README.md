@@ -68,7 +68,7 @@
 | `specs/<領域>/NNN-…/`（③） | 機能ごとの仕様（ユーザーストーリーと受け入れの条件・計画・作業の一覧・取り決め・確かめの手順）。入ったら書き換えない（[仕様と名前の決まり](./rules/specs.md)） |
 | [決めたことの記録](./decisions.md) | プロダクト全体・作りの土台・進め方について、いつ・何を・なぜ決めたか（ADRを短くした形） |
 | [バックログ](./backlog.md) | まだ仕様にしていない機能のアイデアと、残っている確かめ。仕様に移したら消す |
-| [docs/study/](./study/README.md)（学び） | 初めて使う技術の解説（このプロジェクトでの使い方に絞る）。いまは GCP・Terraform・LINE・Service Worker・property-based テスト |
+| [docs/study/](./study/README.md)（学び） | 初めて使う技術の解説（このプロジェクトでの使い方に絞る）。いまは GCP・Terraform・LINE・Service Worker・property-based テスト・MCP |
 
 ## 6. アジャイル開発の文書との対応
 
