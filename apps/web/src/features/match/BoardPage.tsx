@@ -496,9 +496,9 @@ function BoardBody({ table, editor }: { table: MatchTable; editor: TableEditor }
             印刷
           </Link>
           <Button onClick={() => setHandoffOpen(true)}>電波なしで渡す</Button>
-          {editor.isEditor ? (
-            <Button onClick={() => setConfirmOpen(true)}>別の組み合わせにする</Button>
-          ) : null}
+          <Button disabled={!editor.isEditor} onClick={() => setConfirmOpen(true)}>
+            別の組み合わせにする
+          </Button>
         </ButtonRow>
       ) : null}
       {/* 知らせの枠はいつも置き、中の文だけを替える（読み上げが入れかえの結果を確かに読むように。match-010） */}

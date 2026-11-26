@@ -85,6 +85,8 @@ export function AttendanceDialog({ open, onOpenChange, table, onApply }: Attenda
   const groups = attendanceGroups(content.settings);
   const player = content.players.find((entry) => entry.id === selected);
   const group = player ? groupOfPlayer(content, player.id) : undefined;
+  // 選べる直し方（はじめのものが主）
+  const actions = player ? actionsFor(player.status) : [];
   const noLevel = content.players.filter((entry) => entry.level === null);
   return (
     <Dialog
@@ -132,10 +134,10 @@ export function AttendanceDialog({ open, onOpenChange, table, onApply }: Attenda
             </p>
             {/* 並べる順は「二番 → 主」（主は右・スマホは上。DESIGN.md の「ボタンの並べ方」） */}
             <ButtonRow>
-              {[...actionsFor(player.status)].reverse().map((action) => (
+              {[...actions].reverse().map((action) => (
                 <Button
                   key={action}
-                  variant={action === actionsFor(player.status)[0] ? "primary" : undefined}
+                  variant={action === actions[0] ? "primary" : undefined}
                   onClick={() => {
                     onApply(player.id, action);
                     setSelected("");

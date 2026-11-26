@@ -197,7 +197,9 @@ function ViewBody({
               ? `電波がないか読めないため、${formatClock(readAt)} に読んだ表を出しています。つながったら自動で読み直します。`
               : `${formatClock(readAt)} に読んだ表です。つながっている間は30秒おきに確かめます。`}
         </p>
-        <Button onClick={onReadQr}>QR を読む</Button>
+        <Button size="small" onClick={onReadQr}>
+          QR を読む
+        </Button>
       </div>
       {sets.length === 0 || !set ? (
         <p className="text-m text-text-sub">まだ試合表はありません。運営が作ると、ここに出ます。</p>

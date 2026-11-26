@@ -5,6 +5,7 @@
 // 送りを止めたとき（409 など）は、端末に残った変更の数と「捨てる」「上書きする」を出す（AD-28）。
 import type { MatchTable } from "@workspace/contracts/match";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { cn } from "@workspace/ui/lib/cn";
@@ -56,21 +57,21 @@ function HeldStatus({
       <p className="text-m">
         {`この端末に、まだ送っていない変更が${save.count}件残っています（${formatClock(save.savedAt)} まで）。画面にはサーバーの今の試合表を出しています。`}
       </p>
-      <div className="flex flex-wrap items-center gap-xxs">
-        <Button
-          size="small"
-          aria-disabled={pending || undefined}
-          onClick={() => !pending && setConfirm("discard")}
-        >
-          この端末の変更を捨てる
-        </Button>
-        <Button
-          size="small"
-          aria-disabled={pending || !editor.isEditor || !online || undefined}
-          onClick={() => !pending && editor.isEditor && online && setConfirm("overwrite")}
-        >
-          この端末の変更で上書きする
-        </Button>
+      <div className="flex flex-col gap-xxs">
+        <ButtonRow>
+          <Button
+            aria-disabled={pending || undefined}
+            onClick={() => !pending && setConfirm("discard")}
+          >
+            この端末の変更を捨てる
+          </Button>
+          <Button
+            aria-disabled={pending || !editor.isEditor || !online || undefined}
+            onClick={() => !pending && editor.isEditor && online && setConfirm("overwrite")}
+          >
+            この端末の変更で上書きする
+          </Button>
+        </ButtonRow>
         {!editor.isEditor ? (
           <p className="text-s text-text-sub">
             上書きするときは、先に「この端末で直す」で担当を受け取ってください。

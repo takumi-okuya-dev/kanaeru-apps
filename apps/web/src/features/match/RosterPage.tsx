@@ -227,14 +227,16 @@ function ImportActions({
       {hasRoster ? (
         // 名簿が入ったあとは、ボタン1つから入れ方を開く（画面をすっきりさせる。match-011）
         <div className="flex flex-col items-start gap-xxs">
-          <Button
-            disabled={disabled}
-            aria-expanded={methodsOpen}
-            aria-controls={methodsId}
-            onClick={() => setMethodsOpen(!methodsOpen)}
-          >
-            {methodsOpen ? "名簿を足す・入れ直す（閉じる）" : "名簿を足す・入れ直す"}
-          </Button>
+          <ButtonRow className="w-full">
+            <Button
+              disabled={disabled}
+              aria-expanded={methodsOpen}
+              aria-controls={methodsId}
+              onClick={() => setMethodsOpen(!methodsOpen)}
+            >
+              {methodsOpen ? "名簿を足す・入れ直す（閉じる）" : "名簿を足す・入れ直す"}
+            </Button>
+          </ButtonRow>
           {methodsOpen ? (
             <div id={methodsId} className="w-full">
               <ButtonRow layout="grid" className="wide:grid-cols-2">
