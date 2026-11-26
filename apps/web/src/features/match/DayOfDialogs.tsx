@@ -26,10 +26,9 @@ import { Field, useFieldControl } from "@workspace/ui/components/field";
 import { Input, inputClassName } from "@workspace/ui/components/input";
 import { useState } from "react";
 import type * as React from "react";
-import { ATTENDANCE_ACTION_LABELS, actionsFor, groupOfPlayer } from "./day-of.ts";
+import { ATTENDANCE_ACTION_LABELS, actionsFor, attendanceGroups, groupOfPlayer } from "./day-of.ts";
 import type { AttendanceAction } from "./day-of.ts";
 import { miniSummary } from "./mini-game.ts";
-import { groupsOf } from "./plan.ts";
 import { changeSettings, describeSettingsChange } from "./regroup.ts";
 
 /**
@@ -82,7 +81,7 @@ type AttendanceDialogProps = {
 export function AttendanceDialog({ open, onOpenChange, table, onApply }: AttendanceDialogProps) {
   const [selected, setSelected] = useState("");
   const { content } = table;
-  const groups = groupsOf(content);
+  const groups = attendanceGroups(content.settings);
   const player = content.players.find((entry) => entry.id === selected);
   const group = player ? groupOfPlayer(content, player.id) : undefined;
   const noLevel = content.players.filter((entry) => entry.level === null);
