@@ -45,7 +45,7 @@
 | `team` | `id`・`organization_id`・`name`（1〜30文字の CHECK）・`created_at`・`updated_at` | suite-003（組織の中のチーム。`0014_suite_team.sql`）。`(organization_id, name)` と `(id, organization_id)` が一意。組織が消えると消える。1つの組織に20まで（窓口が数える） |
 | `team_member` | `team_id`・`account_id`（主キーはこの組）・`organization_id`・`leader`（リーダー）・`joined_at` | `team(id, organization_id)` と `organization_member(organization_id, account_id)` を指す複合の外部キーを CASCADE（チームが消える・組織から抜けると消える）。アプリの「チームに入れる」・担当の表は、この組を指す外部キーを CASCADE で持つ |
 | `organization_invite` | `organization_id`（主キー）・`token_hash`（一意）・`token_ciphertext`・`token_iv`・`key_version`・`created_at` | 照らし合わせは SHA-256 だけ。出し直すための写しを秘密の箱で包む（箱がなければ空） |
-| `feedback` | `id`（uuid）・`account_id`・`app_key`・`body`・`done_at`・`created_at`・`updated_at` | 改善点（suite-004。ログインした人が送り、運営者だけが読む）。`body` は1〜2000文字（`feedback_body_check`）・`app_key` は空か1〜40文字（`feedback_app_key_check`）。`account_id` は `SET NULL`（退会しても本文は残し、送った人のつながりだけ外す）。索引 `created_at`（一覧）・`(account_id, created_at)`（1日の数）。DB の変更は `0024_suite_feedback.sql`。窓口と画面は suite-004 の2つ目の PR |
+| `feedback` | `id`（uuid）・`account_id`・`app_key`・`body`・`done_at`・`created_at`・`updated_at` | 改善点（suite-004。ログインした人が送り、運営者だけが読む）。`body` は1〜2000文字（`feedback_body_check`）・`app_key` は空か1〜40文字（`feedback_app_key_check`）。`account_id` は `CASCADE`（本人のデータ。退会すると消える。AD-7）。索引 `created_at`（一覧）・`(account_id, created_at)`（1日の数）。DB の変更は `0024_suite_feedback.sql`。窓口と画面は suite-004 の2つ目の PR |
 | `entitlement` | `id`・`app_key`・`holder_account_id`・`holder_organization_id`・`created_at`・`updated_at` | 持ち主はどちらか1つ（`entitlement_holder_check`）。どちらも CASCADE。売り始めるまで使わない（料金などの列はそのときに足す） |
 
 ## 3. 窓口

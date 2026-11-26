@@ -1,5 +1,5 @@
 {
-  "id": "1a6f6823-2ab2-4e77-a011-daa0210bfa70",
+  "id": "33432009-1c58-420e-88db-9ee180128c53",
   "prevId": "00b34b3f-3624-402e-ace1-5e0e13989b0d",
   "version": "7",
   "dialect": "postgresql",
@@ -4334,7 +4334,7 @@
           "name": "account_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "app_key": {
           "name": "app_key",
@@ -4418,7 +4418,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },

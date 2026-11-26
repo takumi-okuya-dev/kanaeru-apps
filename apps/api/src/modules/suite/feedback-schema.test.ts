@@ -1,5 +1,5 @@
 // 改善点の表（feedback。suite-004）の結合のテスト（本物の PostgreSQL）：本文は1〜2000文字・アプリの key は空か1〜40文字・
-// 送った人を消すと、改善点は残り送った人だけ空になる。窓口はまだないので、表に直に書いて確かめる（窓口は suite-004 の2つ目の PR）。
+// 送った人を消すと、その人の改善点も消える（本人のデータ。AD-7）・送った人は空にできない。窓口はまだないので、表に直に書いて確かめる（窓口は suite-004 の2つ目の PR）。
 import "@hono/zod-openapi";
 import { beforeEach, describe, expect, it } from "vitest";
 import { loginAs } from "../../../test/helpers/account.ts";
@@ -40,13 +40,13 @@ describe("改善点の表", () => {
     await expect(insert("本文", "a".repeat(41))).rejects.toThrow(/feedback_app_key_check/u);
   });
 
-  it("送った人を消すと、改善点は残り、送った人だけ空になる", async () => {
+  it("送った人を消すと、その人の改善点も消える。送った人は空にできない", async () => {
     const id = await insert("印刷の字を小さく");
     await database.pool.query("DELETE FROM account WHERE id = $1", [accountId]);
-    const rows = await database.pool.query<{ account_id: string | null; body: string }>(
-      "SELECT account_id, body FROM feedback WHERE id = $1",
-      [id],
-    );
-    expect(rows.rows).toEqual([{ account_id: null, body: "印刷の字を小さく" }]);
+    const rows = await database.pool.query("SELECT id FROM feedback WHERE id = $1", [id]);
+    expect(rows.rowCount).toBe(0);
+    await expect(
+      database.pool.query("INSERT INTO feedback (account_id, body) VALUES (NULL, '本文')"),
+    ).rejects.toThrow(/null value/u);
   });
 });

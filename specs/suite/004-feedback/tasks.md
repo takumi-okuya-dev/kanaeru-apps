@@ -4,7 +4,7 @@
 
 ## Phase 1: 表（1つ目の PR。DB の変更だけ）
 
-- [x] T001 表の試験を先に書く `apps/api/src/modules/suite/feedback-schema.test.ts`（本文1〜2000文字・アプリの key は空か1〜40文字・送った人を消すと空になり本文は残る）
+- [x] T001 表の試験を先に書く `apps/api/src/modules/suite/feedback-schema.test.ts`（本文1〜2000文字・アプリの key は空か1〜40文字・送った人を消すと改善点も消える）
 - [x] T002 `apps/api/src/modules/suite/schema.ts` に `feedback`、`pnpm db:generate --name suite_feedback` で `0024_suite_feedback.sql`（SQL を読んだ：表と外部キーと索引を足すだけ）
 - [x] T003 `docs/apps/suite.md` の表に1行
 
