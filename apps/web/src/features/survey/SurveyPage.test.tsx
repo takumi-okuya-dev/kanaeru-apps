@@ -190,6 +190,14 @@ describe("アンケートの画面", () => {
       "href",
       "https://line.me/R/ti/g/example",
     );
+    // 並べる順は「二番 → 主」（主の「続けて交流会のアンケートへ」は PC で右・スマホで上）
+    const row = screen
+      .getByRole("link", { name: "続けて交流会のアンケートへ" })
+      .closest('[data-slot="button-row"]');
+    expect(Array.from(row?.querySelectorAll("a") ?? []).map((link) => link.textContent)).toEqual([
+      "交流会のLINEグループに参加する",
+      "続けて交流会のアンケートへ",
+    ]);
     expect(sent.find((request) => request.method === "PUT")?.body).toEqual({
       concern: null,
       monthlyPrice: null,
