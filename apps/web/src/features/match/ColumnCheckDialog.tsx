@@ -30,12 +30,12 @@ export type ColumnCheckDialogProps = {
   sourceLabel: string;
   /** 閉じるとき */
   onClose: () => void;
-  /** 取り込むとき（入れられたら true。true なら枠を閉じる） */
-  onImport: (result: RosterReadResult) => boolean;
+  /** 取り込むとき（入れられたら null。入れられなければ理由の文。枠の中に出し、枠は閉じない） */
+  onImport: (result: RosterReadResult) => string | null;
 };
 
 /**
- * 列の確かめの枠。読んだ表が変わるたびに、選びを作り直す（key に表を渡して呼ぶ）。
+ * 列の確かめの枠。読んだ表が変わるたびに選びを作り直すため、呼ぶ側は表ごとに違う key を渡す。
  * @param props 読んだ表（parsed）・読んだもの（sourceLabel）・閉じるとき（onClose）・取り込むとき（onImport）
  * @returns 枠の要素
  */
@@ -85,8 +85,9 @@ function ColumnCheckBody({
 }: {
   parsed: ParsedCsv;
   onClose: () => void;
-  onImport: (result: RosterReadResult) => boolean;
+  onImport: (result: RosterReadResult) => string | null;
 }) {
+  const [failure, setFailure] = useState<string>();
   const [detected] = useState(() => detectColumns(parsed));
   const [selection, setSelection] = useState<ColumnSelection>(detected);
   const [picks, setPicks] = useState<Record<string, LevelPick>>(() => initialPicks(parsed, detected.level));
@@ -187,7 +188,7 @@ function ColumnCheckBody({
           </div>
           {overflow > 0 ? (
             <p className="text-s text-text-sub">
-              ほかに{overflow}個の値があります。それらは「なし」として入れます（自由記述の列かもしれません）。
+              ほかに{overflow}個の値があります（自由記述の列かもしれません）。それらは言葉と数字で読み、読めないものはレベルなしで入れます。
             </p>
           ) : null}
         </section>
@@ -219,13 +220,16 @@ function ColumnCheckBody({
         )}
       </section>
 
+      {failure ? <ResponseMessage tone="danger">{failure}</ResponseMessage> : null}
       <div className="flex flex-wrap justify-end gap-xxs">
         <Button onClick={onClose}>やめる</Button>
         <Button
           variant="primary"
           disabled={!ready}
           onClick={() => {
-            if (onImport(result)) onClose();
+            const error = onImport(result);
+            if (error === null) onClose();
+            else setFailure(error);
           }}
         >
           {nameMissing

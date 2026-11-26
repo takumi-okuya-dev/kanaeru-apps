@@ -12,7 +12,7 @@ describe("列の確かめの枠", () => {
     const parsed = parseCsv(
       ["タイムスタンプ,メールアドレス,参加者", "2026/11/20 9:12:45,a@example.com,山田 太郎", "2026/11/20 9:30:00,b@example.com,佐藤 花子"].join("\n"),
     );
-    const onImport = vi.fn((_result: RosterReadResult) => true);
+    const onImport = vi.fn((_result: RosterReadResult): string | null => null);
     render(<ColumnCheckDialog parsed={parsed} sourceLabel="form.csv" onClose={() => {}} onImport={onImport} />);
     expect(screen.getByText(/氏名の列が見つかりませんでした/u)).toBeTruthy();
     expect(screen.getByRole("button", { name: "取り込む（氏名の列を選んでください）" }).hasAttribute("disabled")).toBe(true);
@@ -27,9 +27,25 @@ describe("列の確かめの枠", () => {
 
   it("読めない選択肢が残ると押せず、レベルを選ぶと押せる", async () => {
     const parsed = parseCsv(["氏名,レベル", "山田 太郎,A：大会に出ている", "佐藤 花子,2中級"].join("\n"));
-    render(<ColumnCheckDialog parsed={parsed} sourceLabel="貼り付けた表" onClose={() => {}} onImport={() => true} />);
+    render(<ColumnCheckDialog parsed={parsed} sourceLabel="貼り付けた表" onClose={() => {}} onImport={() => null} />);
     expect(screen.getByRole("button", { name: "取り込む（レベルを選んでください）" }).hasAttribute("disabled")).toBe(true);
     await userEvent.selectOptions(screen.getByRole("combobox", { name: "A：大会に出ている のレベル" }), "上級");
     expect(screen.getByRole("button", { name: "この列で2人を取り込む" }).hasAttribute("disabled")).toBe(false);
+  });
+
+  it("入れられなかったときは、理由を枠の中に出して閉じない", async () => {
+    const parsed = parseCsv(["氏名", "山田 太郎"].join("\n"));
+    const onClose = vi.fn();
+    render(
+      <ColumnCheckDialog
+        parsed={parsed}
+        sourceLabel="貼り付けた表"
+        onClose={onClose}
+        onImport={() => "名簿は40人までです。人数を減らしてから入れてください。"}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "この列で1人を取り込む" }));
+    expect(screen.getByText("名簿は40人までです。人数を減らしてから入れてください。")).toBeTruthy();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

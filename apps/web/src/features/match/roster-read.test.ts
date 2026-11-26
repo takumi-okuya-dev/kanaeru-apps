@@ -164,4 +164,46 @@ describe("列の確かめ（match-008）", () => {
     ].join("\n");
     expect(readRoster(parseCsv(text)).people).toEqual([{ fullName: "山田 太郎", level: "advanced" }]);
   });
+
+  it("違うレベルの言葉が2つある選択肢は、数字があっても読めないとして選んでもらう", () => {
+    expect(readLevel("3初中級（上級者と打てる）")).toBeNull();
+    expect(readLevel("中上級")).toBe("advanced");
+    const parsed = parseCsv(["氏名,レベル", "山田 太郎,3初中級（上級者と打てる）"].join("\n"));
+    expect(levelChoices(parsed, 1).choices).toEqual([{ value: "3初中級（上級者と打てる）", level: undefined }]);
+  });
+
+  it("対応を見せなかった値（選択肢が多い列）は、言葉と数字で読む", () => {
+    const parsed = parseCsv(["氏名,レベル", "山田 太郎,上級です"].join("\n"));
+    const people = readRoster(parsed, { name: 0, level: 1, timestamp: -1 }, new Map()).people;
+    expect(people).toEqual([{ fullName: "山田 太郎", level: "advanced" }]);
+  });
+
+  it("「月/日/年」の日付は年・月・日の順に直し、年をまたいでも新しい回答を使う。時差の数は秒にしない", () => {
+    expect(timestampKey("1/2/2026 9:00:00 AM") > timestampKey("12/30/2025 10:00:00 AM")).toBe(true);
+    expect(timestampKey("2026/11/21 13:05 GMT+9")).toBe(timestampKey("2026/11/21 13:05:00"));
+    expect(timestampKey("2026/11/21 1:05pm")).toBe(timestampKey("2026/11/21 13:05:00"));
+  });
+});
+
+describe("Google フォームの回答の画面から落とした CSV（2026-11-26 にダミーのフォームで確かめた形）", () => {
+  /** 本物の形：どの欄も引用符・タイムスタンプは「午後 GMT+9」・確認済みのメールの見出しは「ユーザー名」・BOM なし・要望に改行と「,」。 */
+  const FORM_CSV = [
+    '"タイムスタンプ","ユーザー名","氏名","ラケットの有無","バドミントンのレベル","キッカケの友人・SNS","その他運営に伝えたい事・要望・質問・今後やりたいイベントなど！あれば教えてください！"',
+    '"2026/11/26 12:34:16 午後 GMT+9","a@example.com","山田 太郎","持参します","2中級","",""',
+    '"2026/11/26 12:34:56 午後 GMT+9","b@example.com","佐藤　花子","レンタル希望","4入門","Instagram","初めてです, よろしくお願いします',
+    '駐車場はありますか？"',
+    '"2026/11/26 12:35:21 午後 GMT+9","a@example.com","山田 太郎","レンタル希望","1上級","",""',
+  ].join("\n");
+
+  it("列を見出しから選び、同じ氏名は新しい回答を使い、ほかの列は持たない", () => {
+    const parsed = parseCsv(FORM_CSV);
+    expect(detectColumns(parsed)).toEqual({ name: 2, level: 4, timestamp: 0 });
+    const result = readRoster(parsed);
+    expect(result.people).toEqual([
+      { fullName: "山田 太郎", level: "advanced" },
+      { fullName: "佐藤 花子", level: "novice" },
+    ]);
+    expect(result.replaced).toBe(1);
+    expect(JSON.stringify(result)).not.toMatch(/example\.com|駐車場|Instagram|レンタル/u);
+  });
 });

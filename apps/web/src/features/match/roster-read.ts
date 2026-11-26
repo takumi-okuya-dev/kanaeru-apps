@@ -36,7 +36,7 @@ const LEVEL_HEADERS = [/レベル/u, /level/iu];
 /** タイムスタンプの列とみなす見出し。 */
 const TIMESTAMP_HEADERS = [/^タイムスタンプ/u, /^timestamp/iu];
 
-/** レベルの選択肢の対応を見せる数の上限（多い列は自由記述とみなし、残りは「なし」で入れる）。 */
+/** レベルの選択肢の対応を見せる数の上限（多い列は自由記述とみなし、残りは言葉と数字で読む）。 */
 export const LEVEL_CHOICES_MAX = 20;
 
 /** 選択肢の言葉でレベルの列とみなす、読める行の割合。 */
@@ -65,24 +65,29 @@ const LEVEL_WORDS: readonly [string, MatchLevel][] = [
 ];
 
 /**
- * 欄の値から、レベルの言葉だけで読む（数字は見ない）。
+ * 欄の値から、レベルの言葉だけで読む（数字は見ない）。違うレベルの言葉が2つ以上あれば、読めないとする
+ * （「初中級（上級者と打てる）」のような選択肢は、選び直してもらう）。
  * @param raw 欄の値
- * @returns レベル（言葉がなければ null）
+ * @returns レベル（言葉がない・2つ以上あるなら null）と、2つ以上あったか
  */
-function readLevelWord(raw: string): MatchLevel | null {
+function readLevelWord(raw: string): { level: MatchLevel | null; ambiguous: boolean } {
   const text = raw.normalize("NFKC");
-  for (const [word, level] of LEVEL_WORDS) if (text.includes(word)) return level;
-  return null;
+  const found = new Set<MatchLevel>();
+  for (const [word, level] of LEVEL_WORDS) if (text.includes(word)) found.add(level);
+  if (found.size > 1) return { level: null, ambiguous: true };
+  const [level = null] = found;
+  return { level, ambiguous: false };
 }
 
 /**
  * レベルの欄を読む（上級・中級・初級・入門の言葉を先に、なければ先頭の数字 1〜4）。
+ * 違うレベルの言葉が2つ以上あるときは、数字があっても読めないとする（選び直してもらう）。
  * @param raw 欄の値
  * @returns レベル（読めなければ null）
  */
 export function readLevel(raw: string): MatchLevel | null {
   const word = readLevelWord(raw);
-  if (word) return word;
+  if (word.level || word.ambiguous) return word.level;
   const digit = /^([1-4])/u.exec(raw.normalize("NFKC").trim());
   return digit ? (MATCH_LEVELS[Number(digit[1]) - 1] ?? null) : null;
 }
@@ -97,28 +102,28 @@ export function nameKey(name: string): string {
 }
 
 /**
- * タイムスタンプを比べられる形にする。年・月・日・時・分・秒を桁をそろえて並べる。
- * 「午前・午後」「AM・PM」の付いた形（フォームの回答の画面から落とした CSV）は 24 時間に直す（午前12時は0時）。
+ * タイムスタンプを比べられる形にする（年・月・日・時・分・秒を桁をそろえて並べる）。
+ * - 日付は「年/月/日」のほか、「月/日/年」（年が4桁で最後）も年・月・日の順に直す
+ * - 「午前・午後」「AM・PM」の付いた形（フォームの回答の画面から落とした CSV）は 24 時間に直す（午前12時は0時）
+ * - 「GMT+9」などの時差は見ない（同じフォームの回答は同じ時差のため）
  * @param raw 欄の値
- * @returns 比べる文字（読めなければ空）
+ * @returns 比べる文字（日付が読めなければ空）
  */
 export function timestampKey(raw: string): string {
   const text = raw.normalize("NFKC");
-  const parts = text.match(/\d+/gu);
-  if (!parts) return "";
-  const numbers = parts.map(Number);
-  const pm = /午後|pm|p\.m\./iu.test(text);
-  const am = /午前|am|a\.m\./iu.test(text);
-  // 時は4つめの数（年・月・日・時）。12時間の形のときだけ直す
-  if ((pm || am) && numbers.length >= 4) {
-    const hour = numbers[3] ?? 0;
-    numbers[3] = pm ? (hour % 12) + 12 : hour % 12;
-  }
-  // 「GMT+9」などの時差の数は、日時の6つのあとに来るので比べない
-  return numbers
-    .slice(0, 6)
-    .map((value) => String(value).padStart(4, "0"))
-    .join("");
+  const date = /(\d{1,4})[/.-](\d{1,2})[/.-](\d{1,4})/u.exec(text);
+  if (!date) return "";
+  const [a, b, c] = [Number(date[1]), Number(date[2]), Number(date[3])];
+  const [year, month, day] = date[1] && date[1].length === 4 ? [a, b, c] : [c, a, b];
+  const time = /(\d{1,2}):(\d{2})(?::(\d{2}))?/u.exec(text.slice(date.index + date[0].length));
+  let hour = time ? Number(time[1]) : 0;
+  const minute = time ? Number(time[2]) : 0;
+  const second = time?.[3] ? Number(time[3]) : 0;
+  // 英字の続きの中の am・pm（「GMT」「Team」など）は見ない。数字の直後（「1:05pm」）は見る
+  const pm = /午後|(?<![a-z])(?:pm|p\.m\.)(?![a-z])/iu.test(text);
+  const am = /午前|(?<![a-z])(?:am|a\.m\.)(?![a-z])/iu.test(text);
+  if (time && (pm || am)) hour = pm ? (hour % 12) + 12 : hour % 12;
+  return [year, month, day, hour, minute, second].map((value) => String(value).padStart(4, "0")).join("");
 }
 
 /** 選んだ列（列の番号。読まないなら -1）。 */
@@ -140,7 +145,7 @@ export type ColumnSelection = {
 function looksLikeLevelColumn(parsed: ParsedCsv, index: number): boolean {
   const values = parsed.rows.map((row) => (row.cells[index] ?? "").trim()).filter((value) => value !== "");
   if (values.length === 0) return false;
-  const readable = values.filter((value) => readLevelWord(value) !== null).length;
+  const readable = values.filter((value) => readLevelWord(value).level !== null).length;
   return readable / values.length >= LEVEL_GUESS_RATIO;
 }
 
@@ -206,7 +211,7 @@ export type LevelMap = ReadonlyMap<string, MatchLevel | null>;
  * 読むのは選んだ3つの列だけで、ほかの列の値は持たない（Constitution II）。
  * @param parsed 読んだ表（lib/csv-read.ts の parseCsv の答え）
  * @param selection 選んだ列（なければ見出しから選ぶ）
- * @param levelMap レベルの対応（なければ readLevel で読む。対応にない選択肢は「なし」）
+ * @param levelMap レベルの対応（なければ readLevel で読む。対応にない値も readLevel で読む）
  * @returns 名簿を読んだ結果
  */
 export function readRoster(
@@ -221,7 +226,8 @@ export function readRoster(
   let replaced = 0;
   const levelOf = (raw: string): MatchLevel | null => {
     const value = raw.trim();
-    if (!levelMap) return readLevel(value);
+    // 対応にない値（選択肢が多くて見せなかったもの）は、言葉と数字で読む
+    if (!levelMap || !levelMap.has(value)) return readLevel(value);
     return levelMap.get(value) ?? null;
   };
   if (nameIndex >= 0) {

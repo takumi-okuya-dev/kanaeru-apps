@@ -109,7 +109,13 @@ function ImportActions({
   const [text, setText] = useState("");
   const [mode, setMode] = useState<ImportMode>("replace");
   const [message, setMessage] = useState<{ tone: "success" | "danger"; text: string }>();
-  const [pending, setPending] = useState<{ parsed: ParsedCsv; mode: ImportMode; sourceLabel: string }>();
+  const [pending, setPending] = useState<{
+    parsed: ParsedCsv;
+    mode: ImportMode;
+    sourceLabel: string;
+    /** 読むたびに変える印（列の確かめの枠の選びを、表ごとに作り直す） */
+    key: number;
+  }>();
   const fileRef = useRef<HTMLInputElement>(null);
   const disabled = !editor.isEditor;
   const hasRoster = table.content.players.length > 0;
@@ -131,7 +137,7 @@ function ImportActions({
       return false;
     }
     setMessage(undefined);
-    setPending({ parsed, mode: importMode, sourceLabel });
+    setPending({ parsed, mode: importMode, sourceLabel, key: Date.now() });
     return true;
   };
 
@@ -139,25 +145,17 @@ function ImportActions({
    * 列の確かめのあと、読んだ名簿を入れる。
    * @param result 名簿を読んだ結果（列の確かめで選んだ列で読んだもの）
    * @param importMode 入れ方
-   * @returns 入れられたら true
+   * @returns 入れられたら null。入れられなければ理由の文（列の確かめの枠の中に出す）
    */
-  const importText = (result: RosterReadResult, importMode: ImportMode): boolean => {
+  const importText = (result: RosterReadResult, importMode: ImportMode): string | null => {
     if (result.people.length === 0) {
-      setMessage({
-        tone: "danger",
-        text: "氏名の列が読めませんでした。フォームの回答の表を、見出しの行ごとコピーして貼り付けてください。",
-      });
-      return false;
+      return "氏名の列が読めませんでした。フォームの回答の表を、見出しの行ごとコピーして貼り付けてください。";
     }
     const keep = importMode === "append" ? table.content.players.map((p) => p.nickname) : [];
     const named = assignNicknames(result.people, keep);
     const base = importMode === "append" ? table.content.players.length : 0;
     if (base + named.length > ROSTER_MAX) {
-      setMessage({
-        tone: "danger",
-        text: `名簿は${ROSTER_MAX}人までです。人数を減らしてから入れてください。`,
-      });
-      return false;
+      return `名簿は${ROSTER_MAX}人までです。人数を減らしてから入れてください。`;
     }
     // 今の中身（apply が渡す、送りの途中の変更を含む中身）から作る。氏名は作った ID と結ぶ
     let fullNames = new Map<string, string>();
@@ -167,15 +165,11 @@ function ImportActions({
       return { ...draft, content: imported.content };
     });
     if (!applied) {
-      setMessage({
-        tone: "danger",
-        text: "送れなかった変更が端末に残っているため、今は入れられません。上の知らせで、捨てるか上書きするかを選んでください。",
-      });
-      return false;
+      return "送れなかった変更が端末に残っているため、今は入れられません。この枠を閉じ、画面の上の知らせで、捨てるか上書きするかを選んでください。";
     }
     setMessage({ tone: "success", text: importSummary(result, named.length) });
     onNames(fullNames, importMode);
-    return true;
+    return null;
   };
 
   return (
@@ -254,10 +248,11 @@ function ImportActions({
         </div>
       </Dialog>
       <ColumnCheckDialog
+        key={pending?.key ?? 0}
         parsed={pending?.parsed}
         sourceLabel={pending?.sourceLabel ?? ""}
         onClose={() => setPending(undefined)}
-        onImport={(result) => (pending ? importText(result, pending.mode) : false)}
+        onImport={(result) => (pending ? importText(result, pending.mode) : null)}
       />
       <AddPlayerDialog open={addOpen} onOpenChange={setAddOpen} editor={editor} />
       <ReceptionImportDialog
