@@ -210,7 +210,8 @@ function TeamMemberRow({
       </div>
       {isAdmin ? (
         <div className="flex flex-col items-start gap-x3s" aria-busy={pending || undefined}>
-          <ButtonRow>
+          {/* 行の中の操作は、行の中の小さなボタンのまま（ButtonRow に入れない） */}
+          <div className="flex flex-wrap gap-xxs">
             <Button
               size="small"
               aria-disabled={pending || undefined}
@@ -241,7 +242,7 @@ function TeamMemberRow({
             >
               チームから外す
             </Button>
-          </ButtonRow>
+          </div>
           {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
         </div>
       ) : null}

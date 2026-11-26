@@ -185,14 +185,19 @@ function MemberRow({
       </p>
       {canManage ? (
         <div className="flex flex-col items-start gap-x3s" aria-busy={pending || undefined}>
-          <ButtonRow>
-            <Button aria-disabled={pending || undefined} onClick={() => void changeRole()}>
+          {/* 行の中の操作は、行の中の小さなボタンのまま（ButtonRow に入れない。DESIGN.md の「ボタンの並べ方」） */}
+          <div className="flex flex-wrap gap-xxs">
+            <Button
+              size="small"
+              aria-disabled={pending || undefined}
+              onClick={() => void changeRole()}
+            >
               {nextRole === "editor" ? "編集者にする" : "メンバーに戻す"}
             </Button>
-            <Button variant="danger" onClick={() => onRemove(member)}>
+            <Button size="small" variant="danger" onClick={() => onRemove(member)}>
               外す
             </Button>
-          </ButtonRow>
+          </div>
           {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
         </div>
       ) : null}
@@ -349,7 +354,6 @@ function InviteSection({ organization }: { organization: OrganizationDetail }) {
           </p>
           <OrganizationQr value={link} label={`組織「${organization.name}」の招待のQR`} />
           <ButtonRow>
-            <Button onClick={() => void copy()}>リンクを写す</Button>
             <Button
               onClick={() => {
                 setError(undefined);
@@ -358,6 +362,7 @@ function InviteSection({ organization }: { organization: OrganizationDetail }) {
             >
               作り直す
             </Button>
+            <Button onClick={() => void copy()}>リンクを写す</Button>
           </ButtonRow>
           {copied === "done" ? (
             <ResponseMessage tone="success">写しました。</ResponseMessage>
