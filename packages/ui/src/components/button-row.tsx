@@ -5,7 +5,8 @@
 // - grid：画面の上の操作の並びなど、同じ重さの操作をいくつも並べる所。同じ幅の格子（スマホは2列・PC は3列）。
 //   スマホで数が奇数のときは、最後の1つを2列分の幅にする（空きを作らない）。2列で文字が収まるよう、左右の余白は小さめ
 // どちらも、左寄せの入れ物（items-start）の中でも、スマホでは横幅いっぱいに広がる
-// 並べる順は「二番の操作 → 主の操作」（主は1つのまとまりに1つ）。値は tokens.css の名前だけを使う。
+// 並べる順は「二番の操作 → 主の操作」（主は1つのまとまりに1つ）。子はボタン（とボタンの形のリンク）だけにする
+// （奇数の最後を数えるので、ほかの要素を入れない）。値は tokens.css の名前だけを使う。
 import type * as React from "react";
 import { cn } from "../lib/cn.ts";
 
@@ -25,7 +26,7 @@ export const buttonRowEndClassName =
 
 /** 同じ幅の格子の並べ方。 */
 export const buttonRowGridClassName =
-  "grid w-full grid-cols-2 gap-xxs *:w-full *:px-xs *:whitespace-normal *:last:odd:col-span-2 wide:grid-cols-3 wide:*:last:odd:col-span-1";
+  "grid w-full grid-cols-2 gap-xxs *:w-full *:whitespace-normal *:last:odd:col-span-2 max-wide:*:px-xs wide:grid-cols-3 wide:*:last:odd:col-span-1";
 
 /**
  * ボタンの並べ方。
