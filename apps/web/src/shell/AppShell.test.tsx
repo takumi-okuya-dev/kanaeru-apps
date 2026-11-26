@@ -255,6 +255,7 @@ function appsView(overrides: Partial<ShellAppsView> = {}): ShellAppsView {
     placeVisible: true,
     appsPath: "/apps",
     settingsPath: "/settings",
+    feedbackPath: "/settings/feedback",
     ...overrides,
   };
 }
@@ -266,6 +267,13 @@ describe("外枠のアプリの切り替え（core-005）", () => {
     expect(screen.getByRole("link", { name: "全体の設定" })).toHaveAttribute("href", "/settings");
     expect(screen.getAllByRole("navigation", { name: "メイン" })).toHaveLength(2);
     expect(window.localStorage.getItem(LAST_APP_STORAGE_KEY)).toBe("reception");
+  });
+
+  it("どの画面でもヘッダーに「改善点を送る」の入口を出す（スマホはアイコンだけでも名前を持つ）", async () => {
+    await renderShell("/admin/events", ITEMS, appsView({ apps: [RECEPTION, SAMPLE] }));
+    const link = screen.getByRole("link", { name: "改善点を送る" });
+    expect(link).toHaveAttribute("href", "/settings/feedback");
+    expect(link).not.toHaveAttribute("aria-current");
   });
 
   it("見えるアプリが2つなら、PC は切り替えのメニューに使えるアプリ・運営者だけの札・すべてのアプリを出す", async () => {

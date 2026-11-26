@@ -37,6 +37,8 @@ export type ShellAppsView = {
   appsPath: string | null;
   /** 設定の道（なければ null。あれば外枠が「設定」の入口を出す） */
   settingsPath: string | null;
+  /** 改善点を送る道（なければ null。あれば外枠がヘッダーにいつも入口を出す。suite-004） */
+  feedbackPath: string | null;
 };
 
 /** 最後に使ったアプリを覚える鍵。 */

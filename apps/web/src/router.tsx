@@ -225,6 +225,7 @@ export function useShellApps(): ShellAppsView {
     placeVisible: listed,
     appsPath: SUITE_ROUTE_PATTERNS.apps,
     settingsPath: SUITE_ROUTE_PATTERNS.settings,
+    feedbackPath: SUITE_ROUTE_PATTERNS.feedback,
   };
 }
 
