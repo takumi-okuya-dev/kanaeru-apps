@@ -29,10 +29,10 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-  merge([main にマージ]) --> stg[ステージングに出る<br/>kanaeru-stg]
+  merge([main にマージ]) --> stg[ステージングに出る<br/>suite-stg]
   stg --> check[ステージングで確かめる<br/>（あなた）]
   check --> approve{承認する？}
-  approve -- Approve --> prod[本番に出る<br/>kanaeru]
+  approve -- Approve --> prod[本番に出る<br/>suite]
   approve -- Reject --> stop([本番には出ない])
 ```
 
@@ -91,7 +91,7 @@ CI が通ったらマージする（`gh pr merge <番号> --merge`）。
 - 止め直す時刻に近すぎてから承認すると、本番の仕事は何もせずに止まり、本番には出ない（壊れない）。もう一度 `wake_db` で流すか、翌朝8時15分を過ぎてから `deploy` を `main` で流し直す。
 - 交流会で夜間の停止を止めていて DB が前から動いているときは、`wake_db` は DB を起こさず、止め直しもしない（そのままにする）。
 - 7時45分を過ぎてから止め直す時刻になったときは、止めない（8時に Cloud Scheduler が起こすため）。
-- 使えるのは `main` だけ。DB を起こす・止めるのは、`main` からだけ使える専用の身分（`kanaeru-db-waker`）。
+- 使えるのは `main` だけ。DB を起こす・止めるのは、`main` からだけ使える専用の身分（`suite-db-waker`）。
 - 23時〜0時10分は使えない（0時の停止と重なるため）。0時10分を過ぎてから流す。`skip_hour_check` を一緒に入にしても、止め直す時刻までの残りの確かめは飛ばさない。
 
 ### 4-4. 直したあと：`main` を `develop` に戻す
@@ -135,6 +135,6 @@ gh pr create --base main --head develop --title "リリース：$(date +%Y-%m-%d
 | 困りごと | どうするか |
 |---|---|
 | ステージングで問題が見つかった | 承認しない（Reject）。直して、もう一度 `main` にマージする（①の形で）。ステージングは `main` の中身のままになるので、次の `develop` のマージで develop の中身に戻る |
-| 本番に出したあとで壊れていると分かった | すぐ前の版に戻す：`gcloud run services update-traffic kanaeru --region=asia-northeast1 --to-revisions=<前の版の名前>=100`（版の名前は `gcloud run revisions list --service=kanaeru --region=asia-northeast1`）。DB の変更は戻さない（前の版でも壊れない形にしている）。そのあと①で直す |
-| 夜に起こした DB が止まっていない（`stop-db` が失敗した・流れを強く取り消した〈Force cancel〉） | `gcloud sql instances patch kanaeru-db --activation-policy=NEVER`（8時より前のときだけ。8時を過ぎていたらそのままでよい） |
+| 本番に出したあとで壊れていると分かった | すぐ前の版に戻す：`gcloud run services update-traffic suite --region=asia-northeast1 --to-revisions=<前の版の名前>=100`（版の名前は `gcloud run revisions list --service=suite --region=asia-northeast1`）。DB の変更は戻さない（前の版でも壊れない形にしている）。そのあと①で直す |
+| 夜に起こした DB が止まっていない（`stop-db` が失敗した・流れを強く取り消した〈Force cancel〉） | `gcloud sql instances patch suite-db --activation-policy=NEVER`（8時より前のときだけ。8時を過ぎていたらそのままでよい） |
 | 承認を待ったまま止まっている | 承認するか、Reject する。待っている間、同じブランチの次のデプロイは始まらない。新しく流し直す前に、待っている方を Reject する |

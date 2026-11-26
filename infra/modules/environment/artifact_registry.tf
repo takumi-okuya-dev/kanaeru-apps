@@ -1,4 +1,4 @@
-# コンテナのイメージの置き場所（core-002・core-018。東京）。環境ごとに1つ（kanaeru・kanaeru-stg）。
+# コンテナのイメージの置き場所（core-002・core-018。東京）。環境ごとに1つ（suite・suite-stg）。
 # 押し込めるのは、その環境のデプロイの身分だけ（ステージングの身分が本番のイメージを上書きできないように。iam.tf）。
 #
 # 古いイメージを自動で消す。消すのは「新しい10個に入らず、かつ30日より古い」ものだけ（残す決まりが消す決まりより強い）。
@@ -10,6 +10,7 @@
 resource "google_artifact_registry_repository" "app" {
   location      = var.region
   repository_id = var.name
+  labels        = local.labels
   description   = "${var.name} のコンテナ（GitHub Actions が押し込む）"
   format        = "DOCKER"
 
