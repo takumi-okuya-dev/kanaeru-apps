@@ -203,4 +203,23 @@ describe("ボタンの並べ方（ButtonRow）", () => {
     expect(screen.getByRole("button", { name: "小" }).className).toContain("min-h-l");
     expect(screen.getByRole("button", { name: "小" }).className).not.toContain("min-h-m");
   });
+
+  it("文字だけのボタンは、大きさに関わらず左右の余白が狭い（px-x3s）", () => {
+    render(<Button variant="text">詳しく</Button>);
+    const className = screen.getByRole("button", { name: "詳しく" }).className;
+    expect(className).toContain("px-x3s");
+    expect(className).not.toMatch(/\bpx-s\b/u);
+  });
+
+  it("並べ方は長い文字を折り返し、入れ物の幅をこえない", () => {
+    const { container } = render(
+      <ButtonRow>
+        <Button>やめる</Button>
+        <Button variant="primary">受付の名簿を印刷する</Button>
+      </ButtonRow>,
+    );
+    const className = container.querySelector('[data-slot="button-row"]')?.className ?? "";
+    expect(className).toContain("*:whitespace-normal");
+    expect(className).toContain("wide:max-w-full");
+  });
 });

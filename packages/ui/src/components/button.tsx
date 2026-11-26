@@ -25,8 +25,8 @@ export const buttonVariants = cva(
         secondary: "border-border-input bg-surface text-text hover:not-disabled:bg-surface-over",
         /** 危ない操作（消す・元に戻せない） */
         danger: "border-danger bg-danger text-on-primary hover:not-disabled:shadow-layer1",
-        /** 文字だけ（リンクのように見せる操作） */
-        text: "border-transparent bg-transparent px-x3s text-text-link underline-offset-2 hover:not-disabled:underline",
+        /** 文字だけ（リンクのように見せる操作。左右の余白は下の compoundVariants で大きさのあとに決める） */
+        text: "border-transparent bg-transparent text-text-link underline-offset-2 hover:not-disabled:underline",
       },
       size: {
         /** 標準（高さ 48px。指で押しやすい高さ。DESIGN.md の「ボタン」） */
@@ -35,6 +35,8 @@ export const buttonVariants = cva(
         small: "min-h-l px-xs text-s leading-tight",
       },
     },
+    // 文字だけのボタンは、大きさの左右の余白（px-s・px-xs）でなく、狭い余白にする（大きさのあとに当てて上書きする）
+    compoundVariants: [{ variant: "text", class: "px-x3s" }],
     defaultVariants: { variant: "secondary", size: "default" },
   },
 );
