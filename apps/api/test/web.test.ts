@@ -165,6 +165,19 @@ describe("画面のファイル", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
 
+  it("/.well-known の下も画面に戻さず、API の守り（core-021・AD-21）", async () => {
+    // まだ道のない /.well-known は、画面（HTML）に戻さず 404 にする（認可のメタデータの道は次の PR）
+    for (const path of ["/.well-known/oauth-protected-resource", "/.well-known/unknown-thing"]) {
+      const response = await appWithWeb().request(path);
+      expect(response.status, path).toBe(404);
+      expect(response.headers.get("content-type") ?? "", path).not.toContain("text/html");
+      expect(response.headers.get("content-security-policy"), path).toContain("default-src 'none'");
+    }
+    // 画面の道はそのまま（.well-known の名前の前だけ一致させない）
+    const page = await appWithWeb().request("/.well-known-page");
+    expect(page.status).toBe(200);
+  });
+
   it("GET・HEAD でない要求には画面を返さない", async () => {
     const response = await appWithWeb().request("/e/x/checkin", { method: "POST" });
     expect(response.status).toBe(404);

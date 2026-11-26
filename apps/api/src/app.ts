@@ -54,7 +54,7 @@ import { createNotifier } from "./platform/notify/index.ts";
 import { createRateLimiter } from "./platform/rate-limit/index.ts";
 import {
   HSTS_MAX_AGE_SECONDS,
-  isApiPath,
+  isServerPath,
   serveWeb,
   webSecureHeaders,
 } from "./platform/web/index.ts";
@@ -510,7 +510,7 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
   app.use(
     "*",
     createMiddleware<AppEnv>(async (c, next) => {
-      await (isApiPath(c.req.path) ? apiHeaders(c, next) : webHeaders(c, next));
+      await (isServerPath(c.req.path) ? apiHeaders(c, next) : webHeaders(c, next));
     }),
   );
   app.use("*", async (c, next) => {

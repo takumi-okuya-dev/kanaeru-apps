@@ -96,6 +96,17 @@ export function isApiPath(path: string): boolean {
 }
 
 /**
+ * 画面に戻さない道か（/api と /.well-known の下。core-021・AD-21）。
+ * 認可のメタデータ（/.well-known/oauth-*）は API の守り（CSP・キャッシュなし）で返し、
+ * まだ作っていない /.well-known の道も画面（index.html）に吸わせない。
+ * @param path 要求の道
+ * @returns 画面に戻さない道なら true
+ */
+export function isServerPath(path: string): boolean {
+  return isApiPath(path) || path === "/.well-known" || path.startsWith("/.well-known/");
+}
+
+/**
  * カメラを自分の源に許す画面の道の頭（試合表の道。電波なしで渡す QR と、受付の QR をカメラで読む。AD-27・AD-30・core-015）。
  * ほかの道は今までどおりカメラを止める。道の比べ方は lib/liff.ts の LIFF を始めない道と同じ（大文字と小文字を分ける）。
  */
@@ -153,7 +164,7 @@ export function serveWeb(options: { distDir: string }): MiddlewareHandler {
   }
   const files = serveStatic({ root: options.distDir });
   return async (c, next) => {
-    if (isApiPath(c.req.path) || (c.req.method !== "GET" && c.req.method !== "HEAD")) {
+    if (isServerPath(c.req.path) || (c.req.method !== "GET" && c.req.method !== "HEAD")) {
       return next();
     }
     // ファイルがなければ、serveStatic は次（ここでは何も返さない関数）を呼び、undefined を返す
