@@ -403,6 +403,8 @@ function PromptSection({ accountId }: PromptSectionProps) {
   };
 
   const parts = prompt?.parts ?? [];
+  // 主のボタンは次にコピーするもの1つだけ（はじめは1つ目、コピーしたらその次。全部コピーしたら主はなし）
+  const nextPart = copied === undefined ? 0 : copied + 1;
   return (
     <section aria-labelledby="threads-prompt" className="flex flex-col gap-xs">
       <h2 id="threads-prompt" className="text-l font-bold">
@@ -449,7 +451,10 @@ function PromptSection({ accountId }: PromptSectionProps) {
                 </Disclosure>
                 <div className="flex flex-col items-start gap-xxs">
                   <ButtonRow>
-                    <Button variant="primary" onClick={() => void copy(part, index)}>
+                    <Button
+                      variant={index === nextPart ? "primary" : "secondary"}
+                      onClick={() => void copy(part, index)}
+                    >
                       {parts.length > 1 ? `${index + 1}つ目をコピー` : "コピー"}
                     </Button>
                   </ButtonRow>
