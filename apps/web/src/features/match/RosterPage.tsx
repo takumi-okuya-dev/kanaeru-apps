@@ -242,10 +242,8 @@ function ImportActions({
                   key={method.key}
                   size="small"
                   disabled={disabled}
-                  onClick={() => {
-                    setMethodsOpen(false);
-                    method.run();
-                  }}
+                  // 選んでも閉じない（押したボタンを残し、ダイアログを閉じたらフォーカスがここへ戻るように）
+                  onClick={method.run}
                 >
                   {method.label}
                 </Button>
