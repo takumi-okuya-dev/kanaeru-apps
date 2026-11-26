@@ -6,6 +6,7 @@ import type { EventView } from "@workspace/contracts/event";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, getRouteApi } from "@tanstack/react-router";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useState } from "react";
@@ -126,14 +127,16 @@ function SurveySection({ event }: { event: EventView }) {
           : "交流会の終わりに開くと、参加者がアンケートに答えられます。"}
       </p>
       <div className="flex flex-col items-start gap-xxs">
-        <Button
-          aria-disabled={mutation.isPending || undefined}
-          onClick={() => {
-            if (!mutation.isPending) mutation.mutate(!open);
-          }}
-        >
-          {open ? "アンケートを閉じる" : "アンケートを開く"}
-        </Button>
+        <ButtonRow>
+          <Button
+            aria-disabled={mutation.isPending || undefined}
+            onClick={() => {
+              if (!mutation.isPending) mutation.mutate(!open);
+            }}
+          >
+            {open ? "アンケートを閉じる" : "アンケートを開く"}
+          </Button>
+        </ButtonRow>
         {mutation.isError ? (
           <ResponseMessage tone="danger">
             {`切りかえられませんでした。${errorMessage(mutation.error)}`}
@@ -203,8 +206,7 @@ function InviteSection({ event }: { event: EventView }) {
             {formatJstDate(new Date(new Date(invite.expiresAt).getTime() - 1).toISOString())}
             の終わりまで使えます。
           </p>
-          <div className="flex flex-wrap gap-xxs">
-            <Button onClick={() => void copy()}>リンクを写す</Button>
+          <ButtonRow>
             <Button
               onClick={() => {
                 // 前に失敗したときの誤りを、開いたばかりの確かめの枠に残さない
@@ -214,7 +216,8 @@ function InviteSection({ event }: { event: EventView }) {
             >
               作り直す
             </Button>
-          </div>
+            <Button onClick={() => void copy()}>リンクを写す</Button>
+          </ButtonRow>
           {copied === "done" ? (
             <ResponseMessage tone="success">写しました。</ResponseMessage>
           ) : null}
@@ -227,14 +230,16 @@ function InviteSection({ event }: { event: EventView }) {
       ) : (
         <div className="flex flex-col items-start gap-xxs">
           <p className="text-m">まだ招待のリンクはありません。</p>
-          <Button
-            aria-disabled={mutation.isPending || undefined}
-            onClick={() => {
-              if (!mutation.isPending) mutation.mutate();
-            }}
-          >
-            招待のリンクを作る
-          </Button>
+          <ButtonRow>
+            <Button
+              aria-disabled={mutation.isPending || undefined}
+              onClick={() => {
+                if (!mutation.isPending) mutation.mutate();
+              }}
+            >
+              招待のリンクを作る
+            </Button>
+          </ButtonRow>
           {mutation.isError && !confirming ? (
             <ResponseMessage tone="danger">
               {`作れませんでした。${errorMessage(mutation.error)}`}

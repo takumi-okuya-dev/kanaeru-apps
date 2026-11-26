@@ -5,6 +5,7 @@
 import type { EventView } from "@workspace/contracts/event";
 import { Link } from "@tanstack/react-router";
 import { buttonVariants } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Button } from "@workspace/ui/components/button";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { useState } from "react";
@@ -165,7 +166,9 @@ function EventList() {
           <p role="alert" className="text-m text-danger-text">
             {errorMessage(query.error)}
           </p>
-          <Button onClick={() => void query.refetch()}>もう一度</Button>
+          <ButtonRow>
+            <Button onClick={() => void query.refetch()}>もう一度</Button>
+          </ButtonRow>
         </div>
       ) : events.length === 0 ? (
         <p className="text-m">交流会はまだありません。「交流会を追加」から作ってください。</p>
