@@ -106,6 +106,10 @@ export function RespondButtons({
     onSuccess: (_result, answer) => onDone(answer),
   });
   if (!standing.canAccept) return null;
+  // 押したほうのボタンにだけ「動いている」の印をつけ、押していないほうは止める
+  const busy = (answer: "accept" | "decline") =>
+    (mutation.isPending && mutation.variables === answer) || undefined;
+  const locked = mutation.isPending || undefined;
   /** 参加すると答える。 */
   const accept = () => {
     if (!mutation.isPending) mutation.mutate("accept");
@@ -119,19 +123,33 @@ export function RespondButtons({
       {primary ? (
         // 画面に1つだけの申込み：枠の下の並び（二番の「辞退する」→ 主の「参加する」。DESIGN.md の「ボタンの並べ方」）
         <ButtonRow>
-          {status === "offered" ? <Button onClick={decline}>辞退する</Button> : null}
-          <Button variant="primary" aria-busy={mutation.isPending || undefined} onClick={accept}>
+          {status === "offered" ? (
+            <Button aria-disabled={locked} aria-busy={busy("decline")} onClick={decline}>
+              辞退する
+            </Button>
+          ) : null}
+          <Button
+            variant="primary"
+            aria-disabled={locked}
+            aria-busy={busy("accept")}
+            onClick={accept}
+          >
             参加する
           </Button>
         </ButtonRow>
       ) : (
         // 一覧のカードの中：カードの中の操作なので、並びに入れず行の中に置く
         <div className="flex flex-wrap gap-xxs">
-          <Button size="small" aria-busy={mutation.isPending || undefined} onClick={accept}>
+          <Button size="small" aria-disabled={locked} aria-busy={busy("accept")} onClick={accept}>
             参加する
           </Button>
           {status === "offered" ? (
-            <Button variant="text" onClick={decline}>
+            <Button
+              variant="text"
+              aria-disabled={locked}
+              aria-busy={busy("decline")}
+              onClick={decline}
+            >
               辞退する
             </Button>
           ) : null}
