@@ -6,6 +6,7 @@ import { TEST_ORIGIN, buildApp, jsonRequest, testConfig } from "./helpers/app.ts
 import type { TestApp } from "./helpers/app.ts";
 import { loginAs, testLineUserId, withCookie } from "./helpers/account.ts";
 import { truncateAllTables, useTestDatabase } from "./helpers/db.ts";
+import { DEMO_APP, DEMO_APP_KEY, DEMO_MODULE } from "./helpers/suite.ts";
 
 const database = useTestDatabase();
 const REDIRECT = "http://127.0.0.1:1455/callback";
@@ -143,6 +144,41 @@ describe("認可のメタデータ（RFC 9728・8414）", () => {
     expect(prMeta.resource).toBe(RESOURCE);
     expect(prMeta.authorization_servers).toEqual([TEST_ORIGIN]);
     expect(prMeta.bearer_methods_supported).toEqual(["header"]);
+  });
+
+  it("範囲は MCP の道具を出すアプリだけ。道具のないアプリは、メタデータ・同意の画面に出さず、求めると invalid_scope（core-021 FR-022）", async () => {
+    // 見本のアプリ（demo）は MCP の道具を出さない。受付（reception）は道具を出す
+    const app = buildApp(database, testConfig({ testLoginEnabled: true }), {
+      extraModules: { demo: DEMO_MODULE },
+      extraApps: [DEMO_APP],
+    });
+    const demoScope = `${DEMO_APP_KEY}:read`;
+    for (const path of [
+      "/.well-known/oauth-authorization-server",
+      "/.well-known/oauth-protected-resource",
+    ]) {
+      const meta = (await (await app.request(path)).json()) as { scopes_supported: string[] };
+      expect(meta.scopes_supported).toContain("reception:read");
+      expect(meta.scopes_supported).not.toContain(demoScope);
+    }
+
+    const clientId = await registerClient(app);
+    const asked = await app.request(
+      `/api/oauth/authorize?${qs(params(clientId, { scope: demoScope }))}`,
+      { redirect: "manual" },
+    );
+    expect(asked.status).toBe(302);
+    expect(parseRedirect(asked.headers.get("location") ?? "").error).toBe("invalid_scope");
+
+    // 範囲を求めないときは、道具を出すアプリの範囲だけが同意の画面に出る
+    const { cookie } = await loginAs(app, { lineUserId: testLineUserId() });
+    const consent = await app.request(
+      `/api/oauth/authorize/consent?${qs(params(clientId))}`,
+      withCookie(cookie),
+    );
+    const view = (await consent.json()) as { scopes: { scope: string }[] };
+    expect(view.scopes.map((row) => row.scope)).toContain("reception:read");
+    expect(view.scopes.map((row) => row.scope)).not.toContain(demoScope);
   });
 });
 

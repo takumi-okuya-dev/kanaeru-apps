@@ -86,7 +86,7 @@ type Rejected =
  * @returns 検証を通った要求、または失敗
  */
 async function validateAuthorize(
-  deps: Pick<DomainRouteDeps, "db" | "fetch" | "config" | "apps">,
+  deps: Pick<DomainRouteDeps, "db" | "fetch" | "config" | "apps" | "mcpTools">,
   raw: Record<string, unknown>,
 ): Promise<{ ok: true; value: Validated } | { ok: false; reason: Rejected }> {
   const parsed = contract.AuthorizeParams.safeParse(raw);
@@ -145,7 +145,7 @@ async function validateAuthorize(
   if (!isAcceptableChallenge(request.code_challenge, request.code_challenge_method)) {
     return back("invalid_request", "PKCE（S256）が必要");
   }
-  const allowed = deps.apps.map((app) => `${app.key}:read`);
+  const allowed = mcpReadScopes(deps);
   const requested = (request.scope ?? "").split(" ").filter((s) => s.length > 0);
   if (requested.some((s) => !allowed.includes(s))) {
     return back("invalid_scope", "使えない範囲がある");
@@ -200,6 +200,18 @@ function redirectWith(redirectUri: string, params: Record<string, string>, issue
   for (const [key, value] of Object.entries({ ...params, iss: issuer }))
     url.searchParams.set(key, value);
   return url.toString();
+}
+
+/**
+ * 読む範囲（`<アプリのkey>:read`）の一覧。MCP の道具を出すアプリだけ（core-021 FR-022）。
+ * 道具を出さないアプリ（人物メモなど、本人の記録を外へ出さないアプリ。AD-20・AD-31）は、
+ * メタデータ・同意の画面・許す範囲のどれにも出さない。並びはアプリの一覧の順。
+ * @param deps 土台の道具
+ * @returns 範囲の一覧
+ */
+export function mcpReadScopes(deps: Pick<DomainRouteDeps, "apps" | "mcpTools">): string[] {
+  const required = new Set((deps.mcpTools ?? []).map((tool) => tool.requiredScope));
+  return deps.apps.map((app) => `${app.key}:read`).filter((scope) => required.has(scope));
 }
 
 /**
@@ -423,7 +435,7 @@ export function registerOAuthRoutes<T extends OpenAPIHono<ApiEnv>>(
       token_endpoint_auth_methods_supported: ["none", "client_secret_post"],
       client_id_metadata_document_supported: true,
       authorization_response_iss_parameter_supported: true,
-      scopes_supported: deps.apps.map((app) => `${app.key}:read`),
+      scopes_supported: mcpReadScopes(deps),
     }),
   );
 
@@ -432,7 +444,7 @@ export function registerOAuthRoutes<T extends OpenAPIHono<ApiEnv>>(
       resource,
       authorization_servers: [issuer],
       bearer_methods_supported: ["header"],
-      scopes_supported: deps.apps.map((app) => `${app.key}:read`),
+      scopes_supported: mcpReadScopes(deps),
     }),
   );
 
