@@ -72,6 +72,19 @@ afterEach(() => {
 });
 
 describe("直す・取り消すの枠", () => {
+  it("取り消しの確かめに切り替えると「やめる」へ、戻ると「取り消す」へフォーカスが移る", async () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <CheckinEditDialog event={EVENT} checkin={CHECKIN} onClose={vi.fn()} onDone={vi.fn()} />
+      </QueryClientProvider>,
+    );
+    await userEvent.click(await screen.findByRole("button", { name: "取り消す" }));
+    await screen.findByRole("heading", { name: "このチェックインを取り消しますか" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "やめる" })).toHaveFocus());
+    await userEvent.click(screen.getByRole("button", { name: "やめる" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "取り消す" })).toHaveFocus());
+  });
+
   it("ほかの端末で先に取り消されていたら（404 CHECKIN_NOT_FOUND）、取り消せたものとして済ませる", async () => {
     const { CHECKIN_NOT_FOUND } = RECEPTION_ERRORS;
     const { onDone } = await removeWith(
