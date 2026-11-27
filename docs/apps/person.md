@@ -48,7 +48,7 @@ person が読むほかの領域は account・suite の `index.ts` と、外部�
 | `personCreateNote` | `POST /notes` | 人を足す（`meetingId` で会った場も付く。同じ `clientRequestId` の送り直しは 200 で前の人） |
 | `personGetNote` | `GET /notes/{noteId}` | 人を読む（付いている会った場つき） |
 | `personUpdateNote` | `PATCH /notes/{noteId}` | 送った欄だけ直す（`baseVersion` が違えば `409 PERSON_VERSION_CONFLICT`） |
-| `personAppendTalk` | `POST /notes/{noteId}/appends` | 話したことに見出しつきで書き足す（同じ `appendId` は書かずに今の値。超えると 400 `fields.talk`） |
+| `personAppendTalk` | `POST /notes/{noteId}/appends` | 話したことに見出しつきで書き足す（同じ `appendId` は書かずに今の値。比べるのは最後の1つだけ〈research R7 の分かっている限り〉。超えると 400 `fields.talk`） |
 | `personDeleteNote` | `DELETE /notes/{noteId}` | 人を消す（会った場は残る） |
 | `personSearchNotes` | `POST /notes/search` | 言葉とタグで探す（両方なら AND・最大100人・当たった所の前後の文つき） |
 | `personAttachMeeting`・`personDetachMeeting` | `PUT`・`DELETE /notes/{noteId}/meetings/{meetingId}` | 会った場を付ける・外す（人の `updated_at` が新しくなる） |
@@ -63,16 +63,16 @@ person が読むほかの領域は account・suite の `index.ts` と、外部�
 
 ## 4. 画面
 
-どれも管理の外枠で、account の `SessionGate` で包む。どの画面にも「このメモを見られるのはあなただけです。」、入力の欄には知られたくないことを書かない注意を出す。
+どれも管理の外枠で、account の `SessionGate` で包む。送り直しの ID（`clientRequestId`・`appendId`）は、同じ中身の送り直しだけ同じものを使い、中身を変えたら新しくする（`retry-id.ts`）。直すときの版は直し始めたときの版。どの画面にも「このメモを見られるのはあなただけです。」、入力の欄には知られたくないことを書かない注意を出す。
 外枠のナビには、人物メモの画面の中でだけ「人」「会った場」を出す（`nav-items.ts`）。探す言葉とタグは画面の状態だけに持ち、道・search params・sessionStorage に入れない。5秒おきの読み直しは使わない。
 
 | 道 | 画面 |
 |---|---|
-| `/person` | 人の一覧（名前の横に見た目の特徴）・探す（当たった所に印）・タグで絞る・CSV で書き出す |
+| `/person` | 人の一覧（名前の横に見た目の特徴）・探す（当たった所に印。遅れて届いた前の答えは捨てる）・タグで絞る（選択肢は新しい500人のタグ）・CSV で書き出す |
 | `/person/new` | 人を足す（`clientRequestId` は画面が作り、送り直しでも同じもの） |
 | `/person/notes/$noteId` | 人のメモ（話したことと次に話したいことが最初）・書き足す（`appendId`）・直す（409 なら書いた内容を残す）・アカウント（新しいタブ）・会った場を付ける・外す・消す |
 | `/person/meetings` | 会った場の一覧・作る |
-| `/person/meetings/$meetingId` | そこで会った人を続けて足す・前に足した人を付ける・人の一覧・消す |
+| `/person/meetings/$meetingId` | そこで会った人を続けて足す・前に足した人を名前で探して付ける（`POST /notes/search`。一覧の500人に限らない）・人の一覧・消す |
 
 ## 5. テスト
 

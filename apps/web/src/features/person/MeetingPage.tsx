@@ -1,14 +1,15 @@
 // 会った場の画面（/person/meetings/$meetingId。US3・FR-009・FR-010・SC-002）。会った場を選んだまま、そこで会った人を続けて足す
 // （保存すると欄が空になり、次の人を足せる）・前に足した人を選んで付ける・付いている人を並べる・会った場を消す。
-// 送りの ID（clientRequestId）は1人ごとに画面が作り、送り直しでも同じものを使う（保存できたら新しくする）。
-import type { Meeting } from "@workspace/contracts/person";
+// 送りの ID（clientRequestId）は1人ごとに画面が作り、同じ中身の送り直しでは同じものを使う（中身を変えたら・保存できたら新しくする）。
+// 前に足した人は、名前で探して付ける（POST /notes/search。一覧の500人に限らない）。
+import type { Meeting, NoteSummary } from "@workspace/contracts/person";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, getRouteApi, useNavigate } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
 import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
-import { Field, useFieldControl } from "@workspace/ui/components/field";
-import { inputClassName } from "@workspace/ui/components/input";
+import { Field } from "@workspace/ui/components/field";
+import { Input } from "@workspace/ui/components/input";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useRef, useState } from "react";
 import type * as React from "react";
@@ -18,10 +19,17 @@ import { showNotice } from "../../lib/notice.ts";
 import { Page } from "../../lib/page.tsx";
 import { SessionGate } from "../account/index.ts";
 import { NoteFields } from "./NoteFields.tsx";
-import { attachMeeting, createNote, deleteMeeting } from "./api.ts";
-import { EMPTY_NOTE_VALUES, PRIVACY_TEXT, checkCreate, toFormErrors } from "./note-form.ts";
+import { attachMeeting, createNote, deleteMeeting, searchNotes } from "./api.ts";
+import {
+  EMPTY_NOTE_VALUES,
+  PRIVACY_TEXT,
+  checkCreate,
+  toFormErrors,
+  valuesToFields,
+} from "./note-form.ts";
 import type { NoteFormValues } from "./note-form.ts";
-import { PERSON_QUERY_KEYS, useMeeting, useNotes } from "./queries.ts";
+import { PERSON_QUERY_KEYS, useMeeting } from "./queries.ts";
+import { useRetryId } from "./retry-id.ts";
 import { LoadError, Loading } from "./states.tsx";
 
 /**
@@ -42,7 +50,8 @@ function QuickAddForm({ meeting }: { meeting: Meeting }) {
   const queryClient = useQueryClient();
   const [values, setValues] = useState<NoteFormValues>(EMPTY_NOTE_VALUES);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [clientRequestId, setClientRequestId] = useState(() => crypto.randomUUID());
+  // 同じ中身の送り直しは同じ ID（二重に足さない）。中身を変えたら・保存できたら新しい ID
+  const retry = useRetryId();
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<string>();
   const [added, setAdded] = useState<string>();
@@ -59,7 +68,11 @@ function QuickAddForm({ meeting }: { meeting: Meeting }) {
     if (pending) return;
     setFailure(undefined);
     setAdded(undefined);
-    const checked = checkCreate(values, clientRequestId, meeting.id);
+    const checked = checkCreate(
+      values,
+      retry.idFor({ ...valuesToFields(values), meetingId: meeting.id }),
+      meeting.id,
+    );
     if (!checked.ok) {
       setErrors(checked.errors);
       requestAnimationFrame(() => focusFirstInvalid(formRef.current));
@@ -70,7 +83,7 @@ function QuickAddForm({ meeting }: { meeting: Meeting }) {
     try {
       const note = await createNote(checked.input);
       setValues(EMPTY_NOTE_VALUES);
-      setClientRequestId(crypto.randomUUID());
+      retry.reset();
       setRound((count) => count + 1);
       setAdded(`${note.fullName}さんを足しました。続けて次の人を足せます。`);
       await refreshPerson(queryClient);
@@ -113,63 +126,56 @@ function QuickAddForm({ meeting }: { meeting: Meeting }) {
   );
 }
 
-/** NoteSelect が受け取るもの。 */
-type NoteSelectProps = {
-  /** 選んだ人の ID（選ばないときは ""） */
-  value: string;
-  /** 選んだとき */
-  onChange: (value: string) => void;
-  /** 選択肢（人の ID・名前・見た目の特徴） */
-  options: readonly { id: string; fullName: string; appearance: string | null }[];
-};
-
 /**
- * 前に足した人を選ぶ欄（Field の中で、名前と結ぶ。同じ名前の人は見た目の特徴で見分ける）。
- * @param props 値（value）・選んだとき（onChange）・選択肢（options）
- * @returns 欄の要素
- */
-function NoteSelect({ value, onChange, options }: NoteSelectProps) {
-  const control = useFieldControl();
-  return (
-    <select
-      {...control}
-      className={`${inputClassName} min-h-xl`}
-      value={value}
-      onChange={(change) => onChange(change.target.value)}
-    >
-      <option value="">選んでください</option>
-      {options.map((note) => (
-        <option key={note.id} value={note.id}>
-          {note.appearance ? `${note.fullName}（${note.appearance}）` : note.fullName}
-        </option>
-      ))}
-    </select>
-  );
-}
-
-/**
- * 前に足した人を付ける欄。
+ * 前に足した人を名前で探して付ける欄（探すのは POST /notes/search。言葉は画面の状態だけに持つ。AD-31）。
+ * 当たった人のうち、まだこの会った場に付いていない人に「付ける」を出す（同じ名前の人は見た目の特徴で見分ける）。
  * @param props 会った場（meeting）
  * @param props.meeting 会った場
  * @returns 欄の要素
  */
 function AttachForm({ meeting }: { meeting: Meeting }) {
   const queryClient = useQueryClient();
-  const notes = useNotes();
-  const [selected, setSelected] = useState("");
+  const [words, setWords] = useState("");
+  const [found, setFound] = useState<NoteSummary[]>();
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<string>();
   const attached = new Set(meeting.notes.map((note) => note.id));
-  const options = (notes.data?.items ?? []).filter((note) => !attached.has(note.id));
+  const candidates = (found ?? []).filter((note) => !attached.has(note.id));
 
-  /** 付ける。 */
-  const attach = async () => {
-    if (pending || selected === "") return;
+  /**
+   * 名前で探す。
+   * @param event 送る出来事
+   */
+  const search = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (pending) return;
+    setFailure(undefined);
+    const query = words.trim();
+    if (query === "") {
+      setFailure("名前を入れてください。");
+      return;
+    }
+    setPending(true);
+    try {
+      const result = await searchNotes({ query });
+      setFound(result.items.map((item) => item.note));
+    } catch (error) {
+      setFailure(`探せませんでした。${errorMessage(error)}`);
+    } finally {
+      setPending(false);
+    }
+  };
+
+  /**
+   * 付ける。
+   * @param noteId 人の ID
+   */
+  const attach = async (noteId: string) => {
+    if (pending) return;
     setFailure(undefined);
     setPending(true);
     try {
-      await attachMeeting(selected, meeting.id);
-      setSelected("");
+      await attachMeeting(noteId, meeting.id);
       await refreshPerson(queryClient);
     } catch (error) {
       setFailure(`付けられませんでした。${errorMessage(error)}`);
@@ -180,18 +186,52 @@ function AttachForm({ meeting }: { meeting: Meeting }) {
 
   return (
     <div className="flex max-w-form flex-col gap-xxs">
-      <Field label="前に足した人">
-        <NoteSelect value={selected} onChange={setSelected} options={options} />
-      </Field>
-      <ButtonRow>
-        <Button
-          aria-disabled={pending || selected === "" || undefined}
-          onClick={() => void attach()}
-        >
-          付ける
-        </Button>
-      </ButtonRow>
+      <form
+        role="search"
+        aria-label="前に足した人を探す"
+        noValidate
+        onSubmit={(event) => void search(event)}
+        className="flex flex-col gap-xxs"
+      >
+        <Field label="名前で探す" description="名前・よみ・LINE の名前などで探せます。">
+          <Input
+            type="search"
+            autoComplete="off"
+            value={words}
+            onChange={(event) => setWords(event.target.value)}
+          />
+        </Field>
+        <ButtonRow>
+          <Button type="submit" aria-disabled={pending || undefined}>
+            探す
+          </Button>
+        </ButtonRow>
+      </form>
       {failure ? <ResponseMessage tone="danger">{failure}</ResponseMessage> : null}
+      {found === undefined ? null : candidates.length === 0 ? (
+        <p className="text-m">付けられる人は見つかりませんでした。</p>
+      ) : (
+        <ul aria-label="付けられる人" className="flex flex-col gap-xxs">
+          {candidates.map((note) => (
+            <li key={note.id} className="flex flex-wrap items-center gap-xs text-m">
+              <span className="break-words">
+                {note.fullName}
+                {note.appearance ? (
+                  <span className="text-text-sub">（{note.appearance}）</span>
+                ) : null}
+              </span>
+              <Button
+                size="small"
+                aria-label={`付ける：${note.fullName}`}
+                aria-disabled={pending || undefined}
+                onClick={() => void attach(note.id)}
+              >
+                付ける
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -215,10 +255,11 @@ function MeetingDetail({ meeting }: { meeting: Meeting }) {
     setDeleteError(undefined);
     try {
       await deleteMeeting(meeting.id);
+      showNotice({ tone: "success", message: "会った場を消しました。", path: "/person/meetings" });
+      // 先に一覧へ移る（この画面が見ている間に消すと、読み直して 404 を出してしまう）
+      await navigate({ to: "/person/meetings" });
       queryClient.removeQueries({ queryKey: PERSON_QUERY_KEYS.meeting(meeting.id) });
       await refreshPerson(queryClient);
-      showNotice({ tone: "success", message: "会った場を消しました。", path: "/person/meetings" });
-      await navigate({ to: "/person/meetings" });
     } catch (error) {
       setDeleteError(`消せませんでした。${errorMessage(error)}`);
       setDeleting(false);

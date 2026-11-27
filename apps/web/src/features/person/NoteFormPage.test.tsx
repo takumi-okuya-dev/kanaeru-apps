@@ -53,4 +53,26 @@ describe("人を足す画面", () => {
     expect(second?.clientRequestId).toBe(first?.clientRequestId);
     expect(posts[0]?.body).toMatchObject({ fullName: "田中 太郎", talk: "Go の話" });
   });
+
+  it("保存に失敗したあと中身を変えて保存すると、新しい clientRequestId を使う", async () => {
+    let calls = 0;
+    const sent = stubPersonApi((request) => {
+      if (request.method !== "POST") return undefined;
+      calls += 1;
+      if (calls === 1) throw new TypeError("通信が切れた");
+      return Response.json(NOTE, { status: 201 });
+    });
+    renderWithRouter(<NoteNewPage />);
+    const name = await screen.findByRole("textbox", { name: /フルネーム/ });
+    await userEvent.type(name, "田中 太郎");
+    await userEvent.click(screen.getByRole("button", { name: "保存" }));
+    expect(await screen.findByText(/保存できませんでした/)).toBeVisible();
+    await userEvent.type(screen.getByRole("textbox", { name: "話したこと" }), "Go の話");
+    await userEvent.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(calls).toBe(2));
+    const [first, second] = sent
+      .filter((request) => request.method === "POST")
+      .map((request) => (request.body as { clientRequestId: string }).clientRequestId);
+    expect(second).not.toBe(first);
+  });
 });

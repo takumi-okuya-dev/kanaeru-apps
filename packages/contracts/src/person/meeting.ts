@@ -3,6 +3,7 @@
 // 人の形を使うので note.ts に置く（ファイルどうしが互いに読み合わないように）。
 import { z } from "zod";
 import { PERSON_MEETING_LIMITS, countChars } from "./limits.ts";
+import { normalizeMeetingName } from "./search.ts";
 
 /** 会った日（日本時間の日付）。 */
 export const MeetingDate = z.iso.date({ error: "日付を選んでください。" });
@@ -16,6 +17,10 @@ export const MeetingCreateInput = z.strictObject({
     .min(1, { error: "会った場の名前を入れてください。" })
     .refine((value) => countChars(value) <= PERSON_MEETING_LIMITS.name, {
       error: `会った場の名前は${PERSON_MEETING_LIMITS.name}字までにしてください。`,
+    })
+    // そろえた名前（name_key）の DB の上限。NFKC で字が増える字（㍿ など）が多いと、100字でも超えうる
+    .refine((value) => countChars(normalizeMeetingName(value)) <= PERSON_MEETING_LIMITS.nameKey, {
+      error: "会った場の名前に、そろえると長くなる字が多すぎます。短くしてください。",
     }),
   /** 会った日 */
   metOn: MeetingDate,

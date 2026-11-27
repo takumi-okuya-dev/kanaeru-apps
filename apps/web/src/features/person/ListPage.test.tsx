@@ -1,10 +1,11 @@
 // 人の一覧と検索の画面：名前の横に見た目の特徴が出る・検索の結果に当たった所が分かる形で出る・検索の言葉とタグを入れても
 // URL も sessionStorage も変わらない・500人を超えたときの案内・自分だけが見られることが出る。API は fetch の差しかえで答える。
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderWithRouter } from "../../lib/testing.tsx";
 import { ListPage } from "./ListPage.tsx";
+import type { SearchResult } from "@workspace/contracts/person";
 import { SUMMARY, stubPersonApi } from "./test-api.ts";
 
 afterEach(() => {
@@ -94,5 +95,84 @@ describe("人の一覧と検索の画面", () => {
       expect(sent.find((request) => request.path.endsWith("/search"))?.body).toEqual({ tag: "AI" }),
     );
     expect(window.location.href).toBe(before);
+  });
+
+  it("遅れて届いた前の検索の答えで、新しい答えを上書きしない。「やめる」のあとに届いた答えも出さない", async () => {
+    const suzuki = {
+      ...SUMMARY,
+      id: "0193a1b2-0000-7000-8000-000000000102",
+      fullName: "鈴木 花子",
+    };
+    let releaseSlow: (() => void) | undefined;
+    const slow = new Promise<void>((resolve) => {
+      releaseSlow = resolve;
+    });
+    /**
+     * 1人だけの検索の結果。
+     * @param note 当たった人
+     * @returns 結果
+     */
+    const resultOf = (note: typeof SUMMARY): SearchResult => ({
+      items: [{ note, matches: [] }],
+      truncated: false,
+    });
+    stubPersonApi(async (request) => {
+      if (request.method === "GET" && request.path === "/api/v1/person/notes") {
+        return Response.json({ items: [SUMMARY, { ...suzuki, tags: ["Go"] }], truncated: false });
+      }
+      if (request.path.endsWith("/search")) {
+        const body = request.body as { tag?: string; query?: string };
+        if (body.tag === "AI" || body.query === "おそい") {
+          await slow;
+          return Response.json(resultOf(SUMMARY));
+        }
+        return Response.json(resultOf(suzuki));
+      }
+      return undefined;
+    });
+    renderWithRouter(<ListPage />);
+    const tag = await screen.findByRole("combobox", { name: "タグで絞る" });
+    await userEvent.selectOptions(tag, "AI");
+    await userEvent.selectOptions(tag, "Go");
+    const results = await screen.findByRole("list", { name: "探した結果" });
+    expect(await within(results).findByText("鈴木 花子")).toBeVisible();
+    await act(async () => {
+      releaseSlow?.();
+      await slow;
+    });
+    expect(
+      within(screen.getByRole("list", { name: "探した結果" })).queryByText("田中 太郎"),
+    ).toBeNull();
+
+    // 「やめる」のあとに届いた答えは出さない
+    await userEvent.click(screen.getByRole("button", { name: "やめる" }));
+    expect(screen.queryByRole("list", { name: "探した結果" })).toBeNull();
+  });
+
+  it("探している途中で「やめる」と、あとから届いた答えを出さない", async () => {
+    let releaseSlow: (() => void) | undefined;
+    const slow = new Promise<void>((resolve) => {
+      releaseSlow = resolve;
+    });
+    stubPersonApi(async (request) => {
+      if (request.method === "GET" && request.path === "/api/v1/person/notes") {
+        return Response.json({ items: [SUMMARY], truncated: false });
+      }
+      if (request.path.endsWith("/search")) {
+        await slow;
+        return Response.json({ items: [{ note: SUMMARY, matches: [] }], truncated: false });
+      }
+      return undefined;
+    });
+    renderWithRouter(<ListPage />);
+    await userEvent.type(await screen.findByRole("searchbox", { name: "探す言葉" }), "おそい");
+    await userEvent.click(screen.getByRole("button", { name: /探す|探しています/ }));
+    await userEvent.click(screen.getByRole("button", { name: "やめる" }));
+    await act(async () => {
+      releaseSlow?.();
+      await slow;
+    });
+    expect(screen.queryByRole("list", { name: "探した結果" })).toBeNull();
+    expect(screen.getByRole("list", { name: "人" })).toBeVisible();
   });
 });

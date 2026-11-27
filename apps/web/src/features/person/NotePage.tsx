@@ -1,6 +1,7 @@
 // 人のメモの画面（/person/notes/$noteId。US1・US4・US5・FR-016）。話したことと次に話したいことを最初に出し、その下に
 // 書き足す欄・くわしい欄・アカウント・会った場・消すを置く。「直す」で全部の欄を書き直せる（もとの版が違えば 409）。
-// 書き足しの ID（appendId）は画面が作り、送り直しでも同じものを使う（research R7）。保存に失敗しても書いた内容は残る（FR-005）。
+// 書き足しの ID（appendId）は画面が作り、同じ中身の送り直しでは同じものを使う（中身を変えたら新しい ID。research R7）。
+// 保存に失敗しても書いた内容は残る（FR-005）。直すときの版は、直し始めたときの版を送る（読み直しで新しくなっても変えない）。
 // アカウントは contracts の accountUrl で URL にし、新しいタブで開く（http・https にならないものはリンクにしない。FR-018）。
 import {
   PERSON_ACCOUNT_KINDS,
@@ -37,6 +38,7 @@ import {
 } from "./note-form.ts";
 import type { NoteFormValues } from "./note-form.ts";
 import { PERSON_QUERY_KEYS, useMeetings, useNote } from "./queries.ts";
+import { useRetryId } from "./retry-id.ts";
 import { LoadError, Loading } from "./states.tsx";
 
 /** 会った場を選ぶ欄の選択肢。 */
@@ -103,8 +105,8 @@ function AppendForm({ note }: { note: Note }) {
   const meetings = useMeetings();
   const [text, setText] = useState("");
   const [meetingId, setMeetingId] = useState("");
-  // 送り直しでも同じ ID を使う（答えが届かなかった書き足しを二重にしない）。書けたら新しくする
-  const [appendId, setAppendId] = useState(() => crypto.randomUUID());
+  // 同じ中身の送り直しは同じ ID（答えが届かなかった書き足しを二重にしない）。中身を変えたら・書けたら新しい ID
+  const retry = useRetryId();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const [failure, setFailure] = useState<string>();
@@ -126,14 +128,11 @@ function AppendForm({ note }: { note: Note }) {
     setError(undefined);
     setPending(true);
     try {
-      const saved = await appendTalk(note.id, {
-        appendId,
-        text,
-        ...(meetingId ? { meetingId } : {}),
-      });
+      const content = { text, ...(meetingId ? { meetingId } : {}) };
+      const saved = await appendTalk(note.id, { appendId: retry.idFor(content), ...content });
       setText("");
       setMeetingId("");
-      setAppendId(crypto.randomUUID());
+      retry.reset();
       setDone(true);
       await refreshAfterWrite(queryClient, saved);
     } catch (caught) {
@@ -323,6 +322,8 @@ function MeetingSection({ note }: { note: Note }) {
 function EditForm({ note, onClose }: { note: Note; onClose: (saved: boolean) => void }) {
   const queryClient = useQueryClient();
   const [values, setValues] = useState<NoteFormValues>(() => noteToValues(note));
+  // 直し始めたときの版（つながり直しなどで読み直して note が新しくなっても変えない。ほかの端末の直しを黙って上書きしない）
+  const [baseVersion] = useState(() => note.version);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<string>();
@@ -335,7 +336,7 @@ function EditForm({ note, onClose }: { note: Note; onClose: (saved: boolean) => 
     event.preventDefault();
     if (pending) return;
     setFailure(undefined);
-    const checked = checkUpdate(values, note.version);
+    const checked = checkUpdate(values, baseVersion);
     if (!checked.ok) {
       setErrors(checked.errors);
       return;
@@ -402,10 +403,11 @@ function NoteDetail({ note }: { note: Note }) {
     setDeleteError(undefined);
     try {
       await deleteNote(note.id);
+      showNotice({ tone: "success", message: "メモを消しました。", path: "/person" });
+      // 先に一覧へ移る（この画面が見ている間に消すと、読み直して 404 を出してしまう）
+      await navigate({ to: "/person" });
       queryClient.removeQueries({ queryKey: PERSON_QUERY_KEYS.note(note.id) });
       await refreshAfterWrite(queryClient);
-      showNotice({ tone: "success", message: "メモを消しました。", path: "/person" });
-      await navigate({ to: "/person" });
     } catch (error) {
       setDeleteError(`消せませんでした。${errorMessage(error)}`);
       setDeleting(false);

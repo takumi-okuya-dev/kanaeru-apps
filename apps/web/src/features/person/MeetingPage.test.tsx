@@ -1,5 +1,6 @@
-// 会った場の画面：新しい人を保存すると、会った場を選んだまま次の人を足す欄になる・前に足した人を選んで付けられる・
-// 付いている人が並ぶ・自分だけが見られることと、知られたくないことを書かない注意が出る。API は fetch の差しかえで答える。
+// 会った場の画面：新しい人を保存すると、会った場を選んだまま次の人を足す欄になる・前に足した人を名前で探して付けられる・
+// 付いている人が並ぶ・自分だけが見られることと、知られたくないことを書かない注意が出る・保存に失敗して中身を変えたら
+// 新しい送りの ID を使う。API は fetch の差しかえで答える。
 import type { NoteSummary } from "@workspace/contracts/person";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -21,12 +22,21 @@ const SATO: NoteSummary = {
 };
 
 /**
- * 会った場と人の一覧に答える（足す・付けると、会った場の人が増える）。
+ * 会った場と人の一覧と検索に答える（足す・付けると、会った場の人が増える）。
+ * @param options 最初の人を足す送りを通信の誤りにするか
+ * @param options.failFirstPost 最初の人を足す送りを通信の誤りにするか
  * @returns 送られた要求
  */
-function stubMeeting() {
+function stubMeeting(options: { failFirstPost?: boolean } = {}) {
   const attached: NoteSummary[] = [];
+  let posts = 0;
   return stubPersonApi((request) => {
+    if (request.method === "POST" && request.path === "/api/v1/person/notes/search") {
+      return Response.json({
+        items: [SATO, ...attached].map((note) => ({ note, matches: [] })),
+        truncated: false,
+      });
+    }
     if (request.method === "GET" && request.path === `/api/v1/person/meetings/${MEETING_ID}`) {
       return Response.json({ ...MEETING, notes: attached, noteCount: attached.length });
     }
@@ -34,6 +44,8 @@ function stubMeeting() {
       return Response.json({ items: [SATO, ...attached], truncated: false });
     }
     if (request.method === "POST" && request.path === "/api/v1/person/notes") {
+      posts += 1;
+      if (options.failFirstPost && posts === 1) throw new TypeError("通信が切れた");
       const body = request.body as { fullName: string };
       const created = {
         ...SUMMARY,
@@ -81,15 +93,16 @@ describe("会った場の画面", () => {
     expect(post?.body).toMatchObject({ fullName: "鈴木 花子", meetingId: MEETING_ID });
   });
 
-  it("前に足した人を選んで付けられる", async () => {
+  it("前に足した人を名前で探して付けられる（一覧の500人に限らない）", async () => {
     const sent = stubMeeting();
     renderWithRouter(<MeetingPage meetingId={MEETING_ID} />);
-    await screen.findByRole("option", { name: "佐藤 次郎（背が高い）" });
-    await userEvent.selectOptions(
-      await screen.findByRole("combobox", { name: "前に足した人" }),
-      SATO.id,
-    );
-    await userEvent.click(screen.getByRole("button", { name: "付ける" }));
+    const search = await screen.findByRole("search", { name: "前に足した人を探す" });
+    await userEvent.type(within(search).getByRole("searchbox", { name: "名前で探す" }), "佐藤");
+    await userEvent.click(within(search).getByRole("button", { name: "探す" }));
+    expect(sent.find((request) => request.path.endsWith("/search"))?.body).toEqual({
+      query: "佐藤",
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "付ける：佐藤 次郎" }));
     const list = screen.getByRole("list", { name: "ここで会った人" });
     expect(await within(list).findByText("佐藤 次郎")).toBeVisible();
     expect(
@@ -99,5 +112,27 @@ describe("会った場の画面", () => {
           request.path === `/api/v1/person/notes/${SATO.id}/meetings/${MEETING_ID}`,
       ),
     ).toBe(true);
+  });
+
+  it("保存に失敗したあと中身を変えて保存すると、新しい送りの ID を使う", async () => {
+    const sent = stubMeeting({ failFirstPost: true });
+    renderWithRouter(<MeetingPage meetingId={MEETING_ID} />);
+    const form = await screen.findByRole("form", { name: "ここで会った人を足す" });
+    const name = within(form).getByRole("textbox", { name: /フルネーム/ });
+    await userEvent.type(name, "鈴木 花子");
+    await userEvent.click(within(form).getByRole("button", { name: "保存して次の人へ" }));
+    expect(await within(form).findByText(/保存できませんでした/)).toBeVisible();
+    await userEvent.clear(name);
+    await userEvent.type(name, "鈴木 花");
+    await userEvent.click(within(form).getByRole("button", { name: "保存して次の人へ" }));
+    // 保存できたら欄を作り直すので、読み直して確かめる
+    await waitFor(() =>
+      expect(within(form).getByRole("textbox", { name: /フルネーム/ })).toHaveValue(""),
+    );
+    const ids = sent
+      .filter((request) => request.method === "POST" && request.path === "/api/v1/person/notes")
+      .map((request) => (request.body as { clientRequestId: string }).clientRequestId);
+    expect(ids).toHaveLength(2);
+    expect(ids[1]).not.toBe(ids[0]);
   });
 });

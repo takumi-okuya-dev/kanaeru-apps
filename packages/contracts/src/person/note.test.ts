@@ -190,4 +190,17 @@ describe("会った場を作る入力", () => {
       message: "日付を選んでください。",
     });
   });
+
+  it("そろえると長くなる字（NFKC で字が増える）が多く、そろえた名前が上限を超えるなら、名前の欄の誤り", () => {
+    // U+FDFA は NFKC で18字になる。30字の名前は、そろえると540字
+    const name = "\uFDFA".repeat(30);
+    expect(firstIssue(MeetingCreateInput.safeParse({ name, metOn: "2026-11-20" }))).toEqual({
+      path: "name",
+      message: "会った場の名前に、そろえると長くなる字が多すぎます。短くしてください。",
+    });
+    // ㍿ は「株式会社」（4字）。100字の名前は、そろえるとちょうど400字で通る
+    expect(
+      MeetingCreateInput.safeParse({ name: "㍿".repeat(100), metOn: "2026-11-20" }).success,
+    ).toBe(true);
+  });
 });

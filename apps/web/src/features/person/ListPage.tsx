@@ -1,7 +1,8 @@
 // 人の一覧と検索の画面（/person。US2・US6・FR-012〜FR-017・FR-019）。一覧は最後に保存した順で、名前の横に見た目の特徴を出す。
 // 探す言葉とタグは画面の状態だけに持つ（道・search params・sessionStorage に入れない。validateSearch を使わない。AD-31）。
 // 検索は POST の本文で送り、当たった所は API が返した前後の文と当たった所をそのまま出す（画面はもう一度探さない）。
-// 5秒おきの読み直しは使わない。「CSV で書き出す」で自分のメモをすべて書き出す。
+// 遅れて届いた前の検索の答えは捨てる（いちばん新しい検索の答えだけ）。5秒おきの読み直しは使わない。
+// タグで絞る欄の選択肢は、読みこんだ一覧（新しい500人）のタグ。「CSV で書き出す」で自分のメモをすべて書き出す。
 import { PERSON_MATCH_FIELD_LABELS, normalizeTag } from "@workspace/contracts/person";
 import type { NoteSearchInput, NoteSummary, SearchResult } from "@workspace/contracts/person";
 import { Link } from "@tanstack/react-router";
@@ -11,7 +12,7 @@ import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Field, useFieldControl } from "@workspace/ui/components/field";
 import { Input, inputClassName } from "@workspace/ui/components/input";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type * as React from "react";
 import { errorMessage } from "../../lib/api.ts";
 import { saveFile } from "../../lib/download.ts";
@@ -142,6 +143,8 @@ function NoteList() {
   const [result, setResult] = useState<SearchResult>();
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string>();
+  // いちばん新しい検索の番号（やめる・新しく探すたびに進める）
+  const latest = useRef(0);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string>();
   const notes = query.data?.items ?? [];
@@ -153,10 +156,14 @@ function NoteList() {
    * @param nextTag 絞るタグ
    */
   const runSearch = async (nextWords: string, nextTag: string) => {
+    // 遅れて届いた前の検索の答えで、新しい答えを上書きしない（いちばん新しい検索の答えだけを出す）
+    latest.current += 1;
+    const ticket = latest.current;
     setSearchError(undefined);
     const trimmed = nextWords.trim();
     if (trimmed === "" && nextTag === "") {
       setResult(undefined);
+      setSearching(false);
       return;
     }
     const input: NoteSearchInput = {
@@ -165,12 +172,23 @@ function NoteList() {
     };
     setSearching(true);
     try {
-      setResult(await searchNotes(input));
+      const found = await searchNotes(input);
+      if (ticket === latest.current) setResult(found);
     } catch (error) {
-      setSearchError(`探せませんでした。${errorMessage(error)}`);
+      if (ticket === latest.current) setSearchError(`探せませんでした。${errorMessage(error)}`);
     } finally {
-      setSearching(false);
+      if (ticket === latest.current) setSearching(false);
     }
+  };
+
+  /** 検索をやめて一覧に戻る（探している途中の答えも出さない）。 */
+  const cancelSearch = () => {
+    latest.current += 1;
+    setWords("");
+    setTag("");
+    setResult(undefined);
+    setSearching(false);
+    setSearchError(undefined);
   };
 
   /**
@@ -226,7 +244,12 @@ function NoteList() {
           />
         </Field>
         {tags.length > 0 ? (
-          <Field label="タグで絞る">
+          <Field
+            label="タグで絞る"
+            {...(query.data?.truncated
+              ? { description: "新しい500人に付いたタグから選べます。" }
+              : {})}
+          >
             <TagSelect
               value={tag}
               tags={tags}
@@ -238,16 +261,8 @@ function NoteList() {
           </Field>
         ) : null}
         <ButtonRow>
-          {result ? (
-            <Button
-              onClick={() => {
-                setWords("");
-                setTag("");
-                setResult(undefined);
-              }}
-            >
-              やめる
-            </Button>
+          {result || searching || words !== "" || tag !== "" ? (
+            <Button onClick={cancelSearch}>やめる</Button>
           ) : null}
           <Button type="submit" variant="primary" aria-disabled={searching || undefined}>
             {searching ? "探しています…" : "探す"}

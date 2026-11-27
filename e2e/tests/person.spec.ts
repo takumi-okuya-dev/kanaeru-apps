@@ -1,5 +1,5 @@
 // 人物メモ（person-001）：ログインしていなければ「ログインしていません」。試験用のログインで、人を足し（フルネームが空なら欄のそばに誤り）、
-// 人のメモで書き足し、一覧で探し（URL に言葉が載らない）、会った場を作って続けて足し、前に足した人を付ける。
+// 人のメモで書き足し、一覧で探し（URL に言葉が載らない）、会った場を作って続けて足し、前に足した人を名前で探して付ける。
 // 一覧・人を足す・人のメモ・会った場の一覧・会った場の画面を、両方の幅で axe（WCAG 2.2 AA）・CSP・横のスクロールで確かめる。
 // 人物メモのアプリは、台帳に行がない間は運営者だけに見える（AD-16）。始めに運営者として「公開」にし、終わりに E2E の初めの状態（「切」。apps/api/test/e2e-server.ts）に戻す。
 // DB は消さない（LINE のユーザー ID に幅と時刻を入れて、前の回と見分ける）。名前と話したことは、どれも架空のもの。
@@ -141,10 +141,10 @@ test("人を足して書き足し、探し、会った場で続けて足す", as
   await expect(form.getByRole("textbox", { name: /フルネーム/u })).toHaveValue("");
   const met = page.getByRole("list", { name: "ここで会った人" });
   await expect(met.getByRole("link", { name: "鈴木 花子" })).toBeVisible();
-  await page
-    .getByRole("combobox", { name: "前に足した人" })
-    .selectOption({ label: "田中 太郎（黒ぶちの眼鏡）" });
-  await page.getByRole("button", { name: "付ける" }).click();
+  const attach = page.getByRole("search", { name: "前に足した人を探す" });
+  await attach.getByRole("searchbox", { name: "名前で探す" }).fill("田中");
+  await attach.getByRole("button", { name: "探す" }).click();
+  await page.getByRole("button", { name: "付ける：田中 太郎" }).click();
   await expect(met.getByRole("link", { name: "田中 太郎" })).toBeVisible();
   await checkPage(page, "会った場");
   expect(await readCspViolations()).toEqual([]);

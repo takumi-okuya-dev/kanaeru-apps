@@ -27,6 +27,8 @@ export const PERSON_NOTE_LIMITS = {
 export const PERSON_MEETING_LIMITS = {
   /** 名前（1字以上） */
   name: 100,
+  /** そろえた名前（name_key。NFKC で字が増えうるので広く取る。DB の CHECK と同じ） */
+  nameKey: 400,
 } as const;
 
 /**

@@ -59,6 +59,7 @@
 - **Decision**：
   - **人を足す**：画面が作る `clientRequestId`（uuid）を送る。`(owner_account_id, create_request_id)` の部分の一意で、同じ ID の送り直しには前に作った人を返す。
   - **書き足す**：`appendId`（uuid）を送る。行に `last_append_id` を持ち、同じなら書かずに今の値を返す（試合表の `last_change_id` と同じ）。
+    - **分かっている限り**：比べるのは最後の1つの ID だけなので、送り直しの間にほかの端末の書き足しが入ると、送り直しが新しい書き足しに見えて二重になる。最初は使う人が1人で1台のことが多いので、このままにする。困ったら、最近の書き足しの ID をいくつか持つ小さな DB の変更で直す（person-001 pr2 のセルフレビュー）。
   - **書き直し**：`baseVersion` を送る。違えば `409 PERSON_VERSION_CONFLICT`。書けたら `version+1`。書き足しも `version+1` にする。
 - **Rationale**：PRD FR-P4・AD-31。試合表（routes.ts の版と変更の ID）と同じ形。AD-31 の「画面が作る `clientRequestId`」は、書き足しの窓口では `appendId` という名前にする（人を足す窓口は `clientRequestId`）。
 - **Alternatives**：書き足しも `baseVersion` で止める形。書き足しは前の文を消さないので、版が違っても足してよい。止めると、帰り道の電波の悪い所で押し直したときに 409 が増える。
