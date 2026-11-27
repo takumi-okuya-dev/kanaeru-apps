@@ -6,6 +6,7 @@ import { VISIBILITIES, VISIBILITY_LABELS } from "@workspace/contracts/booking";
 import type { EventView } from "@workspace/contracts/event";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { cn } from "@workspace/ui/lib/cn";
 import { useState } from "react";
@@ -86,15 +87,14 @@ export function SelfPageSection({ event, setting }: { event: EventView; setting:
       </h3>
       <p className="text-m">{stateText(setting)}</p>
       {setting.started || setting.cancelled ? null : (
-        <div className="flex flex-col items-start gap-xxs">
+        <ButtonRow>
           <Button
-            className="min-h-xl"
             aria-busy={mutation.isPending || undefined}
             onClick={() => save({ accepting: !setting.accepting, visibility: setting.visibility })}
           >
             {setting.accepting ? "受付を閉じる" : "受付を開く"}
           </Button>
-        </div>
+        </ButtonRow>
       )}
       <fieldset className="flex flex-col gap-xxs">
         <legend className="text-s font-bold">見せる範囲</legend>
@@ -137,9 +137,9 @@ export function SelfPageSection({ event, setting }: { event: EventView; setting:
           <code>{url}</code>
         </p>
         <div className="flex flex-col items-start gap-xxs">
-          <Button className="min-h-xl" onClick={() => void copy()}>
-            URL をコピーする
-          </Button>
+          <ButtonRow>
+            <Button onClick={() => void copy()}>URL をコピーする</Button>
+          </ButtonRow>
           {copied ? <ResponseMessage tone="info">{copied}</ResponseMessage> : null}
         </div>
         <p className="text-s text-text-sub">

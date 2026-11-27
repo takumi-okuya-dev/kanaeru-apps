@@ -11,6 +11,7 @@ import { PARTICIPANT_ROUTE_PATTERNS } from "@workspace/contracts/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, getRouteApi } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { Field } from "@workspace/ui/components/field";
 import { Input } from "@workspace/ui/components/input";
@@ -31,7 +32,6 @@ import {
   ContactSection,
   LineFriendSection,
   LineLoginButton,
-  PRIMARY_ACTION_CLASS,
 } from "./apply-parts.tsx";
 import { EntryStatusBadge, SeatsLine, StandingNote } from "./waitlist-parts.tsx";
 
@@ -61,18 +61,18 @@ function ApplyLoadFailure({
         {signedIn ? (
           <p className="text-m">部の主催者に、部に入れてもらってから開いてください。</p>
         ) : (
-          <LineLoginButton label="部員の方は LINE でログイン" />
+          <ButtonRow>
+            <LineLoginButton label="部員の方は LINE でログイン" />
+          </ButtonRow>
         )}
       </Page>
     );
   }
   return (
     <Page title="読みこめませんでした" lead={errorMessage(error)}>
-      <div>
-        <Button className="min-h-xl" onClick={retry}>
-          もう一度
-        </Button>
-      </div>
+      <ButtonRow>
+        <Button onClick={retry}>もう一度</Button>
+      </ButtonRow>
     </Page>
   );
 }
@@ -165,7 +165,7 @@ function AppliedView({
           自分の申込みを見る
         </Link>
         {entry.cancellable ? (
-          <Button variant="text" className="min-h-xl" onClick={() => setConfirming(true)}>
+          <Button variant="text" onClick={() => setConfirming(true)}>
             この申込みを取り消す
           </Button>
         ) : null}
@@ -261,18 +261,15 @@ function ApplyForm({
         )
       ) : null}
       <div className="flex flex-col gap-xxs">
-        <Button
-          type="submit"
-          variant="primary"
-          className={PRIMARY_ACTION_CLASS}
-          aria-busy={mutation.isPending || undefined}
-        >
-          {mutation.isPending
-            ? "申し込んでいます…"
-            : page.seats && page.seats.remaining === 0
-              ? "キャンセル待ちに申し込む"
-              : "申し込む"}
-        </Button>
+        <ButtonRow>
+          <Button type="submit" variant="primary" aria-busy={mutation.isPending || undefined}>
+            {mutation.isPending
+              ? "申し込んでいます…"
+              : page.seats && page.seats.remaining === 0
+                ? "キャンセル待ちに申し込む"
+                : "申し込む"}
+          </Button>
+        </ButtonRow>
         <p className="text-s text-text-sub">取り消しは、始まりまでいつでもできます。</p>
         {mutation.isError && Object.keys(fieldErrorsFromApi(mutation.error)).length === 0 ? (
           <ResponseMessage tone="danger">
@@ -351,14 +348,11 @@ function EmailApplyForm({ eventId, onBack }: { eventId: string; onBack: () => vo
           />
         </Field>
         <div className="flex flex-col gap-xxs">
-          <Button
-            type="submit"
-            variant="primary"
-            className={PRIMARY_ACTION_CLASS}
-            aria-busy={mutation.isPending || undefined}
-          >
-            {mutation.isPending ? "送っています…" : "確認のメールを送る"}
-          </Button>
+          <ButtonRow>
+            <Button type="submit" variant="primary" aria-busy={mutation.isPending || undefined}>
+              {mutation.isPending ? "送っています…" : "確認のメールを送る"}
+            </Button>
+          </ButtonRow>
           {sent ? (
             <ResponseMessage tone="success">
               確認のメールを送りました。メールのリンクを開くと、申込みが確定します。届かないときは、迷惑メールのフォルダを見てください。
@@ -372,7 +366,7 @@ function EmailApplyForm({ eventId, onBack }: { eventId: string; onBack: () => vo
           <p className="text-s text-text-sub">取り消しも、メールのリンクからできます。</p>
         </div>
       </form>
-      <Button variant="text" className="min-h-xl self-start" onClick={onBack}>
+      <Button variant="text" className="self-start" onClick={onBack}>
         LINE で申し込む
       </Button>
     </section>
@@ -472,13 +466,12 @@ export function ApplyPage({ eventId }: { eventId: string }) {
           <EmailApplyForm eventId={page.event.id} onBack={() => setEmailMode(false)} />
         ) : (
           <div className="flex flex-col gap-xxs">
-            <LineLoginButton label="LINE でログインして申し込む" />
+            <ButtonRow>
+              <LineLoginButton label="LINE でログインして申し込む" />
+            </ButtonRow>
+            {/* 別の申し込み方への入口は、文字だけのボタンのまま主のボタンの下に置く（並びに入れない） */}
             {membersOnly ? null : (
-              <Button
-                variant="text"
-                className="min-h-xl self-start"
-                onClick={() => setEmailMode(true)}
-              >
+              <Button variant="text" className="self-start" onClick={() => setEmailMode(true)}>
                 LINE を使わずに申し込む
               </Button>
             )}

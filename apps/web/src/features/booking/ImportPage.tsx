@@ -15,7 +15,7 @@ import type { ApplicationSource } from "@workspace/contracts/reception";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, getRouteApi, useNavigate } from "@tanstack/react-router";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
-import { cn } from "@workspace/ui/lib/cn";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { Field, useFieldControl } from "@workspace/ui/components/field";
 import { inputClassName } from "@workspace/ui/components/input";
@@ -260,10 +260,17 @@ function PreviewPanel({ eventId, request }: { eventId: string; request: Request 
         </Table>
       </div>
       <div className="flex flex-col items-start gap-xxs">
-        <div className="flex flex-wrap gap-xxs">
+        {/* 並べる順は「二番 → 主」（主は右・スマホは上。DESIGN.md の「ボタンの並べ方」） */}
+        <ButtonRow>
+          <Link
+            to="/admin/events/$eventId/roster"
+            params={{ eventId }}
+            className={buttonVariants({ variant: "secondary" })}
+          >
+            やめる
+          </Link>
           <Button
             variant="primary"
-            className="min-h-xl"
             aria-disabled={mutation.isPending || counts.insert === 0 || undefined}
             onClick={() => {
               if (!mutation.isPending && counts.insert > 0) mutation.mutate();
@@ -271,14 +278,7 @@ function PreviewPanel({ eventId, request }: { eventId: string; request: Request 
           >
             {mutation.isPending ? "取り込んでいます…" : `${counts.insert}人を取り込む`}
           </Button>
-          <Link
-            to="/admin/events/$eventId/roster"
-            params={{ eventId }}
-            className={cn(buttonVariants({ variant: "secondary" }), "min-h-xl")}
-          >
-            やめる
-          </Link>
-        </div>
+        </ButtonRow>
         {counts.insert === 0 ? (
           <p className="text-s text-text-sub">
             入る人がいません。名前の列と媒体を確かめてください。
@@ -350,11 +350,9 @@ function PastePanel({ eventId }: { eventId: string }) {
         }}
         error={errors.source}
       />
-      <div>
-        <Button className="min-h-xl" onClick={check}>
-          取り込む前に確かめる
-        </Button>
-      </div>
+      <ButtonRow>
+        <Button onClick={check}>取り込む前に確かめる</Button>
+      </ButtonRow>
       {request ? <PreviewPanel eventId={eventId} request={request} /> : null}
     </div>
   );

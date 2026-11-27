@@ -226,7 +226,11 @@ export function MentionPanel({ accountId, draft, settings, ngWords }: MentionPan
               返信の文に NG ワードがあるか、Threads の上限を超えています。
             </p>
           ) : null}
+          {/* カードの中の小さな操作なので行の中に置く。並べる順は「二番 → 主」 */}
           <div className="flex flex-wrap gap-xxs">
+            <Button size="small" variant="secondary" onClick={() => setEditing(false)}>
+              やめる
+            </Button>
             <Button
               variant="primary"
               size="small"
@@ -235,9 +239,6 @@ export function MentionPanel({ accountId, draft, settings, ngWords }: MentionPan
               onClick={() => void save()}
             >
               {published ? "返信する" : "メンションを保存"}
-            </Button>
-            <Button size="small" variant="secondary" onClick={() => setEditing(false)}>
-              やめる
             </Button>
           </div>
         </div>

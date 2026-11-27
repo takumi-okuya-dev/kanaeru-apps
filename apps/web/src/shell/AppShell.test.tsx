@@ -53,6 +53,7 @@ async function renderShell(start: string, items: readonly NavItem[] = ITEMS, app
       page("/apps", "すべてのアプリの画面"),
       page("/settings", "設定の画面"),
       page("/settings/account", "アカウントの画面"),
+      page("/settings/feedback", "改善点を送るの画面"),
       page("/sample", "見本のアプリの画面"),
     ]),
     history: createMemoryHistory({ initialEntries: [start] }),
@@ -255,6 +256,7 @@ function appsView(overrides: Partial<ShellAppsView> = {}): ShellAppsView {
     placeVisible: true,
     appsPath: "/apps",
     settingsPath: "/settings",
+    feedbackPath: "/settings/feedback",
     ...overrides,
   };
 }
@@ -266,6 +268,39 @@ describe("外枠のアプリの切り替え（core-005）", () => {
     expect(screen.getByRole("link", { name: "全体の設定" })).toHaveAttribute("href", "/settings");
     expect(screen.getAllByRole("navigation", { name: "メイン" })).toHaveLength(2);
     expect(window.localStorage.getItem(LAST_APP_STORAGE_KEY)).toBe("reception");
+  });
+
+  it("どの画面でもヘッダーに「改善点を送る」の入口を出す（スマホはアイコンだけでも名前を持つ）", async () => {
+    await renderShell("/admin/events", ITEMS, appsView({ apps: [RECEPTION, SAMPLE] }));
+    const link = screen.getByRole("link", { name: "改善点を送る" });
+    expect(link).toHaveAttribute("href", "/settings/feedback");
+    expect(link).not.toHaveAttribute("aria-current");
+  });
+
+  it("改善点のページでは、ヘッダーの「今のページ」は改善点を送るの1つだけ", async () => {
+    await renderShell(
+      "/settings/feedback",
+      [],
+      appsView({ apps: [RECEPTION, SAMPLE], place: { kind: "settings" } }),
+    );
+    expect(screen.getByRole("link", { name: "改善点を送る" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    const header = screen.getByRole("banner");
+    const current = within(header)
+      .getAllByRole("link")
+      .filter((link) => link.getAttribute("aria-current") === "page")
+      .map((link) => `${link.textContent ?? ""} ${link.getAttribute("href") ?? ""}`);
+    expect(current).toEqual(["改善点を送る /settings/feedback"]);
+    // スマホのアプリの切り替えの枠を開いても、全体の設定は今のページにしない
+    const [mobile] = screen.getAllByRole("button", { name: /切り替える）$/ });
+    if (!mobile) throw new Error("切り替えがありません");
+    await userEvent.click(mobile);
+    const sheet = await screen.findByRole("dialog", { name: "アプリを切り替える" });
+    expect(within(sheet).getByRole("link", { name: "全体の設定" })).not.toHaveAttribute(
+      "aria-current",
+    );
   });
 
   it("見えるアプリが2つなら、PC は切り替えのメニューに使えるアプリ・運営者だけの札・すべてのアプリを出す", async () => {

@@ -9,38 +9,35 @@ import { PARTICIPANT_ROUTE_PATTERNS } from "@workspace/contracts/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, getRouteApi } from "@tanstack/react-router";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { StatusIcon } from "@workspace/ui/components/status-icon";
-import { cn } from "@workspace/ui/lib/cn";
 import { useState } from "react";
 import { ApiError, errorMessage } from "../../lib/api.ts";
 import { Page } from "../../lib/page.tsx";
 import { cancelEntryToken, confirmEntryToken, fetchEntryToken } from "./apply-api.ts";
-import {
-  APPLY_QUERY_KEYS,
-  ApplyEventList,
-  CalendarSection,
-  PRIMARY_ACTION_CLASS,
-} from "./apply-parts.tsx";
+import { APPLY_QUERY_KEYS, ApplyEventList, CalendarSection } from "./apply-parts.tsx";
 import { respondEntryToken } from "./waitlist-api.ts";
 import { EntryStatusBadge, RespondButtons, StandingNote } from "./waitlist-parts.tsx";
 
 /**
- * 申込みページへの入口。
+ * 申込みページへの入口（1つだけのボタンの形のリンクなので ButtonRow に入れる）。
  * @param props 交流会の ID
  * @param props.eventId 交流会の ID
  * @returns リンクの要素
  */
 function ApplyPageLink({ eventId }: { eventId: string }) {
   return (
-    <Link
-      to={PARTICIPANT_ROUTE_PATTERNS.apply}
-      params={{ eventId }}
-      className={cn(buttonVariants({ variant: "secondary" }), "min-h-xl self-start")}
-    >
-      申込みページを開く
-    </Link>
+    <ButtonRow>
+      <Link
+        to={PARTICIPANT_ROUTE_PATTERNS.apply}
+        params={{ eventId }}
+        className={buttonVariants({ variant: "secondary" })}
+      >
+        申込みページを開く
+      </Link>
+    </ButtonRow>
   );
 }
 
@@ -110,11 +107,9 @@ export function EntryTokenPage({ eventId, entryToken }: { eventId: string; entry
     }
     return (
       <Page title="読みこめませんでした" lead={errorMessage(error)}>
-        <div>
-          <Button className="min-h-xl" onClick={() => void query.refetch()}>
-            もう一度
-          </Button>
-        </div>
+        <ButtonRow>
+          <Button onClick={() => void query.refetch()}>もう一度</Button>
+        </ButtonRow>
       </Page>
     );
   }
@@ -132,16 +127,17 @@ export function EntryTokenPage({ eventId, entryToken }: { eventId: string; entry
         <ApplyEventList event={view.event} hostName={view.hostName} />
         {view.confirmable ? (
           <div className="flex flex-col gap-xxs">
-            <Button
-              variant="primary"
-              className={PRIMARY_ACTION_CLASS}
-              aria-busy={confirm.isPending || undefined}
-              onClick={() => {
-                if (!confirm.isPending) confirm.mutate();
-              }}
-            >
-              {confirm.isPending ? "確定しています…" : "申込みを確定する"}
-            </Button>
+            <ButtonRow>
+              <Button
+                variant="primary"
+                aria-busy={confirm.isPending || undefined}
+                onClick={() => {
+                  if (!confirm.isPending) confirm.mutate();
+                }}
+              >
+                {confirm.isPending ? "確定しています…" : "申込みを確定する"}
+              </Button>
+            </ButtonRow>
             {confirm.isError ? (
               <ResponseMessage tone="danger">
                 {`確定できませんでした。${errorMessage(confirm.error)}`}
@@ -218,11 +214,7 @@ export function EntryTokenPage({ eventId, entryToken }: { eventId: string; entry
         <ApplyPageLink eventId={eventId} />
       )}
       {entry?.cancellable ? (
-        <Button
-          variant="text"
-          className="min-h-xl self-start"
-          onClick={() => setConfirmingCancel(true)}
-        >
+        <Button variant="text" className="self-start" onClick={() => setConfirmingCancel(true)}>
           この申込みを取り消す
         </Button>
       ) : null}

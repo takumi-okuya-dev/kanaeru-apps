@@ -10,6 +10,7 @@ import type {
   ConsentViewData,
 } from "@workspace/contracts/account";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useEffect, useState } from "react";
 import { errorMessage } from "../../lib/api.ts";
@@ -76,9 +77,9 @@ function ConsentBody({ request }: { request: AuthorizeQuery }) {
     }
     return (
       <Page title="同意の画面を読めません" lead={errorMessage(view.error)}>
-        <div>
+        <ButtonRow>
           <Button onClick={() => void view.refetch()}>もう一度</Button>
-        </div>
+        </ButtonRow>
       </Page>
     );
   }
@@ -134,14 +135,14 @@ function ConsentForm({ request, view }: { request: AuthorizeQuery; view: Consent
       lead="許すと、このアプリが下の範囲の記録を読めるようになります。外す範囲は読めません。あとで「設定 › 接続」からいつでも取り消せます。"
     >
       <form
-        className="flex flex-col gap-4"
+        className="flex flex-col gap-s"
         onSubmit={(event) => {
           event.preventDefault();
           send("approve", granted);
         }}
       >
-        <dl className="flex flex-col gap-1 text-m">
-          <div className="flex gap-2">
+        <dl className="flex flex-col gap-x3s text-m">
+          <div className="flex gap-xxs">
             <dt className="text-text-sub">戻り先</dt>
             <dd>{redirectHost}</dd>
           </div>
@@ -151,13 +152,13 @@ function ConsentForm({ request, view }: { request: AuthorizeQuery; view: Consent
             このアプリの名前は、アプリ自身が名乗ったもので、確かめられていません。戻り先が知っているものか確かめてから許可してください。
           </ResponseMessage>
         ) : null}
-        <fieldset className="flex flex-col gap-3">
+        <fieldset className="flex flex-col gap-xxs">
           <legend className="text-m font-bold">許す範囲</legend>
           {scopes.map((row) => (
-            <label key={row.scope} className="flex items-start gap-2">
+            <label key={row.scope} className="flex min-h-xl items-start gap-xxs">
               <input
                 type="checkbox"
-                className="mt-1"
+                className="mt-x3s size-s shrink-0 accent-primary"
                 checked={granted.includes(row.scope)}
                 onChange={(event) =>
                   setGranted((current) =>
@@ -179,14 +180,14 @@ function ConsentForm({ request, view }: { request: AuthorizeQuery; view: Consent
         {decision.isError ? (
           <ResponseMessage tone="danger">{errorMessage(decision.error)}</ResponseMessage>
         ) : null}
-        <div className="flex flex-wrap gap-3">
-          <Button type="submit" variant="primary" disabled={granted.length === 0 || locked}>
-            許可する
-          </Button>
+        <ButtonRow>
           <Button type="button" disabled={locked} onClick={() => send("deny", [])}>
             許可しない
           </Button>
-        </div>
+          <Button type="submit" variant="primary" disabled={granted.length === 0 || locked}>
+            許可する
+          </Button>
+        </ButtonRow>
       </form>
     </Page>
   );

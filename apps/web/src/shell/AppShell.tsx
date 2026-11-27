@@ -20,7 +20,7 @@ import { cn } from "@workspace/ui/lib/cn";
 import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { APP_NAME } from "../lib/app-name.ts";
-import { writeLastApp } from "../lib/apps.ts";
+import { isFeedbackPath, writeLastApp } from "../lib/apps.ts";
 import type { ShellAppsView } from "../lib/apps.ts";
 import type { NavItem } from "../lib/feature.ts";
 import { Icon } from "../lib/icon.tsx";
@@ -61,6 +61,7 @@ const NO_APPS: ShellAppsView = {
   placeVisible: false,
   appsPath: null,
   settingsPath: null,
+  feedbackPath: null,
 };
 
 /**
@@ -357,6 +358,12 @@ export function AppShell({ useNavItems, useApps = useNoApps }: AppShellProps) {
   const withTabBar = withNav && !inSettings;
   const current = withNav ? currentNav(navItems, pathname) : undefined;
   const settingsPath = admin ? apps.settingsPath : null;
+  // 改善点を送るは、どの画面でもヘッダーに出す（使っていて気づいたことをすぐ送れるように。PC は文字、スマホはアイコン）
+  const feedbackPath = admin ? apps.feedbackPath : null;
+  // 改善点のページ（とその下の道）にいるか。末尾の / も同じに見る
+  const inFeedback = isFeedbackPath(pathname, feedbackPath);
+  // 「今のページ」はヘッダーで1つだけにする（改善点のページでは、全体の設定でなく改善点を送るを今にする）
+  const settingsCurrent = inSettings && !inFeedback;
   const toggleSidebar = () => {
     const next = !sidebarOpen;
     setSidebarOpen(next);
@@ -399,15 +406,31 @@ export function AppShell({ useNavItems, useApps = useNoApps }: AppShellProps) {
             ) : (
               <span className="text-l leading-tight font-bold text-text">{APP_NAME}</span>
             )}
-            {settingsPath || withSwitcher ? (
+            {settingsPath || feedbackPath || withSwitcher ? (
               <div className="ml-auto flex min-w-0 items-center gap-xxs">
+                {feedbackPath ? (
+                  <Link
+                    to={feedbackPath}
+                    aria-label="改善点を送る"
+                    aria-current={inFeedback ? "page" : undefined}
+                    className={cn(
+                      "flex min-h-xl min-w-xl shrink-0 items-center justify-center gap-xxs rounded-sm text-m text-text hover:bg-surface-over wide:px-xs",
+                      inFeedback && "bg-surface-over font-bold",
+                    )}
+                  >
+                    <Icon name="pen" className="size-xs" />
+                    <span className="hidden wide:inline">改善点を送る</span>
+                  </Link>
+                ) : null}
                 {settingsPath ? (
                   <Link
                     to={settingsPath}
-                    aria-current={inSettings ? "page" : undefined}
+                    // 道の部品は、下の道（/settings/feedback など）でも自動で aria-current を付けるので、同じ道のときだけにする
+                    activeOptions={{ exact: true }}
+                    aria-current={settingsCurrent ? "page" : undefined}
                     className={cn(
                       "min-h-xl shrink-0 items-center gap-xxs rounded-sm px-xs text-m text-text hover:bg-surface-over",
-                      inSettings && "bg-surface-over font-bold",
+                      settingsCurrent && "bg-surface-over font-bold",
                       withSwitcher ? "hidden wide:flex" : "flex",
                     )}
                   >

@@ -38,6 +38,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link, getRouteApi, useBlocker } from "@tanstack/react-router";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Disclosure } from "@workspace/ui/components/disclosure";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
@@ -214,6 +215,7 @@ function FieldRow({
           text={value}
           label={`「${field.label}」をコピー`}
           successMessage="コピーしました。媒体の画面に貼ってください。"
+          size="small"
         />
       ) : null}
     </div>
@@ -357,6 +359,7 @@ function WorkView({
                     text={value}
                     label={`「${field.label}」をコピー`}
                     successMessage="コピーしました。媒体の画面に貼ってください。"
+                    size="small"
                   />
                 ) : null}
               </div>
@@ -365,6 +368,7 @@ function WorkView({
               <CopyButton
                 text={imagePrompt(media, source, imageStyle)}
                 label="画像のプロンプトをコピー"
+                size="small"
               />
             ) : null}
             {step.notes.length > 0 ? (
@@ -524,19 +528,21 @@ function ListingEditor({ accountId, detail }: { accountId: string; detail: Listi
                 </div>
               ))}
               <div className="flex flex-col items-start gap-xxs">
-                <Button
-                  variant="primary"
-                  aria-disabled={pending || undefined}
-                  onClick={() =>
-                    void save(
-                      { fields: values },
-                      setResult,
-                      "掲載文を保存しました（ルールに合わない行は外しました）。",
-                    )
-                  }
-                >
-                  掲載文を保存
-                </Button>
+                <ButtonRow>
+                  <Button
+                    variant="primary"
+                    aria-disabled={pending || undefined}
+                    onClick={() =>
+                      void save(
+                        { fields: values },
+                        setResult,
+                        "掲載文を保存しました（ルールに合わない行は外しました）。",
+                      )
+                    }
+                  >
+                    掲載文を保存
+                  </Button>
+                </ButtonRow>
                 {result ? (
                   <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage>
                 ) : null}
@@ -613,26 +619,28 @@ function ListingEditor({ accountId, detail }: { accountId: string; detail: Listi
               </p>
             ) : null}
             <div className="flex flex-col items-start gap-xxs">
-              <Button
-                aria-disabled={
-                  !parsedAnswer || (!parsedAnswer.title && !parsedAnswer.body) || undefined
-                }
-                onClick={() => {
-                  if (!parsedAnswer || (!parsedAnswer.title && !parsedAnswer.body)) return;
-                  setValues((current) => ({
-                    ...current,
-                    ...(parsedAnswer.title ? { title: parsedAnswer.title } : {}),
-                    ...(parsedAnswer.body ? { [listingBodyKey(media)]: parsedAnswer.body } : {}),
-                  }));
-                  setAnswer("");
-                  setPolishResult({
-                    tone: "success",
-                    message: "答えを欄に入れました。確かめて「掲載文を保存」を押してください。",
-                  });
-                }}
-              >
-                答えを欄に入れる
-              </Button>
+              <ButtonRow>
+                <Button
+                  aria-disabled={
+                    !parsedAnswer || (!parsedAnswer.title && !parsedAnswer.body) || undefined
+                  }
+                  onClick={() => {
+                    if (!parsedAnswer || (!parsedAnswer.title && !parsedAnswer.body)) return;
+                    setValues((current) => ({
+                      ...current,
+                      ...(parsedAnswer.title ? { title: parsedAnswer.title } : {}),
+                      ...(parsedAnswer.body ? { [listingBodyKey(media)]: parsedAnswer.body } : {}),
+                    }));
+                    setAnswer("");
+                    setPolishResult({
+                      tone: "success",
+                      message: "答えを欄に入れました。確かめて「掲載文を保存」を押してください。",
+                    });
+                  }}
+                >
+                  答えを欄に入れる
+                </Button>
+              </ButtonRow>
               {polishResult ? (
                 <ResponseMessage tone={polishResult.tone}>{polishResult.message}</ResponseMessage>
               ) : null}
@@ -665,18 +673,20 @@ function ListingEditor({ accountId, detail }: { accountId: string; detail: Listi
           />
         </Field>
         <div className="flex flex-col items-start gap-xxs">
-          <Button
-            aria-disabled={pending || undefined}
-            onClick={() =>
-              void save(
-                { status, postedUrl, imageStyle },
-                setStatusResult,
-                "掲載の状況を保存しました。",
-              )
-            }
-          >
-            状況を保存
-          </Button>
+          <ButtonRow>
+            <Button
+              aria-disabled={pending || undefined}
+              onClick={() =>
+                void save(
+                  { status, postedUrl, imageStyle },
+                  setStatusResult,
+                  "掲載の状況を保存しました。",
+                )
+              }
+            >
+              状況を保存
+            </Button>
+          </ButtonRow>
           {statusResult ? (
             <ResponseMessage tone={statusResult.tone}>{statusResult.message}</ResponseMessage>
           ) : null}
@@ -757,27 +767,29 @@ function ListingContent({
       wide
       title={`${MEDIA_LABELS[media]}の掲載文`}
       lead={`宣伝「${detail.promotion.title}」から、${MEDIA_LABELS[media]}の登録画面と同じ順で作ります。宣伝の文は変わりません。`}
-    >
-      <div>
+      actions={
         <Link
           to={threadsPaths.media(account.id)}
           className={buttonVariants({ variant: "secondary" })}
         >
           外部メディアの一覧へ
         </Link>
-      </div>
+      }
+    >
       {detail.listing.fields === null ? (
         <div className="flex flex-col items-start gap-xxs">
           {detail.promotion.event ? (
             <>
               <p className="text-m">まだ掲載文を作っていません。</p>
-              <Button
-                variant="primary"
-                aria-disabled={pending || undefined}
-                onClick={() => void generate()}
-              >
-                {pending ? "作っています…" : "掲載文を作る"}
-              </Button>
+              <ButtonRow>
+                <Button
+                  variant="primary"
+                  aria-disabled={pending || undefined}
+                  onClick={() => void generate()}
+                >
+                  {pending ? "作っています…" : "掲載文を作る"}
+                </Button>
+              </ButtonRow>
             </>
           ) : (
             <p className="text-m">
@@ -793,9 +805,9 @@ function ListingContent({
               掲載文を作ったあとに、宣伝が直されました。必要なら作り直してください。
             </p>
           ) : null}
-          <div className="flex flex-col items-start gap-xxs">
+          <ButtonRow>
             <Button onClick={() => setConfirming(true)}>宣伝から作り直す</Button>
-          </div>
+          </ButtonRow>
           <ListingEditor
             key={detail.listing.generatedAt ?? "none"}
             accountId={account.id}

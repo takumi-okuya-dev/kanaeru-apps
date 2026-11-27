@@ -20,6 +20,7 @@ import type {
   MatchTable,
 } from "@workspace/contracts/match";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { Dialog } from "@workspace/ui/components/dialog";
 import { Field, useFieldControl } from "@workspace/ui/components/field";
@@ -84,6 +85,8 @@ export function AttendanceDialog({ open, onOpenChange, table, onApply }: Attenda
   const groups = attendanceGroups(content.settings);
   const player = content.players.find((entry) => entry.id === selected);
   const group = player ? groupOfPlayer(content, player.id) : undefined;
+  // 選べる直し方（はじめのものが主）
+  const actions = player ? actionsFor(player.status) : [];
   const noLevel = content.players.filter((entry) => entry.level === null);
   return (
     <Dialog
@@ -129,11 +132,12 @@ export function AttendanceDialog({ open, onOpenChange, table, onApply }: Attenda
                 player.level ? MATCH_LEVEL_LABELS[player.level] : "レベルなし"
               }${group ? `（${group.label}の組）` : ""}`}
             </p>
-            <div className="flex flex-wrap gap-xxs">
-              {actionsFor(player.status).map((action) => (
+            {/* 並べる順は「二番 → 主」（主は右・スマホは上。DESIGN.md の「ボタンの並べ方」） */}
+            <ButtonRow>
+              {[...actions].reverse().map((action) => (
                 <Button
                   key={action}
-                  variant={action === actionsFor(player.status)[0] ? "primary" : undefined}
+                  variant={action === actions[0] ? "primary" : undefined}
                   onClick={() => {
                     onApply(player.id, action);
                     setSelected("");
@@ -142,7 +146,7 @@ export function AttendanceDialog({ open, onOpenChange, table, onApply }: Attenda
                   {ATTENDANCE_ACTION_LABELS[action]}
                 </Button>
               ))}
-            </div>
+            </ButtonRow>
           </div>
         ) : null}
       </div>

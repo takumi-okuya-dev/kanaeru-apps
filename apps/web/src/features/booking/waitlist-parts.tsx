@@ -5,6 +5,7 @@ import type { EntryStanding, EntryStatus, PageSeats } from "@workspace/contracts
 import { useMutation } from "@tanstack/react-query";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { errorMessage } from "../../lib/api.ts";
 import { formatEventDateTime } from "../event/index.ts";
@@ -84,7 +85,7 @@ export function StandingNote({
  * @param props.standing 並びと打診
  * @param props.respond 答える関数
  * @param props.onDone 答えたあと（答え）
- * @param props.primary 「参加する」を主のボタンにするか（画面に1つだけのとき）
+ * @param props.primary 「参加する」を主のボタンにするか（画面に1つだけのとき。枠の下の ButtonRow に並べる）
  * @returns ボタンの要素（押せないときは null）
  */
 export function RespondButtons({
@@ -105,31 +106,55 @@ export function RespondButtons({
     onSuccess: (_result, answer) => onDone(answer),
   });
   if (!standing.canAccept) return null;
+  // 押したほうのボタンにだけ「動いている」の印をつけ、押していないほうは止める
+  const busy = (answer: "accept" | "decline") =>
+    (mutation.isPending && mutation.variables === answer) || undefined;
+  const locked = mutation.isPending || undefined;
+  /** 参加すると答える。 */
+  const accept = () => {
+    if (!mutation.isPending) mutation.mutate("accept");
+  };
+  /** 辞退すると答える。 */
+  const decline = () => {
+    if (!mutation.isPending) mutation.mutate("decline");
+  };
   return (
     <div className="flex flex-col items-start gap-xxs">
-      <div className="flex flex-wrap gap-xxs">
-        <Button
-          variant={primary ? "primary" : "secondary"}
-          className="min-h-xl"
-          aria-busy={mutation.isPending || undefined}
-          onClick={() => {
-            if (!mutation.isPending) mutation.mutate("accept");
-          }}
-        >
-          参加する
-        </Button>
-        {status === "offered" ? (
+      {primary ? (
+        // 画面に1つだけの申込み：枠の下の並び（二番の「辞退する」→ 主の「参加する」。DESIGN.md の「ボタンの並べ方」）
+        <ButtonRow>
+          {status === "offered" ? (
+            <Button aria-disabled={locked} aria-busy={busy("decline")} onClick={decline}>
+              辞退する
+            </Button>
+          ) : null}
           <Button
-            variant="text"
-            className="min-h-xl"
-            onClick={() => {
-              if (!mutation.isPending) mutation.mutate("decline");
-            }}
+            variant="primary"
+            aria-disabled={locked}
+            aria-busy={busy("accept")}
+            onClick={accept}
           >
-            辞退する
+            参加する
           </Button>
-        ) : null}
-      </div>
+        </ButtonRow>
+      ) : (
+        // 一覧のカードの中：カードの中の操作なので、並びに入れず行の中に置く
+        <div className="flex flex-wrap gap-xxs">
+          <Button size="small" aria-disabled={locked} aria-busy={busy("accept")} onClick={accept}>
+            参加する
+          </Button>
+          {status === "offered" ? (
+            <Button
+              variant="text"
+              aria-disabled={locked}
+              aria-busy={busy("decline")}
+              onClick={decline}
+            >
+              辞退する
+            </Button>
+          ) : null}
+        </div>
+      )}
       {mutation.isError ? (
         <ResponseMessage tone="danger">
           {`答えられませんでした。${errorMessage(mutation.error)}`}

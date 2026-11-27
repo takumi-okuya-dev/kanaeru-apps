@@ -14,6 +14,7 @@ import type { NotifySettings, TestMessageResult } from "@workspace/contracts/boo
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, getRouteApi } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { Field } from "@workspace/ui/components/field";
 import { Input } from "@workspace/ui/components/input";
@@ -91,24 +92,26 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   const [result, setResult] = useState<Result>();
   return (
     <div className="flex flex-col items-start gap-xxs">
-      <Button
-        onClick={() => {
-          navigator.clipboard.writeText(text).then(
-            () =>
-              setResult({
-                tone: "success",
-                message: "コピーしました。LINE の画面に貼ってください。",
-              }),
-            () =>
-              setResult({
-                tone: "danger",
-                message: "コピーできませんでした。URL を選んで、手でコピーしてください。",
-              }),
-          );
-        }}
-      >
-        {label}
-      </Button>
+      <ButtonRow>
+        <Button
+          onClick={() => {
+            navigator.clipboard.writeText(text).then(
+              () =>
+                setResult({
+                  tone: "success",
+                  message: "コピーしました。LINE の画面に貼ってください。",
+                }),
+              () =>
+                setResult({
+                  tone: "danger",
+                  message: "コピーできませんでした。URL を選んで、手でコピーしてください。",
+                }),
+            );
+          }}
+        >
+          {label}
+        </Button>
+      </ButtonRow>
       {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
     </div>
   );
@@ -238,7 +241,9 @@ function LineForm({
           onChange={set("accessToken")}
         />
       </Field>
-      <div className="flex flex-wrap items-start gap-xxs">
+      {/* 並べる順は「二番 → 主」（主は右・スマホは上。DESIGN.md の「ボタンの並べ方」） */}
+      <ButtonRow>
+        {rotating && onDone ? <Button onClick={onDone}>やめる</Button> : null}
         <Button
           type="submit"
           variant="primary"
@@ -247,8 +252,7 @@ function LineForm({
         >
           {pending ? "確かめています…" : "保存する"}
         </Button>
-        {rotating && onDone ? <Button onClick={onDone}>やめる</Button> : null}
-      </div>
+      </ButtonRow>
       {failure ? <ResponseMessage tone="danger">{failure}</ResponseMessage> : null}
     </form>
   );
@@ -347,10 +351,11 @@ function LineSection({ holder, settings }: { holder: NotifyHolderKey; settings: 
       {rotating ? (
         <LineForm holder={holder} rotating onDone={() => setRotating(false)} />
       ) : (
-        <div className="flex flex-wrap gap-xxs">
-          <Button onClick={() => setRotating(true)}>入れ直す</Button>
+        // 消す操作は主の場所（最後）に置かない（二番の「設定を消す」→「入れ直す」の順）
+        <ButtonRow>
           <Button onClick={() => setConfirming(true)}>公式アカウントの設定を消す</Button>
-        </div>
+          <Button onClick={() => setRotating(true)}>入れ直す</Button>
+        </ButtonRow>
       )}
 
       <div className="flex flex-col gap-xxs">
@@ -389,13 +394,15 @@ function LineSection({ holder, settings }: { holder: NotifyHolderKey; settings: 
             ? "あなたはこの公式アカウントと紐づいています。"
             : "あなたはまだ紐づいていません。公式アカウントを友だち追加し、届いたリンクを開いて紐づけると、確かめのメッセージを送れます。"}
         </p>
-        <Button
-          aria-disabled={testing || undefined}
-          aria-busy={testing || undefined}
-          onClick={() => void test()}
-        >
-          {testing ? "送っています…" : "自分に確かめのメッセージを送る"}
-        </Button>
+        <ButtonRow>
+          <Button
+            aria-disabled={testing || undefined}
+            aria-busy={testing || undefined}
+            onClick={() => void test()}
+          >
+            {testing ? "送っています…" : "自分に確かめのメッセージを送る"}
+          </Button>
+        </ButtonRow>
         {testResult ? (
           "error" in testResult ? (
             <ResponseMessage tone="danger">{testResult.error}</ResponseMessage>
@@ -504,13 +511,15 @@ function MailSection({ holder, settings }: { holder: NotifyHolderKey; settings: 
           />
         </Field>
         <div className="flex flex-col items-start gap-xxs">
-          <Button
-            type="submit"
-            aria-disabled={pending || undefined}
-            aria-busy={pending || undefined}
-          >
-            {pending ? "保存しています…" : "返信先を保存する"}
-          </Button>
+          <ButtonRow>
+            <Button
+              type="submit"
+              aria-disabled={pending || undefined}
+              aria-busy={pending || undefined}
+            >
+              {pending ? "保存しています…" : "返信先を保存する"}
+            </Button>
+          </ButtonRow>
           {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
         </div>
       </form>
@@ -552,9 +561,9 @@ function NotifySettingsContent({ organizationId }: { organizationId?: string | u
     }
     return (
       <Page title={title} lead={errorMessage(query.error)}>
-        <div>
+        <ButtonRow>
           <Button onClick={() => void query.refetch()}>もう一度</Button>
-        </div>
+        </ButtonRow>
       </Page>
     );
   }

@@ -10,6 +10,7 @@ import type { ReferencePost } from "@workspace/contracts/threads";
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useState } from "react";
@@ -195,17 +196,19 @@ export function ReferenceSection({ accountId }: SectionProps) {
         </p>
       ) : null}
       <div className="flex flex-col items-start gap-xxs">
-        <Button
-          variant="primary"
-          aria-disabled={atLimit || undefined}
-          onClick={() => {
-            if (atLimit) return;
-            setResult(undefined);
-            setDialog({ kind: "add" });
-          }}
-        >
-          参考の投稿を足す
-        </Button>
+        <ButtonRow>
+          <Button
+            variant="primary"
+            aria-disabled={atLimit || undefined}
+            onClick={() => {
+              if (atLimit) return;
+              setResult(undefined);
+              setDialog({ kind: "add" });
+            }}
+          >
+            参考の投稿を足す
+          </Button>
+        </ButtonRow>
         {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
       </div>
       {posts.length === 0 ? (

@@ -11,6 +11,7 @@ import type { DraftListStatus, Strategy } from "@workspace/contracts/threads";
 import { jstDateTime } from "@workspace/contracts/core";
 import { Link, getRouteApi } from "@tanstack/react-router";
 import { buttonVariants } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { useState } from "react";
 import { SessionGate } from "../account/index.ts";
@@ -131,7 +132,7 @@ function SharedAccount({ teamId, accountId }: SharedAccountProps) {
         title="この運用アカウントは見られません"
         lead="持ち主が見せていないか、チームから外れた可能性があります。"
       >
-        <div>
+        <ButtonRow>
           <Link
             to="/threads/teams/$teamId"
             params={{ teamId }}
@@ -139,7 +140,7 @@ function SharedAccount({ teamId, accountId }: SharedAccountProps) {
           >
             チームに戻る
           </Link>
-        </div>
+        </ButtonRow>
       </ThreadsPage>
     );
   }

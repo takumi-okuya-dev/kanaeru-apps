@@ -6,6 +6,7 @@ import type { CheckinView } from "@workspace/contracts/reception";
 import type { SurveyAnswerInput } from "@workspace/contracts/survey";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useEffect, useRef, useState } from "react";
 import type * as React from "react";
@@ -90,10 +91,9 @@ function ProxyForm({ event, checkin, initial, onSaved, onCancel }: ProxyFormProp
     <form ref={formRef} noValidate onSubmit={submit} className="flex flex-col gap-s">
       <SurveyFields values={values} onChange={setValues} errors={errors} />
       <div className="flex flex-col gap-xxs">
-        <div className="flex flex-col-reverse gap-xxs wide:flex-row wide:justify-end">
+        <ButtonRow>
           <Button
             type="button"
-            className="min-h-xl"
             aria-disabled={mutation.isPending || undefined}
             onClick={() => {
               if (!mutation.isPending) onCancel();
@@ -104,13 +104,12 @@ function ProxyForm({ event, checkin, initial, onSaved, onCancel }: ProxyFormProp
           <Button
             type="submit"
             variant="primary"
-            className="min-h-xl"
             aria-disabled={mutation.isPending || undefined}
             aria-busy={mutation.isPending || undefined}
           >
             {mutation.isPending ? "保存しています…" : "回答を保存"}
           </Button>
-        </div>
+        </ButtonRow>
         {mutation.isError && !fieldError ? (
           <ResponseMessage tone="danger">
             {`保存できませんでした。${errorMessage(mutation.error)}`}
@@ -164,16 +163,17 @@ export function ProxyAnswerSection({ event, checkin }: ProxyAnswerSectionProps) 
               ? "回答があります。聞き取って直せます（アンケートが閉じていても入れられます）。"
               : "まだ回答はありません。聞き取って代わりに入れられます（アンケートが閉じていても入れられます）。"}
           </p>
-          <Button
-            type="button"
-            className="min-h-xl"
-            onClick={() => {
-              setSaved(false);
-              setOpen(true);
-            }}
-          >
-            {answer ? "アンケートの回答を直す" : "アンケートの回答を入れる"}
-          </Button>
+          <ButtonRow>
+            <Button
+              type="button"
+              onClick={() => {
+                setSaved(false);
+                setOpen(true);
+              }}
+            >
+              {answer ? "アンケートの回答を直す" : "アンケートの回答を入れる"}
+            </Button>
+          </ButtonRow>
           {saved ? (
             <ResponseMessage tone="success">アンケートの回答を保存しました。</ResponseMessage>
           ) : null}

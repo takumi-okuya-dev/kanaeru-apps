@@ -10,6 +10,7 @@ import { MATCH_FORMAT_LABELS, PLAYERS_PER_GAME } from "@workspace/contracts/matc
 import type { MatchGroup, MatchGroupPlan, MatchMini, MatchTable } from "@workspace/contracts/match";
 import { Link, useParams as useRouteParams } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ChoiceChips } from "@workspace/ui/components/choice-chips";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useState } from "react";
@@ -534,7 +535,7 @@ function PrintBody({ table }: { table: MatchTable }) {
             字が小さくなりすぎて読みにくい組があります。大きい紙をすすめます。
           </ResponseMessage>
         ) : null}
-        <div>
+        <ButtonRow>
           <Button
             variant="primary"
             disabled={sheetCount === 0 && !(viewUrl && entrance)}
@@ -544,7 +545,7 @@ function PrintBody({ table }: { table: MatchTable }) {
               ? `${sheetCount + 1}枚を印刷する（${paperLabel}・入口の1枚は A4 縦）`
               : `${sheetCount}枚を印刷する（${paperLabel}）`}
           </Button>
-        </div>
+        </ButtonRow>
       </div>
       <section
         aria-label="印刷の版の見本"

@@ -7,6 +7,7 @@ import { OrganizationNameInput, TeamNameInput } from "@workspace/contracts/suite
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Field, useFieldControl } from "@workspace/ui/components/field";
 import { Input, inputClassName } from "@workspace/ui/components/input";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
@@ -226,9 +227,11 @@ export function TeamStartForm({ adminOrganizations }: TeamStartFormProps) {
         あなたはこのチームのリーダーになります。スタッフは、作ったあとに組織の設定の招待のリンクで招きます。
       </p>
       <div className="flex flex-col items-start gap-xxs">
-        <Button type="submit" aria-disabled={pending || undefined}>
-          {pending ? "作っています…" : needOrganization ? "組織とチームを作る" : "チームを作る"}
-        </Button>
+        <ButtonRow>
+          <Button type="submit" aria-disabled={pending || undefined}>
+            {pending ? "作っています…" : needOrganization ? "組織とチームを作る" : "チームを作る"}
+          </Button>
+        </ButtonRow>
         {failure ? <ResponseMessage tone="danger">{failure}</ResponseMessage> : null}
       </div>
     </form>

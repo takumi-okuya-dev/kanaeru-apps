@@ -14,6 +14,7 @@ import { Link, getRouteApi } from "@tanstack/react-router";
 import { Disclosure } from "@workspace/ui/components/disclosure";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Field } from "@workspace/ui/components/field";
 import { Input } from "@workspace/ui/components/input";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
@@ -165,9 +166,11 @@ function DefaultsForm({
         </Field>
       ))}
       <div className="flex flex-col items-start gap-xxs">
-        <Button type="submit" aria-disabled={pending || undefined}>
-          {`${MEDIA_LABELS[media]}の既定値を保存`}
-        </Button>
+        <ButtonRow>
+          <Button type="submit" aria-disabled={pending || undefined}>
+            {`${MEDIA_LABELS[media]}の既定値を保存`}
+          </Button>
+        </ButtonRow>
         {result ? <ResponseMessage tone={result.tone}>{result.message}</ResponseMessage> : null}
       </div>
     </form>
@@ -244,12 +247,14 @@ function MediaContent({ account }: { account: ThreadsAccount }) {
         {promotions.length === 0 ? (
           <div className="flex flex-col items-start gap-xxs">
             <p className="text-m">まだ宣伝がありません。宣伝とリサーチの画面で足してください。</p>
-            <Link
-              to={threadsPaths.research(account.id)}
-              className={buttonVariants({ variant: "secondary" })}
-            >
-              宣伝とリサーチへ
-            </Link>
+            <ButtonRow>
+              <Link
+                to={threadsPaths.research(account.id)}
+                className={buttonVariants({ variant: "secondary" })}
+              >
+                宣伝とリサーチへ
+              </Link>
+            </ButtonRow>
           </div>
         ) : (
           <ul aria-label="宣伝" className="flex flex-col gap-xs">

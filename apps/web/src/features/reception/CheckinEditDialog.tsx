@@ -8,6 +8,7 @@ import type { EventView } from "@workspace/contracts/event";
 import type { CheckinInput, CheckinView } from "@workspace/contracts/reception";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Dialog } from "@workspace/ui/components/dialog";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useEffect, useRef, useState } from "react";
@@ -67,6 +68,10 @@ function editableDiscounts(event: EventView, checkin: CheckinView): DiscountChoi
 export function CheckinEditDialog({ event, checkin, onClose, onDone }: CheckinEditDialogProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const [confirming, setConfirming] = useState(false);
+  // 確かめに切り替えたら「やめる」へ、戻ったら「取り消す」へフォーカスを移す（押したボタンが消えてフォーカスが迷子にならないように）
+  const keepButtonRef = useRef<HTMLButtonElement>(null);
+  const removeButtonRef = useRef<HTMLButtonElement>(null);
+  const shownConfirming = useRef(confirming);
   const organizer = event.myRole === "organizer";
   // 受付係は紹介者の名前を読めない（答えでは null）ので、欄はいつも空で始まる
   const initialReferrer = organizer ? (checkin.referrerName ?? "") : "";
@@ -113,6 +118,13 @@ export function CheckinEditDialog({ event, checkin, onClose, onDone }: CheckinEd
     if (focusRequest > 0) focusFirstCheckinError(formRef.current);
   }, [focusRequest]);
 
+  useEffect(() => {
+    // 開いたとき（と StrictMode の2回目）は動かさない。切り替わったときだけ移す
+    if (shownConfirming.current === confirming) return;
+    shownConfirming.current = confirming;
+    (confirming ? keepButtonRef : removeButtonRef).current?.focus();
+  }, [confirming]);
+
   /**
    * 保存する。
    * @param submitEvent フォームの送信
@@ -151,10 +163,10 @@ export function CheckinEditDialog({ event, checkin, onClose, onDone }: CheckinEd
               {`取り消せませんでした。${errorMessage(remove.error)}`}
             </ResponseMessage>
           ) : null}
-          <div className="flex flex-col-reverse gap-xxs wide:flex-row wide:justify-end">
+          <ButtonRow>
             <Button
+              ref={keepButtonRef}
               type="button"
-              className="min-h-xl"
               aria-disabled={pending || undefined}
               onClick={() => {
                 if (!pending) setConfirming(false);
@@ -165,7 +177,6 @@ export function CheckinEditDialog({ event, checkin, onClose, onDone }: CheckinEd
             <Button
               type="button"
               variant="danger"
-              className="min-h-xl"
               aria-disabled={pending || undefined}
               aria-busy={remove.isPending || undefined}
               onClick={() => {
@@ -174,7 +185,7 @@ export function CheckinEditDialog({ event, checkin, onClose, onDone }: CheckinEd
             >
               {remove.isPending ? "取り消しています…" : "取り消す"}
             </Button>
-          </div>
+          </ButtonRow>
         </div>
       ) : (
         <div className="flex flex-col gap-s">
@@ -207,10 +218,9 @@ export function CheckinEditDialog({ event, checkin, onClose, onDone }: CheckinEd
               }
             />
             <div className="flex flex-col gap-xxs">
-              <div className="flex flex-col-reverse gap-xxs wide:flex-row wide:justify-end">
+              <ButtonRow>
                 <Button
                   type="button"
-                  className="min-h-xl"
                   aria-disabled={pending || undefined}
                   onClick={() => {
                     if (!pending) onClose();
@@ -221,13 +231,12 @@ export function CheckinEditDialog({ event, checkin, onClose, onDone }: CheckinEd
                 <Button
                   type="submit"
                   variant="primary"
-                  className="min-h-xl"
                   aria-disabled={pending || undefined}
                   aria-busy={save.isPending || undefined}
                 >
                   {save.isPending ? "保存しています…" : "保存"}
                 </Button>
-              </div>
+              </ButtonRow>
               {save.isError && Object.keys(fieldErrorsFromApi(save.error)).length === 0 ? (
                 <ResponseMessage tone="danger">
                   {`保存できませんでした。${errorMessage(save.error)}`}
@@ -238,11 +247,12 @@ export function CheckinEditDialog({ event, checkin, onClose, onDone }: CheckinEd
           {sections.map(({ id, Component }) => (
             <Component key={id} event={event} checkin={checkin} />
           ))}
+          {/* 取り消す（消す操作）は、すぐ上の「保存」と押し間違えないよう、線の下の左に離して置く（ButtonRow にしない） */}
           <div className="flex flex-col items-start gap-xxs border-t border-border pt-xs">
             <Button
+              ref={removeButtonRef}
               type="button"
               variant="danger"
-              className="min-h-xl"
               aria-disabled={pending || undefined}
               onClick={() => {
                 if (!pending) setConfirming(true);

@@ -70,6 +70,13 @@ describe("同意の画面", () => {
     expect(await screen.findByText("テストの CLIにあなたの記録を読ませますか")).toBeTruthy();
     expect(screen.getByText("127.0.0.1:1455")).toBeTruthy();
     expect(screen.getByText(/確かめられていません/)).toBeTruthy();
+    // 並べる順は「二番 → 主」（主の「許可する」は PC で右・スマホで上。DESIGN.md の「ボタンの並べ方」）
+    const row = screen
+      .getByRole("button", { name: "許可する" })
+      .closest('[data-slot="button-row"]');
+    expect(
+      Array.from(row?.querySelectorAll("button") ?? []).map((button) => button.textContent),
+    ).toEqual(["許可しない", "許可する"]);
     const box = screen.getByRole("checkbox", { name: /受付の記録を読む/ });
     expect((box as HTMLInputElement).checked).toBe(true);
     await userEvent.click(box);

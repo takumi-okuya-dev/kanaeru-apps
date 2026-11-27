@@ -2,6 +2,7 @@
 // - 押す前：「threads.com でログインしているアカウントで許可されます」と、閉じた「違うアカウントが出たときは」の手順
 // - 違うアカウントで戻ったとき：エラーの文に続けて、切り替えの手順と threads.com を開くリンク（その画面で次にすることなので閉じない）
 import { buttonVariants } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Disclosure } from "@workspace/ui/components/disclosure";
 import { THREADS_WEB_URL, accountGuideParts, accountSwitchSteps } from "./connect-guide.ts";
 
@@ -77,7 +78,9 @@ export function AccountSwitchSteps({ expected, again }: ThreadsAccountGuideProps
           <li key={step}>{step}</li>
         ))}
       </ol>
-      <ThreadsWebLink button />
+      <ButtonRow>
+        <ThreadsWebLink button />
+      </ButtonRow>
     </div>
   );
 }

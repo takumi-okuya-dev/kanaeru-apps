@@ -5,7 +5,7 @@
 // - スマホ：上の帯の右のボタン。押すと下から出す枠：同じ並び、区切り、「すべてのアプリ」と「設定」
 // ボタンの読み上げの名前は、見えている文字（「アプリ」と今のアプリの名前）から始め、操作を括弧で足す（WCAG 2.5.3。axe の
 // label-content-name-mismatch は、見えている文字の語が名前の中に続けて並ぶかを見る）。
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { Badge } from "@workspace/ui/components/badge";
 import {
   Menu,
@@ -18,6 +18,7 @@ import {
 import { Sheet } from "@workspace/ui/components/sheet";
 import { cn } from "@workspace/ui/lib/cn";
 import { useState } from "react";
+import { isFeedbackPath } from "../lib/apps.ts";
 import type { ShellApp, ShellAppsView } from "../lib/apps.ts";
 import { Icon } from "../lib/icon.tsx";
 import type { IconName } from "../lib/icon.tsx";
@@ -163,6 +164,10 @@ export function MobileAppSwitcher({ view }: AppSwitcherProps) {
   const [open, setOpen] = useState(false);
   const current = currentOf(view);
   const close = () => setOpen(false);
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  // 改善点のページでは、ヘッダーの「改善点を送る」が今のページ（全体の設定は今にしない。今のページの印は1つ）
+  const settingsCurrent =
+    view.place?.kind === "settings" && !isFeedbackPath(pathname, view.feedbackPath);
   return (
     <>
       <button
@@ -215,7 +220,9 @@ export function MobileAppSwitcher({ view }: AppSwitcherProps) {
                 <Link
                   to={view.settingsPath}
                   onClick={close}
-                  aria-current={view.place?.kind === "settings" ? "page" : undefined}
+                  // 道の部品は下の道でも自動で aria-current を付けるので、同じ道のときだけにする
+                  activeOptions={{ exact: true }}
+                  aria-current={settingsCurrent ? "page" : undefined}
                   className={sheetItemClassName}
                 >
                   <Icon name="settings" />

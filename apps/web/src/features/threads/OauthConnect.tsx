@@ -4,6 +4,7 @@ import { OAUTH_RESULT_MESSAGES, THREADS_ERRORS } from "@workspace/contracts/thre
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "@tanstack/react-router";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useState } from "react";
 import { errorMessage } from "../../lib/api.ts";
@@ -82,13 +83,15 @@ export function OauthConnect({ accountId, connected, username = null }: OauthCon
           <p className="text-s text-text-sub">
             Threads の画面で許可するだけでつなげます（トークンを作って貼る必要はありません）。
           </p>
-          <Button
-            variant="primary"
-            onClick={() => void start()}
-            aria-disabled={pending || undefined}
-          >
-            {pending ? "Threads へ移っています…" : buttonLabel}
-          </Button>
+          <ButtonRow>
+            <Button
+              variant="primary"
+              onClick={() => void start()}
+              aria-disabled={pending || undefined}
+            >
+              {pending ? "Threads へ移っています…" : buttonLabel}
+            </Button>
+          </ButtonRow>
           <ThreadsAccountGuide expected={expected} again={buttonLabel} />
           {error ? <ResponseMessage tone="danger">{error}</ResponseMessage> : null}
         </>

@@ -6,6 +6,7 @@ import type { BookingSetting, ScheduleChange } from "@workspace/contracts/bookin
 import { QUOTA_SOURCE_LABELS } from "@workspace/contracts/booking";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { useState } from "react";
 import type * as React from "react";
@@ -94,26 +95,27 @@ export function ChangeBanner({
           : "選ばないままなら、30分ほどたってから申し込んだ人へ自動で知らせます。"}
       </p>
       {organizer ? (
-        <div className="flex flex-wrap gap-xxs">
+        // 帯の下の並び（二番の「知らせずに済ませる」→「変更を知らせる」の順。同じ幅にそろえる）
+        <ButtonRow>
           <Button
-            className="min-h-xl"
-            aria-busy={mutation.isPending || undefined}
-            onClick={() => {
-              if (!mutation.isPending) mutation.mutate(true);
-            }}
-          >
-            変更を知らせる
-          </Button>
-          <Button
-            variant="text"
-            className="min-h-xl"
+            aria-disabled={mutation.isPending || undefined}
+            aria-busy={(mutation.isPending && mutation.variables === false) || undefined}
             onClick={() => {
               if (!mutation.isPending) mutation.mutate(false);
             }}
           >
             知らせずに済ませる
           </Button>
-        </div>
+          <Button
+            aria-disabled={mutation.isPending || undefined}
+            aria-busy={(mutation.isPending && mutation.variables === true) || undefined}
+            onClick={() => {
+              if (!mutation.isPending) mutation.mutate(true);
+            }}
+          >
+            変更を知らせる
+          </Button>
+        </ButtonRow>
       ) : null}
       {mutation.isError ? (
         <ResponseMessage tone="danger">

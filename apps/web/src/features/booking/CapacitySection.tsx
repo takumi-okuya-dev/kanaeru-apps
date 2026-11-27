@@ -16,6 +16,7 @@ import type { QuotaSource } from "@workspace/contracts/booking";
 import type { EventView } from "@workspace/contracts/event";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ConfirmDialog } from "@workspace/ui/components/confirm-dialog";
 import { Field } from "@workspace/ui/components/field";
 import { Input } from "@workspace/ui/components/input";
@@ -192,9 +193,11 @@ export function CapacitySection({ event, setting }: { event: EventView; setting:
           ))}
         </fieldset>
         <div className="flex flex-col items-start gap-xxs">
-          <Button type="submit" className="min-h-xl" aria-busy={save.isPending || undefined}>
-            {save.isPending ? "保存しています…" : "定員を保存する"}
-          </Button>
+          <ButtonRow>
+            <Button type="submit" aria-busy={save.isPending || undefined}>
+              {save.isPending ? "保存しています…" : "定員を保存する"}
+            </Button>
+          </ButtonRow>
           {formError ? <ResponseMessage tone="danger">{formError}</ResponseMessage> : null}
           {saved ? <ResponseMessage tone="success">定員を保存しました。</ResponseMessage> : null}
           {save.isError ? (
@@ -213,7 +216,7 @@ export function CapacitySection({ event, setting }: { event: EventView; setting:
           <div className="flex flex-col items-start gap-x3s border-t border-border pt-xs">
             <Button
               variant="text"
-              className="min-h-xl text-danger-text"
+              className="text-danger-text"
               onClick={() => {
                 cancel.reset();
                 setConfirmingCancel(true);

@@ -11,6 +11,7 @@ import type { MySurveyState, SurveyAnswer, SurveyAnswerInput } from "@workspace/
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { StatusIcon } from "@workspace/ui/components/status-icon";
 import { cn } from "@workspace/ui/lib/cn";
@@ -27,12 +28,6 @@ import { putMySurvey } from "./api.ts";
 import { SURVEY_QUERY_KEYS, isNightStop, useMySurvey } from "./queries.ts";
 import { surveyFormFromAnswer, validateSurveyForm } from "./survey-form.ts";
 import type { SurveyFormValues } from "./survey-form.ts";
-
-/**
- * 主のボタンの見た目（高さ 48px・狭い画面では横いっぱい・広い画面では言葉の幅に左右 32px の余白。DESIGN の button-primary）。
- * 縦に並べる flex の中では w-auto だけだと横に伸びるので、広い画面では self-start で左に寄せる。
- */
-const primaryActionClassName = "min-h-xl w-full wide:w-auto wide:self-start wide:px-m";
 
 /** 外のページへのリンクの属性（LINE の中でもアプリの外として開く）。 */
 const EXTERNAL_LINK = { target: "_blank", rel: "noopener noreferrer" } as const;
@@ -80,26 +75,26 @@ function SurveyThanks({ summary, onEdit }: ThanksProps) {
         <p className="text-m">ご協力ありがとうございました。</p>
       </section>
       {summary.googleFormUrl || summary.lineGroupUrl ? (
-        <div className="flex flex-col gap-xxs wide:flex-row">
-          {summary.googleFormUrl ? (
-            <a
-              href={summary.googleFormUrl}
-              {...EXTERNAL_LINK}
-              className={cn(buttonVariants({ variant: "primary" }), primaryActionClassName)}
-            >
-              続けて交流会のアンケートへ
-            </a>
-          ) : null}
+        <ButtonRow>
           {summary.lineGroupUrl ? (
             <a
               href={summary.lineGroupUrl}
               {...EXTERNAL_LINK}
-              className={cn(buttonVariants({ variant: "secondary" }), "min-h-xl")}
+              className={buttonVariants({ variant: "secondary" })}
             >
               交流会のLINEグループに参加する
             </a>
           ) : null}
-        </div>
+          {summary.googleFormUrl ? (
+            <a
+              href={summary.googleFormUrl}
+              {...EXTERNAL_LINK}
+              className={buttonVariants({ variant: "primary" })}
+            >
+              続けて交流会のアンケートへ
+            </a>
+          ) : null}
+        </ButtonRow>
       ) : null}
       <div>
         <Button variant="text" className="min-h-l" onClick={onEdit}>
@@ -194,14 +189,11 @@ function SurveyForm({ summary, answer, onSent }: FormProps) {
       <form ref={formRef} noValidate onSubmit={submit} className="flex flex-col gap-s">
         <SurveyFields values={values} onChange={setValues} errors={errors} />
         <div className="flex flex-col gap-xxs">
-          <Button
-            type="submit"
-            variant="primary"
-            aria-disabled={mutation.isPending || undefined}
-            className={primaryActionClassName}
-          >
-            {mutation.isPending ? "送っています…" : submitLabel}
-          </Button>
+          <ButtonRow>
+            <Button type="submit" variant="primary" aria-disabled={mutation.isPending || undefined}>
+              {mutation.isPending ? "送っています…" : submitLabel}
+            </Button>
+          </ButtonRow>
           {mutation.isError && !fieldError ? (
             <ResponseMessage tone="danger">
               {`送れませんでした。${errorMessage(mutation.error)}`}
@@ -258,9 +250,9 @@ function SurveyLoadFailure({ error, retry }: FailureProps) {
       lead="電波の良い所で、もう一度試してください。開かないときは、受付の人に声をかけてください。"
     >
       <p className="text-s text-text-sub">{errorMessage(error)}</p>
-      <div>
+      <ButtonRow>
         <Button onClick={retry}>もう一度</Button>
-      </div>
+      </ButtonRow>
     </Page>
   );
 }
@@ -313,14 +305,14 @@ function SurveyScreen({ eventId }: SurveyScreenProps) {
     return (
       <Page title="先にチェックインしてください" lead={summary.name}>
         <p className="text-m">チェックインすると、アンケートに答えられます。</p>
-        <div>
+        <ButtonRow>
           <InternalLink
             href={participantPaths.checkin(summary.id)}
-            className={cn(buttonVariants({ variant: "primary" }), primaryActionClassName)}
+            className={buttonVariants({ variant: "primary" })}
           >
             チェックインの画面へ
           </InternalLink>
-        </div>
+        </ButtonRow>
       </Page>
     );
   }

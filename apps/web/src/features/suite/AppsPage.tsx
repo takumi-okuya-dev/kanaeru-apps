@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Badge } from "@workspace/ui/components/badge";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
+import { ButtonRow } from "@workspace/ui/components/button-row";
 import { pickStartApp, readLastApp, startPathOf } from "../../lib/apps.ts";
 import { Page } from "../../lib/page.tsx";
 import { AppIconBox } from "./AppIconBox.tsx";
@@ -32,11 +33,15 @@ export function AppsPage() {
         ) : status === "error" ? (
           <div className="flex flex-col items-start gap-xxs">
             <p className="text-m">読みこめませんでした。時間をおいて、もう一度お試しください。</p>
-            <Button
-              onClick={() => void queryClient.invalidateQueries({ queryKey: SUITE_QUERY_KEYS.all })}
-            >
-              もう一度
-            </Button>
+            <ButtonRow>
+              <Button
+                onClick={() =>
+                  void queryClient.invalidateQueries({ queryKey: SUITE_QUERY_KEYS.all })
+                }
+              >
+                もう一度
+              </Button>
+            </ButtonRow>
           </div>
         ) : apps.length === 0 ? (
           <p className="text-m text-text-sub">使えるアプリはまだありません。</p>
@@ -68,7 +73,7 @@ export function AppsPage() {
                     </div>
                   </div>
                   <p className="text-m">{app.description}</p>
-                  <div>
+                  <ButtonRow>
                     <Link
                       to={startPathOf(app)}
                       aria-label={`開く：${app.name}`}
@@ -78,7 +83,7 @@ export function AppsPage() {
                     >
                       開く
                     </Link>
-                  </div>
+                  </ButtonRow>
                 </li>
               );
             })}
