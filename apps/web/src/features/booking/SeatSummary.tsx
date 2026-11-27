@@ -98,6 +98,8 @@ export function ChangeBanner({
         // 帯の下の並び（二番の「知らせずに済ませる」→「変更を知らせる」の順。同じ幅にそろえる）
         <ButtonRow>
           <Button
+            aria-disabled={mutation.isPending || undefined}
+            aria-busy={(mutation.isPending && mutation.variables === false) || undefined}
             onClick={() => {
               if (!mutation.isPending) mutation.mutate(false);
             }}
@@ -105,7 +107,8 @@ export function ChangeBanner({
             知らせずに済ませる
           </Button>
           <Button
-            aria-busy={mutation.isPending || undefined}
+            aria-disabled={mutation.isPending || undefined}
+            aria-busy={(mutation.isPending && mutation.variables === true) || undefined}
             onClick={() => {
               if (!mutation.isPending) mutation.mutate(true);
             }}

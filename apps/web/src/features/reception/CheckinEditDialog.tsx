@@ -68,6 +68,10 @@ function editableDiscounts(event: EventView, checkin: CheckinView): DiscountChoi
 export function CheckinEditDialog({ event, checkin, onClose, onDone }: CheckinEditDialogProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const [confirming, setConfirming] = useState(false);
+  // 確かめに切り替えたら「やめる」へ、戻ったら「取り消す」へフォーカスを移す（押したボタンが消えてフォーカスが迷子にならないように）
+  const keepButtonRef = useRef<HTMLButtonElement>(null);
+  const removeButtonRef = useRef<HTMLButtonElement>(null);
+  const shownConfirming = useRef(confirming);
   const organizer = event.myRole === "organizer";
   // 受付係は紹介者の名前を読めない（答えでは null）ので、欄はいつも空で始まる
   const initialReferrer = organizer ? (checkin.referrerName ?? "") : "";
@@ -114,6 +118,13 @@ export function CheckinEditDialog({ event, checkin, onClose, onDone }: CheckinEd
     if (focusRequest > 0) focusFirstCheckinError(formRef.current);
   }, [focusRequest]);
 
+  useEffect(() => {
+    // 開いたとき（と StrictMode の2回目）は動かさない。切り替わったときだけ移す
+    if (shownConfirming.current === confirming) return;
+    shownConfirming.current = confirming;
+    (confirming ? keepButtonRef : removeButtonRef).current?.focus();
+  }, [confirming]);
+
   /**
    * 保存する。
    * @param submitEvent フォームの送信
@@ -154,6 +165,7 @@ export function CheckinEditDialog({ event, checkin, onClose, onDone }: CheckinEd
           ) : null}
           <ButtonRow>
             <Button
+              ref={keepButtonRef}
               type="button"
               aria-disabled={pending || undefined}
               onClick={() => {
@@ -238,6 +250,7 @@ export function CheckinEditDialog({ event, checkin, onClose, onDone }: CheckinEd
           {/* 取り消す（消す操作）は、すぐ上の「保存」と押し間違えないよう、線の下の左に離して置く（ButtonRow にしない） */}
           <div className="flex flex-col items-start gap-xxs border-t border-border pt-xs">
             <Button
+              ref={removeButtonRef}
               type="button"
               variant="danger"
               aria-disabled={pending || undefined}
