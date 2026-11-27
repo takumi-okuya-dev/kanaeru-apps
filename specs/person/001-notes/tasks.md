@@ -14,7 +14,7 @@
 
 ## Phase 1: 表とアプリの登録（PR `feature/person-001-pr1-tables`）
 
-- [ ] T004 [P] 約束の上限を先に置く：`packages/contracts/src/person/limits.ts`。値は次のとおり（data-model の値）。単体のテストは `limits.test.ts`
+- [x] T004 [P] 約束の上限を先に置く：`packages/contracts/src/person/limits.ts`。値は次のとおり（data-model の値）。単体のテストは `limits.test.ts`
   - フルネーム 1〜100字
   - よみ・LINE の名前 100字
   - 見た目の特徴 200字
@@ -24,8 +24,8 @@
   - タグ 1つ30字（数の上限は置かない。PRD FR-P2）
   - 字はコードポイントで数える（絵文字も1字）。数える関数を `limits.ts` に1つ置く
   - 会った場の名前 1〜100字
-- [ ] T005 [P] 会った場の作り方の選択肢 `PERSON_MEETING_SOURCES = ["manual", "event"]` を置く：`packages/contracts/src/person/options.ts`・`index.ts`（名前を挙げて再エクスポート）。`SEARCH_VERSION` は pr2 の `search.ts`
-- [ ] T006 結合のテストを先に書く：`apps/api/src/modules/person/schema.test.ts`（本物の PostgreSQL）。確かめることは次のとおり。
+- [x] T005 [P] 会った場の作り方の選択肢 `PERSON_MEETING_SOURCES = ["manual", "event"]` を置く：`packages/contracts/src/person/options.ts`・`index.ts`（名前を挙げて再エクスポート）。`SEARCH_VERSION` は pr2 の `search.ts`
+- [x] T006 結合のテストを先に書く：`apps/api/src/modules/person/schema.test.ts`（本物の PostgreSQL）。確かめることは次のとおり。
   - **長さ**：長さの CHECK が約束の上限と同じ。
   - **アカウントの URL**：`account_url` は `http://`・`https://` で始まるものだけ。
   - **タグ**：`cardinality(tag_keys) = cardinality(tags)`。
@@ -38,17 +38,17 @@
   - **持ち主を消したとき**：3つの表の行が消える。
   - **交流会を消したとき**：`event_id` だけが null になる。そのとき、手で書いた同じ名前と日付の会った場があっても、退会（交流会の持ち主の account を消す）が落ちない。
   - **人と会った場を消したとき**：人を消すと組だけが消え、会った場は残る。会った場を消すと組だけが消え、人は残る。
-- [ ] T007 `apps/api/src/modules/person/schema.ts` に3つの表を書く（`person_note`・`person_meeting`・`person_note_meeting`。data-model のとおり）
+- [x] T007 `apps/api/src/modules/person/schema.ts` に3つの表を書く（`person_note`・`person_meeting`・`person_note_meeting`。data-model のとおり）
   - 共通の列は `kernel/columns.ts`。`accountTable`・`eventTable` は相手の `index.ts` から読む。
   - 先頭で `import "@hono/zod-openapi";` を読む。
   - CHECK の値は約束から読まず、文字で書く（食い違いは T006 が見る）。
-- [ ] T008 `pnpm db:generate --name person` を流し、できた `apps/api/drizzle/00NN_person.sql` を読む（表を足すだけであること）。そのあと `pnpm db:migrate` と `pnpm db:check`
-- [ ] T009 アプリの登録。
+- [x] T008 `pnpm db:generate --name person` を流し、できた `apps/api/drizzle/00NN_person.sql` を読む（表を足すだけであること）。そのあと `pnpm db:migrate` と `pnpm db:check`
+- [x] T009 アプリの登録。
   - `packages/contracts/src/core/apps.list.ts` に1行：`export const person = defineApp({ key: "person", name: "人物メモ", summary: "会った人と話したことのメモ", description: "交流会で会った人の見た目・話したこと・次に話したいことを、自分だけが見られるメモに残します。", icon: "…", domains: ["person"], basePath: "/person", uses: ["reception"], accountData: "人物メモ（会った人・会った場）" });`（icon は今ある名前から、作るときに選ぶ）
   - `apps/api/src/modules.list.ts`・`apps/web/src/features.list.ts` に1行ずつ。
-- [ ] T010 [P] `apps/api/src/modules/person/index.ts`（表の再エクスポートはしない。中身は `export {};` と「窓口は pr2 で足す」の説明）
-- [ ] T011 [P] 画面の仮の道：`apps/web/src/features/person/{index.ts, routes.ts, paths.ts, PlaceholderPage.tsx}`。`/person` に `<Page title="人物メモ" lead="人物メモは準備中です。" />`
-- [ ] T012 [P] 文書：`docs/apps/person.md`（アプリの登録・表）・`docs/README.md` 2章の一覧の行・`docs/rules/specs.md` の領域の一覧に `person` の1行
+- [x] T010 [P] `apps/api/src/modules/person/index.ts`（表の再エクスポートはしない。中身は `export {};` と「窓口は pr2 で足す」の説明）
+- [x] T011 [P] 画面の仮の道：`apps/web/src/features/person/{index.ts, routes.ts, paths.ts, PlaceholderPage.tsx}`。`/person` に `<Page title="人物メモ" lead="人物メモは準備中です。" />`
+- [x] T012 [P] 文書：`docs/apps/person.md`（アプリの登録・表）・`docs/README.md` 2章の一覧の行・`docs/rules/specs.md` の領域の一覧に `person` の1行
 - [ ] T013 `pnpm check` を流し、結果を PR に書く。DB の変更の PR なので、ラベル `run-ci` を付ける（開発の流れの決まり 3章）
 
 ## Phase 2: 窓口の土台（PR `feature/person-001-pr2-notes`。すべての話の前に要る）
