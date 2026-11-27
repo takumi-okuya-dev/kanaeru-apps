@@ -194,7 +194,15 @@ function MemberRow({
             >
               {nextRole === "editor" ? "編集者にする" : "メンバーに戻す"}
             </Button>
-            <Button size="small" variant="danger" onClick={() => onRemove(member)}>
+            <Button
+              size="small"
+              variant="danger"
+              aria-disabled={pending || undefined}
+              onClick={() => {
+                // 役割を変えている途中に外すと、変えた知らせと外した結果が食い違う
+                if (!pending) onRemove(member);
+              }}
+            >
               外す
             </Button>
           </div>
