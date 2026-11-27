@@ -12,7 +12,7 @@ import {
 import { beforeEach, describe, expect, it } from "vitest";
 import { buildApp, testConfig } from "../../../test/helpers/app.ts";
 import type { TestApp } from "../../../test/helpers/app.ts";
-import { loginAs } from "../../../test/helpers/account.ts";
+import { loginAs, withCookie } from "../../../test/helpers/account.ts";
 import { truncateAllTables, useTestDatabase } from "../../../test/helpers/db.ts";
 import { createEvent } from "../../../test/helpers/event.ts";
 
@@ -143,11 +143,14 @@ describe("人物メモの表", () => {
       CHECK,
     );
     await expectRejected(() => insertMeeting({ name: "", name_key: "c" }), CHECK);
+    await expectRejected(() => insertMeeting({ name: "空のそろえた名前", name_key: "" }), CHECK);
   });
 
-  it("アカウントの URL は http・https で始まるものだけ", async () => {
+  it("アカウントの URL は http・https で始まるものだけ（大文字と小文字は区別しない・200字まで）", async () => {
     await insertNote({ account_url: "https://example.com/taro" });
     await insertNote({ account_url: "http://example.com/taro" });
+    await insertNote({ account_url: "HTTPS://example.com/taro" });
+    await insertNote({ account_url: `https://${"a".repeat(PERSON_NOTE_LIMITS.account - 8)}` });
     for (const bad of [
       "javascript:alert(1)",
       "tel:0312345678",
@@ -157,7 +160,7 @@ describe("人物メモの表", () => {
       await expectRejected(() => insertNote({ account_url: bad }), CHECK);
     }
     await expectRejected(
-      () => insertNote({ account_url: `https://${"a".repeat(PERSON_NOTE_LIMITS.account)}` }),
+      () => insertNote({ account_url: `https://${"a".repeat(PERSON_NOTE_LIMITS.account - 7)}` }),
       CHECK,
     );
   });
@@ -166,6 +169,8 @@ describe("人物メモの表", () => {
     const many = Array.from({ length: 50 }, (_, i) => `タグ${i}`);
     await insertNote({ tags: many, tag_keys: many });
     await expectRejected(() => insertNote({ tags: ["AI", "Go"], tag_keys: ["ai"] }), CHECK);
+    await expectRejected(() => insertNote({ tags: ["AI", null], tag_keys: ["ai", "x"] }), CHECK);
+    await expectRejected(() => insertNote({ tags: ["AI", "Go"], tag_keys: ["ai", null] }), CHECK);
   });
 
   it("会った場の作り方は選択肢だけで、手で書いたものは交流会を指さない", async () => {
@@ -214,6 +219,32 @@ describe("人物メモの表", () => {
     );
     expect(row.rows[0]).toEqual({ event_id: null, name: "11月の AI 勉強会" });
     expect(await count("person_meeting")).toBe(2);
+  });
+
+  it("交流会の持ち主が退会しても落ちない（交流会は消え、ほかの使う人の会った場は event_id だけが空になる）", async () => {
+    const host = await loginAs(app, { displayName: "主催" });
+    const event = await createEvent(app, host.cookie);
+    // 主催者自身も、自分の交流会を指す会った場と、同じ名前と日付の手で書いた会った場を持つ
+    await insertMeeting({ owner_account_id: host.account.id });
+    await insertMeeting({ owner_account_id: host.account.id, source: "event", event_id: event.id });
+    // ほかの使う人も、同じ交流会を指す会った場と、同じ名前と日付の手で書いた会った場を持つ
+    await insertMeeting();
+    const fromEvent = await insertMeeting({ source: "event", event_id: event.id });
+    const withdrawn = await app.request(
+      "/api/v1/accounts/me",
+      withCookie(host.cookie, { method: "DELETE" }),
+    );
+    expect(withdrawn.status).toBe(204);
+    const left = await database.pool.query<{ owner_account_id: string; event_id: string | null }>(
+      "SELECT owner_account_id, event_id FROM person_meeting ORDER BY created_at",
+    );
+    expect(left.rows.every((r) => r.owner_account_id === ownerId)).toBe(true);
+    expect(left.rows).toHaveLength(2);
+    const pointed = await database.pool.query<{ event_id: string | null }>(
+      "SELECT event_id FROM person_meeting WHERE id = $1",
+      [fromEvent],
+    );
+    expect(pointed.rows[0]?.event_id).toBeNull();
   });
 
   it("人と会った場の組は1つだけで、持ち主の違う人と会った場は結べない", async () => {

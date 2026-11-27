@@ -1,5 +1,5 @@
 {
-  "id": "890d3f38-4577-4888-ae40-3591ab201fac",
+  "id": "8594761d-008c-43ad-8e38-c2c54705e98d",
   "prevId": "33432009-1c58-420e-88db-9ee180128c53",
   "version": "7",
   "dialect": "postgresql",
@@ -4073,6 +4073,10 @@
         "person_meeting_name_check": {
           "name": "person_meeting_name_check",
           "value": "char_length(\"person_meeting\".\"name\") between 1 and 100"
+        },
+        "person_meeting_name_key_check": {
+          "name": "person_meeting_name_key_check",
+          "value": "char_length(\"person_meeting\".\"name_key\") between 1 and 400"
         }
       },
       "isRLSEnabled": false
@@ -4323,11 +4327,11 @@
         },
         "person_note_account_url_check": {
           "name": "person_note_account_url_check",
-          "value": "\"person_note\".\"account_url\" ~ '^https?://'"
+          "value": "\"person_note\".\"account_url\" ~* '^https?://'"
         },
         "person_note_tags_check": {
           "name": "person_note_tags_check",
-          "value": "cardinality(\"person_note\".\"tag_keys\") = cardinality(\"person_note\".\"tags\")"
+          "value": "cardinality(\"person_note\".\"tag_keys\") = cardinality(\"person_note\".\"tags\") and array_position(\"person_note\".\"tags\", null) is null and array_position(\"person_note\".\"tag_keys\", null) is null"
         },
         "person_note_talk_check": {
           "name": "person_note_talk_check",

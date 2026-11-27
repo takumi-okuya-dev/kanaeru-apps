@@ -1,5 +1,6 @@
 // 人物メモの欄の長さの上限（specs/person/001-notes/research.md R10・data-model.md）。
 // DB の CHECK（apps/api/src/modules/person/schema.ts）と同じ値。食い違いは schema.test.ts が見張る。
+// ただしタグ1つの長さ（tag）は、DB の CHECK を書けないので、約束（zod）だけで確かめる。
 // 字はコードポイントで数える（絵文字も1字。DB の char_length と同じ）。
 
 /** 人のメモの欄の上限（字）。 */

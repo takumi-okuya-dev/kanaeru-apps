@@ -4,6 +4,7 @@
 // 人と会った場の組は、持ち主を含む複合の外部キーで、持ち主の違う人と会った場を結ばせない（AD-31）。
 // 長さと選択肢の CHECK は約束（@workspace/contracts/person）と同じ値を文字で書く（DB の変更の SQL に値を埋めるため。
 // sql.raw は使わない）。食い違いは schema.test.ts が見張る。字は char_length（コードポイント）で数える。
+// タグ1つの長さは、配列の要素ごとの CHECK を書けないので約束（zod）だけで確かめる（DB は空の要素がないことと数だけ）。
 // ほかの領域の index.ts（道の定義を含む）を読むので、先に @hono/zod-openapi を読む（drizzle-kit がこの順で読むため）。
 import "@hono/zod-openapi";
 import { sql } from "drizzle-orm";
@@ -97,10 +98,10 @@ export const personNote = pgTable(
       "person_note_accounts_check",
       sql`char_length(${table.accountX}) <= 200 and char_length(${table.accountConnpass}) <= 200 and char_length(${table.accountGithub}) <= 200 and char_length(${table.accountLinkedin}) <= 200 and char_length(${table.accountLine}) <= 200 and char_length(${table.accountUrl}) <= 200`,
     ),
-    check("person_note_account_url_check", sql`${table.accountUrl} ~ '^https?://'`),
+    check("person_note_account_url_check", sql`${table.accountUrl} ~* '^https?://'`),
     check(
       "person_note_tags_check",
-      sql`cardinality(${table.tagKeys}) = cardinality(${table.tags})`,
+      sql`cardinality(${table.tagKeys}) = cardinality(${table.tags}) and array_position(${table.tags}, null) is null and array_position(${table.tagKeys}, null) is null`,
     ),
     check("person_note_talk_check", sql`char_length(${table.talk}) <= 20000`),
     check("person_note_next_topic_check", sql`char_length(${table.nextTopic}) <= 2000`),
@@ -147,6 +148,8 @@ export const personMeeting = pgTable(
       sql`${table.source} = 'event' or ${table.eventId} is null`,
     ),
     check("person_meeting_name_check", sql`char_length(${table.name}) between 1 and 100`),
+    // そろえた名前は空にしない（空だと、同じ日の手で書いた会った場がまとまってしまう）。NFKC で字が増えうるので上限は広く取る
+    check("person_meeting_name_key_check", sql`char_length(${table.nameKey}) between 1 and 400`),
   ],
 );
 

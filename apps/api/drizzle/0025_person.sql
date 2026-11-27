@@ -11,7 +11,8 @@ CREATE TABLE "person_meeting" (
 	CONSTRAINT "person_meeting_id_owner_unique" UNIQUE("id","owner_account_id"),
 	CONSTRAINT "person_meeting_source_check" CHECK ("person_meeting"."source" in ('manual', 'event')),
 	CONSTRAINT "person_meeting_event_source_check" CHECK ("person_meeting"."source" = 'event' or "person_meeting"."event_id" is null),
-	CONSTRAINT "person_meeting_name_check" CHECK (char_length("person_meeting"."name") between 1 and 100)
+	CONSTRAINT "person_meeting_name_check" CHECK (char_length("person_meeting"."name") between 1 and 100),
+	CONSTRAINT "person_meeting_name_key_check" CHECK (char_length("person_meeting"."name_key") between 1 and 400)
 );
 --> statement-breakpoint
 CREATE TABLE "person_note" (
@@ -44,8 +45,8 @@ CREATE TABLE "person_note" (
 	CONSTRAINT "person_note_line_name_check" CHECK (char_length("person_note"."line_name") <= 100),
 	CONSTRAINT "person_note_appearance_check" CHECK (char_length("person_note"."appearance") <= 200),
 	CONSTRAINT "person_note_accounts_check" CHECK (char_length("person_note"."account_x") <= 200 and char_length("person_note"."account_connpass") <= 200 and char_length("person_note"."account_github") <= 200 and char_length("person_note"."account_linkedin") <= 200 and char_length("person_note"."account_line") <= 200 and char_length("person_note"."account_url") <= 200),
-	CONSTRAINT "person_note_account_url_check" CHECK ("person_note"."account_url" ~ '^https?://'),
-	CONSTRAINT "person_note_tags_check" CHECK (cardinality("person_note"."tag_keys") = cardinality("person_note"."tags")),
+	CONSTRAINT "person_note_account_url_check" CHECK ("person_note"."account_url" ~* '^https?://'),
+	CONSTRAINT "person_note_tags_check" CHECK (cardinality("person_note"."tag_keys") = cardinality("person_note"."tags") and array_position("person_note"."tags", null) is null and array_position("person_note"."tag_keys", null) is null),
 	CONSTRAINT "person_note_talk_check" CHECK (char_length("person_note"."talk") <= 20000),
 	CONSTRAINT "person_note_next_topic_check" CHECK (char_length("person_note"."next_topic") <= 2000)
 );
