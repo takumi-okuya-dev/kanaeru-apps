@@ -204,7 +204,7 @@
 - [x] T044 ログに出ないことの結合のテスト：`apps/api/src/modules/person/logging.test.ts`。決まった言葉を、名前・話したこと・検索の言葉に入れて、すべての窓口を流す。ログの出力（pino の写し）にその言葉がないことを見る（SC-005）
 - [x] T045 [P] E2E：`e2e/tests/person.spec.ts`。ログインしていなければ「ログインしてください」。`test-login` でログインし、`/person`・`/person/new`・`/person/notes/$noteId`・`/person/meetings/$meetingId` を axe にかける（WCAG 2.2 AA。Constitution の技術スタック制約。スマホと PC の両方の幅。試合表の `match.spec.ts` と同じ手伝い）
 - [x] T046 [P] 文書：`docs/apps/person.md` に窓口・画面・テストを足す
-- [ ] T047 `pnpm check` を流し、結果を PR に書く。そのあと `/code-review` でセルフレビューをし、指摘を直す
+- [x] T047 `pnpm check` を流し、結果を PR に書く。そのあと `/code-review` でセルフレビューをし、指摘を直す
 - [ ] T048 ステージングで [quickstart.md](./quickstart.md) の手での確かめを行い、印を付ける（持ち主）
 
 ## Dependencies & Execution Order
