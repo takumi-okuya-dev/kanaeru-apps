@@ -424,6 +424,42 @@ export default tseslint.config(
       ],
     },
   },
+  // 人物メモ（person）の領域が読んでよい、ほかの領域の許す一覧（構成の決めごと AD-31）。
+  // メモは自分だけのもので、交流会の参加者・申込みの名簿を読まない（PRD 人物メモ FR-P8）。読んでよいのは、
+  // 今の利用者（account）・見えるか（suite）・交流会（event。外部キーと、使う人の交流会の一覧）・受付（reception。使う人の
+  // チェックインの一覧）の index.ts だけで、受付の名簿を出す関数は名前で止める。
+  // no-restricted-imports は上のまとまりを上書きするので、OS のコマンドなどの止め方を入れ直す（テストは除く）
+  {
+    files: ["apps/api/src/modules/person/**/*.ts"],
+    ignores: SECURITY_IGNORES,
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: BLOCKED_IMPORTS.paths,
+          patterns: [
+            {
+              regex: "^\\.\\./(?!(account|suite|event|reception)/index\\.ts$)[^./][^/]*/",
+              message:
+                "人物メモが読んでよいほかの領域は、account・suite・event・reception の index.ts だけです（構成の決めごと AD-31）。",
+            },
+            {
+              group: ["../reception/index.ts"],
+              importNames: [
+                "listCheckins",
+                "listEventAttendees",
+                "getCheckin",
+                "findCheckin",
+                "createManualCheckin",
+              ],
+              message:
+                "人物メモは、交流会の参加者の名簿を読みません（構成の決めごと AD-31・PRD 人物メモ FR-P8）。",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // 守りの規則：画面（画面の組み立てに入る packages/ui・packages/contracts を含む）。HTML の差しこみ・環境の値を読む。
   // no-restricted-syntax は上のまとまりを上書きするので、SQL の差しこみの選び方を入れ直す
   {
