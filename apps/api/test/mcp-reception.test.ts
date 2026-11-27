@@ -15,6 +15,10 @@ import { truncateAllTables, useTestDatabase } from "./helpers/db.ts";
 import { createEvent } from "./helpers/event.ts";
 import { checkIn } from "./helpers/reception.ts";
 import { mcpToolCall } from "../src/modules/account/schema.ts";
+import type { McpTool } from "../src/kernel/mcp-tool.ts";
+import { upsertVisibility } from "../src/modules/suite/index.ts";
+import { DEMO_APP, DEMO_APP_KEY, DEMO_MODULE } from "./helpers/suite.ts";
+import { z } from "@hono/zod-openapi";
 
 const database = useTestDatabase();
 const REDIRECT = "http://127.0.0.1:1455/callback";
@@ -160,19 +164,36 @@ describe("道具から受付の窓口を呼ぶ（本人のチェックイン）"
   });
 
   it("範囲に reception:read がなければ、受付の道具は一覧に出ず、呼んでも通らない", async () => {
+    // 受付の範囲を含めない同意を作るため、道具を出す試験用のアプリ（demo。範囲は demo:read）を足す
+    // （道具を出さないアプリの範囲は、同意で選べない。core-021 FR-022）
+    const demoTool: McpTool = {
+      name: "demo_ping",
+      description: "試験用の道具",
+      access: "read",
+      requiredScope: `${DEMO_APP_KEY}:read`,
+      inputSchema: z.object({}),
+      run: () => Promise.resolve("ok"),
+    };
     const app = buildApp(
       database,
       testConfig({ testLoginEnabled: true, organizerLineUserId: ORGANIZER_LINE_USER_ID_FOR_TEST }),
+      {
+        extraModules: { demo: { ...DEMO_MODULE, mcpTools: () => [demoTool] } },
+        extraApps: [DEMO_APP],
+      },
     );
+    await upsertVisibility(database.db, DEMO_APP_KEY, "public");
     const organizer = await loginAs(app, { lineUserId: ORGANIZER_LINE_USER_ID_FOR_TEST });
     const event = await createEvent(app, organizer.cookie);
     const carol = await loginAs(app, { lineUserId: testLineUserId() });
     await checkIn(app, carol.cookie, event.id, { name: "キャロル" });
-    // 同意は試合表の範囲だけ（受付の範囲は含めない）
-    const token = await tokenFor(app, carol.cookie, ["match:read"]);
+    // 同意は試験用のアプリの範囲だけ（受付の範囲は含めない）
+    const token = await tokenFor(app, carol.cookie, [`${DEMO_APP_KEY}:read`]);
 
     const list = await rpc(app, { jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }, token);
-    expect((list.result as { tools: unknown[] }).tools).toEqual([]);
+    const names = (list.result as { tools: { name: string }[] }).tools.map((tool) => tool.name);
+    expect(names).toContain("demo_ping");
+    expect(names).not.toContain("reception_my_checkin");
 
     const call = await rpc(
       app,

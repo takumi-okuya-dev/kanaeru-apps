@@ -151,6 +151,7 @@ async function validateAuthorize(
     return back("invalid_scope", "使えない範囲がある");
   }
   const scopes = requested.length > 0 ? requested : allowed;
+  if (scopes.length === 0) return back("invalid_scope", "使える範囲がない");
   return { ok: true, value: { client, request, scopes } };
 }
 
@@ -210,6 +211,12 @@ function redirectWith(redirectUri: string, params: Record<string, string>, issue
  * @returns 範囲の一覧
  */
 export function mcpReadScopes(deps: Pick<DomainRouteDeps, "apps" | "mcpTools">): string[] {
+  // 道具の範囲が、どのアプリの範囲にも合わなければ、黙って消さずに組み立てを止める（core-021 FR-025）
+  for (const tool of deps.mcpTools ?? []) {
+    if (!deps.apps.some((app) => tool.requiredScope === `${app.key}:${tool.access}`)) {
+      throw new Error(`MCP の道具 ${tool.name} の範囲が、どのアプリの範囲にも合いません。`);
+    }
+  }
   const required = new Set((deps.mcpTools ?? []).map((tool) => tool.requiredScope));
   return deps.apps.map((app) => `${app.key}:read`).filter((scope) => required.has(scope));
 }
@@ -420,6 +427,8 @@ export function registerOAuthRoutes<T extends OpenAPIHono<ApiEnv>>(
   app: T,
   deps: DomainRouteDeps,
 ): T {
+  // 道具の範囲の食い違いは、組み立てのときに止める（mcpReadScopes が投げる）
+  mcpReadScopes(deps);
   const issuer = issuerOf(deps.config.webUrl);
   const resource = canonicalMcpResource(deps.config.webUrl);
 
@@ -679,9 +688,13 @@ export function registerOAuthRoutes<T extends OpenAPIHono<ApiEnv>>(
     if (!row || row.clientRowId !== client.id || row.resource !== body.resource) {
       return oauthError(c, 400, "invalid_grant", "更新の札が無効");
     }
+    // 前に同意した範囲のうち、今は出していない範囲（道具を出さなくなったアプリ）は、新しい札に引き継がない（core-021 FR-022）
+    const offered = new Set((deps.mcpTools ?? []).map((tool) => tool.requiredScope));
+    const scopes = row.scopes.filter((scope) => offered.has(scope));
+    if (scopes.length === 0) return oauthError(c, 400, "invalid_grant", "使える範囲がない");
     await revokeToken(deps.db, row.tokenId);
     c.header("Cache-Control", "no-store");
-    return c.json(await issueTokens(deps.db, row.grantId, row.resource, row.scopes), 200);
+    return c.json(await issueTokens(deps.db, row.grantId, row.resource, scopes), 200);
   });
 
   registerConnectionRoutes(app, deps);
