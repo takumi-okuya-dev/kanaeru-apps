@@ -47,3 +47,13 @@ export {
   MarkerUpdateInput,
 } from "./marker.ts";
 export { CatalogItem, CatalogResult, CatalogSearchInput } from "./catalog.ts";
+export { escapeLike, findMatches, normalizeForSearch } from "./search.ts";
+export type { SearchMatch } from "./search.ts";
+export {
+  RESEARCH_TARGETS,
+  RESEARCH_TARGET_KEYS,
+  RESEARCH_URL_MAX,
+  buildResearchPrompt,
+  researchUrl,
+} from "./research-prompt.ts";
+export type { ResearchInput, ResearchTarget } from "./research-prompt.ts";

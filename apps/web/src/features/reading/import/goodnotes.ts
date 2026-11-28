@@ -59,6 +59,8 @@ export type ImportedMarker = {
   chapter?: string;
   /** ページ（柱のページ番号。なければ PDF のページ番号。GoodNotes の PDF では必ず入る） */
   page?: number;
+  /** 位置（Kindle の位置。GoodNotes の PDF では入らない。reading-002） */
+  location?: number;
   /** 本の中の並びの番号（PDF のページ × 100,000 ＋ ページの中の上からの順〈0から〉） */
   position: number;
   /** コメントが `?` か `？` で始まる */

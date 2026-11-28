@@ -20,15 +20,15 @@
 
 ## Phase 2: 約束（PR `feature/reading-002-pr2-kindle-search`）
 
-- [ ] T009 [P] `packages/contracts/src/reading/search.ts` と `search.test.ts`：`normalizeForSearch`（NFKC → カタカナをひらがなに → 小文字）・`findMatches(original, query)`（もとの文の中の位置。全角・かな・絵文字でずれない）・`escapeLike`（`%`・`_`・`\`）
-- [ ] T010 [P] `packages/contracts/src/reading/research-prompt.ts` と `research-prompt.test.ts`：`buildResearchPrompt({ title, chapter, text, comment, want })`・`RESEARCH_TARGETS`（chatgpt・claude・google の URL の頭と画面の言葉）・`researchUrl(target, prompt)`（2,000字をこえたら null＝コピーに切りかえる）
+- [X] T009 [P] `packages/contracts/src/reading/search.ts` と `search.test.ts`：`normalizeForSearch`（NFKC → カタカナをひらがなに → 小文字）・`findMatches(original, query)`（もとの文の中の位置。全角・かな・絵文字でずれない）・`escapeLike`（`%`・`_`・`\`）
+- [X] T010 [P] `packages/contracts/src/reading/research-prompt.ts` と `research-prompt.test.ts`：`buildResearchPrompt({ title, chapter, text, comment, want })`・`RESEARCH_TARGETS`（chatgpt・claude・google の URL の頭と画面の言葉）・`researchUrl(target, prompt)`（2,000字をこえたら null＝コピーに切りかえる）
 - [ ] T011 [P] 約束：`question.ts`・`search-result.ts`（`SearchInput`・`SearchResult`・`QuestionList`）と、`marker.ts` の `Marker` に `learned`・`researchedAt`、`MarkerUpdateInput` に `learned` を足す（*.test.ts つき）
 
 ## Phase 3: User Story 1 - Kindle の書き出しを取りこむ (Priority: P1) 🎯 MVP
 
 - [ ] T012 [P] [US1] 架空の見本：`apps/web/src/features/reading/import/__fixtures__/kindle-en.html`・`kindle-ja.html`（T002 の形を写した架空の文。章2つ・ハイライト3つ・メモ1つ・ページのある本とない本の見出し・「Highlight(」の空白の揺れ・「…」で終わるもの）
-- [ ] T013 [P] [US1] 読み方のテストを先に書く：`import/kindle.test.ts`（R2 の決まりをひとつずつ。英語と日本語の見本で同じ結果・メモだけ・Kindle でない HTML はエラー・スクリプトの要素があっても動かない）
-- [ ] T014 [US1] `apps/web/src/features/reading/import/kindle.ts`：`readKindleHtml(text)` が `{ title, author, markers, truncatedCount }` を返す（`ImportedMarker` と同じ形。DOMParser・textContent だけ）
+- [X] T013 [P] [US1] 読み方のテストを先に書く：`import/kindle.test.ts`（R2 の決まりをひとつずつ。英語と日本語の見本で同じ結果・メモだけ・Kindle でない HTML はエラー・スクリプトの要素があっても動かない）
+- [X] T014 [US1] `apps/web/src/features/reading/import/kindle.ts`：`readKindleHtml(text)` が `{ title, author, markers, truncatedCount }` を返す（`ImportedMarker` と同じ形。DOMParser・textContent だけ）
 - [ ] T015 [P] [US1] Web のノートブックの貼り付けのテストと読み方：`import/kindle-notebook.ts`・`kindle-notebook.test.ts`（R3）
 - [ ] T016 [US1] 画面：`ImportPage.tsx` の「ファイルを選ぶ」で、HTML なら `readKindleHtml`、PDF なら `readGoodNotesPdf` に分ける（`accept` に `.html`）。貼り付けは、Web のノートブックの形なら `kindle-notebook`、そうでなければ reading-001 の貼り付けで読む。下書きに書名を入れ、確かめの画面の `guessBook` に書名を使う。「切れたかもしれない」数を確かめの画面に出す。テストを `ImportPage.test.tsx`・`ConfirmImportPage.test.tsx` に足す。取りこみの `source` は `kindle`
 
