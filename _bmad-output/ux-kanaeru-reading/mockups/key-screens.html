@@ -1,0 +1,363 @@
+<title>PaletKit 読書 主な画面の見本</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* ===== 読書 主な画面の見本（key screens）2版 =====
+   PRD：_bmad-output/prd-kanaeru-reading/prd-kanaeru-reading.md（final・2026-11-27）
+   見た目の決まり：docs/design/DESIGN.md（土台）・_bmad-output/ux-kanaeru-reception/DESIGN.md（墨）・
+   packages/ui/src/styles/tokens.css。外枠は apps/web/src/shell/AppShell.tsx（上の帯 56px・スマホは下のタブバー）。
+   - 色・文字の大きさ・余白・角・影は tokens.css の値だけ（見本の机と枠も、その値から選ぶ）。新しい色は足さない。
+   - 墨（primary）は、1つのまとまりの主のボタン1つ・選んだ状態・フォーカスの輪だけ。
+   - ボタンは高さ 48px。40px（小）はカードの中の小さな操作だけ。並べ方は ButtonRow（スマホは縦に積み、主が上で横いっぱい）。
+   - 選んだチップは primary-subtle の地・2px の墨のふち・チェックの印・太字。リンクは下線つき。
+   - 1つの画面の文字の大きさは xs・s・m・xl まで。リード文は1行まで。長い説明と頼む文は「詳しく」の開け閉めに入れる。
+   - 明るい見た目だけ（プロダクトの決め）。主に iPhone で使うので、スマホの幅（375px）で描く。
+   本・文・名前はすべて架空。画面の上の見出し（.lbl）は見本の説明で、画面の中の文字ではない。 */
+:root{
+  --primary:#3B3833;--on-primary:#FFFFFF;--primary-subtle:#EFEFEF;
+  --text:#23221E;--text-sub:#706D65;--text-link:#0071C1;
+  --background:#F8F7F6;--surface:#FFFFFF;--surface-sunken:#F5F4F3;--head:#EDEBE8;
+  --border:#D6D3D0;--border-input:#8A867F;
+  --warning:#FFCC17;--success:#0F7F85;
+  --fs-xs:12px;--fs-s:13.71px;--fs-m:16px;--fs-l:17px;--fs-xl:20px;
+  --sp-x3s:4px;--sp-xxs:8px;--sp-xs:16px;--sp-s:24px;--sp-m:32px;--sp-l:40px;--sp-xl:48px;--sp-xxl:56px;--sp-x3l:64px;
+  --r-s:4px;--r-m:6px;--r-l:8px;
+  --layer2:0 2px 4px 1px rgba(3,3,2,.3);
+  --focus:0 0 0 2px #FFFFFF,0 0 0 4px #3B3833;
+  --font:system-ui,"Hiragino Sans","Noto Sans JP",sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+body{background:var(--head);color:var(--text);font-family:var(--font);font-size:var(--fs-m);line-height:1.5}
+a{color:var(--text-link);text-decoration:underline;text-underline-offset:3px}
+button{font:inherit;color:inherit}
+:focus-visible{outline:none;box-shadow:var(--focus)}
+svg.i{width:var(--sp-xs);height:var(--sp-xs);flex:none}
+svg.i.lg{width:var(--sp-s);height:var(--sp-s)}
+
+/* 見本の台紙 */
+.wrap{max-width:1680px;margin:0 auto;padding-block:var(--sp-m) var(--sp-x3l);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.top{max-width:72ch;display:flex;flex-direction:column;gap:var(--sp-xxs)}
+.top h1{font-size:var(--fs-xl);line-height:1.25;margin:0;text-wrap:balance}
+.top p{margin:0;color:var(--text-sub);font-size:var(--fs-s)}
+.row{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,375px),375px));gap:var(--sp-m);margin-top:var(--sp-l);align-items:start}
+.col{display:flex;flex-direction:column;gap:var(--sp-xxs);min-width:0}
+.lbl{font-size:var(--fs-s);line-height:1.5}
+.lbl b{margin-right:var(--sp-xxs)}
+.lbl span{display:block;color:var(--text-sub);font-size:var(--fs-xs)}
+
+/* スマホの枠と外枠（AppShell と同じ形） */
+.phone{width:100%;max-width:375px;background:var(--background);border:1px solid var(--border-input);border-radius:var(--r-l);overflow:hidden;box-shadow:var(--layer2);display:flex;flex-direction:column;min-height:700px}
+.bar{min-height:var(--sp-xxl);display:flex;align-items:center;gap:var(--sp-xxs);padding:0 var(--sp-xs);background:var(--surface);border-bottom:1px solid var(--border)}
+.bar strong{font-size:var(--fs-l);line-height:1.25}
+.bar .sp{flex:1}
+.iconbtn{width:var(--sp-xl);height:var(--sp-xl);display:grid;place-items:center;border:0;background:none;border-radius:var(--r-s);cursor:pointer}
+.main{flex:1;padding:var(--sp-xs);display:flex;flex-direction:column;gap:var(--sp-s)}
+.tabbar{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:var(--surface);border-top:1px solid var(--border)}
+.tabbar a{min-height:var(--sp-xxl);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--sp-x3s);font-size:var(--fs-xs);line-height:1.25;color:var(--text-sub);text-decoration:none;border-top:2px solid transparent}
+.tabbar a.on{color:var(--text);font-weight:700;border-top-color:var(--primary)}
+.back{display:inline-flex;align-items:center;gap:var(--sp-x3s);align-self:flex-start;margin-bottom:calc(var(--sp-xxs) * -1)}
+
+/* ページの形：題 → リード文 → まとまり */
+.head{display:flex;flex-direction:column;gap:var(--sp-x3s)}
+.head h2{margin:0;font-size:var(--fs-xl);line-height:1.25;text-wrap:balance}
+.head p{margin:0;color:var(--text-sub);font-size:var(--fs-s)}
+.sec{display:flex;flex-direction:column;gap:var(--sp-xxs)}
+.sec h3{margin:0;font-size:var(--fs-m);line-height:1.25;display:flex;justify-content:space-between;gap:var(--sp-xxs)}
+.sec h3 span{font-weight:400;color:var(--text-sub);font-size:var(--fs-s);font-variant-numeric:tabular-nums}
+.sub{color:var(--text-sub);font-size:var(--fs-s)}
+.xs{font-size:var(--fs-xs)}
+p{margin:0}
+
+/* 部品 */
+.btn{min-height:var(--sp-xl);padding:0 var(--sp-xs);display:inline-flex;align-items:center;justify-content:center;gap:var(--sp-xxs);border-radius:var(--r-s);font-size:var(--fs-m);font-weight:700;border:1px solid transparent;cursor:pointer;text-align:center}
+.btn.primary{background:var(--primary);color:var(--on-primary)}
+.btn.secondary{background:var(--surface);color:var(--text);border-color:var(--border-input)}
+.btn.small{min-height:var(--sp-l);font-size:var(--fs-s)}
+/* ButtonRow end（スマホ）：縦に積み、主が上で横いっぱい。書く順は 二番 → 主 */
+.brow{display:flex;flex-direction:column-reverse;gap:var(--sp-xxs)}
+.brow .btn{width:100%}
+.inrow{display:flex;flex-wrap:wrap;gap:var(--sp-xxs)}
+.list{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-m);display:flex;flex-direction:column}
+.list a.li{min-height:var(--sp-xxl);display:flex;align-items:center;gap:var(--sp-xs);padding:var(--sp-xxs) var(--sp-xs);border-top:1px solid var(--border);color:var(--text);text-decoration:none}
+.list a.li:first-child{border-top:0}
+.li .t{flex:1;min-width:0}
+.li .t b{display:block}
+.li .t span{display:block;color:var(--text-sub);font-size:var(--fs-s)}
+.li svg{color:var(--text-sub)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-m);padding:var(--sp-xs);display:flex;flex-direction:column;gap:var(--sp-xxs);min-width:0}
+.field{display:flex;flex-direction:column;gap:var(--sp-xxs)}
+.field label,.field .fl{font-weight:700;font-size:var(--fs-m)}
+.input{min-height:var(--sp-xl);border:1px solid var(--border-input);border-radius:var(--r-s);background:var(--surface);padding:var(--sp-xxs) var(--sp-xs);display:flex;align-items:center;gap:var(--sp-xxs);color:var(--text)}
+.input.ph{color:var(--text-sub)}
+.input.area{min-height:128px;align-items:flex-start;font-size:var(--fs-s)}
+.quote{margin:0;padding:var(--sp-xxs) var(--sp-xs);background:var(--surface-sunken);border-radius:var(--r-s);font-size:var(--fs-s)}
+.quote cite{display:block;font-style:normal;color:var(--text-sub);font-size:var(--fs-xs);font-variant-numeric:tabular-nums}
+.mk{display:flex;flex-direction:column;gap:var(--sp-x3s)}
+.mk .c{font-size:var(--fs-m)}
+.tag{display:inline-flex;align-items:center;min-height:20px;padding:0 var(--sp-x3s);border-radius:var(--r-s);font-size:var(--fs-xs);font-weight:700;vertical-align:2px;margin-right:var(--sp-x3s)}
+.tag.q{background:var(--warning);color:var(--text)}
+.tag.line{background:var(--surface);border:1px solid var(--border-input);color:var(--text)}
+.chips{display:flex;flex-wrap:wrap;gap:var(--sp-xxs)}
+.chip{min-height:var(--sp-xl);padding:0 var(--sp-xs);display:inline-flex;align-items:center;gap:var(--sp-xxs);border:1px solid var(--border-input);border-radius:var(--r-s);background:var(--surface);font-size:var(--fs-m);cursor:pointer}
+.chip.on{background:var(--primary-subtle);border:2px solid var(--primary);padding:0 calc(var(--sp-xs) - 1px);font-weight:700}
+.done{display:flex;align-items:center;gap:var(--sp-xxs);font-weight:700;font-size:var(--fs-m)}
+.done svg{color:var(--success)}
+details{font-size:var(--fs-m)}
+details>summary{min-height:var(--sp-xl);display:flex;align-items:center;gap:var(--sp-xxs);color:var(--text-link);text-decoration:underline;text-underline-offset:3px;cursor:pointer;list-style:none}
+details>summary::-webkit-details-marker{display:none}
+details>summary svg{transition:transform .3s ease-out}
+details[open]>summary svg{transform:rotate(90deg)}
+details .in{display:flex;flex-direction:column;gap:var(--sp-xxs);padding-bottom:var(--sp-xxs);font-size:var(--fs-s)}
+.pre{margin:0;padding:var(--sp-xxs) var(--sp-xs);background:var(--surface-sunken);border:1px solid var(--border);border-radius:var(--r-s);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:var(--fs-xs);line-height:1.5;white-space:pre-wrap;word-break:break-word}
+ol.steps{margin:0;padding-left:var(--sp-s);display:flex;flex-direction:column;gap:var(--sp-x3s)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M14 6l4 4"/></symbol>
+  <symbol id="i-apps" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5z"/><path d="M4 21a2 2 0 0 1 2-2h13v2H6"/></symbol>
+  <symbol id="i-q" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14"/><path d="M12 17.5v.01"/></symbol>
+  <symbol id="i-back" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 4l-6 6 6 6"/></symbol>
+  <symbol id="i-next" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4l6 6-6 6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l4 4 8-9"/></symbol>
+  <symbol id="i-ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/></symbol>
+  <symbol id="i-search" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/></symbol>
+</svg>
+
+<div class="wrap">
+  <header class="top">
+    <h1>PaletKit 読書 主な画面の見本</h1>
+    <p>Kindle と GoodNotes で引いたマーカーとコメントを集め、話す・やってみる・書く材料にするアプリ。段階1の主な流れを9つの画面で描いた。外枠と部品は、ほかのアプリと同じ形（共通のデザインの決まりのとおり）。本・文・名前はすべて架空。</p>
+  </header>
+
+  <div class="row">
+
+    <!-- 1 本棚 -->
+    <div class="col">
+      <div class="lbl"><b>1 本棚</b><span>探す欄は本棚の上に置き、画面を1つ減らした。読み終えた本は閉じておく。</span></div>
+      <div class="phone">
+        <div class="bar"><strong>PaletKit</strong><span class="sp"></span><button class="iconbtn" aria-label="改善点を送る"><svg class="i"><use href="#i-pen"/></svg></button><button class="iconbtn" aria-label="アプリを切り替える"><svg class="i"><use href="#i-apps"/></svg></button></div>
+        <main class="main">
+          <div class="head"><h2>本棚</h2></div>
+          <div class="input ph"><svg class="i"><use href="#i-search"/></svg>マーカーとコメントを探す</div>
+          <section class="sec">
+            <h3>読んでいる <span>3冊</span></h3>
+            <div class="list">
+              <a class="li" href="#"><div class="t"><b>Kubernetes ネットワーク入門</b><span>GoodNotes・マーカー 41</span></div><svg class="i"><use href="#i-next"/></svg></a>
+              <a class="li" href="#"><div class="t"><b>チームで回す設計レビュー</b><span>Kindle・マーカー 18</span></div><svg class="i"><use href="#i-next"/></svg></a>
+              <a class="li" href="#"><div class="t"><b>測って直す Web の速さ</b><span>Kindle・マーカー 7</span></div><svg class="i"><use href="#i-next"/></svg></a>
+            </div>
+            <details><summary><svg class="i"><use href="#i-next"/></svg>読み終えた本（12冊）</summary></details>
+          </section>
+          <div class="brow"><button class="btn primary">取りこむ</button></div>
+        </main>
+        <nav class="tabbar"><a class="on" href="#"><svg class="i lg"><use href="#i-book"/></svg>本棚</a><a href="#"><svg class="i lg"><use href="#i-q"/></svg>あとで調べる</a></nav>
+      </div>
+    </div>
+
+    <!-- 2 取りこむ -->
+    <div class="col">
+      <div class="lbl"><b>2 取りこむ</b><span>ファイルの種類で Kindle か GoodNotes かを見分けるので、「どこから」を選ぶ画面をなくした。書き出し方は閉じておく。</span></div>
+      <div class="phone">
+        <div class="bar"><strong>PaletKit</strong><span class="sp"></span><button class="iconbtn" aria-label="改善点を送る"><svg class="i"><use href="#i-pen"/></svg></button><button class="iconbtn" aria-label="アプリを切り替える"><svg class="i"><use href="#i-apps"/></svg></button></div>
+        <main class="main">
+          <a class="back" href="#"><svg class="i"><use href="#i-back"/></svg>本棚</a>
+          <div class="head"><h2>取りこむ</h2><p>書き出したファイルを選ぶか、コピーした文を貼ります。</p></div>
+          <div class="brow"><button class="btn secondary">貼り付ける</button><button class="btn primary">ファイルを選ぶ</button></div>
+          <section class="sec">
+            <details><summary><svg class="i"><use href="#i-next"/></svg>Kindle からの書き出し方</summary>
+              <div class="in"><ol class="steps"><li>Kindle のノートブックを開く</li><li>「エクスポート」でメールに送る</li><li>届いたファイルをここで選ぶ</li></ol></div></details>
+            <details><summary><svg class="i"><use href="#i-next"/></svg>GoodNotes からの書き出し方</summary>
+              <div class="in"><ol class="steps"><li>本の「共有」を押す</li><li>「PDF」で書き出し、ファイルに保存する</li><li>保存したファイルをここで選ぶ</li></ol></div></details>
+          </section>
+          <p class="sub">ファイルはこの端末の中で読みます。送るのは、マーカーとコメントだけです。</p>
+        </main>
+        <nav class="tabbar"><a class="on" href="#"><svg class="i lg"><use href="#i-book"/></svg>本棚</a><a href="#"><svg class="i lg"><use href="#i-q"/></svg>あとで調べる</a></nav>
+      </div>
+    </div>
+
+    <!-- 3 確かめ -->
+    <div class="col">
+      <div class="lbl"><b>3 確かめてから入れる</b><span>入れる本と件数だけを見せる。本がまだなければ、ここで本棚に足す（「本を足す」の画面をなくした）。</span></div>
+      <div class="phone">
+        <div class="bar"><strong>PaletKit</strong><span class="sp"></span><button class="iconbtn" aria-label="改善点を送る"><svg class="i"><use href="#i-pen"/></svg></button><button class="iconbtn" aria-label="アプリを切り替える"><svg class="i"><use href="#i-apps"/></svg></button></div>
+        <main class="main">
+          <a class="back" href="#"><svg class="i"><use href="#i-back"/></svg>取りこむ</a>
+          <div class="head"><h2>読み取りました</h2><p>k8s-network.pdf（GoodNotes）</p></div>
+          <section class="card">
+            <span class="sub">入れる本</span>
+            <b>Kubernetes ネットワーク入門</b>
+            <div class="inrow"><button class="btn secondary small">ほかの本にする</button></div>
+          </section>
+          <section class="sec">
+            <p>新しいマーカー <b>9</b>・コメント <b>4</b>・「?」 <b>1</b></p>
+            <p class="sub">前に取りこんだ 32 は、重ねずにそのままにします。</p>
+          </section>
+          <div class="brow"><button class="btn secondary">やめる</button><button class="btn primary">入れる</button></div>
+        </main>
+        <nav class="tabbar"><a class="on" href="#"><svg class="i lg"><use href="#i-book"/></svg>本棚</a><a href="#"><svg class="i lg"><use href="#i-q"/></svg>あとで調べる</a></nav>
+      </div>
+    </div>
+
+    <!-- 4 本の画面 -->
+    <div class="col">
+      <div class="lbl"><b>4 本の画面</b><span>前回の内容と全体像。章ごとに本の順で並べ、マーカーのない章は1行だけ。章の帯と札を外した。</span></div>
+      <div class="phone">
+        <div class="bar"><strong>PaletKit</strong><span class="sp"></span><button class="iconbtn" aria-label="改善点を送る"><svg class="i"><use href="#i-pen"/></svg></button><button class="iconbtn" aria-label="アプリを切り替える"><svg class="i"><use href="#i-apps"/></svg></button></div>
+        <main class="main">
+          <a class="back" href="#"><svg class="i"><use href="#i-back"/></svg>本棚</a>
+          <div class="head"><h2>Kubernetes ネットワーク入門</h2><p>分かりたいこと：Service と Ingress の違いを説明できる</p></div>
+          <div class="brow"><button class="btn secondary">書き出す</button><button class="btn primary">説明の材料を作る</button></div>
+          <section class="sec">
+            <h3>2章 Pod どうしの通信 <span>14</span></h3>
+            <div class="mk"><blockquote class="quote">Pod には1つずつ IP が付き、NAT を通らずに互いに届く。<cite>p.38</cite></blockquote><p class="c">Docker の bridge と違うところ</p></div>
+            <div class="mk"><blockquote class="quote">網の仕組みそのものは、CNI の部品に任されている。<cite>p.41</cite></blockquote><p class="c"><span class="tag q">?</span>CNI と kube-proxy の違いが分からない</p></div>
+          </section>
+          <section class="sec">
+            <h3>3章 Service <span>12</span></h3>
+            <div class="mk"><blockquote class="quote">ClusterIP は、クラスタの中からだけ届く IP を与える。<cite>p.57</cite></blockquote><p class="c">まず ClusterIP から説明する</p></div>
+          </section>
+          <p class="sub">4章 DNS　マーカーなし</p>
+        </main>
+        <nav class="tabbar"><a class="on" href="#"><svg class="i lg"><use href="#i-book"/></svg>本棚</a><a href="#"><svg class="i lg"><use href="#i-q"/></svg>あとで調べる</a></nav>
+      </div>
+    </div>
+
+    <!-- 5 あとで調べる -->
+    <div class="col">
+      <div class="lbl"><b>5 あとで調べる</b><span>「?」のコメントを集める。「調べる」は、設定で選んだ自分の AI か検索を開く（PaletKit からは何も送らない）。ボタンは2つに絞った。</span></div>
+      <div class="phone">
+        <div class="bar"><strong>PaletKit</strong><span class="sp"></span><button class="iconbtn" aria-label="改善点を送る"><svg class="i"><use href="#i-pen"/></svg></button><button class="iconbtn" aria-label="アプリを切り替える"><svg class="i"><use href="#i-apps"/></svg></button></div>
+        <main class="main">
+          <div class="head"><h2>あとで調べる</h2><p>コメントの先頭に「?」を書いたもの（2件）</p></div>
+          <section class="card">
+            <span class="sub">Kubernetes ネットワーク入門・2章</span>
+            <p><span class="tag q">?</span>CNI と kube-proxy の違いが分からない</p>
+            <div class="inrow"><button class="btn secondary small">調べる</button><button class="btn secondary small">分かったことを書く</button></div>
+          </section>
+          <section class="card">
+            <span class="sub">チームで回す設計レビュー・4章</span>
+            <p><span class="tag q">?</span>ADR のひな形はどれが一般的？</p>
+            <div class="inrow"><button class="btn secondary small">調べる</button><button class="btn secondary small">分かったことを書く</button></div>
+          </section>
+          <details><summary><svg class="i"><use href="#i-next"/></svg>調べ終えたもの（5件）</summary></details>
+        </main>
+        <nav class="tabbar"><a href="#"><svg class="i lg"><use href="#i-book"/></svg>本棚</a><a class="on" href="#"><svg class="i lg"><use href="#i-q"/></svg>あとで調べる</a></nav>
+      </div>
+    </div>
+
+    <!-- 6 説明の材料 -->
+    <div class="col">
+      <div class="lbl"><b>6 説明の材料を作る</b><span>頼む文をコピーして自分の AI に貼り、答えを貼り戻す（PaletKit は AI を呼ばない）。頼む文は閉じておき、読み取った形の見本を外した。</span></div>
+      <div class="phone">
+        <div class="bar"><strong>PaletKit</strong><span class="sp"></span><button class="iconbtn" aria-label="改善点を送る"><svg class="i"><use href="#i-pen"/></svg></button><button class="iconbtn" aria-label="アプリを切り替える"><svg class="i"><use href="#i-apps"/></svg></button></div>
+        <main class="main">
+          <a class="back" href="#"><svg class="i"><use href="#i-back"/></svg>Kubernetes ネットワーク入門</a>
+          <div class="head"><h2>説明の材料を作る</h2><p>自分の AI（ChatGPT・Claude など）を使います。</p></div>
+          <section class="sec">
+            <span class="fl"><b>1. 頼む文をコピーして、AI に貼る</b></span>
+            <div class="inrow"><button class="btn secondary">頼む文をコピー</button></div>
+            <details><summary><svg class="i"><use href="#i-next"/></svg>頼む文を見る</summary>
+              <div class="in"><pre class="pre">私が技術書の内容を同僚に説明する準備を手伝ってください。
+分かりたいこと：Service と Ingress の違いを説明できる
+材料（私のマーカーとコメント）：…
+答えの形：見出し／要点3〜5／話すときの例／やってみることの候補</pre></div></details>
+          </section>
+          <section class="field">
+            <label for="m-ans">2. AI の答えを貼る</label>
+            <div class="input area" id="m-ans">## Service と Ingress の違い<br>1. Service は、入れ替わる Pod の前の変わらない窓口…</div>
+          </section>
+          <div class="brow"><button class="btn primary">残す</button></div>
+        </main>
+        <nav class="tabbar"><a class="on" href="#"><svg class="i lg"><use href="#i-book"/></svg>本棚</a><a href="#"><svg class="i lg"><use href="#i-q"/></svg>あとで調べる</a></nav>
+      </div>
+    </div>
+
+    <!-- 7 やってみること -->
+    <div class="col">
+      <div class="lbl"><b>7 やってみること</b><span>残したあと、押したボタンの近くに結果を出し、そのまま1つ決めてカレンダーに入れる。既定は2週間後の12時。</span></div>
+      <div class="phone">
+        <div class="bar"><strong>PaletKit</strong><span class="sp"></span><button class="iconbtn" aria-label="改善点を送る"><svg class="i"><use href="#i-pen"/></svg></button><button class="iconbtn" aria-label="アプリを切り替える"><svg class="i"><use href="#i-apps"/></svg></button></div>
+        <main class="main">
+          <a class="back" href="#"><svg class="i"><use href="#i-back"/></svg>Kubernetes ネットワーク入門</a>
+          <p class="done"><svg class="i lg"><use href="#i-ok"/></svg>説明の材料を残しました</p>
+          <div class="head"><h2>仕事でやってみること</h2><p>AI の答えの候補から選ぶか、自分で書きます。</p></div>
+          <section class="field">
+            <label for="m-try">やってみること</label>
+            <div class="input" id="m-try">設計レビューで Service を図1枚で説明する</div>
+          </section>
+          <section class="sec">
+            <p>12月11日（金）12:00 に思い出す</p>
+            <a href="#" style="align-self:flex-start">日時を変える</a>
+          </section>
+          <div class="brow"><button class="btn secondary">あとで決める</button><button class="btn primary">Google カレンダーに入れる</button></div>
+        </main>
+        <nav class="tabbar"><a class="on" href="#"><svg class="i lg"><use href="#i-book"/></svg>本棚</a><a href="#"><svg class="i lg"><use href="#i-q"/></svg>あとで調べる</a></nav>
+      </div>
+    </div>
+
+    <!-- 8 思い出す -->
+    <div class="col">
+      <div class="lbl"><b>8 思い出す</b><span>カレンダーの予定のリンクから開く。マーカーを2つと、やってみたかを選ぶだけ。催促はしない。</span></div>
+      <div class="phone">
+        <div class="bar"><strong>PaletKit</strong><span class="sp"></span><button class="iconbtn" aria-label="改善点を送る"><svg class="i"><use href="#i-pen"/></svg></button><button class="iconbtn" aria-label="アプリを切り替える"><svg class="i"><use href="#i-apps"/></svg></button></div>
+        <main class="main">
+          <div class="head"><h2>2週間前に読んだこと</h2><p>Kubernetes ネットワーク入門</p></div>
+          <section class="sec">
+            <div class="mk"><blockquote class="quote">ClusterIP は、クラスタの中からだけ届く IP を与える。<cite>3章・p.57</cite></blockquote><p class="c">まず ClusterIP から説明する</p></div>
+            <div class="mk"><blockquote class="quote">Pod には1つずつ IP が付き、NAT を通らずに互いに届く。<cite>2章・p.38</cite></blockquote><p class="c">Docker の bridge と違うところ</p></div>
+          </section>
+          <section class="sec">
+            <h3>設計レビューで Service を図1枚で説明する</h3>
+            <div class="chips" role="radiogroup" aria-label="やってみたか">
+              <button class="chip on" role="radio" aria-checked="true"><svg class="i"><use href="#i-check"/></svg>やった</button>
+              <button class="chip" role="radio" aria-checked="false">まだ</button>
+              <button class="chip" role="radio" aria-checked="false">やめた</button>
+            </div>
+          </section>
+          <section class="field">
+            <label for="m-res">結果（任意）</label>
+            <div class="input" id="m-res">図にしたら質問が減った</div>
+          </section>
+          <div class="brow"><button class="btn primary">残す</button></div>
+        </main>
+        <nav class="tabbar"><a class="on" href="#"><svg class="i lg"><use href="#i-book"/></svg>本棚</a><a href="#"><svg class="i lg"><use href="#i-q"/></svg>あとで調べる</a></nav>
+      </div>
+    </div>
+
+    <!-- 9 書き出す -->
+    <div class="col">
+      <div class="lbl"><b>9 書き出す</b><span>Markdown かブログの下書き（AI の貼る形）。本のリンクには設定の自分の ID が付き、開示の文も自動で入る。入れるものの選択を外した。</span></div>
+      <div class="phone">
+        <div class="bar"><strong>PaletKit</strong><span class="sp"></span><button class="iconbtn" aria-label="改善点を送る"><svg class="i"><use href="#i-pen"/></svg></button><button class="iconbtn" aria-label="アプリを切り替える"><svg class="i"><use href="#i-apps"/></svg></button></div>
+        <main class="main">
+          <a class="back" href="#"><svg class="i"><use href="#i-back"/></svg>Kubernetes ネットワーク入門</a>
+          <div class="head"><h2>書き出す</h2></div>
+          <div class="chips" role="radiogroup" aria-label="書き出す形">
+            <button class="chip on" role="radio" aria-checked="true"><svg class="i"><use href="#i-check"/></svg>Markdown</button>
+            <button class="chip" role="radio" aria-checked="false">ブログの下書き</button>
+          </div>
+<pre class="pre"># Kubernetes ネットワーク入門
+山辺 透
+
+## 分かりたいこと
+Service と Ingress の違いを説明できる
+
+## 3章 Service
+&gt; ClusterIP は、クラスタの中からだけ…（p.57）
+まず ClusterIP から説明する
+
+## やってみたこと
+- 設計レビューで図1枚で説明した → 質問が減った
+
+[Amazon で見る](…?tag=yuki-reads-22)
+Amazon のアソシエイトとして、yuki は適格販売により収入を得ています。</pre>
+          <div class="brow"><button class="btn secondary">ファイルにする</button><button class="btn primary">コピー</button></div>
+        </main>
+        <nav class="tabbar"><a class="on" href="#"><svg class="i lg"><use href="#i-book"/></svg>本棚</a><a href="#"><svg class="i lg"><use href="#i-q"/></svg>あとで調べる</a></nav>
+      </div>
+    </div>
+
+  </div>
+</div>
