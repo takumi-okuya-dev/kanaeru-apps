@@ -176,6 +176,13 @@
       "when": 1795678302881,
       "tag": "0024_suite_feedback",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1795836573540,
+      "tag": "0025_person",
+      "breakpoints": true
     }
   ]
 }
