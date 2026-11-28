@@ -4,18 +4,18 @@ type: architecture-spine
 purpose: build-substrate
 altitude: product
 paradigm: 'モジュラーモノリス（領域ごとのフォルダ・一方向の依存）'
-scope: 'kanaeru 全体（日常のちょっとした課題を解決するスイートの土台）と、最初の版の受付アプリ。2つ目からのアプリを並行して作るための決めごと（AD-15〜AD-21）。スイートの組織と契約の持ち主（AD-22）。受付アプリの予約とほかの主催者に開くこと（AD-23・AD-24）。試合表アプリ（AD-25〜AD-30）'
+scope: 'kanaeru 全体（日常のちょっとした課題を解決するスイートの土台）と、最初の版の受付アプリ。2つ目からのアプリを並行して作るための決めごと（AD-15〜AD-21）。スイートの組織と契約の持ち主（AD-22）。受付アプリの予約とほかの主催者に開くこと（AD-23・AD-24）。試合表アプリ（AD-25〜AD-30）。人物メモ（AD-31）。読書記録（AD-32〜AD-34）'
 status: final
 created: '2026-11-19'
-updated: '2026-11-22'
-binds: ['FR-1〜FR-25（PRD kanaeru 受付アプリ）', 'docs/backlog.md A（スイートとして並行開発できる構成への見直し）', 'FR-O1〜FR-O55・FR-T1〜FR-T66（PRD 組織と Threads のチーム運用）', 'FR-B1〜FR-B103（PRD 受付アプリの予約）', 'FR-M1〜FR-M28（PRD 試合表アプリ）']
-sources: ['../prd-kanaeru-reception/prd-kanaeru-reception.md', '../prd-kanaeru-org/prd-kanaeru-org.md', '../prd-kanaeru-booking/prd-kanaeru-booking.md', '../prd-kanaeru-match/prd-kanaeru-match.md', '../brief-kanaeru-apps/brief-kanaeru-apps.md', '../../docs/architecture.md']
+updated: '2026-11-28'
+binds: ['FR-1〜FR-25（PRD kanaeru 受付アプリ）', 'docs/backlog.md A（スイートとして並行開発できる構成への見直し）', 'FR-O1〜FR-O55・FR-T1〜FR-T66（PRD 組織と Threads のチーム運用）', 'FR-B1〜FR-B103（PRD 受付アプリの予約）', 'FR-M1〜FR-M28（PRD 試合表アプリ）', 'FR-P1〜FR-P18（PRD 人物メモ）', 'FR-R1〜FR-R32（PRD 読書記録の段階1）']
+sources: ['../prd-kanaeru-reception/prd-kanaeru-reception.md', '../prd-kanaeru-org/prd-kanaeru-org.md', '../prd-kanaeru-booking/prd-kanaeru-booking.md', '../prd-kanaeru-match/prd-kanaeru-match.md', '../prd-kanaeru-person/prd-kanaeru-person.md', '../prd-kanaeru-reading/prd-kanaeru-reading.md', '../brief-kanaeru-apps/brief-kanaeru-apps.md', '../../docs/architecture.md']
 companions: ['./.memlog.md']
 ---
 
 # 構成の決めごと — kanaeru
 
-作成：2026-11-19（決めた理由は [.memlog.md](./.memlog.md)。いまのコードの形は [docs/architecture.md](../../docs/architecture.md)。点検の記録は [reviews/](./reviews/)）。2026-11-19 直した（reception-002：交流会ごとの割引。AD-3・AD-5・AD-6・AD-7・Capability map。理由は [specs/reception/002-discounts/research.md](../../specs/reception/002-discounts/research.md)）。2026-11-19 直した（スイートとして並行開発できる構成への見直し：AD-15〜AD-21 を足し、AD-1・AD-3・AD-5・AD-9 を直した）。2026-11-19 主催者が確かめた（仮決めをすべて採用。AD-18 は共通にしてよいものを技術の道具に絞り、AD-20 の外の AI は本人の記録だけに決め、B1 はこのリポジトリの中。Constitution 1.1.0）。2026-11-20 直した（core-005：AD-3・AD-16 の売り方の列は売り始めるときに足す〈主催者が決めた〉・AD-15 の予約語に `settings`【仮決め】）。2026-11-20 直した（スイートの組織と契約の持ち主：AD-22 を足し、AD-3・AD-16・AD-19・Capability map・Deferred を直した。主催者が決めた〈組織単位の契約も見越す〉。同じ日に主催者の確かめで、持ち主の退会では組織に入れた記録を組織の管理者に引き継ぐ形と、退会の手順の順番〈suite → アプリ → account〉を AD-19・AD-22 に足した。範囲は [PRD 組織と Threads のチーム運用](../prd-kanaeru-org/prd-kanaeru-org.md)。【仮決め】の印は主催者の確かめを待つ）。2026-11-20 直した（受付アプリの予約と、ほかの主催者に開くこと：AD-23・AD-24 を足し、AD-1・AD-3・AD-5・AD-14・AD-19・Conventions・Capability map・Open Questions・Deferred を直した。主催者が決めた〈SaaS として複数の組織・個人に出す・予約はオプション・各組織の LINE 公式アカウント・メールを使う〈Constitution 1.2.0〉〉。範囲は [PRD 受付アプリの予約](../prd-kanaeru-booking/prd-kanaeru-booking.md)。【仮決め】の印は主催者の確かめを待つ）。2026-11-20 直した（booking-002：AD-14 に紐づけの道、AD-24 に Webhook の道・あいさつと許可リスト・設定の行の中身・送る道具の型の置き場所の注。理由は [specs/booking/002-notify/research.md](../../specs/booking/002-notify/research.md)）。2026-11-22 直した（試合表アプリ：AD-25〜AD-30 を足し、AD-3・AD-4・AD-14・AD-23・Consistency Conventions・Capability map・Open Questions・Deferred を直した。主催者が決めた〈見るだけのページはふつうのブラウザ・ログインなし〈Constitution 1.3.0〉・電波のない体育館で作る・組み直す・見せる・受付の交流会から名簿を入れる・組み方〉。範囲は [PRD 試合表アプリ](../prd-kanaeru-match/prd-kanaeru-match.md) 6章。【仮決め】の印は主催者の確かめを待つ）。2026-11-22 直した（Codex の指摘の確かめ：AD-28 に電波なしで渡す QR の版〈送り終えたあとの版〉と見る端末の比べ方、AD-29 に当日の組み直しで残す試合を足した）。2026-11-22 直した（booking-007：AD-24 の定時の処理を共通の窓口〈core-017〉に移した）
+作成：2026-11-19（決めた理由は [.memlog.md](./.memlog.md)。いまのコードの形は [docs/architecture.md](../../docs/architecture.md)。点検の記録は [reviews/](./reviews/)）。2026-11-19 直した（reception-002：交流会ごとの割引。AD-3・AD-5・AD-6・AD-7・Capability map。理由は [specs/reception/002-discounts/research.md](../../specs/reception/002-discounts/research.md)）。2026-11-19 直した（スイートとして並行開発できる構成への見直し：AD-15〜AD-21 を足し、AD-1・AD-3・AD-5・AD-9 を直した）。2026-11-19 主催者が確かめた（仮決めをすべて採用。AD-18 は共通にしてよいものを技術の道具に絞り、AD-20 の外の AI は本人の記録だけに決め、B1 はこのリポジトリの中。Constitution 1.1.0）。2026-11-20 直した（core-005：AD-3・AD-16 の売り方の列は売り始めるときに足す〈主催者が決めた〉・AD-15 の予約語に `settings`【仮決め】）。2026-11-20 直した（スイートの組織と契約の持ち主：AD-22 を足し、AD-3・AD-16・AD-19・Capability map・Deferred を直した。主催者が決めた〈組織単位の契約も見越す〉。同じ日に主催者の確かめで、持ち主の退会では組織に入れた記録を組織の管理者に引き継ぐ形と、退会の手順の順番〈suite → アプリ → account〉を AD-19・AD-22 に足した。範囲は [PRD 組織と Threads のチーム運用](../prd-kanaeru-org/prd-kanaeru-org.md)。【仮決め】の印は主催者の確かめを待つ）。2026-11-20 直した（受付アプリの予約と、ほかの主催者に開くこと：AD-23・AD-24 を足し、AD-1・AD-3・AD-5・AD-14・AD-19・Conventions・Capability map・Open Questions・Deferred を直した。主催者が決めた〈SaaS として複数の組織・個人に出す・予約はオプション・各組織の LINE 公式アカウント・メールを使う〈Constitution 1.2.0〉〉。範囲は [PRD 受付アプリの予約](../prd-kanaeru-booking/prd-kanaeru-booking.md)。【仮決め】の印は主催者の確かめを待つ）。2026-11-20 直した（booking-002：AD-14 に紐づけの道、AD-24 に Webhook の道・あいさつと許可リスト・設定の行の中身・送る道具の型の置き場所の注。理由は [specs/booking/002-notify/research.md](../../specs/booking/002-notify/research.md)）。2026-11-22 直した（試合表アプリ：AD-25〜AD-30 を足し、AD-3・AD-4・AD-14・AD-23・Consistency Conventions・Capability map・Open Questions・Deferred を直した。主催者が決めた〈見るだけのページはふつうのブラウザ・ログインなし〈Constitution 1.3.0〉・電波のない体育館で作る・組み直す・見せる・受付の交流会から名簿を入れる・組み方〉。範囲は [PRD 試合表アプリ](../prd-kanaeru-match/prd-kanaeru-match.md) 6章。【仮決め】の印は主催者の確かめを待つ）。2026-11-22 直した（Codex の指摘の確かめ：AD-28 に電波なしで渡す QR の版〈送り終えたあとの版〉と見る端末の比べ方、AD-29 に当日の組み直しで残す試合を足した）。2026-11-22 直した（booking-007：AD-24 の定時の処理を共通の窓口〈core-017〉に移した）。2026-11-27 直した（人物メモ：AD-31 を足し、AD-3・Consistency Conventions・Capability map・Open Questions・Deferred を直した。持ち主が決めた〈自分だけの非公開メモ・受付の名簿を出さない・外の AI に送らない・key は単数の `person`〉。範囲は [PRD 人物メモ](../prd-kanaeru-person/prd-kanaeru-person.md) 6章。持ち主は外出中で、【仮決め】の印は持ち主の確かめを待つ）
 
 ## Design Paradigm
 
@@ -36,6 +36,7 @@ flowchart TB
     booking["booking<br/>予約：設定・名簿・申込み・キャンセル待ち・知らせ（AD-23・AD-24）"]
   end
   next["2つ目からのアプリの領域"]
+  reading["reading<br/>読書記録：本・マーカー・説明の材料・やってみること（AD-32〜AD-34）"]
   suite --> account
   event --> account
   reception --> event
@@ -50,6 +51,8 @@ flowchart TB
   event -.->|"requireApp"| suite
   next -->|"requireApp"| suite
   next --> account
+  reading -.->|"requireApp"| suite
+  reading --> account
 ```
 
 ## Invariants & Rules
@@ -70,7 +73,7 @@ flowchart TB
 
 - **Binds:** all
 - **Prevents:** 2つの領域が同じ表を書き、どちらが正しいか分からなくなること
-- **Rule:** 表は、それを作った領域だけが読み書きする。ほかの領域の表が要るときは、その領域の `index.ts` が出す関数（1つ目の引数はいつも `db`）を呼ぶ。外部キーのためだけに、持ち主の `index.ts` から表を出してよい（`.references()` にだけ使い、読み書きに使わない）。表を作る PR は **account → event → reception → survey → booking → match** の順に develop へ入れる（match は 2026-11-22 足した。AD-25）。DB の変更の通し方は AD-17。持ち主は次のとおり（suite・account の AI と認証の表は、その機能を作るときに足す）。
+- **Rule:** 表は、それを作った領域だけが読み書きする。ほかの領域の表が要るときは、その領域の `index.ts` が出す関数（1つ目の引数はいつも `db`）を呼ぶ。外部キーのためだけに、持ち主の `index.ts` から表を出してよい（`.references()` にだけ使い、読み書きに使わない）。表を作る PR は **account → event → reception → survey → booking → match → person** の順に develop へ入れる（match は 2026-11-22 足した。AD-25。person は 2026-11-27 足した。AD-31）。DB の変更の通し方は AD-17。持ち主は次のとおり（suite・account の AI と認証の表は、その機能を作るときに足す）。
 
 | 領域 | 持つ表 |
 |---|---|
@@ -81,6 +84,7 @@ flowchart TB
 | booking〈2026-11-20 足した。AD-23・AD-24〉 | `booking_setting`（交流会ごとの使い方・定員・見せる範囲・受け付けるか。2026-11-21 booking-004 で、枠を押さえるのをやめた時刻・中止の時刻・最後に知らせた日時と場所・変更に気づいた時刻・当日の空きを知らせた時刻を足した）・`booking_quota`（媒体の枠）・`booking_entry`（申込み＝名簿の行：名前・媒体・入口・状態・account か連絡のメール・当てたチェックイン）・`booking_offer`（打診と返事の期限）・`booking_consent`（案内の同意。相手は組織か持ち主）・`booking_contact`（LINE で申し込んだ人の任意のメール）・`booking_line_channel`・`booking_line_link`（公式アカウントの設定と紐づけ）・`booking_notice`（知らせの記録）・`booking_email_request`（メールで申し込む確認の待ち。2026-11-20 booking-003 で足した。申込みになる前の名前・アドレス・札の SHA-256 を24時間だけ持つ）。細かい列は仕様で決める |
 | suite | `app_setting`（アプリの key・公開の状態。売り方の列は売り始めるときに足す〈core-005。主催者が決めた〉）・`organization`・`organization_member`・`organization_invite`（組織。AD-22〈2026-11-20 足した〉）・`entitlement`（契約。持ち主はアカウントか組織のどちらか1つ〈2026-11-20 直した〉。売り始めるとき。AD-16・AD-22） |
 | match〈2026-11-22 足した。AD-25・AD-28〉 | `match_table`（試合表：持ち主・日付・設定〈試合の形・レベルの分け方・1試合の長さ〉・名簿と組み合わせと進み具合〈呼び名とレベルだけ。氏名は持たない〉・版の番号・担当の端末・くじの種・見るだけの札〈SHA-256〉と期限・つないだ交流会〈任意〉）・`match_table_organization`（組織に入れる）・`match_level_memory`（前に入れたレベル。account のある人だけ）【仮決め】 |
+| person〈2026-11-27 足した。AD-31〉 | `person_note`（人のメモ：使う人・フルネーム・よみ・LINE の名前・見た目の特徴・アカウント・タグ・話したこと・次に話したいこと・検索のためにそろえた文）・`person_meeting`（会った場：使う人・作り方〈`event`・`manual`〉・名前・日付・PaletKit の交流会〈任意。消えたら null〉・検索のためにそろえた文）・`person_note_meeting`（人と会った場の組。持ち主を含む複合の外部キー）【仮決め】。細かい列は仕様で決める |
 | account（足すとき） | `ai_credential`（利用者の API キーの暗号文。AD-20）・OAuth のクライアントとトークン（AD-21） |
 
 ### AD-4 — ログインは LINE のIDトークンを API が確かめ、自前のセッションを出す [ADOPTED]
@@ -401,12 +405,97 @@ flowchart TB
   - **持ち方**：受付は試合表の中身（AD-28 の JSON）に直接書かず、`match_join`（試合表・呼び名・レベル・受け付けた時刻）に1行ずつ足す。担当の端末は、つながったときに受付の行を読んで名簿に足し、版を上げて送る（受付が担当の端末の変更とぶつからない）。運営は受付の行を直せる・消せる。試合表と一緒に消える（AD-25 の90日）。
   - **電波がないとき**：参加者の画面は、送れなかったら呼び名とレベルを入れた QR を出す。運営の画面はカメラでその QR を読んで名簿に足す（ブラウザの BarcodeDetector、使えないブラウザは QR を読む道具）【仮決め】。受付のページ自体が開けないときは、運営が手で入れる。
 
+### AD-31 — 人物メモは person の領域が持ち、使う人の account だけが持って外に出さない [ADOPTED]
+
+〈2026-11-27 足した：持ち主が決めた（自分だけの非公開メモ・受付の名簿や名前を候補に出さない・外の AI に送らない・顔写真と電話番号を持たない・会った場は PaletKit の交流会か手で書く・key は単数の `person`）。範囲は [PRD 人物メモ](../prd-kanaeru-person/prd-kanaeru-person.md)。点検は [reviews/](./reviews/) の `*-person.md`。【仮決め】の印は持ち主の確かめを待つ〉
+
+- **Binds:** person・reception と event（読むだけ。使う人の交流会の一覧を足す）・suite（読むだけ）・account（OAuth の範囲）・土台（予期しないエラーのログ）、PRD 人物メモの全体
+- **Prevents:** メモに書かれた他人の情報が、ほかの利用者・運営者の画面・外の AI・MCP の同意の画面・ログ・URL に出ること。受付の名簿やチェックインした人の名前がメモに写り、参加者の情報の使い道が変わること。選べる交流会の条件が reception・event・person で食い違うこと。手で書いた会った場の名前が揺れること、一意の制約が交流会の持ち主の退会を落とすこと。検索の当たり方と光らせる所が API と画面で食い違うこと
+- **Rule:**
+  - **アプリと領域**：アプリの key は `person`（AD-15）。領域は `person` の1つ。`uses: ["reception"]`。表は `person_` で始め、API の道は `/api/v1/person/…`、画面は `/person/…` の下に置く。`accountData` に「人物メモ（会った人・会った場）」を書く（退会の確かめの画面がここから作られる。確かめの中身は件数だけで、名前を出さない）。
+  - **記録**：最上位の記録は `person_note`（人のメモ）で、`owner_account_id` を持つ（AD-19）。メモの相手は PaletKit の利用者と結び付けず、相手の account の ID を持たない（AD-2）。
+  - **組織に入れない**：人物メモには組織に入れる表を作らない。権限は person の1つの関数で「持ち主か」だけを見る。ほかの人の記録は、道の ID でも本文の ID でも `404 NOT_FOUND`（あると知らせない）【仮決め】。
+  - **消し方**：`person_note`・`person_meeting` の `owner_account_id` は `ON DELETE CASCADE`（AD-7）。退会の前の手順（AD-22 の (2)）は持たない。account の削除と同じトランザクションで外部キーが消すので、手順は要らない。
+  - **会った場**：`person_meeting` は使う人の一覧の1件で、1件に何人もつながる。
+    - 作ったあと変えない `source`（`event`・`manual`）を持つ。`event` のものは `event_id`（`ON DELETE SET NULL`）と、作ったときの名前と日付（日本時間の日付。Consistency Conventions の ID・時刻）の写しを持ち、あとから交流会を読み直さない（AD-25 の試合表と同じ）。
+    - 一意は部分の索引2つ：`(owner_account_id, event_id) WHERE event_id IS NOT NULL` と、`(owner_account_id, 名前をそろえた文, 日付) WHERE source = 'manual'`。交流会が消えて `event_id` が null になっても、手で書いたものとぶつからない（ぶつかると、人物メモを使っていない交流会の持ち主の退会が落ちる）。作る窓口は「なければ作り、あれば返す」【仮決め】。
+    - 人と会った場の組 `person_note_meeting` は一意。`(note_id, owner_account_id)` と `(meeting_id, owner_account_id)` の複合の外部キー（どちらも CASCADE）で、持ち主の違うメモと会った場を結べないようにする【仮決め】。
+  - **選べる交流会**：使う人が **自分の account でチェックインした・持ち主の（`event.owner_account_id`）・受付係の（`event_staff`）** 交流会。組織の役割（管理者・編集者・部員）は数えない（主催者向けの今の一覧 `listAccessibleEvents` は組織の役割を含むので、そのまま使わない）。
+    - reception の `index.ts` に「その account がチェックインした交流会の ID の一覧」を、event の `index.ts` に「交流会の ID の一覧と、その account が持ち主か受付係の交流会」から `{eventId, name, startsAt}` をまとめて返す関数を足す（1件ずつ引かない）。どちらも持ち主の領域の小さな PR で先に入れる（AD-3）。
+    - 会った場を作るときは、person の API が同じ条件で確かめ直し、当たらなければ `404`。受付アプリが使う人に見えなければ、PaletKit の交流会を選ぶ部分を出さない（AD-15）。
+  - **読んでよいもの（許す一覧）**：person が import してよいのは、account・suite の `index.ts`（今の利用者・`isAppVisible`）と、上の2つの関数・`eventTable`（`.references()` にだけ）だけ。交流会の参加者・申込みの名簿を出す関数（reception の `listCheckins`・`listEventAttendees`、booking の `listApplicantRoster` など）は呼ばない（PRD 人物メモ FR-P8）。lint の `no-restricted-imports` で止める（共通の PR で先に入れる）【仮決め】。
+  - **検索**：持ち主の行だけを DB で探す。
+    - そろえ方（NFKC・カタカナをひらがなに・小文字）と、当たった箇所を **もとの文の中の位置** で返す関数は、`packages/contracts/src/person` に1つずつ置く（NFKC は文字の数を変えるので、そろえた文の位置でもとの文を切らない）。前後の文は API が作り、画面はもう一度探さない。
+    - API は保存のたびに「検索のためにそろえた文」と、そろえ方の版を持つ。そろえ方を直す PR は、作り直しの DB の変更を同じ PR に入れる。`LIKE` の `%`・`_`・`\` は逃がす（`ESCAPE`）。会った場の名前は、会った場のそろえた文と結んで探す【仮決め】。
+    - **検索の言葉とタグは、URL に載せない**：検索は `POST /api/v1/person/notes/search` の1つにする。メモの欄の値（検索の言葉・タグ・名前）を、画面の道・search params・ハッシュ・sessionStorage に入れない（画面も同じ Cloud Run から出るので、URL は要求のログと閲覧の履歴に残る）。人物メモの画面は5秒おきの読み直しを使わない【仮決め】。
+  - **書き足しと同時の編集**：書き足しの窓口は、画面が作る `clientRequestId` で二重を防ぐ。書き足しの見出しの日付は書き足した日（日本時間）【仮決め。持ち主の確かめを待つ】。メモの書き直しは版の番号で止め、食い違えば `409`【仮決め】。
+  - **アカウントの欄**：URL の組み立てと確かめ（そのほかの URL は `http`・`https` だけ）は `packages/contracts/src/person` に1つ置き、API と画面の両方が使う。
+  - **外に出さない**：
+    - 外の AI に渡す作業と MCP のツールを作らない（AD-20・AD-21。Constitution II）。今は `apps.list.ts` に足したアプリがすべて OAuth の範囲（`<key>:read`）と同意の画面に出るので、範囲を MCP のツールを出すアプリだけから作るよう、共通の PR で先に直す【仮決め】。
+    - 運営者の画面にメモの中身を出さない。本物のメモをステージングに入れない【仮決め】。
+    - 人物メモのすべての欄と検索の言葉は、ログ・エラーの知らせに出さない（Consistency Conventions のログ）。今の土台は、予期しないエラーの積み重ね（stack）をログに書き、DB のエラー（drizzle の `DrizzleQueryError`）は SQL に渡した値を含む。人物メモの表を作る前に、予期しない DB のエラーは SQLSTATE と制約の名前だけを書く形に、共通の PR で直す（困りごとの本文など、ほかの領域も同じ穴）。person は起こりうる DB のエラー（一意・外部キー・版の食い違い）を `AppError` に読みかえる。
+  - **書き出し**：CSV は person の API が持ち主にだけ作る。列は3章のメモの欄（会った場は名前と日付）。作り方は `packages/csv`（式として読まれない守り。Consistency Conventions の書き出し）。
+  - **暗号**：最初の版は、メモの中身を暗号にしない（持ち主が決めた）。一般に公開する前に、暗号の形を決める（Deferred）。
+
+### AD-32 — 読書記録は reading の領域が持ち、記録はすべて持ち主の account に付ける [ADOPTED]
+
+〈2026-11-28 足した：持ち主が決めた（PRD 読書記録の段階1。本とマーカーは自分だけの記録・本のファイルはサーバーに送らない・AI は貼る形だけ・書誌は国立国会図書館サーチと openBD）。範囲は [PRD 読書記録](../prd-kanaeru-reading/prd-kanaeru-reading.md) 4章・6章。細かい調べものは [補足](../prd-kanaeru-reading/addendum.md) 6〜8章。【仮決め】の印は持ち主の確かめを待つ〉
+
+- **Binds:** reading（API・画面・約束の3つの領域）・`apps.list.ts`・account
+- **Prevents:** 本とマーカーの持ち方がほかのアプリと違う形になること。取りこみ直しでマーカーが2重になること。読書記録の側で直したコメントが、取りこみ直しで消えること。退会したのに記録が残る・退会が DB のエラーで止まること
+- **Rule:**
+  - アプリの登録（AD-15）：key は `reading`、名前は「読書」、`uses: []`。表の名前は `reading_` で始め、API の道は `/api/v1/reading/…`、画面は `/reading/…`。
+  - 最上位の記録は本（`reading_book`）で、持ち主の `account_id` を持つ（AD-19）。段階1〜3は組織に入れない。マーカー・説明の材料・やってみること・設定（自分の ID）も、本か account にぶら下げ、どれも `ON DELETE CASCADE`（退会の前の手順は持たない）。
+  - 表の叩き台（細かい列は reading-001 の仕様で決める）：
+    - `reading_book`：書名・著者・ISBN・書影の URL・分かりたいこと・状態・読む場所・最後に取りこんだ時刻
+    - `reading_marker`：本・読む場所・章・ページか位置・本の中の並びの番号・マーカーの文・コメント・コメントを読書記録で直したか・`?` の印・分かったこと・重なりを見分ける鍵
+    - `reading_material`（説明の材料）・`reading_try`（やってみること・思い出す日時・結果）・`reading_setting`（Amazon と楽天の ID・開示に出す名前・調べる先）
+  - **重なりを見分ける鍵**：マーカーの文（空白をそろえたもの）と、ページか位置から作る SHA-256。`reading_marker` に（本・鍵）の一意の制約を置き、取りこみは「なければ足す」にする（2回送っても重ならない。FR-R10）。
+  - **取りこみ直し**（FR-R10）：コメントを読書記録で直した印があるマーカーと、`?` の印を付け外したマーカーは、取りこみで上書きしない。読む場所の側で消したマーカーは消さない。
+  - **探す**（FR-R17）：本人の記録の中だけを、DB の部分一致で探す（1人の記録は多くても数万件なので、全文検索の仕組みは入れない）【仮決め】。
+  - **AI**（AD-20）：説明の材料・ブログの下書き・調べる文の組み立ては、`packages/contracts/src/reading/` に1つずつ置く。段階1は貼る形だけで、PaletKit から外の AI へは何も送らない。調べる先（ChatGPT・Claude・Google）は、画面が URL に調べる文を入れて開くだけ。
+  - **カレンダー**（FR-R24）：予定のリンクは、`miniAppPermalink`（AD-14）で作る「思い出す」の道（`/reading/remind/{tryId}`）にする。既定の日時は2週間後の12時（夜の停止〈AD-10〉の外）。リンクは core の `googleCalendarUrl` で作る（共通の PR #173 で booking の約束から移した）。
+
+### AD-33 — 外の書誌の API は reading の API から呼び、選んだ本の書誌だけを持つ [ADOPTED]
+
+〈2026-11-28 足した：持ち主が決めた（PRD 読書記録の段階1。本とマーカーは自分だけの記録・本のファイルはサーバーに送らない・AI は貼る形だけ・書誌は国立国会図書館サーチと openBD）。範囲は [PRD 読書記録](../prd-kanaeru-reading/prd-kanaeru-reading.md) 4章・6章。細かい調べものは [補足](../prd-kanaeru-reading/addendum.md) 6〜8章。【仮決め】の印は持ち主の確かめを待つ〉
+
+- **Binds:** reading（API）・画面の CSP（`platform/web`）・設定と秘密の値
+- **Prevents:** 画面から外の API を直接呼んで CSP を広げること・鍵が画面に出ること。書誌の API の会社を替えるたびに、領域の中のあちこちを直すこと。書影の写しを持って、利用条件に反すること
+- **Rule:**
+  - 画面は `GET /api/v1/reading/catalog?q=…`（書名か ISBN）だけを呼ぶ。外の API を呼ぶのは reading の API の中の1つの部品で、API の会社ごとの違いはその中だけに置く（差しかえられる形）。
+  - 鍵が要る API なら、鍵は Secret Manager に置く（[コードの書き方の決まり](../../docs/rules/coding.md) 2）。外の API が落ちている・遅いときは `502`・code `CATALOG_UNAVAILABLE` を返し、画面は「手で書く」に進める（FR-R1）。
+  - **使う API**（2026-11-28 に利用条件を調べて決めた。[補足](../prd-kanaeru-reading/addendum.md) 8章）：
+    - 書名で探す：国立国会図書館サーチの OpenSearch に `dpid=iss-ndl-opac` を付ける（NDL が作った書誌に絞り、営利でも申請が要らない形）。本を足す画面に「国立国会図書館サーチの API を使っています」を出す。
+    - ISBN で取る：openBD（鍵なし・一度に複数）。なければ NDL の ISBN の検索で補う。
+    - 使わない：Google Books（料金を取るアプリに使えない・DB を作れない）・楽天（アフィリエイト以外の稼ぎ方を禁止）・Open Library（商用の裏側に使わないでと書かれている）。
+  - 持つのは、利用者が選んだ本の書誌（書名・著者・ISBN・書影の URL）だけ。検索の結果は持たない。
+  - **書影**：openBD に書影があるときだけ、配信元の URL から出す（写しを持たない）。なければ、画面が書名を入れた仮の表紙を描く（技術書の多くは書影がない。国立国会図書館の書影の API は 2026-03-31 に終わった）。画面の CSP の `imgSrc` に足すのは `https://cover.openbd.jp` だけ（共通の PR #176）。
+  - 回数の制限は、ログインした人ごとにかける（組み立ての今の制限を使う）。外の API に送る問い合わせは、短い間に同じものを重ねて送らない（画面は入力が止まってから探す）。
+
+### AD-34 — 取りこむファイルは端末の中で読み、読み取ったマーカーとコメントだけを分けて送る [ADOPTED]
+
+〈2026-11-28 足した：持ち主が決めた（PRD 読書記録の段階1。本とマーカーは自分だけの記録・本のファイルはサーバーに送らない・AI は貼る形だけ・書誌は国立国会図書館サーチと openBD）。範囲は [PRD 読書記録](../prd-kanaeru-reading/prd-kanaeru-reading.md) 4章・6章。細かい調べものは [補足](../prd-kanaeru-reading/addendum.md) 6〜8章。【仮決め】の印は持ち主の確かめを待つ〉
+
+- **Binds:** reading（画面と API）・画面の組み立て（Vite）・画面の CSP
+- **Prevents:** 買った本のファイルがサーバーに残ること（著作権・漏れ）。PDF を読む部品のために CSP を緩めること（`unsafe-eval`・外の CDN）。大きな取りこみが API の本文の上限（`MAX_BODY_BYTES`＝100KB）で落ちること。部品が画面のすべての道の読みこみを重くすること
+- **Rule:**
+  - Kindle の書き出し（HTML）・Web のノートブックの貼り付け・GoodNotes の PDF・ふつうの貼り付けは、**画面の reading の領域**（`apps/web/src/features/reading/import/`）で読む。読み方は読書記録の業務なので、共通には置かない（AD-18）。サーバーには、本のファイルも、マーカーのない本の文も送らない。
+  - **PDF を読む部品**は pdf.js（`pdfjs-dist`）。取りこみの画面を開いたときだけ読みこむ（動的 import）。
+    - 部品の worker と、日本語の文字の対応表（CMap）は、組み立てで画面の静かなファイルとして出す（自分のドメインから。CSP の `scriptSrc 'self'` の中で動き、CSP を変えない）。
+    - `isEvalSupported: false`・`disableFontFace: true` で使う（文字を取り出すだけで、描かない）。
+    - ページごとに読んで片づけ、1つの PDF は 300MB まで（FR-R7・PRD 4.2）。
+  - **GoodNotes の PDF の読み方**（[補足](../prd-kanaeru-reading/addendum.md) 6章）：マーカーは「半透明で太い線」を見つけ、その下の文を拾う。テキストボックスは本と違う書体の文を拾い、同じページのいちばん近いマーカーのコメントにする。章はページの上の柱から取り、取れなければページで並べる。読み方の関数は状態を持たない形にし、書き出した PDF の形を写した小さな見本（架空の文で作る。本物の本の PDF はリポジトリに置かない）でテストする。
+  - **Kindle の書き出しの読み方**（[補足](../prd-kanaeru-reading/addendum.md) 7章）：`div.bookTitle` と `div.noteHeading` があれば Kindle の HTML とみなし、言葉ではなくクラス名と並びで読む。`sectionHeading` を今の章として持ち、見出しに `span[class^=highlight_]` があればハイライト、なければメモ（直前のハイライトに付ける）。見出しの最後の数字を位置、その前があればページにする。HTML は `DOMParser` で読み、`textContent` だけを使う。日本語のアプリで書き出した実物で、見出しの言葉を確かめてから作る。
+  - **送り方**：確かめの画面（FR-R9）で利用者が「入れる」を押したあと、マーカーを 100KB に収まる束に分けて `POST /api/v1/reading/books/{bookId}/markers:import` に順に送る。重なりは AD-32 の鍵で止めるので、途中で切れても、もう一度送ればよい。1回の取りこみは5,000件まで（多いときは `422`）。
+  - 確かめの画面の「新しいマーカー」の数は、画面が `GET /api/v1/reading/books/{bookId}/marker-keys`（鍵の一覧）を読んで、端末の中で数える。
+
 ## Consistency Conventions
 
 | Concern | Convention |
 | --- | --- |
 | 名前 | 領域のフォルダは英語の単数（`account`・`event`・`reception`・`survey`）。表は単数の snake_case。画面と文書の言葉は PRD 3章の用語集のまま |
-| 道の頭 | account：`/api/v1/auth/*`・`/api/v1/accounts/*`／event：`/api/v1/events/*`・`/api/v1/staff-invites/*`／reception：`/api/v1/events/{eventId}/checkins/*`／survey：`/api/v1/events/{eventId}/survey-answers/*`／suite：`/api/v1/suite/*` ／booking：`/api/v1/booking/*`（AD-23）／match：`/api/v1/match/*`（AD-25。見るだけの `/api/v1/match/views/{viewToken}` はログインなし。AD-26）／MCP：`/api/mcp`・認可：`/api/oauth/*` と `/.well-known/oauth-*` 。新しい領域は `/api/v1/<領域>/…`（AD-15）。`operationId` は領域の名前で始める。新しいアプリの画面の道は `/<アプリのkey>/…`（AD-15） |
+| 道の頭 | account：`/api/v1/auth/*`・`/api/v1/accounts/*`／event：`/api/v1/events/*`・`/api/v1/staff-invites/*`／reception：`/api/v1/events/{eventId}/checkins/*`／survey：`/api/v1/events/{eventId}/survey-answers/*`／suite：`/api/v1/suite/*` ／booking：`/api/v1/booking/*`（AD-23）／match：`/api/v1/match/*`（AD-25。見るだけの `/api/v1/match/views/{viewToken}` はログインなし。AD-26）／person：`/api/v1/person/*`（AD-31）／MCP：`/api/mcp`・認可：`/api/oauth/*` と `/.well-known/oauth-*` 。新しい領域は `/api/v1/<領域>/…`（AD-15）。`operationId` は領域の名前で始める。新しいアプリの画面の道は `/<アプリのkey>/…`（AD-15） |
 | ID・時刻 | 主キーは `uuid`（`uuidv7()`。PostgreSQL 18 が要る）。DB は `timestamptz`。API と画面の間の日時は時差つきの ISO 8601 だけ。「日本時間の日付」と「その日の終わり」を出す関数は `packages/contracts/src/core` に1つ置き、サーバーの時刻帯に頼らない |
 | 金額 | 円の整数（`integer`）。小数を使わない |
 | 選択肢 | 値は英語の短い code（例：`paypay`・`cash`・`free`）。文言と並び順は同じ列挙の隣に持つ。持ち主の領域の contracts に置く（申し込みの媒体・知ったきっかけ・支払い方法は reception、月いくら・仕事の立場・職種は survey）。DB は `text` と CHECK の制約 |
@@ -415,7 +504,7 @@ flowchart TB
 | エラー | テンプレートの形（`{error: {code, message, requestId, fields?}}`）。未ログインは `401 UNAUTHENTICATED`、権限なしは `403`、DB の夜間停止は `503 DB_UNAVAILABLE`。見えないアプリは `404`（AD-16）、AI の答えの形の崩れは `422 AI_RESPONSE_INVALID`、AI の会社のエラーは `502 AI_PROVIDER_ERROR`（AD-20）、ほかの人が書く記録を持つアカウントの削除は `409 ACCOUNT_OWNS_SHARED_RECORDS`（AD-19） |
 | 一覧画面の更新 | TanStack Query の読み直しを5秒おきにする（つなぎっぱなしの仕組みは使わない）。チェックインと修正の後は、その場で読み直す。試合表の見るだけのページは、つながっているときだけ30秒おきに版の番号を確かめる（AD-26） |
 | 書き出し | API が作る UTF-8 の BOM つきの CSV。参加者の CSV は reception、困りごとの CSV は survey（どちらも主催者だけ）。作り方（BOM・CRLF・式として読まれない守り）は `packages/` の CSV の包み、画面のダウンロードは `apps/web/src/lib/download.ts` の1つずつ（AD-18。core-004 でまとめる） |
-| ログ | pino の JSON を標準出力へ（Cloud Logging が拾う）。困りごとの本文・IDトークン・クッキー・利用者の API キー・OAuth のトークン・AI に送ったプロンプトと答え・メールアドレス・LINE 公式アカウントの鍵・知らせの本文と札はログに書かない |
+| ログ | pino の JSON を標準出力へ（Cloud Logging が拾う）。困りごとの本文・IDトークン・クッキー・利用者の API キー・OAuth のトークン・AI に送ったプロンプトと答え・メールアドレス・LINE 公式アカウントの鍵・知らせの本文と札・人物メモのすべての欄と検索の言葉（AD-31）はログに書かない |
 | 設定 | 環境の違いは環境変数で持つ（`LINE_CHANNEL_IDS`・`ORGANIZER_LINE_USER_ID`・`OPEN_CHAT_URL`・`DATABASE_URL`・`NOTIFY_MODE`・`NOTIFY_ALLOWLIST`〈AD-24〉など。読むのは `kernel/config.ts`）。例外は組み立てのときに埋める `VITE_LIFF_ID`。秘密の値は Secret Manager から Cloud Run に渡す。アプリの公開の状態と売り方は設定にせず、suite の表に持つ（AD-16） |
 | 1行に1つの一覧 | 領域やアプリを足すたびに1行足すファイルは `merge=union`（[並行開発の決まり](../../docs/rules/parallel-development.md) 3-1）：API の領域・画面の領域・アプリの一覧（AD-15）・MCP のツールの一覧（AD-21）・`docs/decisions.md`（AD-18） |
 
@@ -545,6 +634,8 @@ apps/api/src/platform/mcp/     # /api/mcp とツールの一覧（AD-21。MCP �
 | PRD 組織と Threads のチーム運用（組織・人と役割・招待・契約の持ち主／Threads の組織に入れる・関わりの判定・担当・承認を任せる・運用状況） | suite（組織・契約の持ち主）・threads（組織に入れる・担当・判定・運用状況） | AD-16・AD-19・AD-22 |
 | PRD 受付アプリの予約（交流会の持ち主と組織・部員／使い方・名簿・自前の申込み・定員とキャンセル待ち・知らせ） | event（持ち主・組織に入れる・判定）・booking（予約のすべて・知らせの業務）・`platform/notify`（送る道具）・reception（チェックインした人を出す） | AD-5・AD-19・AD-23・AD-24 |
 | PRD 試合表アプリ（名簿の入れ方・組み方・当日の組み直し・見せ方・印刷・ネットなし・使う人を増やす入口） | match（試合表・組織に入れる・判定・見るだけの窓口・受付の窓口）・画面の match（組み合わせの計算・ネットなし・印刷）・`apps/web/src/lib`（CSV を読む）・reception と booking（名簿を出す） | AD-4・AD-19・AD-22・AD-23・AD-25〜AD-30 |
+| PRD 人物メモ（人を足す・書く・会った場・続けて足す・探す・書き出し・退会） | person（メモ・会った場・判定・検索・CSV）・`packages/contracts/src/person`（検索のそろえ方）・reception と event（使う人の交流会の一覧を出す） | AD-2・AD-7・AD-15・AD-19・AD-20・AD-31 |
+| PRD 読書記録の段階1（本棚・取りこみ・本の画面・探す・あとで調べる・説明の材料とやってみること・思い出す・書き出し） | reading（本・マーカー・説明の材料・やってみること・設定・書誌の窓口）・画面の reading（ファイルを端末で読む・調べる先を開く）・`packages/contracts/src/reading`（AI の作業・調べる文）・`packages/contracts/src/core`（カレンダーの道具） | AD-10・AD-14・AD-15・AD-18・AD-19・AD-20・AD-32〜AD-34 |
 
 ## Open Questions
 
@@ -571,6 +662,17 @@ apps/api/src/platform/mcp/     # /api/mcp とツールの一覧（AD-21。MCP �
 10. 電波なしで渡す QR に、22人ほど・4つのレベル・各8試合の表が入るか（呼び名を番号に置きかえて縮める形も試す）。入らなければ、レベルごとに QR を分ける。
 11. LIFF を始めない試合表の道で、運営が LINE ログインをし直す流れ（外のブラウザ向けのログイン）が通るか（Open Questions 3 と同じ確かめ）。
 
+人物メモ（AD-31。2026-11-27 足した）で作りながら確かめること：
+
+12. 本文まで当たる検索を、持ち主の行だけを DB で部分一致に探す形（`owner_account_id` の索引）でまかなえるか（1人の使う人が数百人まで）。遅ければ索引を足す。pg_trgm は日本語の1〜2文字の言葉（名字の多く）に効きにくいので、日本語には pg_bigm（Cloud SQL のフラグ `cloudsql.enable_pg_bigm`）を先に比べる。
+13. 人物メモの道を、LIFF を始めない道にするか（帰り道のスマホで開く。AD-4 の試合表と同じ扱い）。する場合は、AD-4 の試合表と同じく共通の PR で先に入れる。仕様で決める。
+
+読書記録（AD-32〜AD-34。2026-11-28 足した）で作る前・作りながら確かめること：
+
+14. LINE の中のブラウザ（ミニアプリ）で、ファイルを選べるか（Kindle の書き出しの HTML・GoodNotes の PDF）。選べなければ、取りこみは Safari などふつうのブラウザで開く案内を出す（PC の外のブラウザでの LINE ログインは Open Questions 3）。
+15. iPhone の Safari で、300MB までの PDF を pdf.js でページごとに読めるか（記憶の量）。だめなら上限を下げる。
+16. 日本語の Kindle アプリで書き出した HTML の見出しの言葉（「ハイライト」「位置No.」など）。持ち主が1冊書き出して確かめ、テストの見本（架空の文）にする。
+
 ## Deferred
 
 - ~~**ステージングの環境**~~：2026-11-22 に足した（core-018。同じ Cloud SQL の台の中の2つ目の DB。AD-8・AD-11）。別のプロジェクトに分ける（構成 C）のは、利用者が増えてから。
@@ -583,7 +685,9 @@ apps/api/src/platform/mcp/     # /api/mcp とツールの一覧（AD-21。MCP �
 - ~~**受付アプリをほかの主催者に開くこと**~~（2026-11-20 に AD-23 で決めた）。
 - **アプリの中の AI（AI が代わりに動く）のモデルと費用**：kanaeru が費用を持つ AI を入れるときに決める（いまは段階1・2で利用者が持つ。原則 V）。
 - **AI に許す操作の記録と回数の制限**：MCP を作るときに決める（AD-21）。
-- **夜間の停止と MCP・暮らしのアプリ**：0時〜8時は DB が止まるので、MCP と暮らしのアプリも使えない（`503 DB_UNAVAILABLE`）。暮らしのアプリか MCP を出すときに AD-10 を見直す。
+- **夜間の停止と MCP・暮らしのアプリ**：0時〜8時は DB が止まるので、MCP と暮らしのアプリも使えない（`503 DB_UNAVAILABLE`）。暮らしのアプリか MCP を出すときに AD-10 を見直す。人物メモは最初の版ではこのままでよい（持ち主が決めた）。一般に公開する前に見直す。
+- **人物メモの中身の暗号**：最初の版は暗号にしない（AD-31）。一般に公開する前に、サーバーの鍵（`packages/secret-box`）か、端末だけの鍵かを決める。検索の形（AD-31 の「検索のためにそろえた文」）も、そのときに見直す。
 - **アカウントとログインの手段の表を分けること**：LINE 以外のログインの手段を足すときに決める（Web 用の LINE ログインは同じプロバイダーなので、同じ LINE のユーザーID で今の `account` に入れる）。
 - **試合表の空いたコートに次を入れる形・読み上げ・点数**：PRD 試合表アプリ 7.2 のとおり、この版では作らない。作るときに AD-28 の中身の形を広げる。
+- **読書記録の公開の本棚**（PRD 読書記録 4.9。段階2）：URL（独自のドメインは取らず Cloud Run の既定の URL で始め、利用者が増えたら取る。2026-11-28 に持ち主が決めた）・URL の形（AD-15 の `/<key>/…` に従うか）・LIFF を立ち上げないページ・題と OGP と状態コード・検索に出す・回数の制限・夜の停止の間の出し方（AD-10）・持ち主が止められること（AD-19 の例外）を、Constitution の改訂（1.4.0）と一緒に段階2の前に決める。
 - **コールドスタートの対策**：最初は「受付の前に主催者が一度開いて起こす」。足りなければ、交流会の時間だけ最小の台数を1にする（AD-8 を直してから）。

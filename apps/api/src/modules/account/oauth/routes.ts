@@ -86,7 +86,7 @@ type Rejected =
  * @returns 検証を通った要求、または失敗
  */
 async function validateAuthorize(
-  deps: Pick<DomainRouteDeps, "db" | "fetch" | "config" | "apps">,
+  deps: Pick<DomainRouteDeps, "db" | "fetch" | "config" | "apps" | "mcpTools">,
   raw: Record<string, unknown>,
 ): Promise<{ ok: true; value: Validated } | { ok: false; reason: Rejected }> {
   const parsed = contract.AuthorizeParams.safeParse(raw);
@@ -145,12 +145,13 @@ async function validateAuthorize(
   if (!isAcceptableChallenge(request.code_challenge, request.code_challenge_method)) {
     return back("invalid_request", "PKCE（S256）が必要");
   }
-  const allowed = deps.apps.map((app) => `${app.key}:read`);
+  const allowed = mcpReadScopes(deps);
   const requested = (request.scope ?? "").split(" ").filter((s) => s.length > 0);
   if (requested.some((s) => !allowed.includes(s))) {
     return back("invalid_scope", "使えない範囲がある");
   }
   const scopes = requested.length > 0 ? requested : allowed;
+  if (scopes.length === 0) return back("invalid_scope", "使える範囲がない");
   return { ok: true, value: { client, request, scopes } };
 }
 
@@ -200,6 +201,24 @@ function redirectWith(redirectUri: string, params: Record<string, string>, issue
   for (const [key, value] of Object.entries({ ...params, iss: issuer }))
     url.searchParams.set(key, value);
   return url.toString();
+}
+
+/**
+ * 読む範囲（`<アプリのkey>:read`）の一覧。MCP の道具を出すアプリだけ（core-021 FR-022）。
+ * 道具を出さないアプリ（人物メモなど、本人の記録を外へ出さないアプリ。AD-20・AD-31）は、
+ * メタデータ・同意の画面・許す範囲のどれにも出さない。並びはアプリの一覧の順。
+ * @param deps 土台の道具
+ * @returns 範囲の一覧
+ */
+export function mcpReadScopes(deps: Pick<DomainRouteDeps, "apps" | "mcpTools">): string[] {
+  // 道具の範囲が、どのアプリの範囲にも合わなければ、黙って消さずに組み立てを止める（core-021 FR-025）
+  for (const tool of deps.mcpTools ?? []) {
+    if (!deps.apps.some((app) => tool.requiredScope === `${app.key}:${tool.access}`)) {
+      throw new Error(`MCP の道具 ${tool.name} の範囲が、どのアプリの範囲にも合いません。`);
+    }
+  }
+  const required = new Set((deps.mcpTools ?? []).map((tool) => tool.requiredScope));
+  return deps.apps.map((app) => `${app.key}:read`).filter((scope) => required.has(scope));
 }
 
 /**
@@ -408,6 +427,8 @@ export function registerOAuthRoutes<T extends OpenAPIHono<ApiEnv>>(
   app: T,
   deps: DomainRouteDeps,
 ): T {
+  // 道具の範囲の食い違いは、組み立てのときに止める（mcpReadScopes が投げる）
+  mcpReadScopes(deps);
   const issuer = issuerOf(deps.config.webUrl);
   const resource = canonicalMcpResource(deps.config.webUrl);
 
@@ -423,7 +444,7 @@ export function registerOAuthRoutes<T extends OpenAPIHono<ApiEnv>>(
       token_endpoint_auth_methods_supported: ["none", "client_secret_post"],
       client_id_metadata_document_supported: true,
       authorization_response_iss_parameter_supported: true,
-      scopes_supported: deps.apps.map((app) => `${app.key}:read`),
+      scopes_supported: mcpReadScopes(deps),
     }),
   );
 
@@ -432,7 +453,7 @@ export function registerOAuthRoutes<T extends OpenAPIHono<ApiEnv>>(
       resource,
       authorization_servers: [issuer],
       bearer_methods_supported: ["header"],
-      scopes_supported: deps.apps.map((app) => `${app.key}:read`),
+      scopes_supported: mcpReadScopes(deps),
     }),
   );
 
@@ -667,9 +688,13 @@ export function registerOAuthRoutes<T extends OpenAPIHono<ApiEnv>>(
     if (!row || row.clientRowId !== client.id || row.resource !== body.resource) {
       return oauthError(c, 400, "invalid_grant", "更新の札が無効");
     }
+    // 前に同意した範囲のうち、今は出していない範囲（道具を出さなくなったアプリ）は、新しい札に引き継がない（core-021 FR-022）
+    const offered = new Set((deps.mcpTools ?? []).map((tool) => tool.requiredScope));
+    const scopes = row.scopes.filter((scope) => offered.has(scope));
+    if (scopes.length === 0) return oauthError(c, 400, "invalid_grant", "使える範囲がない");
     await revokeToken(deps.db, row.tokenId);
     c.header("Cache-Control", "no-store");
-    return c.json(await issueTokens(deps.db, row.grantId, row.resource, row.scopes), 200);
+    return c.json(await issueTokens(deps.db, row.grantId, row.resource, scopes), 200);
   });
 
   registerConnectionRoutes(app, deps);
