@@ -14,8 +14,8 @@
 
 ## Phase 1：約束（pr1。`feature/person-002-pr1-event-meetings`）
 
-- [ ] T006 [P] [US1] 約束のテストを書く：`packages/contracts/src/person/meeting.test.ts` に `EventCandidate`・`EventCandidateList`・`MeetingFromEventInput`（`eventId` は uuid）の形
-- [ ] T007 [US1] `packages/contracts/src/person/meeting.ts` に `EventCandidate`（`eventId`・`name`・`metOn`・`meetingId|null`）・`EventCandidateList`（`available`・`items`）・`MeetingFromEventInput` を、`limits.ts` に `PERSON_EVENT_CANDIDATE_MAX = 50` を足し、`index.ts` から出す
+- [x] T006 [P] [US1] 約束のテストを書く：`packages/contracts/src/person/meeting.test.ts` に `EventCandidate`・`EventCandidateList`・`MeetingFromEventInput`（`eventId` は uuid）の形
+- [x] T007 [US1] `packages/contracts/src/person/meeting.ts` に `EventCandidate`（`eventId`・`name`・`metOn`・`meetingId|null`）・`EventCandidateList`（`available`・`items`）・`MeetingFromEventInput` を、`limits.ts` に `PERSON_EVENT_CANDIDATE_MAX = 50` を足し、`index.ts` から出す
 
 ## Phase 2：User Story 1 - 交流会を選んで会った場にする（P1）🎯 MVP
 
@@ -25,35 +25,35 @@
 
 ### Tests（先に書く）
 
-- [ ] T008 [P] [US1] `apps/api/src/modules/person/event-meetings.test.ts`（候補の窓口）：持ち主・受付係・チェックインの会が出る。関係のない会と組織の役割だけの会は出ない。同じ会は1件。今日より後の会は出ない。新しい順に最大50件。作った会には `meetingId`。受付アプリが見えないときは `available: false` で空
-- [ ] T009 [P] [US1] 同じファイル（作る窓口）：201 で名前の写しと日本時間の日付の会った場ができる。2回目は 200 で同じ ID。同時に2回送っても1つ。選べない会・ない会・今日より後の会・受付アプリが見えないときは `404 PERSON_NOT_FOUND`。形の違う `eventId` は 400
-- [ ] T010 [P] [US1] `apps/api/src/modules/person/logging.test.ts` に2つの窓口を足す（交流会の名前とチェックインした人の名前を決まった言葉にして、ログと答えに出ないこと）
+- [x] T008 [P] [US1] `apps/api/src/modules/person/event-meetings.test.ts`（候補の窓口）：持ち主・受付係・チェックインの会が出る。関係のない会と組織の役割だけの会は出ない。同じ会は1件。今日より後の会は出ない。新しい順に最大50件。作った会には `meetingId`。受付アプリが見えないときは `available: false` で空
+- [x] T009 [P] [US1] 同じファイル（作る窓口）：201 で名前の写しと日本時間の日付の会った場ができる。2回目は 200 で同じ ID。同時に2回送っても1つ。選べない会・ない会・今日より後の会・受付アプリが見えないときは `404 PERSON_NOT_FOUND`。形の違う `eventId` は 400
+- [x] T010 [P] [US1] `apps/api/src/modules/person/logging.test.ts` に2つの窓口を足す（交流会の名前とチェックインした人の名前を決まった言葉にして、ログと答えに出ないこと）
 
 ### Implementation
 
-- [ ] T011 [US1] `apps/api/src/modules/person/events.ts`：`listEventCandidates(deps, account)` が、`isAppVisible(db, "reception", …)` → `listCheckedInEventIds` → `listAccountEventSummaries` の順に呼び、今日（日本時間）の終わりまでに始まるものを新しい順に50件にし、会った場の `meetingId` を付ける（research R1・R3）
-- [ ] T012 [US1] `apps/api/src/modules/person/repository.ts`：`findOrCreateEventMeeting(db, owner, { eventId, name, metOn })` を足す。`source='event'`、`name_key` は400字で切る（research R5）。`(owner_account_id, event_id) WHERE event_id IS NOT NULL` で `onConflictDoNothing` し、ぶつかったら前の行を返す
-- [ ] T013 [US1] `apps/api/src/modules/person/routes.ts`：`personListEventCandidates`（`GET /event-candidates`）と `personCreateMeetingFromEvent`（`POST /meetings/from-event`）を足す。作るときは T011 の候補の中に `eventId` があるかを確かめ直す
-- [ ] T014 [P] [US1] 画面のテスト：`apps/web/src/features/person/MeetingsPage.test.tsx`（候補が並ぶ・作った札・押すと会った場へ移る・`available: false` で欄がない・候補がないときの文）
-- [ ] T015 [US1] 画面：`apps/web/src/features/person/api.ts`・`queries.ts` に2つの窓口、`MeetingsPage.tsx` に「PaletKit の交流会」の欄（「開く」は作ってから会った場の画面へ。送っている間は押せない）
+- [x] T011 [US1] `apps/api/src/modules/person/events.ts`：`listEventCandidates(deps, account)` が、`isAppVisible(db, "reception", …)` → `listCheckedInEventIds` → `listAccountEventSummaries` の順に呼び、今日（日本時間）の終わりまでに始まるものを新しい順に50件にし、会った場の `meetingId` を付ける（research R1・R3）
+- [x] T012 [US1] `apps/api/src/modules/person/repository.ts`：`findOrCreateEventMeeting(db, owner, { eventId, name, metOn })` を足す。`source='event'`、`name_key` は400字で切る（research R5）。`(owner_account_id, event_id) WHERE event_id IS NOT NULL` で `onConflictDoNothing` し、ぶつかったら前の行を返す
+- [x] T013 [US1] `apps/api/src/modules/person/routes.ts`：`personListEventCandidates`（`GET /event-candidates`）と `personCreateMeetingFromEvent`（`POST /meetings/from-event`）を足す。作るときは T011 の候補の中に `eventId` があるかを確かめ直す
+- [x] T014 [P] [US1] 画面のテスト：`apps/web/src/features/person/MeetingsPage.test.tsx`（候補が並ぶ・作った札・押すと会った場へ移る・`available: false` で欄がない・候補がないときの文）
+- [x] T015 [US1] 画面：`apps/web/src/features/person/api.ts`・`queries.ts` に2つの窓口、`MeetingsPage.tsx` に「PaletKit の交流会」の欄（「開く」は作ってから会った場の画面へ。送っている間は押せない）
 
 ## Phase 3：User Story 2 - 交流会の会った場を同じように使う（P1）
 
 **Goal**: 交流会から作った会った場で、続けて足す・付ける・探す・書き足しの見出し・CSV が手で書いたものと同じに使える。
 
-- [ ] T016 [US2] `event-meetings.test.ts` に、交流会から作った会った場で、人を足す・付ける・会った場の名前で探す・書き足しの見出し・CSV の会った場の列を確かめるテストを足す（person-001 の窓口のまま通ること）
+- [x] T016 [US2] `event-meetings.test.ts` に、交流会から作った会った場で、人を足す・付ける・会った場の名前で探す・書き足しの見出し・CSV の会った場の列を確かめるテストを足す（person-001 の窓口のまま通ること）
 
 ## Phase 4：User Story 3 - 交流会が消えても残る（P2）
 
 **Goal**: 交流会が消えても、受付係から外れても、会った場は名前・日付・人のまま残る。
 
-- [ ] T017 [US3] `event-meetings.test.ts` に、交流会の名前を直しても写しが変わらない・交流会を消すと `event_id` が空になり会った場と人が残る・候補から消える・受付係から外れても残る、のテストを足す
+- [x] T017 [US3] `event-meetings.test.ts` に、交流会の名前を直しても写しが変わらない・交流会を消すと `event_id` が空になり会った場と人が残る・候補から消える・受付係から外れても残る、のテストを足す
 
 ## Phase 5：仕上げ
 
-- [ ] T018 [P] `e2e/tests/person.spec.ts` に、会った場の画面で交流会を選んで続けて足す流れ（両方の幅で axe）を足す
-- [ ] T019 [P] `docs/apps/person.md` に2つの窓口と画面の欄、読むほかの領域の関数を足す
-- [ ] T020 `/code-review` のあと `pnpm check` を流し、結果を PR に書く
+- [x] T018 [P] `e2e/tests/person.spec.ts` に、会った場の画面で交流会を選んで続けて足す流れ（両方の幅で axe）を足す
+- [x] T019 [P] `docs/apps/person.md` に2つの窓口と画面の欄、読むほかの領域の関数を足す
+- [x] T020 `/code-review` のあと `pnpm check` を流し、結果を PR に書く
 - [ ] T021 ステージングで [quickstart.md](./quickstart.md) の手での確かめ（持ち主）
 
 ## Dependencies & Execution Order

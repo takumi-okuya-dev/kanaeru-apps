@@ -5,6 +5,7 @@
 import {
   PERSON_ERRORS,
   PERSON_LIST_MAX,
+  PERSON_MEETING_LIMITS,
   PERSON_NOTE_LIMITS,
   PERSON_RECENT_APPEND_IDS_MAX,
   SEARCH_VERSION,
@@ -550,6 +551,83 @@ export async function findOrCreateMeeting(
     );
   if (!existing) throw new Error("会った場を作れませんでした。");
   return { id: existing.id, created: false };
+}
+
+/**
+ * PaletKit の交流会から作った会った場を、なければ作り、あれば返す（使う人ごとに1つの交流会に1つ。AD-31）。
+ * 名前と日付は作ったときの写しで、前のものがあれば直さない（AD-25 と同じ）。同時に2回呼んでも、部分の一意の索引
+ * (owner_account_id, event_id) で1つだけできる。選べる交流会かは、呼ぶ側が events.ts で確かめる。
+ * @param db DB
+ * @param ownerAccountId 持ち主
+ * @param input 交流会の ID と、写す名前と日付
+ * @param input.eventId 交流会の ID
+ * @param input.name 交流会の名前（1〜100字）
+ * @param input.metOn 交流会の始まりの日本時間の日付
+ * @returns 会った場の ID と、新しく作ったか
+ * @throws {Error} 作れず、前のものも見つからないとき
+ */
+export async function findOrCreateEventMeeting(
+  db: Executor,
+  ownerAccountId: string,
+  input: { eventId: string; name: string; metOn: string },
+): Promise<{ id: string; created: boolean }> {
+  // 交流会の名前は使う人が変えられないので、そろえた名前が DB の上限を超えるときは切る（一意は event_id で決まり、
+  // name_key は探すためだけなので、切っても壊れない。research R5）
+  const nameKey = [...normalizeMeetingName(input.name)]
+    .slice(0, PERSON_MEETING_LIMITS.nameKey)
+    .join("");
+  const [inserted] = await db
+    .insert(personMeeting)
+    .values({
+      ownerAccountId,
+      source: "event",
+      eventId: input.eventId,
+      name: input.name,
+      nameKey,
+      metOn: input.metOn,
+    })
+    .onConflictDoNothing({
+      target: [personMeeting.ownerAccountId, personMeeting.eventId],
+      where: sql`${personMeeting.eventId} is not null`,
+    })
+    .returning({ id: personMeeting.id });
+  if (inserted) return { id: inserted.id, created: true };
+  const [existing] = await db
+    .select({ id: personMeeting.id })
+    .from(personMeeting)
+    .where(
+      and(
+        eq(personMeeting.ownerAccountId, ownerAccountId),
+        eq(personMeeting.eventId, input.eventId),
+      ),
+    );
+  if (!existing) throw new Error("会った場を作れませんでした。");
+  return { id: existing.id, created: false };
+}
+
+/**
+ * 交流会から作った会った場の ID を、交流会ごとに引く（選べる交流会に「作った」の印を付けるため）。
+ * @param db DB
+ * @param ownerAccountId 持ち主
+ * @param eventIds 交流会の ID（選べる交流会の並び。最大50）
+ * @returns 交流会の ID → 会った場の ID
+ */
+export async function meetingIdsByEvent(
+  db: Executor,
+  ownerAccountId: string,
+  eventIds: readonly string[],
+): Promise<Map<string, string>> {
+  if (eventIds.length === 0) return new Map();
+  const rows = await db
+    .select({ id: personMeeting.id, eventId: personMeeting.eventId })
+    .from(personMeeting)
+    .where(
+      and(
+        eq(personMeeting.ownerAccountId, ownerAccountId),
+        inArray(personMeeting.eventId, [...eventIds]),
+      ),
+    );
+  return new Map(rows.flatMap((row) => (row.eventId ? [[row.eventId, row.id] as const] : [])));
 }
 
 /**

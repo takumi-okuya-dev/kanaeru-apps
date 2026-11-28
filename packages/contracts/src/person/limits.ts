@@ -34,6 +34,9 @@ export const PERSON_MEETING_LIMITS = {
   nameKey: 400,
 } as const;
 
+/** 会った場の画面に出す、選べる交流会の数の上限（始まりの新しい順。specs/person/002-event-meetings/research.md R3）。 */
+export const PERSON_EVENT_CANDIDATE_MAX = 50;
+
 /**
  * 字の数（コードポイントで数える。絵文字も1字。DB の char_length と同じ）。
  * @param value 文字

@@ -1,5 +1,6 @@
 // 人物メモ（person）の約束の入口。ほかからは @workspace/contracts/person として読む。
 export {
+  PERSON_EVENT_CANDIDATE_MAX,
   PERSON_MEETING_LIMITS,
   PERSON_NOTE_LIMITS,
   PERSON_RECENT_APPEND_IDS_MAX,
@@ -25,7 +26,15 @@ export { PERSON_ACCOUNT_KINDS, PERSON_ACCOUNT_LABELS, accountUrl, isHttpUrl } fr
 export type { PersonAccountKind } from "./accounts.ts";
 export { appendHeading, appendTalk } from "./heading.ts";
 export type { HeadingMeeting } from "./heading.ts";
-export { MeetingCreateInput, MeetingDate, MeetingList, MeetingSummary } from "./meeting.ts";
+export {
+  EventCandidate,
+  EventCandidateList,
+  MeetingCreateInput,
+  MeetingDate,
+  MeetingFromEventInput,
+  MeetingList,
+  MeetingSummary,
+} from "./meeting.ts";
 export {
   Meeting,
   Note,
