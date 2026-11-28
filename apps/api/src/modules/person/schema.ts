@@ -80,8 +80,14 @@ export const personNote = pgTable(
     version: integer("version").notNull().default(1),
     /** 人を足したときの、画面が作った ID（送り直しで二重にしない） */
     createRequestId: uuid("create_request_id"),
-    /** 最後に受けた書き足しの ID（同じ書き足しがもう一度来たら、書かずに今の値を返す） */
-    lastAppendId: uuid("last_append_id"),
+    /**
+     * 最近受けた書き足しの ID（新しい順に最大20個。同じ書き足しがもう一度来たら、書かずに今の値を返す。
+     * 最後の1つだけだと、送り直しの間にほかの端末の書き足しが入ったときに二重になる。research R7）
+     */
+    recentAppendIds: uuid("recent_append_ids")
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
     ...timestamps(),
   },
   (table) => [
@@ -102,6 +108,10 @@ export const personNote = pgTable(
     check(
       "person_note_tags_check",
       sql`cardinality(${table.tagKeys}) = cardinality(${table.tags}) and array_position(${table.tags}, null) is null and array_position(${table.tagKeys}, null) is null`,
+    ),
+    check(
+      "person_note_recent_append_ids_check",
+      sql`cardinality(${table.recentAppendIds}) <= 20 and array_position(${table.recentAppendIds}, null) is null`,
     ),
     check("person_note_talk_check", sql`char_length(${table.talk}) <= 20000`),
     check("person_note_next_topic_check", sql`char_length(${table.nextTopic}) <= 2000`),
