@@ -6,6 +6,9 @@ import { TEST_ORIGIN, buildApp, jsonRequest, testConfig } from "./helpers/app.ts
 import type { TestApp } from "./helpers/app.ts";
 import { loginAs, testLineUserId, withCookie } from "./helpers/account.ts";
 import { truncateAllTables, useTestDatabase } from "./helpers/db.ts";
+import { DEMO_APP, DEMO_APP_KEY, DEMO_MODULE } from "./helpers/suite.ts";
+import type { McpTool } from "../src/kernel/mcp-tool.ts";
+import { z } from "@hono/zod-openapi";
 
 const database = useTestDatabase();
 const REDIRECT = "http://127.0.0.1:1455/callback";
@@ -143,6 +146,101 @@ describe("認可のメタデータ（RFC 9728・8414）", () => {
     expect(prMeta.resource).toBe(RESOURCE);
     expect(prMeta.authorization_servers).toEqual([TEST_ORIGIN]);
     expect(prMeta.bearer_methods_supported).toEqual(["header"]);
+  });
+
+  it("範囲は MCP の道具を出すアプリだけ。道具のないアプリは、メタデータ・同意の画面に出さず、求めると invalid_scope（core-021 FR-022）", async () => {
+    // 見本のアプリ（demo）は MCP の道具を出さない。受付（reception）は道具を出す
+    const app = buildApp(database, testConfig({ testLoginEnabled: true }), {
+      extraModules: { demo: DEMO_MODULE },
+      extraApps: [DEMO_APP],
+    });
+    const demoScope = `${DEMO_APP_KEY}:read`;
+    for (const path of [
+      "/.well-known/oauth-authorization-server",
+      "/.well-known/oauth-protected-resource",
+    ]) {
+      const meta = (await (await app.request(path)).json()) as { scopes_supported: string[] };
+      expect(meta.scopes_supported).toContain("reception:read");
+      expect(meta.scopes_supported).not.toContain(demoScope);
+    }
+
+    const clientId = await registerClient(app);
+    const asked = await app.request(
+      `/api/oauth/authorize?${qs(params(clientId, { scope: demoScope }))}`,
+      { redirect: "manual" },
+    );
+    expect(asked.status).toBe(302);
+    expect(parseRedirect(asked.headers.get("location") ?? "").error).toBe("invalid_scope");
+
+    // 範囲を求めないときは、道具を出すアプリの範囲だけが同意の画面に出る
+    const { cookie } = await loginAs(app, { lineUserId: testLineUserId() });
+    const consent = await app.request(
+      `/api/oauth/authorize/consent?${qs(params(clientId))}`,
+      withCookie(cookie),
+    );
+    const view = (await consent.json()) as { scopes: { scope: string }[] };
+    expect(view.scopes.map((row) => row.scope)).toContain("reception:read");
+    expect(view.scopes.map((row) => row.scope)).not.toContain(demoScope);
+  });
+
+  it("道具の範囲がどのアプリの範囲にも合わなければ、組み立てを止める（core-021 FR-025）", () => {
+    const stray: McpTool = {
+      name: "stray_tool",
+      description: "合わない範囲の道具",
+      access: "read",
+      requiredScope: "no-such-app:read",
+      inputSchema: z.object({}),
+      run: () => Promise.resolve("ok"),
+    };
+    expect(() =>
+      buildApp(database, testConfig(), {
+        extraModules: { demo: { ...DEMO_MODULE, mcpTools: () => [stray] } },
+        extraApps: [DEMO_APP],
+      }),
+    ).toThrow("範囲");
+  });
+
+  it("前に同意した範囲のうち、今は道具を出さないアプリの範囲は、更新の札に引き継がない", async () => {
+    const demoTool: McpTool = {
+      name: "demo_ping",
+      description: "試験用の道具",
+      access: "read",
+      requiredScope: `${DEMO_APP_KEY}:read`,
+      inputSchema: z.object({}),
+      run: () => Promise.resolve("ok"),
+    };
+    // 道具を出していたころに、受付と demo の範囲で同意して札を受け取る
+    const before = buildApp(database, testConfig({ testLoginEnabled: true }), {
+      extraModules: { demo: { ...DEMO_MODULE, mcpTools: () => [demoTool] } },
+      extraApps: [DEMO_APP],
+    });
+    const clientId = await registerClient(before);
+    const { cookie } = await loginAs(before, { lineUserId: testLineUserId() });
+    const got = parseRedirect(await decide(before, cookie, clientId, "approve"));
+    const issued = (await (
+      await tokenRequest(before, {
+        grant_type: "authorization_code",
+        code: got.code ?? "",
+        redirect_uri: REDIRECT,
+        client_id: clientId,
+        code_verifier: VERIFIER,
+        resource: RESOURCE,
+      })
+    ).json()) as { refresh_token: string; scope: string };
+    expect(issued.scope.split(" ")).toContain(`${DEMO_APP_KEY}:read`);
+
+    // demo が道具を出さなくなったあとの更新では、demo の範囲は引き継がない
+    const after = makeApp();
+    const refreshed = await tokenRequest(after, {
+      grant_type: "refresh_token",
+      refresh_token: issued.refresh_token,
+      client_id: clientId,
+      resource: RESOURCE,
+    });
+    expect(refreshed.status).toBe(200);
+    const scopes = ((await refreshed.json()) as { scope: string }).scope.split(" ");
+    expect(scopes).toContain("reception:read");
+    expect(scopes).not.toContain(`${DEMO_APP_KEY}:read`);
   });
 });
 
