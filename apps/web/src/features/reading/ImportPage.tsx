@@ -1,6 +1,7 @@
 // 取りこむ画面（/reading/import。US2・US4・FR-010〜FR-018。見本の2）。GoodNotes から書き出した PDF を選ぶか、1行に1つの文を貼る。
 // PDF は端末の中で読む（pdf.js は、ここで「ファイルを選ぶ」を押したときだけ読みこむ。AD-34）。PDF も、マーカーのない本の文も送らない。
-// 読み取った中身は画面の中の置き場（import-session.ts）に置き、確かめの画面へ移る。
+// 読み取った中身は、上限に合わせ・ファイルの中の重なりを1つにしてから（prepare-markers.ts）、画面の中の置き場（import-session.ts）に置き、確かめの画面へ移る。
+// 読み取りの途中で画面を離れたら、読み取りをやめ、確かめの画面へは移らない。
 import { useNavigate } from "@tanstack/react-router";
 import { READING_IMPORT_LIMITS, parsePastedMarkers } from "@workspace/contracts/reading";
 import { Button, buttonVariants } from "@workspace/ui/components/button";
@@ -9,11 +10,12 @@ import { Disclosure } from "@workspace/ui/components/disclosure";
 import { Field } from "@workspace/ui/components/field";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
 import { Textarea } from "@workspace/ui/components/textarea";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type * as React from "react";
 import { Page } from "../../lib/page.tsx";
 import { SessionGate } from "../account/index.ts";
 import { setImportDraft } from "./import-session.ts";
+import { fitMarkersToLimits, mergeDuplicateMarkers } from "./prepare-markers.ts";
 
 /** 読み取れなかったときの文（何が起きたか・どうすればよいか。利用者の値を入れない）。 */
 const READ_ERROR_MESSAGES = {
@@ -56,6 +58,15 @@ function Import() {
   const [pasted, setPasted] = useState("");
   const [pasteError, setPasteError] = useState<string>();
   const abort = useRef<AbortController | undefined>(undefined);
+  // 画面を離れたら読み取りをやめる（離れたあとに確かめの画面へ引き戻さない）
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      abort.current?.abort();
+    };
+  }, []);
 
   /**
    * PDF を選んだとき：端末の中で読み、確かめの画面へ移る。
@@ -79,22 +90,27 @@ function Import() {
         onProgress: (done, total) => setProgress({ done, total }),
         signal: abort.current.signal,
       });
-      if (result.markers.length === 0) throw Object.assign(new Error("empty"), { reason: "empty" });
-      if (result.markers.length > READING_IMPORT_LIMITS.markersPerImport) {
+      if (!mounted.current) return;
+      const fitted = fitMarkersToLimits(result.markers);
+      const markers = await mergeDuplicateMarkers(fitted.markers);
+      if (markers.length === 0) throw Object.assign(new Error("empty"), { reason: "empty" });
+      if (markers.length > READING_IMPORT_LIMITS.markersPerImport) {
         throw Object.assign(new Error("too-many"), { reason: "too-many" });
       }
+      if (!mounted.current) return;
       setImportDraft({
         source: "goodnotes",
         fileName: file.name,
-        markers: result.markers,
+        markers,
         bookId: null,
         skippedLines: [],
+        skippedCount: fitted.skipped,
       });
       await navigate({ to: "/reading/import/confirm" });
     } catch (error) {
-      setReadError(reasonOf(error));
+      if (mounted.current) setReadError(reasonOf(error));
     } finally {
-      setReading(false);
+      if (mounted.current) setReading(false);
     }
   };
 
@@ -116,9 +132,10 @@ function Import() {
     setImportDraft({
       source: "paste",
       fileName: null,
-      markers: result.markers,
+      markers: await mergeDuplicateMarkers(result.markers),
       bookId: null,
       skippedLines: result.tooLongLines,
+      skippedCount: 0,
     });
     await navigate({ to: "/reading/import/confirm" });
   };

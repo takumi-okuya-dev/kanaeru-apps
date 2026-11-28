@@ -52,7 +52,7 @@
 
 - 本の `status`：`reading` ⇄ `finished` ⇄ `dropped`（どれからどれへでも。使う人が選ぶ）。
 - マーカー：取りこみで作られる → コメントを直す（`comment_edited` が true）→ 消す（`deleted_at`）。消したマーカーは、取りこみ直しでも戻らない（R4）。
-- 本をまとめる（FR-008）：まとめる元のマーカーを、まとめ先に `INSERT … ON CONFLICT (book_id, dedupe_key) DO NOTHING` で写し、元の本を消す（CASCADE で元のマーカーも消える）。まとめ先の `sources` に元の読む場所を足す。1つのトランザクション。
+- 本をまとめる（FR-008）：まとめる元のマーカーを、まとめ先に `INSERT … ON CONFLICT (book_id, dedupe_key) DO UPDATE` で写し、元の本を消す（CASCADE で元のマーカーも消える）。重なるマーカーは、コメントはまとめ先にあればそれを、なければ元のものを使い、`?` の印と「直した」の印はどちらかにあれば立て、章はまとめ先が空なら元のもの、消した印は両方で消していたときだけ残す（2026-11-28 のレビューで直した）。まとめ先の `sources` に元の読む場所を足す。1つのトランザクション。同じ本どうし（ID の大文字と小文字の違いも）は `422`。
 
 ## 約束（packages/contracts/src/reading）
 

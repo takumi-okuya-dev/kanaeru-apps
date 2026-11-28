@@ -15,6 +15,8 @@ export type ImportDraft = {
   bookId: string | null;
   /** 上限をこえて読まなかった行（貼り付けだけ） */
   skippedLines: number[];
+  /** 文が長すぎて入れないマーカーの数（PDF だけ） */
+  skippedCount: number;
 };
 
 let draft: ImportDraft | undefined;

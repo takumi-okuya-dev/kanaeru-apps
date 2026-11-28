@@ -298,8 +298,9 @@ export function readingRoutes(deps: DomainRouteDeps) {
     })
     .openapi(routes.mergeBook, async (c) => {
       const { accountId } = currentAccount(c);
-      const { bookId } = c.req.valid("param");
-      const { intoBookId } = c.req.valid("json");
+      // ID は大文字と小文字を区別しない（DB は同じ行として読む）ので、そろえてから比べる。同じ本をまとめると、本が消えてしまう
+      const bookId = c.req.valid("param").bookId.toLowerCase();
+      const intoBookId = c.req.valid("json").intoBookId.toLowerCase();
       if (intoBookId === bookId) throw new AppError(READING_ERRORS.SAME_BOOK);
       const counts = await guardDbErrors(() =>
         db.transaction(async (tx) => {
@@ -307,6 +308,7 @@ export function readingRoutes(deps: DomainRouteDeps) {
           const [firstId, secondId] = [bookId, intoBookId].sort();
           const first = await requireOwnedBook(tx, accountId, firstId as string, true);
           const second = await requireOwnedBook(tx, accountId, secondId as string, true);
+          if (first.id === second.id) throw new AppError(READING_ERRORS.SAME_BOOK);
           const from = first.id === bookId ? first : second;
           const into = first.id === bookId ? second : first;
           return mergeBooks(tx, from, into);

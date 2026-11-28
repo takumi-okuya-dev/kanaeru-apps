@@ -149,6 +149,24 @@ describe("書誌の検索", () => {
     expect(openbd?.searchParams.get("isbn")).toBe(`${ISBN_A},${ISBN_B}`);
   });
 
+  it("書名と著者は300字で切り、XML の実体は字に直す（DOCTYPE の実体は展開しない）", async () => {
+    route = (url) =>
+      url.hostname === "ndlsearch.ndl.go.jp"
+        ? new Response(
+            ndlRss([{ title: `見本 &amp; ${"本".repeat(400)}`, creators: ["A &lt;B&gt;"] }]),
+          )
+        : Response.json([]);
+    const [item] = ((await (await search("見本")).json()) as CatalogResult).items;
+    expect(item?.title.startsWith("見本 & 本")).toBe(true);
+    expect([...(item?.title ?? "")]).toHaveLength(300);
+    expect(item?.author).toBe("A <B>");
+  });
+
+  it("答えが大きすぎれば 502", async () => {
+    route = () => new Response("x".repeat(1_000_001));
+    expect((await search("見本")).status).toBe(502);
+  });
+
   it("書影の問い合わせが失敗しても、候補は返す", async () => {
     route = (url) =>
       url.hostname === "ndlsearch.ndl.go.jp"

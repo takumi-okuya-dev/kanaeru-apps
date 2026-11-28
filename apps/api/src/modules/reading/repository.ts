@@ -312,16 +312,18 @@ export async function updateMarker(
   input: MarkerUpdateInput,
 ): Promise<Marker> {
   const values: Partial<typeof readingMarker.$inferInsert> = {};
-  if (input.comment !== undefined) {
+  // 前と同じ値なら書かない（何も変えずに保存しただけで「直した」の印が立ち、取りこみ直しが効かなくならないように）
+  if (input.comment !== undefined && input.comment !== marker.comment) {
     if (input.comment === null && marker.text === "") throw new AppError("INVALID_INPUT");
     values.comment = input.comment;
     values.commentEdited = true;
   }
-  if (input.question !== undefined) {
+  if (input.question !== undefined && input.question !== marker.question) {
     values.question = input.question;
     values.questionEdited = true;
   }
-  if (input.chapter !== undefined) values.chapter = input.chapter;
+  if (input.chapter !== undefined && input.chapter !== marker.chapter)
+    values.chapter = input.chapter;
   if (Object.keys(values).length === 0) return toMarker(marker);
   const [row] = await db
     .update(readingMarker)
@@ -345,7 +347,9 @@ export async function deleteMarker(db: Executor, marker: OwnedMarker): Promise<v
 }
 
 /**
- * 本をまとめる（data-model「本をまとめる」）。元のマーカーを（消したものも含めて）まとめ先に写し、同じ鍵のものは写さない。
+ * 本をまとめる（data-model「本をまとめる」）。元のマーカーを（消したものも含めて）まとめ先に写す。
+ * 同じ鍵のマーカーは1つにし、コメントはまとめ先にあればそれを、なければ元のものを使う。? の印と「直した」の印はどちらかにあれば立てる。
+ * 章はまとめ先が空なら元のもの。消した印は、両方で消していたときだけ残す（片方で生きていれば生かす）。
  * 元の本を消し（CASCADE で元のマーカーも消える）、まとめ先の読む場所に元の読む場所を足す。
  * @param db DB（トランザクション）
  * @param from まとめる元（行を押さえたもの）
@@ -361,7 +365,7 @@ export async function mergeBooks(
     .select({ n: count() })
     .from(readingMarker)
     .where(and(eq(readingMarker.bookId, from.id), isNull(readingMarker.deletedAt)));
-  const moved = await db.execute<{ deleted_at: Date | null }>(sql`
+  const moved = await db.execute<{ deleted_at: Date | null; inserted: boolean }>(sql`
     insert into ${readingMarker} (
       book_id, owner_account_id, source, chapter, page, location, position, text, comment,
       comment_edited, question, question_edited, dedupe_key, deleted_at, created_at
@@ -370,10 +374,21 @@ export async function mergeBooks(
       comment_edited, question, question_edited, dedupe_key, deleted_at, created_at
     from ${readingMarker}
     where book_id = ${from.id}
-    on conflict (book_id, dedupe_key) do nothing
-    returning deleted_at
+    on conflict (book_id, dedupe_key) do update set
+      comment = coalesce(${readingMarker}.comment, excluded.comment),
+      comment_edited = ${readingMarker}.comment_edited or excluded.comment_edited,
+      question = ${readingMarker}.question or excluded.question,
+      question_edited = ${readingMarker}.question_edited or excluded.question_edited,
+      chapter = coalesce(${readingMarker}.chapter, excluded.chapter),
+      deleted_at = case
+        when ${readingMarker}.deleted_at is not null and excluded.deleted_at is not null
+        then ${readingMarker}.deleted_at
+        else null
+      end,
+      updated_at = now()
+    returning deleted_at, (xmax = 0) as inserted
   `);
-  const movedCount = moved.rows.filter((row) => row.deleted_at === null).length;
+  const movedCount = moved.rows.filter((row) => row.inserted && row.deleted_at === null).length;
   await db.delete(readingBook).where(eq(readingBook.id, from.id));
   const nextSources = [
     ...new Set([...(into.sources as ReadingSource[]), ...(from.sources as ReadingSource[])]),

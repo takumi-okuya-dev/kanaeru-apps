@@ -21,6 +21,34 @@ const TIMEOUT_MS = 5_000;
 /** 返す候補の数の上限。 */
 const MAX_ITEMS = 20;
 
+/** 外の答えの本文の大きさの上限（文字の数。それより大きい答えは読まない）。 */
+const MAX_BODY_CHARS = 1_000_000;
+
+/** 書名・著者の長さの上限（字。本の表の上限と同じ。こえる分は切る）。 */
+const MAX_TEXT_CHARS = 300;
+
+/** XML の決まった実体（DOCTYPE の実体は展開しない）。 */
+const XML_ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
+
+/**
+ * XML の決まった実体と数の実体を、字に直す（fast-xml-parser の実体の展開は使わない）。
+ * @param value 文字
+ * @returns 直した文字
+ */
+function decodeEntities(value: string): string {
+  return value.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/giu, (whole, name: string) => {
+    if (name.startsWith("#x") || name.startsWith("#X")) {
+      const code = Number.parseInt(name.slice(2), 16);
+      return Number.isFinite(code) && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
+    }
+    if (name.startsWith("#")) {
+      const code = Number.parseInt(name.slice(1), 10);
+      return Number.isFinite(code) && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
+    }
+    return XML_ENTITIES[name.toLowerCase()] ?? whole;
+  });
+}
+
 /** 書誌の検索の部品。 */
 export type CatalogClient = {
   /**
@@ -43,8 +71,10 @@ type OpenBdRecord = {
  */
 function textOrNull(value: unknown): string | null {
   if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed === "" ? null : trimmed;
+  const trimmed = decodeEntities(value).trim();
+  if (trimmed === "") return null;
+  // 字（コードポイント）の数で切る（UTF-16 の単位で切ると、2つで1字の字が割れるため）
+  return [...trimmed].slice(0, MAX_TEXT_CHARS).join("");
 }
 
 /**
@@ -66,7 +96,8 @@ export function createCatalogClient(fetchImpl: typeof fetch): CatalogClient {
   const parser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: "@_",
-    processEntities: true,
+    processEntities: false,
+    htmlEntities: false,
     isArray: (name) => ["item", "dc:creator", "dc:identifier", "dc:title"].includes(name),
   });
 
@@ -84,11 +115,14 @@ export function createCatalogClient(fetchImpl: typeof fetch): CatalogClient {
       throw new AppError(READING_ERRORS.CATALOG_UNAVAILABLE);
     }
     if (!response.ok) throw new AppError(READING_ERRORS.CATALOG_UNAVAILABLE);
+    let body: string;
     try {
-      return await response.text();
+      body = await response.text();
     } catch {
       throw new AppError(READING_ERRORS.CATALOG_UNAVAILABLE);
     }
+    if (body.length > MAX_BODY_CHARS) throw new AppError(READING_ERRORS.CATALOG_UNAVAILABLE);
+    return body;
   }
 
   /**
@@ -168,7 +202,7 @@ export function createCatalogClient(fetchImpl: typeof fetch): CatalogClient {
       seen.add(key);
       items.push({
         title,
-        author: creators.length === 0 ? null : creators.slice(0, 3).join("・").slice(0, 300),
+        author: creators.length === 0 ? null : textOrNull(creators.slice(0, 3).join("・")),
         isbn,
         coverUrl: null,
         source: "ndl",

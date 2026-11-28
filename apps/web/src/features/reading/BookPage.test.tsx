@@ -59,6 +59,16 @@ describe("本の画面", () => {
     });
   });
 
+  it("コメントを変えずに保存しても送らない", async () => {
+    const sent = stub();
+    const user = userEvent.setup();
+    renderWithRouter(<BookPage bookId={BOOK_ID} />);
+    await user.click(await screen.findByRole("button", { name: "コメントを直す" }));
+    await user.click(screen.getByRole("button", { name: "保存" }));
+    expect(screen.queryByRole("textbox", { name: "コメント" })).toBeNull();
+    expect(sent.filter((request) => request.method === "PATCH")).toEqual([]);
+  });
+
   it("マーカーを消す前に確かめる", async () => {
     const sent = stub();
     const user = userEvent.setup();

@@ -12,11 +12,12 @@ import { Disclosure } from "@workspace/ui/components/disclosure";
 import { Field, useFieldControl } from "@workspace/ui/components/field";
 import { Input, inputClassName } from "@workspace/ui/components/input";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { errorMessage } from "../../lib/api.ts";
 import { Page } from "../../lib/page.tsx";
 import { SessionGate } from "../account/index.ts";
 import { createBook, fetchMarkerKeys, importMarkerBatch } from "./api.ts";
+import { READING_MARKER_LIMITS } from "@workspace/contracts/reading";
 import { splitIntoBatches } from "./batches.ts";
 import type { ImportedMarker } from "./import/goodnotes.ts";
 import { clearImportDraft, getImportDraft } from "./import-session.ts";
@@ -186,13 +187,28 @@ function Confirm({ draft }: { draft: ImportDraft }) {
       const from = next[fromIndex];
       const to = next[toIndex];
       if (!from?.comment || !to) return current;
-      next[toIndex] = { ...to, comment: from.comment, question: from.question };
+      // 付け先にコメントがあれば、上書きせずに改行でつなぐ（上限で切る）
+      const joined = to.comment ? `${to.comment}\n${from.comment}` : from.comment;
+      next[toIndex] = {
+        ...to,
+        comment: [...joined].slice(0, READING_MARKER_LIMITS.comment).join(""),
+        question: to.question || from.question,
+      };
       const { comment: _moved, ...rest } = from;
       next[fromIndex] = { ...rest, question: false };
       // 文のないマーカー（コメントだけ）は、コメントがなくなったら外す
       return next.filter((marker) => marker.text.trim() !== "" || marker.comment !== undefined);
     });
   };
+
+  // 画面を離れたら、束を送るのをやめる（離れたあとに本の画面へ引き戻さない）
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   /** 入れる（新しく登録するなら先に本を足す）。 */
   const send = async () => {
@@ -209,17 +225,22 @@ function Confirm({ draft }: { draft: ImportDraft }) {
         const created = await createBook({ title: newTitle, catalogSource: "manual" });
         target = created.id;
         setBookId(created.id);
+        // 選ぶ欄に新しい本が出るよう、本棚を読み直す（束が失敗して画面に残ったとき、別の本の名前が出ないように）
+        await queryClient.invalidateQueries({ queryKey: READING_QUERY_KEYS.books });
       }
       const batches = splitIntoBatches(draft.source, markers);
       setSending({ done: 0, total: batches.length });
       for (const [index, batch] of batches.entries()) {
+        if (!mounted.current) return;
         await importMarkerBatch(target, { source: draft.source, markers: batch });
-        setSending({ done: index + 1, total: batches.length });
+        if (mounted.current) setSending({ done: index + 1, total: batches.length });
       }
       clearImportDraft();
+      if (!mounted.current) return;
       await queryClient.invalidateQueries({ queryKey: READING_QUERY_KEYS.all });
       await navigate({ to: "/reading/books/$bookId", params: { bookId: target } });
     } catch (error) {
+      if (!mounted.current) return;
       setSendError(
         `入れられませんでした。${errorMessage(error)} もう一度入れても、入った分は重なりません。`,
       );
@@ -270,6 +291,11 @@ function Confirm({ draft }: { draft: ImportDraft }) {
               ? `（前に入れた ${markers.length - newCount} は重ねません）`
               : ""}
           </p>
+        ) : null}
+        {draft.skippedCount > 0 ? (
+          <ResponseMessage tone="info">
+            文が長すぎるマーカー（{draft.skippedCount}件）は入れません。
+          </ResponseMessage>
         ) : null}
         {draft.skippedLines.length > 0 ? (
           <ResponseMessage tone="info">

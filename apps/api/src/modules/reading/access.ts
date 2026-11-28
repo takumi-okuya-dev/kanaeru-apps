@@ -48,8 +48,10 @@ export async function requireOwnedBook(
 }
 
 /**
- * 今の利用者が持ち主の、消していないマーカーを読む。
- * @param db DB
+ * 今の利用者が持ち主の、消していないマーカーを読み、本とマーカーの行を押さえる（書くトランザクションの中だけ）。
+ * 押さえる順は、取りこみ・まとめると同じ「本 → マーカー」にそろえる（まとめる処理と同時に直す・消すと、直したことが消えたり、
+ * 消したマーカーがまとめ先に戻ったりしないように）。
+ * @param db DB（トランザクション）
  * @param ownerAccountId 今の利用者
  * @param markerId マーカーの ID
  * @returns マーカーの行
@@ -60,16 +62,17 @@ export async function requireOwnedMarker(
   ownerAccountId: string,
   markerId: string,
 ): Promise<OwnedMarker> {
-  const [row] = await db
-    .select()
+  const owned = and(
+    eq(readingMarker.id, markerId),
+    eq(readingMarker.ownerAccountId, ownerAccountId),
+    isNull(readingMarker.deletedAt),
+  );
+  const [found] = await db
+    .select({ bookId: readingMarker.bookId })
     .from(readingMarker)
-    .where(
-      and(
-        eq(readingMarker.id, markerId),
-        eq(readingMarker.ownerAccountId, ownerAccountId),
-        isNull(readingMarker.deletedAt),
-      ),
-    )
-    .for("update");
+    .where(owned);
+  const { bookId } = ownedOrNotFound(found);
+  await requireOwnedBook(db, ownerAccountId, bookId, true);
+  const [row] = await db.select().from(readingMarker).where(owned).for("update");
   return ownedOrNotFound(row);
 }

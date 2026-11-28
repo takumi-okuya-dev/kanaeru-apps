@@ -103,9 +103,16 @@ function MarkerItem({ marker }: { marker: Marker }) {
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmed = comment.trim();
+    const next = trimmed === "" ? null : trimmed;
+    const markQuestion = isQuestionComment(trimmed) && !marker.question;
+    // 何も変えずに保存したときは送らない（「直した」の印を立てない）
+    if (next === marker.comment && !markQuestion) {
+      setEditing(false);
+      return;
+    }
     void save({
-      comment: trimmed === "" ? null : trimmed,
-      ...(isQuestionComment(trimmed) && !marker.question ? { question: true } : {}),
+      ...(next !== marker.comment ? { comment: next } : {}),
+      ...(markQuestion ? { question: true } : {}),
     });
   };
 
@@ -168,7 +175,15 @@ function MarkerItem({ marker }: { marker: Marker }) {
             <Badge>あとで調べる</Badge>
           ) : null}
           <div className="flex flex-wrap gap-xxs">
-            <Button size="small" onClick={() => setEditing(true)} disabled={pending}>
+            <Button
+              size="small"
+              onClick={() => {
+                // 開くたびに今のコメントから始める（取りこみで変わったあとに、古い書きかけを出さない）
+                setComment(marker.comment ?? "");
+                setEditing(true);
+              }}
+              disabled={pending}
+            >
               {marker.comment ? "コメントを直す" : "コメントを書く"}
             </Button>
             <Button
@@ -256,13 +271,23 @@ function BookSettings({ book }: { book: Book }) {
    * 書いて読み直す。
    * @param run 書く処理
    * @param failure 失敗の頭の文
+   * @param leave この本がなくなる操作のとき、先に移る先（なければ移らない）
    * @returns 成功したか
    */
-  const write = async (run: () => Promise<unknown>, failure: string): Promise<boolean> => {
+  const write = async (
+    run: () => Promise<unknown>,
+    failure: string,
+    leave?: () => Promise<unknown>,
+  ): Promise<boolean> => {
     setPending(true);
     setError(undefined);
     try {
       await run();
+      if (leave) {
+        // この本がなくなる操作は、先に画面を移り、この本の問い合わせを捨ててから読み直す（一瞬「見つかりません」を出さない）
+        await leave();
+        queryClient.removeQueries({ queryKey: READING_QUERY_KEYS.book(book.id) });
+      }
       await refresh(queryClient);
       return true;
     } catch (caught) {
@@ -352,12 +377,10 @@ function BookSettings({ book }: { book: Book }) {
         pending={pending}
         error={error}
         onConfirm={() =>
-          void write(() => mergeBook(book.id, mergeInto), "まとめられませんでした。").then(
-            async (ok) => {
-              if (!ok) return;
-              setConfirmMerge(false);
-              await navigate({ to: "/reading/books/$bookId", params: { bookId: mergeInto } });
-            },
+          void write(
+            () => mergeBook(book.id, mergeInto),
+            "まとめられませんでした。",
+            () => navigate({ to: "/reading/books/$bookId", params: { bookId: mergeInto } }),
           )
         }
       >
@@ -372,11 +395,11 @@ function BookSettings({ book }: { book: Book }) {
         pending={pending}
         error={error}
         onConfirm={() =>
-          void write(() => deleteBook(book.id), "消せませんでした。").then(async (ok) => {
-            if (!ok) return;
-            setConfirmDelete(false);
-            await navigate({ to: "/reading" });
-          })
+          void write(
+            () => deleteBook(book.id),
+            "消せませんでした。",
+            () => navigate({ to: "/reading" }),
+          )
         }
       >
         この本と、マーカー（{book.markerCount}）を消します。元に戻せません。

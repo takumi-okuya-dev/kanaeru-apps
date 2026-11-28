@@ -38,6 +38,7 @@ beforeEach(() => {
     markers: MARKERS,
     bookId: null,
     skippedLines: [],
+    skippedCount: 0,
   });
 });
 

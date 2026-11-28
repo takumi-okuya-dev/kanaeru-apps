@@ -359,6 +359,55 @@ describe("読書記録の窓口", () => {
     });
   });
 
+  describe("レビューの直し", () => {
+    it("大文字と小文字だけ違う同じ本の ID でまとめても 422 で、本は消えない", async () => {
+      const book = await createBook(app, owner.cookie);
+      await importResult(await importMarkers(app, owner.cookie, book.id, [sampleMarker(1)]));
+      const response = await call(app, owner.cookie, `${READING_BOOKS}/${book.id}/merge`, "POST", {
+        intoBookId: book.id.toUpperCase(),
+      });
+      expect(response.status).toBe(422);
+      expect((await readBook(book.id)).markers).toHaveLength(1);
+    });
+
+    it("まとめると、重なるマーカーの元のコメントと印が残り、片方で生きていれば生かす", async () => {
+      const into = await createBook(app, owner.cookie, { title: "まとめ先" });
+      const from = await createBook(app, owner.cookie, { title: "元" });
+      await importResult(
+        await importMarkers(app, owner.cookie, into.id, [sampleMarker(1), sampleMarker(2)]),
+      );
+      await importResult(
+        await importMarkers(app, owner.cookie, from.id, [
+          sampleMarker(1, { comment: "? 元のコメント", question: true }),
+          sampleMarker(2),
+        ]),
+      );
+      const intoMarkers = (await readBook(into.id)).markers;
+      await call(app, owner.cookie, `${READING_API}/markers/${intoMarkers[1]?.id}`, "DELETE");
+      const response = await call(app, owner.cookie, `${READING_BOOKS}/${from.id}/merge`, "POST", {
+        intoBookId: into.id,
+      });
+      const merged = (await response.json()) as BookMergeResult;
+      expect(merged.book.markers).toHaveLength(2);
+      expect(merged.book.markers[0]).toMatchObject({ comment: "? 元のコメント", question: true });
+    });
+
+    it("同じコメントで保存しても「直した」にならず、取りこみ直しでコメントが新しくなる", async () => {
+      const book = await createBook(app, owner.cookie);
+      await importResult(
+        await importMarkers(app, owner.cookie, book.id, [sampleMarker(1, { comment: "元" })]),
+      );
+      const [marker] = (await readBook(book.id)).markers as [Marker];
+      await call(app, owner.cookie, `${READING_API}/markers/${marker.id}`, "PATCH", {
+        comment: "元",
+      });
+      await importResult(
+        await importMarkers(app, owner.cookie, book.id, [sampleMarker(1, { comment: "新" })]),
+      );
+      expect((await readBook(book.id)).markers[0]?.comment).toBe("新");
+    });
+  });
+
   describe("退会", () => {
     it("退会すると、本とマーカーの行が消える", async () => {
       const book = await createBook(app, owner.cookie);
