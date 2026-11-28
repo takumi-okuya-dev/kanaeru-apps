@@ -1,6 +1,6 @@
 {
-  "id": "735b2fed-f6c0-42f0-9492-8374385f2fa9",
-  "prevId": "8594761d-008c-43ad-8e38-c2c54705e98d",
+  "id": "08724e90-3229-406a-935b-46cf977239ce",
+  "prevId": "1b824525-b11b-4060-b1a4-3b5b6abfe733",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -4211,11 +4211,12 @@
           "primaryKey": false,
           "notNull": false
         },
-        "last_append_id": {
-          "name": "last_append_id",
-          "type": "uuid",
+        "recent_append_ids": {
+          "name": "recent_append_ids",
+          "type": "uuid[]",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "'{}'::uuid[]"
         },
         "created_at": {
           "name": "created_at",
@@ -4332,6 +4333,10 @@
         "person_note_tags_check": {
           "name": "person_note_tags_check",
           "value": "cardinality(\"person_note\".\"tag_keys\") = cardinality(\"person_note\".\"tags\") and array_position(\"person_note\".\"tags\", null) is null and array_position(\"person_note\".\"tag_keys\", null) is null"
+        },
+        "person_note_recent_append_ids_check": {
+          "name": "person_note_recent_append_ids_check",
+          "value": "cardinality(\"person_note\".\"recent_append_ids\") <= 20 and array_position(\"person_note\".\"recent_append_ids\", null) is null"
         },
         "person_note_talk_check": {
           "name": "person_note_talk_check",
