@@ -424,6 +424,62 @@ export default tseslint.config(
       ],
     },
   },
+  // 人物メモ（person）の領域が読んでよい、ほかの領域の許す一覧（構成の決めごと AD-31）。
+  // メモは自分だけのもので、交流会の参加者・申込みの名簿を読まない（PRD 人物メモ FR-P8）。止める名前を並べるのではなく、
+  // 読んでよいものだけを書く（ほかの領域に関数が足されても、黙って通らないように）。
+  // - ほかの領域：account・suite の index.ts（今の利用者・見えるか）と、event・reception の index.ts の決めた名前だけ。
+  //   event は eventTable（外部キーにだけ）と listAccountEventSummaries（会った場に選べる交流会の名前と始まり）。
+  //   reception は listCheckedInEventIds（自分でチェックインした交流会の ID）だけ。名簿・チェックインした人は読まない
+  // - ../ が何段でも効く形にする（person の下にフォルダを作っても抜けない）。土台（kernel・platform）とテストの手伝いは読める
+  // - 境界の決まりなので、テストにもかける。no-restricted-imports は上のまとまりを上書きするので、OS のコマンドの止め方も入れ直す
+  {
+    files: ["apps/api/src/modules/person/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: BLOCKED_IMPORTS.paths,
+          patterns: [
+            {
+              regex:
+                "^(\\.\\./)+(?!(account|suite|event|reception)/index\\.ts$)(?!(kernel|platform|test)/)[a-z][^/]*/",
+              message:
+                "人物メモが読んでよいほかの領域は、account・suite の index.ts と、event・reception の index.ts の決めた名前だけです（構成の決めごと AD-31）。",
+            },
+            {
+              regex: "^(\\.\\./)+event/index\\.ts$",
+              allowImportNames: ["eventTable", "listAccountEventSummaries"],
+              message:
+                "人物メモが event から読んでよいのは eventTable（外部キーにだけ使う）と listAccountEventSummaries だけです（構成の決めごと AD-31）。",
+            },
+            {
+              regex: "^(\\.\\./)+reception/index\\.ts$",
+              allowImportNames: ["listCheckedInEventIds"],
+              message:
+                "人物メモが reception から読んでよいのは listCheckedInEventIds だけです。名簿・チェックインした人は読みません（構成の決めごと AD-31・PRD 人物メモ FR-P8）。",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  // 人物メモは、動かしてから読む import（import()）を使わない（上の許す一覧をくぐれるため）。
+  // no-restricted-syntax は上のまとまりを上書きするので、SQL の差しこみの選び方を入れ直す（テストは除く）
+  {
+    files: ["apps/api/src/modules/person/**/*.ts"],
+    ignores: SECURITY_IGNORES,
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        ...INJECTION_SYNTAX,
+        {
+          selector: "ImportExpression",
+          message:
+            "人物メモでは import() を使いません。読むものは上の import で書きます（構成の決めごと AD-31）。",
+        },
+      ],
+    },
+  },
   // 守りの規則：画面（画面の組み立てに入る packages/ui・packages/contracts を含む）。HTML の差しこみ・環境の値を読む。
   // no-restricted-syntax は上のまとまりを上書きするので、SQL の差しこみの選び方を入れ直す
   {

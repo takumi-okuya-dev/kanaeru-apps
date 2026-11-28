@@ -2,12 +2,14 @@
 // createRoute を通さない道で起動を止めること。
 import { createServer } from "node:net";
 import type { AddressInfo, Socket } from "node:net";
+import { Writable } from "node:stream";
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { sql } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { DB_UNAVAILABLE_MESSAGES } from "@workspace/contracts/core";
 import { describe, expect, it, vi } from "vitest";
 import { createDatabase } from "../src/kernel/db.ts";
+import { createLogger } from "../src/kernel/logger.ts";
 import { uuidParam } from "../src/kernel/http.ts";
 import {
   BOOKING_WEBHOOK_RATE_LIMIT,
@@ -206,6 +208,42 @@ describe("組み立て", () => {
     const text = await response.text();
     expect(text).toContain("INTERNAL");
     expect(text).not.toContain(SECRET_ERROR_TEXT);
+  });
+
+  it("予期しないエラーのログに、エラーの文と SQL に渡した値を書かない（名前・at の行・SQLSTATE だけ）", async () => {
+    const lines: Record<string, unknown>[] = [];
+    const stream = new Writable({
+      write(chunk: Buffer, _encoding, callback) {
+        lines.push(JSON.parse(chunk.toString()) as Record<string, unknown>);
+        callback();
+      },
+    });
+    const dbBoomModule: DomainModule = {
+      routes: (deps) =>
+        new OpenAPIHono<AppEnv>().openapi(
+          createRoute({
+            method: "get",
+            path: "/api/v1/test-only/db-boom",
+            responses: { 200: { description: "DB のエラーを起こす" } },
+          }),
+          async (c) => {
+            // 数にならない値を渡して、DB のエラー（22P02）を起こす。エラーの文と params に値が入る
+            await deps.db.execute(sql`select ${SECRET_ERROR_TEXT}::int`);
+            return c.json({}, 200);
+          },
+        ),
+    };
+    const app = buildApp(database, testConfig(), {
+      extraModules: [testModule, dbBoomModule],
+      logger: createLogger({ level: "info", pretty: false }, stream),
+    });
+    expect((await app.request("/api/v1/test-only/boom")).status).toBe(500);
+    expect((await app.request("/api/v1/test-only/db-boom")).status).toBe(500);
+    const errors = lines.filter((line) => line.msg === "予期しないエラー");
+    expect(errors).toHaveLength(2);
+    expect(JSON.stringify(lines)).not.toContain(SECRET_ERROR_TEXT);
+    expect(errors[0]).toMatchObject({ errorName: "TypeError" });
+    expect(errors[1]).toMatchObject({ sqlState: "22P02" });
   });
 
   it("入力が合わなければ 400 の INVALID_INPUT と、欄ごとの日本語の理由", async () => {

@@ -129,6 +129,23 @@ export async function hasCheckedIn(
   return (await findCheckin(db, eventId, accountId)) !== null;
 }
 
+/**
+ * その人が自分のアカウントでチェックインした交流会の ID（新しいチェックインの順。ほかのアプリも index.ts から使う）。
+ * 手でのチェックイン（アカウントがない）と、手で入れた人（entered_by）は数えない。
+ * 人物メモが「会った場」に選べる交流会を決めるのに使う（AD-31）。名前やほかの人のチェックインは返さない。
+ * @param db DB
+ * @param accountId account の ID
+ * @returns 交流会の ID の並び（1つの交流会に1つ）
+ */
+export async function listCheckedInEventIds(db: Executor, accountId: string): Promise<string[]> {
+  const rows = await db
+    .select({ eventId: checkin.eventId })
+    .from(checkin)
+    .where(eq(checkin.accountId, accountId))
+    .orderBy(...NEWEST_FIRST);
+  return rows.map((row) => row.eventId);
+}
+
 /** 同じ名前の候補の行（同じ名前の印に要る列だけ）。 */
 export type SameNameCandidate = Pick<CheckinRecord, "id" | "name" | "accountId">;
 
