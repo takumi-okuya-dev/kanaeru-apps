@@ -12,6 +12,35 @@ const HIGHLIGHT_SPAN = [
   'span[class*=" highlight_"]',
 ].join(", ");
 
+/** 日本語の字（漢字・ひらがな・カタカナ・長音・句読点・かっこ）。 */
+const JA = "[\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}ー、。「」『』（）・]";
+
+/** 日本語の字どうしの間の空白（固定のレイアウトの本の、行の折り返しの名残）。 */
+const SPACE_BETWEEN_JA = new RegExp(`(?<=${JA}) +(?=${JA})`, "gu");
+
+/** 文の終わりの字（これで終わるハイライトは、次のハイライトにつなげない）。 */
+const SENTENCE_END = /[。．.!?！？」』）)]$/u;
+
+/**
+ * ハイライトとメモの文を整える（日本語の字どうしの間の空白を除く）。
+ * @param value 文
+ * @returns 整えた文
+ */
+export function cleanKindleText(value: string): string {
+  return value.replace(SPACE_BETWEEN_JA, "");
+}
+
+/**
+ * 2つの文をつなぐ（日本語どうしなら空白なし、そうでなければ空白1つ）。
+ * @param before 前の文
+ * @param after 後の文
+ * @returns つないだ文
+ */
+function joinText(before: string, after: string): string {
+  const ja = new RegExp(`${JA}$`, "u").test(before) && new RegExp(`^${JA}`, "u").test(after);
+  return ja ? `${before}${after}` : `${before} ${after}`;
+}
+
 /** メモを直前のハイライトに付けるときの、位置の離れの上限。 */
 const NOTE_DISTANCE_MAX = 10;
 
@@ -94,8 +123,10 @@ export function readKindleHtml(html: string): KindleResult {
 
   const markers: ImportedMarker[] = [];
   let chapter: string | undefined;
+  // メモを付ける先（直前のハイライト。メモを付けたら空にする）
   let last: ImportedMarker | undefined;
-  let truncatedCount = 0;
+  // ページをまたいで分かれたハイライトをつなぐ先（直前のハイライト。メモを挟んでも残す）
+  let lastHighlight: ImportedMarker | undefined;
   let order = 0;
   const nodes = doc.querySelectorAll(".sectionHeading, .noteHeading");
   for (const node of nodes) {
@@ -113,7 +144,7 @@ export function readKindleHtml(html: string): KindleResult {
       }
       next = next.nextElementSibling;
     }
-    const body = textOf(next);
+    const body = cleanKindleText(textOf(next));
     if (body === "") continue;
     order += 1;
     const heading = textOf(node);
@@ -143,9 +174,25 @@ export function readKindleHtml(html: string): KindleResult {
         question: isQuestionComment(body),
       });
       last = undefined;
+      lastHighlight = undefined;
       continue;
     }
-    if (/(…|\.\.\.)$/u.test(body)) truncatedCount += 1;
+    // ページをまたいで引いたハイライトは、ページの区切りで2つに分かれて書き出される（2026-11-28 に実物で確かめた）。
+    // 直前のハイライトが同じ章で、位置が続いていて（差が1まで）、文の終わりで終わっていなければ、1つにつなぐ
+    if (
+      lastHighlight &&
+      lastHighlight.chapter === chapter &&
+      location !== undefined &&
+      lastHighlight.location !== undefined &&
+      location - lastHighlight.location >= 0 &&
+      location - lastHighlight.location <= 1 &&
+      !SENTENCE_END.test(lastHighlight.text)
+    ) {
+      lastHighlight.text = joinText(lastHighlight.text, body);
+      lastHighlight.location = location;
+      last = lastHighlight;
+      continue;
+    }
     const marker: ImportedMarker = {
       text: body,
       ...(chapter !== undefined ? { chapter } : {}),
@@ -156,7 +203,9 @@ export function readKindleHtml(html: string): KindleResult {
     };
     markers.push(marker);
     last = marker;
+    lastHighlight = marker;
   }
+  const truncatedCount = markers.filter((marker) => /(…|\.\.\.)$/u.test(marker.text)).length;
   const author = textOf(doc.querySelector(".authors"));
   return {
     title: textOf(titleElement) || null,

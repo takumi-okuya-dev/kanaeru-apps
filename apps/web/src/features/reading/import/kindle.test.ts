@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import kindleEn from "./__fixtures__/kindle-en.html?raw";
 import kindleJa from "./__fixtures__/kindle-ja.html?raw";
-import { KindleReadError, pageAndLocation, readKindleHtml } from "./kindle.ts";
+import { KindleReadError, cleanKindleText, pageAndLocation, readKindleHtml } from "./kindle.ts";
 
 /** 見本（ファイルの名前 → HTML）。 */
 const FIXTURES: Record<string, string> = { "kindle-en.html": kindleEn, "kindle-ja.html": kindleJa };
@@ -61,6 +61,32 @@ describe("Kindle の書き出しの読み方", () => {
       ["文", null],
       ["", "離れたメモ"],
     ]);
+  });
+
+  it("ページをまたいで分かれたハイライトは1つにつなぎ、間のメモはそのハイライトに付ける（実物の形）", () => {
+    const html = `<div class="bookTitle">見本</div><div class="sectionHeading">1章\u3000見本</div>
+      <div class="noteHeading">ハイライト(<span class="annotation_aqua">水色</span>)
+ - 1.3\u3000見本の節 > ページ3 ·位置201</div><div class="noteText">見本の流れを自動化し、推論する場面はほとん </div>
+      <div class="noteHeading">メモ - 1.3\u3000見本の節 > ページ3 ·位置202</div><div class="noteText">まとめておきたい。</div>
+      <div class="noteHeading">ハイライト(<span class="annotation_aqua">水色</span>)
+ - 1.3\u3000見本の節 > ページ4 ·位置202</div><div class="noteText">どありません。 会話の見本です。</div>
+      <div class="noteHeading">ハイライト(<span class="annotation_aqua">水色</span>)
+ - 1.3\u3000見本の節 > ページ4 ·位置203</div><div class="noteText">次の文。</div>`;
+    const { markers } = readKindleHtml(html);
+    expect(markers).toHaveLength(2);
+    expect(markers[0]).toMatchObject({
+      text: "見本の流れを自動化し、推論する場面はほとんどありません。会話の見本です。",
+      comment: "まとめておきたい。",
+      page: 3,
+      location: 202,
+    });
+    expect(markers[1]).toMatchObject({ text: "次の文。", page: 4, location: 203 });
+  });
+
+  it("日本語の字どうしの間の空白を除く（英語の間の空白は残す）", () => {
+    expect(cleanKindleText("意思決定を 行うよう 設計された Microsoft Power Automate の")).toBe(
+      "意思決定を行うよう設計された Microsoft Power Automate の",
+    );
   });
 
   it("見出しのページと位置（言葉・カンマ・章名に左右されない）", () => {
