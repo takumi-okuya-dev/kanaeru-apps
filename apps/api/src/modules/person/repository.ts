@@ -7,6 +7,7 @@ import {
   PERSON_LIST_MAX,
   PERSON_MEETING_LIMITS,
   PERSON_NOTE_LIMITS,
+  PERSON_RECENT_APPEND_IDS_MAX,
   SEARCH_VERSION,
   appendTalk,
   countChars,
@@ -345,7 +346,11 @@ export async function appendToTalk(
       talk,
       ...searchColumns({ ...current, talk }),
       version: current.version + 1,
-      lastAppendId: input.appendId,
+      // 最近の書き足しの ID は新しい順に最大20個（行ロックの中なので、読んだ値に足してよい。research R7）
+      recentAppendIds: [input.appendId, ...current.recentAppendIds].slice(
+        0,
+        PERSON_RECENT_APPEND_IDS_MAX,
+      ),
     })
     .where(eq(personNote.id, current.id));
 }

@@ -36,7 +36,7 @@ CREATE TABLE "person_note" (
 	"search_version" smallint NOT NULL,
 	"version" integer DEFAULT 1 NOT NULL,
 	"create_request_id" uuid,
-	"last_append_id" uuid,
+	"recent_append_ids" uuid[] DEFAULT '{}'::uuid[] NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "person_note_id_owner_unique" UNIQUE("id","owner_account_id"),
@@ -47,6 +47,7 @@ CREATE TABLE "person_note" (
 	CONSTRAINT "person_note_accounts_check" CHECK (char_length("person_note"."account_x") <= 200 and char_length("person_note"."account_connpass") <= 200 and char_length("person_note"."account_github") <= 200 and char_length("person_note"."account_linkedin") <= 200 and char_length("person_note"."account_line") <= 200 and char_length("person_note"."account_url") <= 200),
 	CONSTRAINT "person_note_account_url_check" CHECK ("person_note"."account_url" ~* '^https?://'),
 	CONSTRAINT "person_note_tags_check" CHECK (cardinality("person_note"."tag_keys") = cardinality("person_note"."tags") and array_position("person_note"."tags", null) is null and array_position("person_note"."tag_keys", null) is null),
+	CONSTRAINT "person_note_recent_append_ids_check" CHECK (cardinality("person_note"."recent_append_ids") <= 20 and array_position("person_note"."recent_append_ids", null) is null),
 	CONSTRAINT "person_note_talk_check" CHECK (char_length("person_note"."talk") <= 20000),
 	CONSTRAINT "person_note_next_topic_check" CHECK (char_length("person_note"."next_topic") <= 2000)
 );

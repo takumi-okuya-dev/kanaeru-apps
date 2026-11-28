@@ -171,7 +171,7 @@
   - `meetingId` を付けると組もできる。
   - ほかの人の人には 404。
   - 書き足すと話したことが 20,000字を超えるなら、書かずに 400（`fields.talk`）。
-- [x] T038 [US4] 窓口：`personAppendTalk`（`routes.ts`・`repository.ts`。行ロックの中で `last_append_id` を比べる。research R7）
+- [x] T038 [US4] 窓口：`personAppendTalk`（`routes.ts`・`repository.ts`。行ロックの中で `recent_append_ids` を比べる。research R7）
 - [x] T039 [US4] 画面：`NotePage.tsx` に書き足しの欄。
   - `appendId` は画面が作り、送り直しでも同じものを使う。
   - 会った場を選べる。

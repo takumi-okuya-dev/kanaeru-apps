@@ -3,6 +3,7 @@ export {
   PERSON_EVENT_CANDIDATE_MAX,
   PERSON_MEETING_LIMITS,
   PERSON_NOTE_LIMITS,
+  PERSON_RECENT_APPEND_IDS_MAX,
   countChars,
 } from "./limits.ts";
 export {
