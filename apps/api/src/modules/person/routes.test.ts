@@ -4,6 +4,7 @@
 // 持ち主だけ（ほかの人の ID は 404）・アプリが見えないときの 404。名前と話したことは、どれも架空のもの。
 import "@hono/zod-openapi";
 import { jstDate } from "@workspace/contracts/core";
+import { PERSON_RECENT_APPEND_IDS_MAX } from "@workspace/contracts/person";
 import type {
   Meeting,
   MeetingList,
@@ -505,6 +506,35 @@ describe("人物メモの窓口", () => {
       ).json()) as Note;
       expect(again.talk).toBe(saved.talk);
       expect(again.version).toBe(2);
+    });
+
+    it("送り直しの間にほかの端末の書き足しが入っても、送り直しは二重にならない（最近の20個まで見分ける）", async () => {
+      const note = await createNote(app, owner.cookie, { talk: "" });
+      const path = `${PERSON_NOTES}/${note.id}/appends`;
+      const first = crypto.randomUUID();
+      await call(app, owner.cookie, path, "POST", { appendId: first, text: "1台目の書き足し" });
+      // 2台目の書き足しが、1台目の送り直しより先に届く
+      await call(app, owner.cookie, path, "POST", {
+        appendId: crypto.randomUUID(),
+        text: "2台目の書き足し",
+      });
+      const retried = (await (
+        await call(app, owner.cookie, path, "POST", { appendId: first, text: "1台目の書き足し" })
+      ).json()) as Note;
+      expect(retried.talk.split("1台目の書き足し")).toHaveLength(2);
+      expect(retried.version).toBe(3);
+
+      // 20個より前の ID は覚えていないので、新しい書き足しとして足す
+      for (let i = 0; i < PERSON_RECENT_APPEND_IDS_MAX; i += 1) {
+        await call(app, owner.cookie, path, "POST", {
+          appendId: crypto.randomUUID(),
+          text: `${i}`,
+        });
+      }
+      const old = (await (
+        await call(app, owner.cookie, path, "POST", { appendId: first, text: "1台目の書き足し" })
+      ).json()) as Note;
+      expect(old.talk.split("1台目の書き足し")).toHaveLength(3);
     });
 
     it("会った場を付けると、見出しに名前と日付が入り、組もできる", async () => {

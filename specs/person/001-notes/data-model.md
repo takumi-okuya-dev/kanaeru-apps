@@ -22,7 +22,7 @@ DB の変更は `0025_person.sql` の1つ（pr1）。番号は、そのときの
 | `search_version` | smallint | 要る。そろえ方の版（今は 1） |
 | `version` | integer | 要る。1から。書き直し・書き足しで +1 |
 | `create_request_id` | uuid | 任意。人を足したときの、画面が作った ID |
-| `last_append_id` | uuid | 任意。最後に受けた書き足しの ID |
+| `recent_append_ids` | uuid[] | 要る（既定は空の配列）。最近受けた書き足しの ID を新しい順に最大20個（CHECK）。同じ ID の送り直しを見分ける（research R7） |
 | `created_at`・`updated_at` | timestamptz | `updated_at` は保存のたびに新しくなる（一覧の並び） |
 
 - **一意**：
