@@ -1,10 +1,13 @@
-// 人物メモの窓口（specs/person/001-notes/contracts/person.md の14の窓口）。道の頭は /api/v1/person（AD-31）。
+// 人物メモの窓口（specs/person/001-notes/contracts/person.md の14の窓口と、specs/person/002-event-meetings/contracts/person.md の
+// 交流会から会った場を作る2つの窓口）。道の頭は /api/v1/person（AD-31）。
 // どの道もログインが要る（account の requireSession）。権限は access.ts の「持ち主か」だけで、ほかの人の記録は 404。
 // アプリが見えないときの 404 は、組み立てが付ける suite の requireApp（AD-16）。
 // 人を足す送り直しは clientRequestId、書き足しの送り直しは appendId で二重にしない。直すのはもとの版が今の版と同じときだけ（R7）。
 // 探す言葉とタグは URL に載せず、POST の本文で受ける（AD-31）。メモの値はログに出さない（ここではログを書かない。R14）。
 // DB のエラーは repository.ts の guardDbErrors で読みかえる（SQL に渡した値を、予期しないエラーのログに出さない）。
+// 選べる交流会の条件は events.ts の1か所で決め、候補の窓口と交流会から作る窓口の両方が使う（AD-31）。
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
+import { jstDate } from "@workspace/contracts/core";
 import * as contract from "@workspace/contracts/person";
 import { PERSON_ERRORS } from "@workspace/contracts/person";
 import { AppError, domainErrorResponse } from "../../kernel/errors.ts";
@@ -14,6 +17,7 @@ import { isUniqueViolation } from "../../kernel/pg-errors.ts";
 import { currentAccount, requireSession, unauthenticatedResponse } from "../account/index.ts";
 import { requireOwnedMeeting, requireOwnedNote } from "./access.ts";
 import { buildPersonCsv } from "./csv.ts";
+import { findSelectableEvent, listEventCandidates } from "./events.ts";
 import {
   appendToTalk,
   attachMeeting,
@@ -21,6 +25,7 @@ import {
   deleteNote,
   detachMeeting,
   findNoteIdByRequest,
+  findOrCreateEventMeeting,
   findOrCreateMeeting,
   guardDbErrors,
   insertNote,
@@ -57,6 +62,14 @@ const Meeting = contract.Meeting.openapi("PersonMeeting");
 const MeetingCreateInput = contract.MeetingCreateInput.openapi("PersonMeetingCreateInput", {
   example: { name: "11月の AI 勉強会", metOn: "2026-11-20" },
 });
+
+/** 会った場に選べる交流会の一覧。 */
+const EventCandidateList = contract.EventCandidateList.openapi("PersonEventCandidateList");
+/** 交流会から会った場を作る入力。 */
+const MeetingFromEventInput = contract.MeetingFromEventInput.openapi(
+  "PersonMeetingFromEventInput",
+  { example: { eventId: "0193a1b2-0000-7000-8000-000000000301" } },
+);
 
 /** 道の noteId。 */
 const NoteParams = z.object({ noteId: uuidParam("noteId", "人の ID") });
@@ -245,6 +258,26 @@ function defineRoutes(deps: DomainRouteDeps) {
         401: unauthenticatedResponse,
       },
     }),
+    createMeetingFromEvent: createRoute({
+      method: "post",
+      path: `${meetings}/from-event`,
+      tags,
+      operationId: "personCreateMeetingFromEvent",
+      summary:
+        "PaletKit の交流会から会った場を作る（名前と日本時間の日付を写す。その交流会の会った場がもうあれば、作らずに 200 で前のもの）",
+      middleware: [session] as const,
+      request: { body: body(MeetingFromEventInput) },
+      responses: {
+        201: json(Meeting, "作った会った場"),
+        200: json(Meeting, "前からある、その交流会の会った場"),
+        400: invalidInputResponse,
+        401: unauthenticatedResponse,
+        404: domainErrorResponse(
+          PERSON_ERRORS.NOT_FOUND,
+          "選べない交流会（チェックイン・持ち主・受付係のどれでもない・ない・今日より後に始まる・最新の50件に入らない）か、受付アプリが見えない",
+        ),
+      },
+    }),
     getMeeting: createRoute({
       method: "get",
       path: `${meetings}/{meetingId}`,
@@ -264,6 +297,16 @@ function defineRoutes(deps: DomainRouteDeps) {
       middleware: [session] as const,
       request: { params: MeetingParams },
       responses: { 204: { description: "消した" }, ...ownedErrors },
+    }),
+    listEventCandidates: createRoute({
+      method: "get",
+      path: "/api/v1/person/event-candidates",
+      tags,
+      operationId: "personListEventCandidates",
+      summary:
+        "会った場に選べる PaletKit の交流会（チェックインした会・持ち主の会・受付係の会。今日〈日本時間〉の終わりまでに始まるものを新しい順に最大50件。受付アプリが見えなければ available が false で空）",
+      middleware: [session] as const,
+      responses: { 200: json(EventCandidateList, "一覧"), 401: unauthenticatedResponse },
     }),
     exportCsv: createRoute({
       method: "get",
@@ -419,6 +462,23 @@ export function personRoutes(deps: DomainRouteDeps) {
       });
       return created ? c.json(meeting, 201) : c.json(meeting, 200);
     })
+    .openapi(routes.createMeetingFromEvent, async (c) => {
+      const account = currentAccount(c);
+      const { eventId } = c.req.valid("json");
+      const { meeting, created } = await guardDbErrors(async () => {
+        // 候補の一覧と同じ条件で確かめ直す（AD-31）。選べなければ、あるかどうかを知らせずに 404
+        const selected = await findSelectableEvent(deps, account, eventId);
+        if (!selected) throw new AppError(PERSON_ERRORS.NOT_FOUND);
+        const result = await findOrCreateEventMeeting(db, account.accountId, {
+          eventId: selected.eventId,
+          name: selected.name,
+          metOn: jstDate(selected.startsAt),
+        });
+        const owned = await requireOwnedMeeting(db, account.accountId, result.id);
+        return { meeting: await meetingOf(db, owned), created: result.created };
+      });
+      return created ? c.json(meeting, 201) : c.json(meeting, 200);
+    })
     .openapi(routes.getMeeting, async (c) => {
       const { accountId } = currentAccount(c);
       const { meetingId } = c.req.valid("param");
@@ -433,6 +493,10 @@ export function personRoutes(deps: DomainRouteDeps) {
       const deleted = await guardDbErrors(() => deleteMeeting(db, accountId, meetingId));
       if (!deleted) throw new AppError(PERSON_ERRORS.NOT_FOUND);
       return c.body(null, 204);
+    })
+    .openapi(routes.listEventCandidates, async (c) => {
+      const account = currentAccount(c);
+      return c.json(await guardDbErrors(() => listEventCandidates(deps, account)), 200);
     })
     .openapi(routes.exportCsv, async (c) => {
       const { accountId } = currentAccount(c);
