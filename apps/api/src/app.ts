@@ -35,6 +35,7 @@ import { routePath } from "hono/route";
 import { secureHeaders } from "hono/secure-headers";
 import type { Config } from "./kernel/config.ts";
 import type { Database } from "./kernel/db.ts";
+import { describeUnexpectedError } from "./kernel/error-log.ts";
 import { AppError, toAppError, toErrorBody } from "./kernel/errors.ts";
 import { assertKnownDomainFeatures, createDomainFeatures } from "./kernel/features.ts";
 import type { DomainFeatures } from "./kernel/features.ts";
@@ -625,8 +626,9 @@ export function createApp(deps: AppDeps): OpenAPIHono<AppEnv> {
       }
       return c.json(toErrorBody(appError, requestId), appError.status);
     }
-    // 予期しないエラー：ログにはエラーの名前と積み重ねと要求の ID だけ
-    logger.error({ requestId, errorName: error.name, stack: error.stack }, "予期しないエラー");
+    // 予期しないエラー：ログには要求の ID と、エラーの名前・at の行・DB のエラーの SQLSTATE と制約の名前だけ。
+    // エラーの文は利用者の値や SQL に渡した値を含みうるので書かない（kernel/error-log.ts）
+    logger.error({ requestId, ...describeUnexpectedError(error) }, "予期しないエラー");
     return c.json(toErrorBody(new AppError("INTERNAL"), requestId), 500);
   });
   app.notFound((c) => c.json(toErrorBody(new AppError("NOT_FOUND"), c.var.requestId ?? ""), 404));
