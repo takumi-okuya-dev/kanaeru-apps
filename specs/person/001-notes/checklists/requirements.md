@@ -33,4 +33,4 @@
 
 - 持ち主が外出中のため、あいまいな点は Clarifications に【仮決め】として AI が決めた（5件）。書き足しの見出しの日付は、持ち主の確かめを待つ。
 - 「CSV」「BOM」「`http`・`https`」「URL」「MCP」は、このリポジトリの PRD と構成の決めごとが使う言葉で、使う人に見える形の約束として残した（作り方の約束ではない）。
-- 範囲の外（kanaeru の交流会を選ぶ・先に入れる共通の PR）を Input と Assumptions に書いた。
+- 範囲の外（PaletKit の交流会を選ぶ・先に入れる共通の PR）を Input と Assumptions に書いた。

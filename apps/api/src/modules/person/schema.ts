@@ -28,7 +28,7 @@ import { eventTable } from "../event/index.ts";
 
 /**
  * 人のメモ（最上位の記録。使う人の account で持つ。AD-19・AD-31）。
- * メモの相手は kanaeru の利用者と結び付けない（相手の account の ID を持たない。AD-2）。
+ * メモの相手は PaletKit の利用者と結び付けない（相手の account の ID を持たない。AD-2）。
  */
 export const personNote = pgTable(
   "person_note",
@@ -120,7 +120,7 @@ export const personMeeting = pgTable(
     ownerAccountId: uuid("owner_account_id")
       .notNull()
       .references(() => accountTable.id, { onDelete: "cascade" }),
-    /** 作り方（manual：手で書いた・event：kanaeru の交流会から。約束の PERSON_MEETING_SOURCES） */
+    /** 作り方（manual：手で書いた・event：PaletKit の交流会から。約束の PERSON_MEETING_SOURCES） */
     source: text("source").notNull(),
     /** 名前（event のときは、作ったときの交流会の名前の写し） */
     name: text("name").notNull(),
@@ -128,7 +128,7 @@ export const personMeeting = pgTable(
     nameKey: text("name_key").notNull(),
     /** 会った日（日本時間の日付。event のときは、作ったときの交流会の日付の写し） */
     metOn: date("met_on", { mode: "string" }).notNull(),
-    /** kanaeru の交流会（任意。交流会が消えたら空） */
+    /** PaletKit の交流会（任意。交流会が消えたら空） */
     eventId: uuid("event_id").references(() => eventTable.id, { onDelete: "set null" }),
     ...timestamps(),
   },
