@@ -4,6 +4,14 @@
 import { isQuestionComment } from "@workspace/contracts/reading";
 import type { ImportedMarker } from "./goodnotes.ts";
 
+/** ハイライトの色の印（2026-11-28 に持ち主の日本語のアプリの書き出しで annotation_ を確かめた。古い形は highlight_）。 */
+const HIGHLIGHT_SPAN = [
+  'span[class^="annotation_"]',
+  'span[class*=" annotation_"]',
+  'span[class^="highlight_"]',
+  'span[class*=" highlight_"]',
+].join(", ");
+
 /** メモを直前のハイライトに付けるときの、位置の離れの上限。 */
 const NOTE_DISTANCE_MAX = 10;
 
@@ -55,8 +63,7 @@ export function pageAndLocation(heading: string): { page?: number; location?: nu
   const numbers = [...afterDash.matchAll(/\d[\d,]*/gu)]
     .map((match) => Number(match[0].replace(/,/gu, "")))
     .filter((value) => Number.isSafeInteger(value) && value >= 1);
-  if (numbers.length >= 2)
-    return { page: numbers.at(-2), location: numbers.at(-1) };
+  if (numbers.length >= 2) return { page: numbers.at(-2), location: numbers.at(-1) };
   // 数字が1つ：ページか位置かは言葉で分からないので、位置とみなす（Kindle の書き出しには、いつも位置が入る）
   if (numbers.length === 1) return { location: numbers[0] };
   return {};
@@ -111,8 +118,8 @@ export function readKindleHtml(html: string): KindleResult {
     order += 1;
     const heading = textOf(node);
     const { page, location } = pageAndLocation(heading);
-    const isHighlight =
-      node.querySelector('span[class^="highlight_"], span[class*=" highlight_"]') !== null;
+    // ハイライトの見出しには色の span がある（今の書き出しは annotation_<色>、古い書き出しは highlight_<色>）。メモにはない
+    const isHighlight = node.querySelector(HIGHLIGHT_SPAN) !== null;
     if (!isHighlight) {
       // メモ：直前のハイライトに付ける（位置が近いときだけ）。なければコメントだけのマーカー
       const near =
