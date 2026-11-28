@@ -6,16 +6,16 @@
 
 | 方法 | 道 | 入力 | 答え | 主なエラー |
 |---|---|---|---|---|
-| POST | `/catalog/search` | `{ q }`（1〜200字） | `{ items: [{ title, author, isbn, coverUrl, source }] }`（20件まで） | `422`（空）・`502 CATALOG_UNAVAILABLE` |
+| POST | `/catalog/search` | `{ q }`（1〜200字） | `{ items: [{ title, author, isbn, coverUrl, source }] }`（20件まで） | `400`（空）・`502 CATALOG_UNAVAILABLE` |
 | GET | `/books` | — | `{ items: [{ id, title, author, coverUrl, status, sources, markerCount, lastImportedAt }] }`（本棚の並び。FR-007） | — |
-| POST | `/books` | `{ title, author?, isbn?, coverUrl?, catalogSource, want?, sources? }` | `201` と本 | `422`（字数・ISBN・書影の URL の形） |
+| POST | `/books` | `{ title, author?, isbn?, coverUrl?, catalogSource, want?, sources? }` | `201` と本 | `400`（字数・ISBN・書影の URL の形） |
 | GET | `/books/{bookId}` | — | 本と、マーカー（消していないもの。`position` の順） | `404` |
-| PATCH | `/books/{bookId}` | `{ title?, author?, want?, status?, sources? }` | 本 | `404`・`422` |
+| PATCH | `/books/{bookId}` | `{ title?, author?, want?, status?, sources? }` | 本 | `404`・`400` |
 | DELETE | `/books/{bookId}` | — | `204`（マーカーも消える） | `404` |
-| POST | `/books/{bookId}/merge` | `{ intoBookId }` | まとめ先の本（`movedCount`・`duplicateCount`） | `404`（どちらか）・`422`（同じ本） |
+| POST | `/books/{bookId}/merge` | `{ intoBookId }` | まとめ先の本（`movedCount`・`duplicateCount`） | `404`（どちらか）・`422 READING_SAME_BOOK`（同じ本） |
 | GET | `/books/{bookId}/marker-keys` | — | `{ keys: string[] }`（消したものも含む。R7） | `404` |
-| POST | `/books/{bookId}/markers/import` | `{ source, markers: [{ text, comment?, chapter?, page?, location?, position, question }] }`（1〜500件・本文 100KB まで） | `{ inserted, updated, unchanged }` | `404`・`413`（本文が大きい）・`422`（形・字数） |
-| PATCH | `/markers/{markerId}` | `{ comment?, question?, chapter? }` | マーカー（`comment` を変えたら `comment_edited`、`question` を変えたら `question_edited` を true） | `404`・`422` |
+| POST | `/books/{bookId}/markers/import` | `{ source, markers: [{ text, comment?, chapter?, page?, location?, position, question }] }`（1〜500件・本文 100KB まで） | `{ inserted, updated, unchanged }` | `404`・`413`（本文が大きい）・`400`（形・字数・501件） |
+| PATCH | `/markers/{markerId}` | `{ comment?, question?, chapter? }` | マーカー（`comment` を変えたら `comment_edited`、`question` を変えたら `question_edited` を true） | `404`・`400` |
 | DELETE | `/markers/{markerId}` | — | `204`（`deleted_at` を入れる） | `404` |
 
 - 取りこみの窓口は、束ごとに本の `last_imported_at` を今にし、`sources` に読む場所を足す（`paste` は `other`）。
