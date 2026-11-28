@@ -213,7 +213,7 @@ describe("画面のファイル", () => {
     expect(() => buildApp(database, testConfig({ webDistDir: root }))).toThrow("index.html");
   });
 
-  it("画面の CSP は、LINE の SDK が使う源と Threads のプロフィールの画像の源を許し、ほかの外の源を許さない", () => {
+  it("画面の CSP は、LINE の SDK が使う源と、Threads のプロフィールの画像・読書記録の書影の源を許し、ほかの外の源を許さない", () => {
     const { imgSrc, ...others } = WEB_CSP_DIRECTIVES;
     const sources = Object.values(others)
       .flat()
@@ -221,11 +221,12 @@ describe("画面のファイル", () => {
     for (const source of sources) {
       expect(new URL(source).hostname, source).toMatch(/(^|\.)line\.me$|(^|\.)line-scdn\.net$/);
     }
-    // 画像だけは、Threads のプロフィールの画像（Meta の画像の置き場所）も許す
+    // 画像だけは、Threads のプロフィールの画像（Meta の画像の置き場所）と、読書記録の書影（openBD）も許す
     for (const source of imgSrc.filter((value) => value.startsWith("https://"))) {
       expect(source).toMatch(
-        /^https:\/\/(profile\.line-scdn\.net|\*\.cdninstagram\.com|\*\.fbcdn\.net)$/,
+        /^https:\/\/(profile\.line-scdn\.net|\*\.cdninstagram\.com|\*\.fbcdn\.net|cover\.openbd\.jp)$/,
       );
     }
+    expect(imgSrc).toContain("https://cover.openbd.jp");
   });
 });
