@@ -1,6 +1,6 @@
 # 読書記録（reading）の地図
 
-2026-11-28 作成（reading-001 pr1：表とアプリの登録。決めた理由は [specs/reading/001-bookshelf-import/research.md](../../specs/reading/001-bookshelf-import/research.md)）。
+2026-11-28 作成（reading-001 pr1：表とアプリの登録。pr2：窓口・画面・取りこみ。決めた理由は [specs/reading/001-bookshelf-import/research.md](../../specs/reading/001-bookshelf-import/research.md)）。
 
 読書記録（key `reading`）の1つの領域（構成の決めごと AD-32〜AD-34）。
 
@@ -8,13 +8,13 @@
 - **持ち主**：本とマーカーは使う人の account の記録。組織には入れない（AD-19・AD-32）。
 - **本のファイルを持たない**：取りこむファイル（GoodNotes の PDF など）は端末の中で読み、マーカーとコメントだけを送る（AD-34）。
 
-この版（reading-001 pr1）で入っているのは、表とアプリの登録と、`/reading` の仮の画面だけ。窓口と画面は pr2 で足す。
+この版（reading-001）で入っているのは、本棚・本を足す（書誌の検索）・GoodNotes の PDF と貼り付けの取りこみ・取りこみ直し・本の画面・本棚を整えること。Kindle の書き出しの取りこみ・探す・あとで調べるは reading-002、説明の材料から先は reading-003 以降。
 
 ## 1. アプリの登録
 
 | 項目 | 値 |
 |---|---|
-| key・道の頭 | `reading`・`/reading`（画面）・`/api/v1/reading/…`（窓口。pr2） |
+| key・道の頭 | `reading`・`/reading`（画面）・`/api/v1/reading/…`（窓口） |
 | 領域 | `reading` の1つ |
 | 使ってよいほかのアプリ | なし（`uses: []`） |
 | 公開 | 台帳に行がない間は運営者だけに見える（AD-16） |
@@ -34,13 +34,51 @@
 | `reading_book.owner_account_id`・`reading_marker.owner_account_id` | `CASCADE`（使う人のデータ。退会で消える） |
 | `reading_marker` の本への複合の外部キー | `CASCADE`（本を消すと、マーカーも消える） |
 
-## 3. 画面
+## 3. 窓口
+
+どれもログインが要る。ほかの人の本・マーカーは `404 READING_NOT_FOUND`（あると知らせない）。入力の誤りは `400`。
+
+| 方法 | 道 | 中身 |
+|---|---|---|
+| POST | `/api/v1/reading/catalog/search` | 書誌を探す（本文 `{ q }`。書名は国立国会図書館サーチの OpenSearch〈`dpid=iss-ndl-opac`〉、ISBN は openBD → なければ NDL。候補の書影は openBD にまとめて問い合わせる。5秒で打ち切り、失敗は `502 READING_CATALOG_UNAVAILABLE`。出口は `deps.fetch`） |
+| GET・POST | `/api/v1/reading/books` | 本棚（読んでいる本が上・最後に取りこんだ順）・本を足す |
+| GET・PATCH・DELETE | `/api/v1/reading/books/{bookId}` | 本（消していないマーカーを `position` の順に）・直す・消す |
+| POST | `/api/v1/reading/books/{bookId}/merge` | 本をまとめる（`{ intoBookId }`。同じ本どうしは `422 READING_SAME_BOOK`） |
+| GET | `/api/v1/reading/books/{bookId}/marker-keys` | マーカーの鍵の一覧（消したものも含む） |
+| POST | `/api/v1/reading/books/{bookId}/markers/import` | マーカーの束を取りこむ（1〜500件。本文 100KB まで） |
+| PATCH・DELETE | `/api/v1/reading/markers/{markerId}` | マーカーを直す（コメント・? の印・章）・消す（`deleted_at`） |
+
+**取りこみの決まり**（research R3・R4）
+- 鍵は、そろえたマーカーの文（NFKC・空白と改行を1つに・日本語の字どうしの間の空白を除く）とページと位置の SHA-256。文のないものはコメントで作る。API が作り直す（`@workspace/contracts/reading` の `markerKey`。画面も同じ関数で「新しいマーカー」を数える）。
+- `INSERT … ON CONFLICT (book_id, dedupe_key) DO UPDATE`：読書記録で直したコメント（`comment_edited`）と付け外した印（`question_edited`）は変えない。章は空のときだけ埋める。消したマーカーは変えない。束の中の同じ鍵は先のものだけ。
+- 束ごとに `last_imported_at` を今にし、`sources` に読む場所を足す（貼り付けは `other`）。
+
+**ログ**：書名・分かりたいこと・マーカーの文・コメント・検索の言葉は、ログとエラーの文に出さない。DB のエラーは `guardDbErrors` で SQLSTATE と制約の名前だけのエラーに読みかえる（`logging.test.ts`）。
+
+## 4. 画面
 
 | 道 | 画面 |
 |---|---|
-| `/reading` | 本棚（pr1 は準備中の案内だけ） |
+| `/reading` | 本棚（読んでいる本・閉じた「読み終えた本」「やめた本」・主のボタン「取りこむ」） |
+| `/reading/books/new` | 本を足す（書名か ISBN で探す・候補を選ぶ・手で書く・分かりたいこと・読む場所。書誌の出どころを書く） |
+| `/reading/import` | 取りこむ（GoodNotes の PDF を選ぶ・貼り付ける） |
+| `/reading/import/confirm` | 確かめてから入れる（件数・新しいマーカーの数・入れる本〈ファイルの名前に近い本を選んでおく・新しく登録〉・章の名前とコメントの付け先を直す・束で送る） |
+| `/reading/books/$bookId` | 本の画面（分かりたいこと・章ごとのマーカー・コメントを直す・? の印・消す・本の設定〈状態・読む場所・まとめる・消す〉） |
 
-## 4. テスト
+- 外枠のナビは、読書記録の画面の中でだけ「本棚」を出す（アイコンは `list`。本のアイコンは外枠の共通の変更なので、別の共通の PR で足す）。
+- 書影は openBD にあるときだけ配信元から出し、なければ書名の頭の文字で仮の表紙（`Cover.tsx`）。
+- 読み取った中身は画面の中の置き場（`import-session.ts`）だけに持つ（道・保存場所に入れない。読み直したら消える）。
 
-- 約束：`packages/contracts/src/reading/limits.test.ts`（字の数え方と上限）。
+## 5. GoodNotes の PDF の読み方（端末の中。AD-34）
+
+- `apps/web/src/features/reading/import/pdf.ts`：`pdfjs-dist` 4.10.38 の legacy の束を、「ファイルを選ぶ」で動的に読みこむ。worker（`?url`）と日本語の CMap（`import.meta.glob` の `?url&no-inline`）は画面の静かなファイルとして自分のドメインから出し、CSP を変えない。`isEvalSupported: false`・`disableFontFace: true`・`maxImageSize: 0`（画像は読まない）。300MB まで。
+- `import/goodnotes.ts`：pdf.js に依存しない読み方。不透明度 < 1 かつ幅 8pt 以上の線をマーカーとみなし、線の下の字を拾う。`HiraginoSans` の書体の字（なければ本文と違う書体の字）をテキストボックスとみなし、100pt 以内のいちばん近いマーカーのコメントにする。ページの上の柱から章とページを取る。
+- 見本：`import/__fixtures__/goodnotes-sample.pdf`（架空の文・作り方は `make-sample.ts` と `README.md`）。本物の本の PDF は置かない。
+
+## 6. テスト
+
+- 約束：`packages/contracts/src/reading/*.test.ts`（上限・鍵・貼り付け・ISBN）。
 - 表：`apps/api/src/modules/reading/schema.test.ts`（CHECK・一意・複合の外部キー・消し方を、表に直に書いて確かめる）。
+- 窓口：`routes.test.ts`（本・取りこみ・取りこみ直し・マーカー・まとめる・退会）・`catalog.test.ts`（出口を差しかえる）・`logging.test.ts`。
+- 画面：`apps/web/src/features/reading/*.test.tsx`・`import/*.test.ts`（見本の PDF を Node の pdf.js で読む）。
+- E2E：`e2e/tests/reading.spec.ts`（見本の PDF をブラウザで読んで入れる・貼り付け・取りこみ直し・axe・CSP）。
