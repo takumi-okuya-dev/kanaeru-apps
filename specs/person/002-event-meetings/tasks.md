@@ -9,7 +9,7 @@
 - [x] T001 受付の `listCheckedInEventIds(db, accountId)` を足す（`apps/api/src/modules/reception/repository.ts`・`index.ts`）。自分のアカウントでのチェックインだけを新しい順に返し、手でのチェックインと入れた人は数えない。テストは `apps/api/src/modules/reception/attendees.test.ts`
 - [x] T002 交流会の `listAccountEventSummaries(db, accountId, alsoEventIds)` を足す（`apps/api/src/modules/event/repository.ts`・`index.ts`）。持ち主・受付係・渡した ID の交流会を `{ eventId, name, startsAt }` で1回で返し、組織の役割は数えない。uuid の形でない ID は捨てる。テストは `apps/api/src/modules/event/account-events.test.ts`
 - [x] T003 `docs/apps/reception.md`・`docs/apps/event.md` の「ほかの領域が使うもの」に2つの関数を足す
-- [ ] T004 #170 が `develop` に入ったら、`eslint.config.js` の person の許す一覧を広げる（reception の `index.ts` は `allowImportNames: ["listCheckedInEventIds"]`、event は `["eventTable", "listAccountEventSummaries"]`。research R7）
+- [x] T004 #170 が `develop` に入ったあと（#175 で足した）、`eslint.config.js` の person の許す一覧を広げる（reception の `index.ts` は `allowImportNames: ["listCheckedInEventIds"]`、event は `["eventTable", "listAccountEventSummaries"]`。research R7）
 - [x] T005 `pnpm check` を流し、結果を PR に書いて出す（PR #175）
 
 ## Phase 1：約束（pr1。`feature/person-002-pr1-event-meetings`）
