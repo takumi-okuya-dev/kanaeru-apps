@@ -61,13 +61,15 @@ export const WEB_CSP_DIRECTIVES = {
   scriptSrc: ["'self'", "https://static.line-scdn.net"],
   styleSrc: ["'self'"],
   // LINE のプロフィールの画像（liff.getProfile の pictureUrl）と、Threads のプロフィールの画像（Threads の API の
-  // threads_profile_picture_url。Meta の画像の置き場所 *.cdninstagram.com・*.fbcdn.net）
+  // threads_profile_picture_url。Meta の画像の置き場所 *.cdninstagram.com・*.fbcdn.net）と、読書記録の本の書影
+  // （openBD の書影の置き場所 cover.openbd.jp。写しを持たず配信元から出す。構成の決めごと AD-33）
   imgSrc: [
     "'self'",
     "data:",
     "https://profile.line-scdn.net",
     "https://*.cdninstagram.com",
     "https://*.fbcdn.net",
+    "https://cover.openbd.jp",
   ],
   fontSrc: ["'self'"],
   // LIFF の SDK が呼ぶ LINE の窓口と、SDK の文言の取り寄せ
