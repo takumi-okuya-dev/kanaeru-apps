@@ -1,5 +1,6 @@
 // 受付の index.ts がほかの領域・ほかのアプリに出す関数の結合のテスト（本物の PostgreSQL。booking-001 FR-B103・research R9）：
-// チェックインした人（その交流会だけ・古い順）・「チェックインしたか」・手でのチェックインを作る（窓口と同じ金額と割引）。
+// チェックインした人（その交流会だけ・古い順）・「チェックインしたか」・手でのチェックインを作る（窓口と同じ金額と割引）・
+// その人がチェックインした交流会の ID（人物メモが会った場に選ぶ交流会。AD-31）。
 import "@hono/zod-openapi";
 import type { EventView } from "@workspace/contracts/event";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -9,7 +10,12 @@ import { loginAs } from "../../../test/helpers/account.ts";
 import { truncateAllTables, useTestDatabase } from "../../../test/helpers/db.ts";
 import { createEvent } from "../../../test/helpers/event.ts";
 import { SAMPLE_CHECKIN, checkIn, manualCheckIn } from "../../../test/helpers/reception.ts";
-import { createManualCheckin, hasCheckedIn, listEventAttendees } from "./index.ts";
+import {
+  createManualCheckin,
+  hasCheckedIn,
+  listCheckedInEventIds,
+  listEventAttendees,
+} from "./index.ts";
 
 const database = useTestDatabase();
 
@@ -62,6 +68,25 @@ describe("受付の index.ts がほかに出す関数", () => {
     expect(await hasCheckedIn(database.db, event.id, participant.account.id)).toBe(false);
     await checkIn(app, participant.cookie, event.id);
     expect(await hasCheckedIn(database.db, event.id, participant.account.id)).toBe(true);
+  });
+
+  it("その人がチェックインした交流会の ID は、自分のアカウントでのチェックインだけを新しい順に返す", async () => {
+    const second = await createEvent(app, organizer.cookie);
+    const notMine = await createEvent(app, organizer.cookie);
+    const participant = await loginAs(app);
+    const someone = await loginAs(app);
+    expect(await listCheckedInEventIds(database.db, participant.account.id)).toEqual([]);
+    await checkIn(app, participant.cookie, event.id);
+    await checkIn(app, participant.cookie, second.id);
+    // ほかの人のチェックインと、手でのチェックイン（アカウントがない）は数えない
+    await checkIn(app, someone.cookie, notMine.id);
+    await manualCheckIn(app, organizer.cookie, notMine.id, { name: "手の人" });
+    expect(await listCheckedInEventIds(database.db, participant.account.id)).toEqual([
+      second.id,
+      event.id,
+    ]);
+    // 手でチェックインを入れた人（受付係・主催者）にも数えない
+    expect(await listCheckedInEventIds(database.db, organizer.account.id)).toEqual([]);
   });
 
   it("手でのチェックインを作ると、入れた人と、参加費から割引を引いた金額が入る", async () => {

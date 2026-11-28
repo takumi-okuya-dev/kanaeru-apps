@@ -19,6 +19,9 @@ export { findEventOrganizationId } from "./repository.ts";
 // 組織に入れた交流会（booking の部の予定のため。booking-003）
 export { listOrganizationEvents } from "./repository.ts";
 export type { OrganizationEventRow } from "./repository.ts";
+// その人が持ち主か受付係の交流会と、チェックインした交流会（人物メモが会った場に選ぶ。AD-31）
+export { listAccountEventSummaries } from "./repository.ts";
+export type { AccountEventSummary } from "./repository.ts";
 export { eventForbiddenResponse, eventNotFoundResponse } from "./routes.ts";
 // 退会の手順（AD-22 の (2)。組み立てが suite の段のあとに流す。event-002）
 export { eventWithdrawal as withdrawal, listPersonalEventIds } from "./withdrawal.ts";
