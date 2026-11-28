@@ -81,7 +81,7 @@ flowchart TB
 | booking〈2026-11-20 足した。AD-23・AD-24〉 | `booking_setting`（交流会ごとの使い方・定員・見せる範囲・受け付けるか。2026-11-21 booking-004 で、枠を押さえるのをやめた時刻・中止の時刻・最後に知らせた日時と場所・変更に気づいた時刻・当日の空きを知らせた時刻を足した）・`booking_quota`（媒体の枠）・`booking_entry`（申込み＝名簿の行：名前・媒体・入口・状態・account か連絡のメール・当てたチェックイン）・`booking_offer`（打診と返事の期限）・`booking_consent`（案内の同意。相手は組織か持ち主）・`booking_contact`（LINE で申し込んだ人の任意のメール）・`booking_line_channel`・`booking_line_link`（公式アカウントの設定と紐づけ）・`booking_notice`（知らせの記録）・`booking_email_request`（メールで申し込む確認の待ち。2026-11-20 booking-003 で足した。申込みになる前の名前・アドレス・札の SHA-256 を24時間だけ持つ）。細かい列は仕様で決める |
 | suite | `app_setting`（アプリの key・公開の状態。売り方の列は売り始めるときに足す〈core-005。主催者が決めた〉）・`organization`・`organization_member`・`organization_invite`（組織。AD-22〈2026-11-20 足した〉）・`entitlement`（契約。持ち主はアカウントか組織のどちらか1つ〈2026-11-20 直した〉。売り始めるとき。AD-16・AD-22） |
 | match〈2026-11-22 足した。AD-25・AD-28〉 | `match_table`（試合表：持ち主・日付・設定〈試合の形・レベルの分け方・1試合の長さ〉・名簿と組み合わせと進み具合〈呼び名とレベルだけ。氏名は持たない〉・版の番号・担当の端末・くじの種・見るだけの札〈SHA-256〉と期限・つないだ交流会〈任意〉）・`match_table_organization`（組織に入れる）・`match_level_memory`（前に入れたレベル。account のある人だけ）【仮決め】 |
-| person〈2026-11-27 足した。AD-31〉 | `person_note`（人のメモ：使う人・フルネーム・よみ・LINE の名前・見た目の特徴・アカウント・タグ・話したこと・次に話したいこと・検索のためにそろえた文）・`person_meeting`（会った場：使う人・作り方〈`event`・`manual`〉・名前・日付・kanaeru の交流会〈任意。消えたら null〉・検索のためにそろえた文）・`person_note_meeting`（人と会った場の組。持ち主を含む複合の外部キー）【仮決め】。細かい列は仕様で決める |
+| person〈2026-11-27 足した。AD-31〉 | `person_note`（人のメモ：使う人・フルネーム・よみ・LINE の名前・見た目の特徴・アカウント・タグ・話したこと・次に話したいこと・検索のためにそろえた文）・`person_meeting`（会った場：使う人・作り方〈`event`・`manual`〉・名前・日付・PaletKit の交流会〈任意。消えたら null〉・検索のためにそろえた文）・`person_note_meeting`（人と会った場の組。持ち主を含む複合の外部キー）【仮決め】。細かい列は仕様で決める |
 | account（足すとき） | `ai_credential`（利用者の API キーの暗号文。AD-20）・OAuth のクライアントとトークン（AD-21） |
 
 ### AD-4 — ログインは LINE のIDトークンを API が確かめ、自前のセッションを出す [ADOPTED]
@@ -404,13 +404,13 @@ flowchart TB
 
 ### AD-31 — 人物メモは person の領域が持ち、使う人の account だけが持って外に出さない [ADOPTED]
 
-〈2026-11-27 足した：持ち主が決めた（自分だけの非公開メモ・受付の名簿や名前を候補に出さない・外の AI に送らない・顔写真と電話番号を持たない・会った場は kanaeru の交流会か手で書く・key は単数の `person`）。範囲は [PRD 人物メモ](../prd-kanaeru-person/prd-kanaeru-person.md)。点検は [reviews/](./reviews/) の `*-person.md`。【仮決め】の印は持ち主の確かめを待つ〉
+〈2026-11-27 足した：持ち主が決めた（自分だけの非公開メモ・受付の名簿や名前を候補に出さない・外の AI に送らない・顔写真と電話番号を持たない・会った場は PaletKit の交流会か手で書く・key は単数の `person`）。範囲は [PRD 人物メモ](../prd-kanaeru-person/prd-kanaeru-person.md)。点検は [reviews/](./reviews/) の `*-person.md`。【仮決め】の印は持ち主の確かめを待つ〉
 
 - **Binds:** person・reception と event（読むだけ。使う人の交流会の一覧を足す）・suite（読むだけ）・account（OAuth の範囲）・土台（予期しないエラーのログ）、PRD 人物メモの全体
 - **Prevents:** メモに書かれた他人の情報が、ほかの利用者・運営者の画面・外の AI・MCP の同意の画面・ログ・URL に出ること。受付の名簿やチェックインした人の名前がメモに写り、参加者の情報の使い道が変わること。選べる交流会の条件が reception・event・person で食い違うこと。手で書いた会った場の名前が揺れること、一意の制約が交流会の持ち主の退会を落とすこと。検索の当たり方と光らせる所が API と画面で食い違うこと
 - **Rule:**
   - **アプリと領域**：アプリの key は `person`（AD-15）。領域は `person` の1つ。`uses: ["reception"]`。表は `person_` で始め、API の道は `/api/v1/person/…`、画面は `/person/…` の下に置く。`accountData` に「人物メモ（会った人・会った場）」を書く（退会の確かめの画面がここから作られる。確かめの中身は件数だけで、名前を出さない）。
-  - **記録**：最上位の記録は `person_note`（人のメモ）で、`owner_account_id` を持つ（AD-19）。メモの相手は kanaeru の利用者と結び付けず、相手の account の ID を持たない（AD-2）。
+  - **記録**：最上位の記録は `person_note`（人のメモ）で、`owner_account_id` を持つ（AD-19）。メモの相手は PaletKit の利用者と結び付けず、相手の account の ID を持たない（AD-2）。
   - **組織に入れない**：人物メモには組織に入れる表を作らない。権限は person の1つの関数で「持ち主か」だけを見る。ほかの人の記録は、道の ID でも本文の ID でも `404 NOT_FOUND`（あると知らせない）【仮決め】。
   - **消し方**：`person_note`・`person_meeting` の `owner_account_id` は `ON DELETE CASCADE`（AD-7）。退会の前の手順（AD-22 の (2)）は持たない。account の削除と同じトランザクションで外部キーが消すので、手順は要らない。
   - **会った場**：`person_meeting` は使う人の一覧の1件で、1件に何人もつながる。
@@ -419,7 +419,7 @@ flowchart TB
     - 人と会った場の組 `person_note_meeting` は一意。`(note_id, owner_account_id)` と `(meeting_id, owner_account_id)` の複合の外部キー（どちらも CASCADE）で、持ち主の違うメモと会った場を結べないようにする【仮決め】。
   - **選べる交流会**：使う人が **自分の account でチェックインした・持ち主の（`event.owner_account_id`）・受付係の（`event_staff`）** 交流会。組織の役割（管理者・編集者・部員）は数えない（主催者向けの今の一覧 `listAccessibleEvents` は組織の役割を含むので、そのまま使わない）。
     - reception の `index.ts` に「その account がチェックインした交流会の ID の一覧」を、event の `index.ts` に「交流会の ID の一覧と、その account が持ち主か受付係の交流会」から `{eventId, name, startsAt}` をまとめて返す関数を足す（1件ずつ引かない）。どちらも持ち主の領域の小さな PR で先に入れる（AD-3）。
-    - 会った場を作るときは、person の API が同じ条件で確かめ直し、当たらなければ `404`。受付アプリが使う人に見えなければ、kanaeru の交流会を選ぶ部分を出さない（AD-15）。
+    - 会った場を作るときは、person の API が同じ条件で確かめ直し、当たらなければ `404`。受付アプリが使う人に見えなければ、PaletKit の交流会を選ぶ部分を出さない（AD-15）。
   - **読んでよいもの（許す一覧）**：person が import してよいのは、account・suite の `index.ts`（今の利用者・`isAppVisible`）と、上の2つの関数・`eventTable`（`.references()` にだけ）だけ。交流会の参加者・申込みの名簿を出す関数（reception の `listCheckins`・`listEventAttendees`、booking の `listApplicantRoster` など）は呼ばない（PRD 人物メモ FR-P8）。lint の `no-restricted-imports` で止める（共通の PR で先に入れる）【仮決め】。
   - **検索**：持ち主の行だけを DB で探す。
     - そろえ方（NFKC・カタカナをひらがなに・小文字）と、当たった箇所を **もとの文の中の位置** で返す関数は、`packages/contracts/src/person` に1つずつ置く（NFKC は文字の数を変えるので、そろえた文の位置でもとの文を切らない）。前後の文は API が作り、画面はもう一度探さない。
