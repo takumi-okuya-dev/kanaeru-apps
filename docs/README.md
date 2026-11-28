@@ -37,6 +37,7 @@
 | [交流会（event）の地図](./apps/event.md) | 交流会・受付係・招待のリンクの表・窓口・交流会ごとの権限（`requireEventRole`）と要約（`getEventSummary`）・管理の画面の道と外枠のナビの項目・テストの手伝い | event の領域 |
 | [試合表（match）の地図](./apps/match.md) | 試合表・組織に入れる・前に入れたレベル・QR の受付の表と消し方・アプリの登録（key `match`・`uses: ["reception"]`）・中身の形・窓口（版の番号と担当の端末）・権限・退会の手順・画面（名簿・試合表・印刷）・組み方 | match の領域 |
 | [人物メモ（person）の地図](./apps/person.md) | 人のメモ・会った場・人と会った場の組の表と消し方・アプリの登録（key `person`・`uses: ["reception"]`） | person の領域 |
+| [読書記録（reading）の地図](./apps/reading.md) | 本とマーカーの表と消し方・アプリの登録（key `reading`・`uses: []`） | reading の領域 |
 | [受付（reception）の地図](./apps/reception.md) | チェックインの表・窓口（自分のチェックイン・一覧・手でのチェックイン・直す・取り消す・合計・内訳・CSV）・金額と同じ名前の決まり・survey が使う `findCheckin`・`listCheckins` と画面の差しこみの場所・テストの手伝い | reception の領域 |
 | [スイート（suite）の地図](./apps/suite.md) | アプリの一覧（1行に1つ）と新しい領域の足し方・台帳の表（公開の状態）・窓口・見えるか（`isAppVisible`・組み立てが付ける `requireApp`）・すべてのアプリと設定の画面・テストの見本のアプリ | suite の領域・アプリの登録 |
 | [アンケート（survey）の地図](./apps/survey.md) | アンケートの回答の表・窓口（自分の回答・主催者の代わりの入力・困りごとの一覧と CSV）・開閉と権限の決まり・選択肢と高い順・画面（P2・困りごと）と reception の差しこみの場所への節・テストの手伝い | survey の領域 |
