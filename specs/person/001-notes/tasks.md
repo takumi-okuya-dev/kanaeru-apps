@@ -8,9 +8,9 @@
 
 どれも共通のファイルを直すので、領域の PR に混ぜない（[並行開発の決まり](../../../docs/rules/parallel-development.md) 3-3）。作る前にユーザーに伝える。
 
-- [ ] T001 `fix/core-unexpected-error-log`：予期しないエラーのログに SQL の値を出さない（`apps/api/src/app.ts` の `onError`）。DB のエラーは SQLSTATE と制約の名前だけを書き、message・stack・params は書かない。結合のテストは、決まった言葉を値にした DB のエラーを起こし、ログの出力にその言葉がないことを見る（research R2 の1。pr1 の前）
-- [ ] T002 OAuth の範囲を、MCP のツールを出すアプリだけから作る（`apps/api/src/modules/account/oauth/routes.ts` の `scopes_supported`・許す範囲・同意の画面）。仕様は `specs/core/NNN-…`（番号は作るときに決める。research R2 の2。pr1 の前）
-- [ ] T003 person の import の許す一覧を、lint の `no-restricted-imports` で止める（ESLint の設定）。許すのは account・suite の `index.ts` と `eventTable`（research R2 の3。pr2 の前。次の仕様で reception と event の関数を足す）
+- [x] T001 `fix/core-unexpected-error-log`：予期しないエラーのログに SQL の値を出さない（`apps/api/src/app.ts` の `onError`）。DB のエラーは SQLSTATE と制約の名前だけを書き、message・stack・params は書かない。結合のテストは、決まった言葉を値にした DB のエラーを起こし、ログの出力にその言葉がないことを見る（research R2 の1。pr1 の前。PR #167）
+- [x] T002 OAuth の範囲を、MCP のツールを出すアプリだけから作る（`apps/api/src/modules/account/oauth/routes.ts` の `scopes_supported`・許す範囲・同意の画面）。仕様は `specs/core/NNN-…`（番号は作るときに決める。research R2 の2。pr1 の前）
+- [x] T003 person の import の許す一覧を、lint の `no-restricted-imports` で止める（ESLint の設定）。許すのは account・suite の `index.ts` と `eventTable`（research R2 の3。pr2 の前。次の仕様で reception と event の関数を足す。PR #170）
 
 ## Phase 1: 表とアプリの登録（PR `feature/person-001-pr1-tables`）
 
