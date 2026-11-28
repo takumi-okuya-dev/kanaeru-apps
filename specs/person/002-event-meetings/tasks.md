@@ -53,7 +53,7 @@
 
 - [x] T018 [P] `e2e/tests/person.spec.ts` に、会った場の画面で交流会を選んで続けて足す流れ（両方の幅で axe）を足す
 - [x] T019 [P] `docs/apps/person.md` に2つの窓口と画面の欄、読むほかの領域の関数を足す
-- [ ] T020 `/code-review` のあと `pnpm check` を流し、結果を PR に書く
+- [x] T020 `/code-review` のあと `pnpm check` を流し、結果を PR に書く
 - [ ] T021 ステージングで [quickstart.md](./quickstart.md) の手での確かめ（持ち主）
 
 ## Dependencies & Execution Order
