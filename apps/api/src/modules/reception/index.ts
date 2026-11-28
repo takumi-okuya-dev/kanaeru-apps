@@ -1,6 +1,7 @@
 // 受付の領域の入口（docs/apps/reception.md・docs/rules/coding.md 6-6）。土台（app.ts）は routes を読む。
 // ほかの領域（survey・booking）とほかのアプリは、ここからだけ読む（AD-3：チェックインと名前は findCheckin・getCheckin・listCheckins。AD-6。
 // チェックインした人と「チェックインしたか」は listEventAttendees・hasCheckedIn〈FR-B103〉、手でのチェックインを作るのは createManualCheckin。
+// その人がチェックインした交流会の ID は listCheckedInEventIds〈人物メモ。AD-31〉。
 // reception は booking を読まない。AD-23）。
 import type { DomainRouteDeps } from "../../kernel/http.ts";
 import { receptionRoutes } from "./routes.ts";
@@ -14,6 +15,7 @@ export {
   findCheckin,
   getCheckin,
   hasCheckedIn,
+  listCheckedInEventIds,
   listCheckins,
   listEventAttendees,
 } from "./repository.ts";

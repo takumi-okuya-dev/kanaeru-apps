@@ -3,6 +3,7 @@
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import type { Executor } from "../../kernel/db.ts";
+import { isUuid } from "./ids.ts";
 import { event, eventOrganization, eventStaff, staffInvite, staffInviteViewer } from "./schema.ts";
 
 /** 交流会の行（読み出す形）。 */
@@ -201,6 +202,39 @@ export async function listOrganizationEvents(
       ),
     )
     .orderBy(asc(event.startsAt), asc(event.id));
+}
+
+/** 人物メモが会った場に選べる交流会の行（名前と始まりだけ。AD-31）。 */
+export type AccountEventSummary = { eventId: string; name: string; startsAt: Date };
+
+/**
+ * その人が持ち主か受付係の交流会と、渡した ID の交流会を、まとめて返す（始まりの新しい順。人物メモが使う。AD-31）。
+ * 組織の役割（管理者・編集者・部員）は数えない（主催者の一覧 listAccessibleEvents とは条件が違う）。
+ * alsoEventIds には、reception の listCheckedInEventIds が返した「その人がチェックインした交流会」だけを渡す。
+ * この関数は渡した ID の交流会を、その人が見てよいか確かめずに返すので、要求の本文や道から来た ID をそのまま渡さない。
+ * @param db DB
+ * @param accountId account の ID
+ * @param alsoEventIds その人がチェックインした交流会の ID（ない ID と、uuid の形でない文字は無視する）
+ * @returns 交流会の ID・名前・始まり（1つの交流会に1行）
+ */
+export async function listAccountEventSummaries(
+  db: Executor,
+  accountId: string,
+  alsoEventIds: readonly string[],
+): Promise<AccountEventSummary[]> {
+  const conditions: SQL[] = [
+    eq(event.ownerAccountId, accountId),
+    sql`exists (select 1 from ${eventStaff} where ${eventStaff.eventId} = ${event.id} and ${eventStaff.accountId} = ${accountId})`,
+  ];
+  const ids = [...new Set(alsoEventIds)].filter(isUuid);
+  // ID の数に上限がないので、1つの配列の値として渡す（ID ごとに値を増やさない。drizzle は JS の配列を値の並びに開くので、
+  // PostgreSQL の配列の文字にする。uuid の形だけに絞ってあるので、区切りや引用符は入らない）
+  if (ids.length > 0) conditions.push(sql`${event.id} = any(${`{${ids.join(",")}}`}::uuid[])`);
+  return db
+    .select({ eventId: event.id, name: event.name, startsAt: event.startsAt })
+    .from(event)
+    .where(or(...conditions))
+    .orderBy(...NEWEST_FIRST);
 }
 
 /**
