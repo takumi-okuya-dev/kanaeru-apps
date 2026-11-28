@@ -11,3 +11,4 @@ export * as suite from "./features/suite/index.ts";
 export * as booking from "./features/booking/index.ts";
 export * as match from "./features/match/index.ts";
 export * as person from "./features/person/index.ts";
+export * as reading from "./features/reading/index.ts";

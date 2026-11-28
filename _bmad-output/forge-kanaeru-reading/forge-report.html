@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>練った構想の報告：B3 読書記録</title>
+<style>
+  :root { --ink:#1f2328; --muted:#5b636e; --line:#d8dde3; --paper:#fbfaf7; --accent:#8a1c1c; --ok:#1d6b3a; --warn:#8a5a00; }
+  @media (prefers-color-scheme: dark) { :root { --ink:#e6e8eb; --muted:#a3abb5; --line:#3a4048; --paper:#16191d; --accent:#e06b6b; --ok:#6cc58f; --warn:#e2b04f; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink); font:16px/1.75 "Hiragino Sans","Noto Sans JP",system-ui,sans-serif; }
+  main { max-width:860px; margin:0 auto; padding:40px 20px 64px; }
+  header { display:flex; gap:24px; align-items:center; flex-wrap:wrap; border-bottom:1px solid var(--line); padding-bottom:24px; }
+  header h1 { font-size:26px; margin:0 0 4px; }
+  header p { margin:0; color:var(--muted); }
+  .seal { flex:none; width:150px; height:150px; }
+  h2 { font-size:19px; margin:36px 0 12px; padding-left:10px; border-left:4px solid var(--accent); }
+  ul { padding-left:1.2em; margin:0; }
+  li { margin:6px 0; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; }
+  .card { border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  .card b { display:block; }
+  .card span { color:var(--muted); font-size:14px; }
+  .tag { display:inline-block; font-size:12px; padding:1px 8px; border-radius:99px; border:1px solid currentColor; margin-right:6px; }
+  .kill { color:var(--accent); } .open { color:var(--warn); } .keep { color:var(--ok); }
+  table { width:100%; border-collapse:collapse; font-size:15px; }
+  th, td { text-align:left; vertical-align:top; padding:8px 10px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:600; white-space:nowrap; }
+  footer { margin-top:40px; color:var(--muted); font-size:13px; }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <svg class="seal" viewBox="0 0 200 200" role="img" aria-label="HARDENED の封蝋">
+    <defs>
+      <path id="ring" d="M100,100 m-70,0 a70,70 0 1,1 140,0 a70,70 0 1,1 -140,0"/>
+    </defs>
+    <path d="M100 8 C124 10 136 22 154 30 C172 40 190 56 192 82 C196 104 186 120 190 140 C186 166 166 180 146 188 C124 196 110 190 96 194 C72 196 52 186 36 172 C18 158 8 140 10 116 C12 96 4 80 12 60 C22 36 44 24 64 14 C78 8 88 8 100 8 Z" fill="#8a1c1c"/>
+    <circle cx="100" cy="100" r="80" fill="none" stroke="#f3d6d6" stroke-width="2" opacity=".6"/>
+    <circle cx="100" cy="100" r="58" fill="none" stroke="#f3d6d6" stroke-width="1.5" opacity=".5"/>
+    <text font-size="12" letter-spacing="3" fill="#f3d6d6" font-family="Georgia,serif"><textPath href="#ring" startOffset="2%">FORGED · KANAERU · B3 READING · 2026-11-27 ·</textPath></text>
+    <text x="100" y="96" text-anchor="middle" font-size="22" font-weight="700" fill="#fff4f4" font-family="Georgia,serif" letter-spacing="1">HARDENED</text>
+    <text x="100" y="120" text-anchor="middle" font-size="13" fill="#f3d6d6" font-family="Hiragino Sans,sans-serif">固まった</text>
+  </svg>
+  <div>
+    <h1>B3 読書記録：練った構想の報告</h1>
+    <p>2026-11-27 ／ 結果：<b>固まった（HARDENED）</b>。PRD（/bmad-prd）に渡せる形。</p>
+    <p>ひとことで：<b>読み終えるたびに LINE へ要点の一言。章の順に並べて全体像を、「やる」は Google カレンダーで「やってみた？」に。無課金で回す。</b></p>
+  </div>
+</header>
+
+<h2>決めたこと</h2>
+<table>
+  <tr><th>主な仕事</th><td>読んだ本で、仕事での<b>行動が変わる</b>こと（b）。覚えている（a）・説明できる（c）は後に足す（順は b → c → a）</td></tr>
+  <tr><th>困りごと</th><td>「実践して身につかない」と「読むのが遅く、前の内容や全体像を見落とす」。「ページが見つからない」は主役ではなかった</td></tr>
+  <tr><th>中心の行動</th><td>読み終えるたびに、LINE に要点の一言（10秒）。「やる：…」は任意</td></tr>
+  <tr><th>本と章</th><td>本は1冊1回の登録。一言は直前の本に入れ、「違う本」のボタンで直す。章は要の欄（「3章」「p.120」を拾い、なければボタンで聞く）</td></tr>
+  <tr><th>全体像</th><td>自分の一言を<b>章の順</b>に並べる。目次の上に読んでいない章も見せるのは後のオプション</td></tr>
+  <tr><th>やってみた？</th><td>「やる」への返事に Google カレンダーのリンク（2週間後）。次の一言への返事でも聞く</td></tr>
+  <tr><th>無課金</th><td>LINE は返事（無料）だけで回し、こちらから送らない。AI の利用料は持たない（最初の版は AI を呼ばない）</td></tr>
+  <tr><th>LINE</th><td>PaletKit の公式アカウントを分け合う。リッチメニューのモード切り替えで宛て先を見分ける（共通の PR を先に。人物メモとそろえる）</td></tr>
+  <tr><th>夜0〜8時</th><td>受けない（DB が止まる）。「朝にもう一度」と返す</td></tr>
+  <tr><th>書き出し</th><td>本ごとに Markdown（ブログの材料）。利用者が設定した自分のアソシエイトの ID 付きのリンクを入れられる</td></tr>
+  <tr><th>最初の版</th><td>交流会とつなげず、主催者が2〜4週間使う。一番見るのは<b>行動に変わったか</b></td></tr>
+</table>
+
+<h2>捨てたこと・後に回したこと</h2>
+<ul>
+  <li><span class="tag kill">捨てた</span>撮って索引（紙のページの OCR）：主に Kindle と GoodNotes（PDF）で読むので合わない</li>
+  <li><span class="tag kill">捨てた</span>本そのものの要約・AI が作る目次：AI と大手に置きかえられ、著作権の面でも危うい</li>
+  <li><span class="tag kill">捨てた</span>LINE からの呼び戻しの push：無料の200通を交流会の知らせと取り合う</li>
+  <li><span class="tag open">後に回した</span>線の取りこみ（Kindle・GoodNotes）：a（覚えている）の段階で考え直す</li>
+  <li><span class="tag open">後に回した</span>読みたい本リスト・PaletKit が稼ぐアフィリエイト：b が回ってから。<b>アフィリエイトは後で必ず作る</b>（主催者が決めた）。作る前に規約と景品表示法を確かめる</li>
+</ul>
+
+<h2>叩かれても残った弱い所</h2>
+<ul>
+  <li>一言をやめた人を、誰も呼び戻さない（無課金と引きかえ）</li>
+  <li>直前の本に入れる決め方は、2〜5冊を並行して読むと外れることがある（「違う本」で1タップ）</li>
+  <li>予約で設定している公式アカウントが PaletKit のものと同じなら、文を受ける仕組みの形と200通の枠の分け方が変わる（未決）</li>
+  <li>書誌の API の利用条件と、2026年の LINE の料金は要確認</li>
+</ul>
+
+<h2>確かめに加わった声</h2>
+<div class="grid">
+  <div class="card"><b>📋 John（PM）</b><span>「毎週開く理由になるのはどっちだ？」主な仕事を b に絞った</span></div>
+  <div class="card"><b>📊 Mary（分析）</b><span>つまずく場面と「全体像」の意味を分けた</span></div>
+  <div class="card"><b>🎨 Sally（UX）</b><span>「身につく」の3つの意味。記号を打たせないモード切り替え</span></div>
+  <div class="card"><b>🏗️ Winston（設計）</b><span>Kindle・GoodNotes の取りこみの難所、書誌の API の穴</span></div>
+  <div class="card"><b>😤 Grumbal（叩く役）</b><span>ChatGPT で済む要約、200通の取り合い、夜に止まる DB</span></div>
+  <div class="card"><b>🧭 森さん（習慣化のコーチ・仮）</b><span>「いつやるか」の約束とカレンダー、すでにある行動に付ける</span></div>
+  <div class="card"><b>📱 小林さん（Kindle で年50冊・仮）</b><span>並行して読む本と、どの本だったか分からない場面</span></div>
+  <div class="card"><b>🧑‍💼 佐藤さん・😮‍💨 田中さん・📚 山田さん・🙋 鈴木さん（仮）</b><span>勉強会の参加者、入力の挫折、積読、初めて来た人の目</span></div>
+</div>
+
+<footer>出典：_bmad-output/forge-kanaeru-reading/.memlog.md ・ 練った構想 forge-kanaeru-reading.md ・ 調べもの research-app-ideas/b3-reading.md</footer>
+</main>
+</body>
+</html>
