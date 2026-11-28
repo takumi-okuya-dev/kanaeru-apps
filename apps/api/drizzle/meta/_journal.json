@@ -183,6 +183,13 @@
       "when": 1795836573540,
       "tag": "0025_person",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1795843913034,
+      "tag": "0026_reading",
+      "breakpoints": true
     }
   ]
 }

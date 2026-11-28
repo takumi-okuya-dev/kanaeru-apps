@@ -14,26 +14,26 @@
 
 ## Phase 1: 表とアプリの登録（PR `feature/reading-001-pr1-tables`）
 
-- [ ] T004 [P] 約束の上限を置く：`packages/contracts/src/reading/limits.ts` と `limits.test.ts`。値は data-model のとおり：書名 1〜300字・著者 300字・分かりたいこと 1〜500字・章 1〜200字・マーカーの文 0〜4,000字・コメント 1〜4,000字・1回の取りこみ 5,000件・1束 500件・束の本文 90KB・ファイル 300MB。字はコードポイントで数える（数える関数を1つ置く）
-- [ ] T005 [P] 選択肢を置く：`packages/contracts/src/reading/options.ts`・`index.ts`（名前を挙げて再エクスポート）。`READING_BOOK_STATUSES = ["reading", "finished", "dropped"]`・`READING_SOURCES = ["kindle", "goodnotes", "other"]`（本の読む場所）・`READING_MARKER_SOURCES = ["goodnotes", "kindle", "paste"]`・`READING_CATALOG_SOURCES = ["ndl", "openbd", "manual"]` と、画面の言葉（読んでいる・読み終えた・やめた など）
-- [ ] T006 結合のテストを先に書く：`apps/api/src/modules/reading/schema.test.ts`（本物の PostgreSQL）。確かめること：
+- [X] T004 [P] 約束の上限を置く：`packages/contracts/src/reading/limits.ts` と `limits.test.ts`。値は data-model のとおり：書名 1〜300字・著者 300字・分かりたいこと 1〜500字・章 1〜200字・マーカーの文 0〜4,000字・コメント 1〜4,000字・1回の取りこみ 5,000件・1束 500件・束の本文 90KB・ファイル 300MB。字はコードポイントで数える（数える関数を1つ置く）
+- [X] T005 [P] 選択肢を置く：`packages/contracts/src/reading/options.ts`・`index.ts`（名前を挙げて再エクスポート）。`READING_BOOK_STATUSES = ["reading", "finished", "dropped"]`・`READING_SOURCES = ["kindle", "goodnotes", "other"]`（本の読む場所）・`READING_MARKER_SOURCES = ["goodnotes", "kindle", "paste"]`・`READING_CATALOG_SOURCES = ["ndl", "openbd", "manual"]` と、画面の言葉（読んでいる・読み終えた・やめた など）
+- [X] T006 結合のテストを先に書く：`apps/api/src/modules/reading/schema.test.ts`（本物の PostgreSQL）。確かめること：
   - **長さ**：長さの CHECK が約束の上限と同じ。
   - **選択肢**：`status`・`catalog_source`・`source` は選択肢だけ。`sources` は選択肢の重ならない組だけ。
   - **形**：`isbn` は null か13桁の数字。`cover_url` は null か `https://cover.openbd.jp/` で始まる。`page`・`location` は null か1以上。`text <> '' OR comment IS NOT NULL`。
   - **一意**：`reading_marker` の（`book_id`, `dedupe_key`）。
   - **持ち主**：持ち主の違う本にマーカーを付けられない（（`book_id`, `owner_account_id`）の複合の外部キー）。
   - **消したとき**：本を消すとマーカーが消える。持ち主の account を消すと、両方の表の行が消える。
-- [ ] T007 `apps/api/src/modules/reading/schema.ts` に2つの表を書く（`reading_book`・`reading_marker`。data-model のとおり。索引も）
+- [X] T007 `apps/api/src/modules/reading/schema.ts` に2つの表を書く（`reading_book`・`reading_marker`。data-model のとおり。索引も）
   - 共通の列は `kernel/columns.ts`。`accountTable` は account の `index.ts` から読む。
   - 先頭で `import "@hono/zod-openapi";` を読む。
   - CHECK の値は約束から読まず、文字で書く（食い違いは T006 が見る）。
-- [ ] T008 `pnpm db:generate --name reading` を流し、できた `apps/api/drizzle/00NN_reading.sql` を読む（表を足すだけであること）。そのあと `pnpm db:migrate` と `pnpm db:check`
-- [ ] T009 アプリの登録。
+- [X] T008 `pnpm db:generate --name reading` を流し、できた `apps/api/drizzle/00NN_reading.sql` を読む（表を足すだけであること）。そのあと `pnpm db:migrate` と `pnpm db:check`
+- [X] T009 アプリの登録。
   - `packages/contracts/src/core/apps.list.ts` に1行：`export const reading = defineApp({ key: "reading", name: "読書", summary: "マーカーを集めて話す・書く材料に", description: "Kindle と GoodNotes で引いたマーカーとコメントを1か所に集め、人に話す・やってみる・書く材料にします。", icon: "book", domains: ["reading"], basePath: "/reading", uses: [], accountData: "本・マーカーとコメント" });`
   - `apps/api/src/modules.list.ts`・`apps/web/src/features.list.ts` に1行ずつ。
-- [ ] T010 [P] `apps/api/src/modules/reading/index.ts`（表の再エクスポートはしない。中身は `export {};` と「窓口は pr2 で足す」の説明）
-- [ ] T011 [P] 画面の仮の道：`apps/web/src/features/reading/{index.ts, routes.ts, paths.ts, PlaceholderPage.tsx}`。`/reading` に `<Page title="読書" lead="読書記録は準備中です。" />`。ナビの項目は「本棚」の1つ
-- [ ] T012 [P] 文書：`docs/apps/reading.md`（アプリの登録・表）・`docs/README.md` 2章の一覧の行（`docs/rules/specs.md` の領域の一覧の `reading` の行は、仕様の PR で足し済み）
+- [X] T010 [P] `apps/api/src/modules/reading/index.ts`（表の再エクスポートはしない。中身は `export {};` と「窓口は pr2 で足す」の説明）
+- [X] T011 [P] 画面の仮の道：`apps/web/src/features/reading/{index.ts, routes.ts, paths.ts, PlaceholderPage.tsx}`。`/reading` に `<Page title="読書" lead="読書記録は準備中です。" />`。ナビの項目は「本棚」の1つ
+- [X] T012 [P] 文書：`docs/apps/reading.md`（アプリの登録・表）・`docs/README.md` 2章の一覧の行（`docs/rules/specs.md` の領域の一覧の `reading` の行は、仕様の PR で足し済み）
 - [ ] T013 `pnpm check` を流し、結果を PR に書く。DB の変更の PR なので、ラベル `run-ci` を付ける（開発の流れの決まり 3章）
 
 ## Phase 2: 窓口と画面の土台（PR `feature/reading-001-pr2-import`。すべての話の前に要る）
