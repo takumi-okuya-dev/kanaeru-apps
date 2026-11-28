@@ -27,7 +27,7 @@ created: 2026-11-28
   - **取りこみ直し**（FR-R10）：コメントを読書記録で直した印があるマーカーと、`?` の印を付け外したマーカーは、取りこみで上書きしない。読む場所の側で消したマーカーは消さない。
   - **探す**（FR-R17）：本人の記録の中だけを、DB の部分一致で探す（1人の記録は多くても数万件なので、全文検索の仕組みは入れない）【仮決め】。
   - **AI**（AD-20）：説明の材料・ブログの下書き・調べる文の組み立ては、`packages/contracts/src/reading/` に1つずつ置く。段階1は貼る形だけで、PaletKit から外の AI へは何も送らない。調べる先（ChatGPT・Claude・Google）は、画面が URL に調べる文を入れて開くだけ。
-  - **カレンダー**（FR-R24）：予定のリンクは、`miniAppPermalink`（AD-14）で作る「思い出す」の道（`/reading/remind/{tryId}`）にする。既定の日時は2週間後の12時（夜の停止〈AD-10〉の外）。リンクを作る道具は、booking の約束から共通へ移してから使う（下の「共通の PR」）。
+  - **カレンダー**（FR-R24）：予定のリンクは、`miniAppPermalink`（AD-14）で作る「思い出す」の道（`/reading/remind/{tryId}`）にする。既定の日時は2週間後の12時（夜の停止〈AD-10〉の外）。リンクは core の `googleCalendarUrl` で作る（下の「共通の PR」）。
 
 ## AD-33 — 外の書誌の API は reading の API から呼び、選んだ本の書誌だけを持つ [PROPOSED]
 
@@ -58,7 +58,7 @@ created: 2026-11-28
 
 作る前に持ち主に伝える（[並行開発の決まり](../../docs/rules/parallel-development.md) 3-3）。人物メモは、どちらのファイルも触らないと確かめた（2026-11-27）。
 
-1. **カレンダーの道具を共通へ移す**（AD-18：2つ目の領域が要り、形が固まった）：`calendarStamp` と Google カレンダーの URL を作る処理を、`packages/contracts/src/booking/calendar.ts` から新しい小さな包み（`packages/calendar`）へ移す。交流会の長さ（`eventEndsAt`・`EVENT_DEFAULT_DURATION_MINUTES`）は交流会の業務なので booking に残し、包みは「題・始まり・終わり・場所・説明」を受け取る形にする。booking の今の呼び方は変えずに、中で包みを呼ぶ。
+1. **カレンダーの道具を共通へ移す**（AD-18：2つ目の領域が要り、形が固まった）：PR #173。`calendarStamp` と Google カレンダーの URL を作る処理を、`packages/contracts/src/booking/calendar.ts` から約束の core（`packages/contracts/src/core/calendar.ts`。日本時間の関数と同じ置き場所）へ移した。交流会の長さ（`eventEndsAt`・`EVENT_DEFAULT_DURATION_MINUTES`）は交流会の業務なので booking に残し、core の道具は「題・始まり・終わり・場所・説明」を受け取る。booking の今の呼び方は変えない。新しい包み（`packages/calendar`）にしなかったのは、Dockerfile・eslint の設定を直さずに済み、開いているほかの PR とぶつからないため。
 2. **画面の CSP**：書影の配信元を `imgSrc` に足す（AD-33。API を決めてから）。pdf.js は自分のドメインから出すので、CSP は変えない。
 
 ## 構成の文書のほかの所に足すこと
