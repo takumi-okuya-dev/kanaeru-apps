@@ -341,6 +341,23 @@ describe("PaletKit の交流会を会った場に選ぶ", () => {
   });
 
   describe("交流会から作る（POST /meetings/from-event）", () => {
+    it("交流会の名前が会った場の決まりに合わない（長い・空白だけ）ときも、候補と作る窓口が食い違わない", async () => {
+      // 交流会の表には名前の長さの CHECK がない（古い行など）。候補に出た会は必ず作れ、空白だけの会は候補にも作る窓口にも出ない
+      const long = await createEvent(app, me.cookie, { startsAt: "2025-11-20T16:30:00.000Z" });
+      const blank = await createEvent(app, me.cookie, { startsAt: "2025-11-19T16:30:00.000Z" });
+      const longName = `${"長".repeat(110)}の会`;
+      await database.pool.query("UPDATE event SET name = $1 WHERE id = $2", [longName, long.id]);
+      await database.pool.query("UPDATE event SET name = $1 WHERE id = $2", ["　 ", blank.id]);
+
+      const listed = await candidates(app, me.cookie);
+      expect(listed.items.map((item) => [item.eventId, item.name])).toEqual([
+        [long.id, "長".repeat(100)],
+      ]);
+      const meeting = await meetingFromEvent(app, me.cookie, long.id);
+      expect(meeting.name).toBe("長".repeat(100));
+      expect((await fromEvent(app, me.cookie, blank.id)).status).toBe(404);
+    });
+
     it("201 で、交流会の名前の写しと日本時間の日付の会った場ができる（作り方は event）", async () => {
       const event = await createEvent(app, me.cookie, {
         name: "11月の交流会",

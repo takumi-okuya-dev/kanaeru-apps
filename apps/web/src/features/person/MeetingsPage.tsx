@@ -12,7 +12,7 @@ import { ButtonRow } from "@workspace/ui/components/button-row";
 import { Field } from "@workspace/ui/components/field";
 import { Input } from "@workspace/ui/components/input";
 import { ResponseMessage } from "@workspace/ui/components/response-message";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type * as React from "react";
 import { errorMessage } from "../../lib/api.ts";
 import { fieldErrorsFromApi, fieldErrorsFromIssues } from "../../lib/form.ts";
@@ -38,15 +38,22 @@ function EventCandidates() {
   const navigate = useNavigate();
   const [pendingId, setPendingId] = useState<string>();
   const [failure, setFailure] = useState<string>();
+  // 送っている間の印（描きなおす前に続けて押されても、二度送らないように、すぐ読み書きできる ref に持つ）
+  const sending = useRef(false);
 
-  if (query.isPending || (query.isSuccess && !query.data.available)) return null;
+  if (query.isPending) return null;
+  if (query.isSuccess && !query.data.available) {
+    // 送ったあとに受付アプリが見えなくなったときも、開けなかったことは伝える
+    return failure ? <ResponseMessage tone="danger">{failure}</ResponseMessage> : null;
+  }
 
   /**
    * 交流会から会った場を作り（あれば前のもの）、その画面へ移る。
    * @param eventId 交流会の ID
    */
   const open = async (eventId: string) => {
-    if (pendingId !== undefined) return;
+    if (sending.current) return;
+    sending.current = true;
     setFailure(undefined);
     setPendingId(eventId);
     try {
@@ -66,6 +73,7 @@ function EventCandidates() {
       // 選べなくなった交流会（受付係から外れた・消えた）を一覧から消す
       await queryClient.invalidateQueries({ queryKey: PERSON_QUERY_KEYS.eventCandidates });
     } finally {
+      sending.current = false;
       setPendingId(undefined);
     }
   };

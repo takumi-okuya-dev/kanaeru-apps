@@ -112,6 +112,28 @@ describe("会った場の一覧の画面の「PaletKit の交流会」", () => {
     );
   });
 
+  it("開けなかったあとに受付アプリが見えなくなっても、開けなかった文は残る", async () => {
+    let visible = true;
+    stubPersonApi((request) => {
+      if (request.method === "GET" && request.path === "/api/v1/person/meetings") {
+        return Response.json({ items: [] });
+      }
+      if (request.method === "GET" && request.path === "/api/v1/person/event-candidates") {
+        return Response.json(visible ? CANDIDATES : { available: false, items: [] });
+      }
+      if (request.method === "POST" && request.path === "/api/v1/person/meetings/from-event") {
+        visible = false;
+        return errorResponse(404, "PERSON_NOT_FOUND", "人・会った場が見つかりません。");
+      }
+      return undefined;
+    });
+    renderWithRouter(<MeetingsPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "開く：11月の交流会" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/開けませんでした/);
+    await waitFor(() => expect(screen.queryByRole("list", { name: "選べる交流会" })).toBeNull());
+    expect(screen.getByRole("alert")).toHaveTextContent(/開けませんでした/);
+  });
+
   it("開けなかったら、その文を出して、また押せる", async () => {
     stubMeetings(CANDIDATES, () =>
       errorResponse(404, "PERSON_NOT_FOUND", "人・会った場が見つかりません。"),

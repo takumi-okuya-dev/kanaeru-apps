@@ -8,7 +8,11 @@
 // 読むのは交流会の ID・名前・始まりだけ。チェックインの中身・ほかの参加者・名簿を読む関数は使わない（PRD FR-P8・AD-31）。
 // 選べる会は人物メモに残さない（画面を開くたびに読む）。ログは書かない。
 import { endOfJstDate, jstDate } from "@workspace/contracts/core";
-import { PERSON_EVENT_CANDIDATE_MAX } from "@workspace/contracts/person";
+import {
+  PERSON_EVENT_CANDIDATE_MAX,
+  PERSON_MEETING_LIMITS,
+  normalizeMeetingName,
+} from "@workspace/contracts/person";
 import type { EventCandidateList } from "@workspace/contracts/person";
 import type { Executor } from "../../kernel/db.ts";
 import type { DomainConfig } from "../../kernel/http.ts";
@@ -41,6 +45,19 @@ export type SelectableEvent = {
 };
 
 /**
+ * 交流会の名前を、会った場の名前の決まり（前後の空白を除いて1〜100字。コードポイントで数える）に合わせる。
+ * 交流会の表には名前の長さの CHECK がない（約束だけが決める）ので、古い行などで長い名前・空白だけの名前がありうる。
+ * 候補にも作る窓口にも同じ名前を使い、候補に出たのに作れない（DB の CHECK で 400）ことを防ぐ。
+ * @param name 交流会の名前
+ * @returns 合わせた名前（空になる・そろえると空になるものは null で、候補に出さない）
+ */
+function fitMeetingName(name: string): string | null {
+  const fitted = [...name.trim()].slice(0, PERSON_MEETING_LIMITS.name).join("").trim();
+  if (fitted === "" || normalizeMeetingName(fitted) === "") return null;
+  return fitted;
+}
+
+/**
  * 使う人が会った場に選べる交流会（今日〈日本時間〉の終わりまでに始まるもの・始まりの新しい順・最大50件）。
  * @param deps db と config
  * @param account 今の利用者
@@ -63,8 +80,11 @@ async function selectableEvents(
   // 並びは event の関数が始まりの新しい順にしてある
   const events = summaries
     .filter((summary) => summary.startsAt.getTime() < end)
-    .slice(0, PERSON_EVENT_CANDIDATE_MAX)
-    .map(({ eventId, name, startsAt }) => ({ eventId, name, startsAt }));
+    .flatMap(({ eventId, name, startsAt }) => {
+      const fitted = fitMeetingName(name);
+      return fitted === null ? [] : [{ eventId, name: fitted, startsAt }];
+    })
+    .slice(0, PERSON_EVENT_CANDIDATE_MAX);
   return { available: true, events };
 }
 
