@@ -1,7 +1,7 @@
 ---
 title: "補足：読書記録の PRD"
 created: 2026-11-27
-updated: 2026-11-28（GoodNotes の書き出しの PDF の形を6章に足した）
+updated: 2026-11-28（GoodNotes の書き出しの PDF の形を6章に、Kindle の書き出しの形を7章に、書誌の API を8章に足した）
 ---
 
 # 補足：読書記録の PRD
@@ -92,3 +92,58 @@ PRD（[prd-kanaeru-reading.md](./prd-kanaeru-reading.md)）に入れない、細
 
 - まだ分からないこと：ほかの出版社の本で、柱の位置と書体が違うとき。テキストボックスの書体を利用者が変えたとき（本で使っていない書体を全部コメントとみなすか、確かめの画面で選ばせる）。
 - 「?」を書いたコメントは、この PDF にはまだなかった。「ここからあまり良く理解できない」のような、あとで調べたいコメントはあった。
+
+## 7. Kindle の書き出しの形（2026-11-28 の Web の調べもの）
+
+Amazon の公式ヘルプには、アプリの「ノートブックの書き出し」を説明したページが見つからなかった（ヘルプは取得に失敗した）。下は、公開されているパーサーのコード・テストの見本の HTML・利用者の記録から読んだもの。**日本語のアプリで書き出した実物は見ていない**。作る前に、持ち主が日本語のアプリで1冊書き出して確かめる。
+
+| 何を | 分かったこと | 出典 |
+|---|---|---|
+| 書き出し方 | iPhone：本を開く → ノート → 共有 →「Export Notebook」→ 引用の形（なし・APA・シカゴ・MLA）→ メールで `.html` を送る。PC・Mac は HTML のファイルに保存。同期を切ると書き出せない | booknotion.site/en/guides/export-kindle-highlights・mandarinnote.com/archives/27827 |
+| HTML の頭 | `div.bodyContainer` の中に `div.notebookFor`・`div.bookTitle`（書名）・`div.authors`（著者）・`div.citation`（引用の形。なしなら空）・`<hr/>` | github.com/thespacedoctor/polyglot（tests/input の見本）・github.com/kaveenr/kindle2md |
+| HTML の本体 | `div.sectionHeading`（章）と、`div.noteHeading` と `div.noteText` の組が、入れ子なしで平らに並ぶ | 同上・github.com/l2xu/kindle_html_importer |
+| 見出しの形 | ハイライト：`Highlight(<span class="highlight_yellow">yellow</span>) - Page 9 · Location 55`。メモ：`Note - Page 28 · Location 396`。「Highlight」と「(」の間の空白の有無・見出しの中の「章名 >」・ページのない本（位置だけ）の揺れがある。色は blue・orange・pink・yellow | 同上 |
+| メモの付き方 | メモは、ハイライトの直後に別の組として続く。どのハイライトのメモかは書かれていない（直前のハイライトに付ける） | 同上 |
+| 言葉 | 見出しの言葉は表示の言語で変わる（ドイツ語版は Notiz・Seite）。クラス名は英語のまま。日本語のアプリの言葉（「ハイライト」「メモ」「位置No.」など）は未確認 | github.com/AB1908/kindleHTML-to-markdown |
+| Web のノートブック | read.amazon.co.jp/notebook は日本でも使える。書き出しのボタンはなく、コピーして貼る。コピーしたときの行の並びと言葉は未確認 | github.com/ryangreenberg/kindle-exporter・note.com/imagawaaoto/n/nc8c607846306 |
+| 出版社の上限 | 本ごとに 1〜20% ほど（ない本もある）。上限をこえた分は**ファイルから抜け落ちる**（iPhone の書き出しの画面に「…% の上限に達する」と出る）。HTML の中に上限の印があるかは不明。Web のノートブックでは切れた文が「…」で終わるが、句読点で始まらない断片にも自動で「…」が付くので、「…」だけでは切れたと決められない | booknotion.site/en/guides/kindle-copy-limit-explained・docs.readwise.io/readwise/docs/importing-highlights/kindle |
+| 規約 | Kindle ストア利用規約（日本、2026-10-21 更新）は、ハイライト・メモの書き出しや外への保存に触れていない。あるのは「個人の非営利の使用」と、第三者への販売・配信・譲渡と DRM の回避の禁止。本人が公式の機能で書き出し、自分のために持つのは、この範囲に収まると読める（推測）。ほかの人に出す（公開の本棚）ときは、法律の確かめが要る | amazon.co.jp の規約（nodeId=201014950） |
+| ほかのサービス | Readwise は read.amazon.com/notebook を拡張機能で読むが、**amazon.co.jp は対応していない**と書いている。ほかに、書き出しのメールを転送する形と My Clippings.txt を上げる形 | docs.readwise.io |
+
+**読み方の要点**（AD-34 の取りこみに入れる）
+- 見分け：`div.bookTitle` と `div.noteHeading` があれば Kindle の HTML とみなす。言葉ではなく、クラス名と並びで読む。
+- 上から順に読み、`sectionHeading` を今の章として持つ。`noteHeading` の次の `noteText` を本文にする。
+- 見出しに `span[class^=highlight_]` があればハイライト、なければメモ（言語に左右されない）。メモは直前のハイライトに付け、位置が同じか近いかも見る。
+- 見出しの最後の数字を位置、その前の数字があればページにする。数字のカンマは取る。ページはなくてもよい。
+- 取りこむ HTML は信用しない。`DOMParser` で読み、`textContent` だけを使う（スクリプトを動かさない）。
+- 「…」で終わる文は「切れたかもしれない」とだけ出し、決めつけない。
+- 見本：日本語のアプリと英語のアプリで書き出した実物の形を、架空の文で写してテストの見本にする（本物の本の文と利用者のデータはリポジトリに置かない）。
+
+## 8. 書誌の API（2026-11-28 の Web の調べもの。一部は手元で呼んで確かめた）
+
+**大事なこと**
+- **国立国会図書館（NDL）の書影の API は、2026-03-31 で終わった**（データ元の JPRO が利用規約を変えたため。今は 403 が返る）。
+- **openBD は今も動いている**。ただし書影は、版元ドットコムの会員社などの本にしか付かない。オライリー・ジャパン・技術評論社・講談社・文藝春秋の本を試したところ、どれも書影が空だった。**技術書の多くは書影が出ない前提で画面を作る**。
+
+| | openBD | NDL サーチ（OpenSearch・SRU） | Google Books | 楽天ブックス書籍検索 | Open Library |
+|---|---|---|---|---|---|
+| 今の状態 | 動いている。NDL 由来のデータを同じ形で返し、「少なくとも60か月以上」出すと書いている | 検索は動いている。書影は終了 | 動いている | 2026年5月に新しいドメインへ移った。アプリ ID と accessKey・許すドメインの登録が要る | 動いている |
+| 商用 | 「本の販促・紹介の目的に限り」使える。読書記録が「紹介」に当たるかは規約から決めきれない | NDL が作った書誌は CC BY 相当で、営利でも申請は要らない（JPRO などのデータは営利なら申請が要る） | **料金を取るアプリに使えない**（別の契約がなければ）。取ったデータで永続の DB を作ることも禁止 | **楽天アフィリエイト以外の方法で稼ぐことを禁止**（規約10条(4)）。ほかのサイトへのリンクにも制限 | 「利用の多い商用サービスの裏側には使わないで」 |
+| 書影 | `cover.openbd.jp/{ISBN}.jpg`（収録は少ない） | なし | `books.google.com`（Google のブランドの決まりを守る） | 答えの中の画像の URL | `covers.openlibrary.org`（`<img>` で直接出してよい） |
+| 帰属 | 決まりなし（消してと頼まれたら従う） | 「NDL サーチの API を使っている」と書く。CC BY のデータは提供元の名前とライセンスへのリンク | 「Powered by Google」と、1冊ごとに Google Books へのリンク | 楽天のクレジットが必須 | 決まりなし |
+| 回数・鍵 | 数値なし・鍵なし（一度に複数の ISBN） | 同時の数に制限・鍵なし。続けて使うなら申請のフォームで使い道を知らせる | 鍵が要る。1日1,000回が既定という話が多い | 鍵が要る | 書影は IP ごとに5分100回・鍵なし（User-Agent に名前と連絡先） |
+| 書名で探せるか | できない（ISBN だけ） | できる | できる | できる | できる |
+
+- 版元ドットコムの API は2019年に止まり、openBD に一本化された。
+
+**決めたこと**（AD-33 に入れる）
+- **書名で探す**：NDL サーチの OpenSearch に `dpid=iss-ndl-opac` を付けて呼ぶ（NDL が作った書誌に絞るので、営利でも申請は要らない）。オライリーの本も取れた。帰属の表示（「NDL サーチの API を使っています」）を本を足す画面に出す。
+- **ISBN で取る**：まず openBD（一度に複数取れて速い）。なければ NDL の ISBN の検索で補う。
+- **書影**：openBD の書影があるときだけ出す。なければ、書名を入れた仮の表紙を画面で描く（画像を持たない）。画面の CSP の `imgSrc` に足すのは `https://cover.openbd.jp` だけ。
+- **使わない**：Google Books（有料のアプリに使えない・DB を作れない）と楽天（アフィリエイト以外の稼ぎ方を禁止）。洋書の Open Library は、段階1では使わない（商用の裏側に使わないでと書かれている。連絡先を User-Agent に書く必要もある）。
+- **電子書籍だけの本・洋書**：どの候補も網羅が弱いので、手で書く道（FR-R1）を残す。
+
+**持ち主にお願いすること**（公開の前に。急がない）
+- NDL サーチの API を続けて使うので、NDL の申請のフォームで、使い道と連絡先を知らせる（連絡先は持ち主が決める）。
+
+出典：openbd.jp/terms・openbd.jp/news/20230725.html・www.hanmoto.com/about_api・ndlsearch.ndl.go.jp/help/api・ndlsearch.ndl.go.jp/news/20260401_thumbnail・developers.google.com/books/terms・webservice.rakuten.co.jp/guide/rule（2026年10月の写し）・openlibrary.org/dev/docs/api/covers。
