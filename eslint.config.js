@@ -427,8 +427,9 @@ export default tseslint.config(
   // 人物メモ（person）の領域が読んでよい、ほかの領域の許す一覧（構成の決めごと AD-31）。
   // メモは自分だけのもので、交流会の参加者・申込みの名簿を読まない（PRD 人物メモ FR-P8）。止める名前を並べるのではなく、
   // 読んでよいものだけを書く（ほかの領域に関数が足されても、黙って通らないように）。
-  // - ほかの領域：account・suite の index.ts（今の利用者・見えるか）と、event の index.ts の eventTable（外部キーにだけ）だけ。
-  //   reception は今は読まない（kanaeru の交流会を会った場に選ぶ次の仕様で、足す関数の名前だけをここに許す）
+  // - ほかの領域：account・suite の index.ts（今の利用者・見えるか）と、event・reception の index.ts の決めた名前だけ。
+  //   event は eventTable（外部キーにだけ）と listAccountEventSummaries（会った場に選べる交流会の名前と始まり）。
+  //   reception は listCheckedInEventIds（自分でチェックインした交流会の ID）だけ。名簿・チェックインした人は読まない
   // - ../ が何段でも効く形にする（person の下にフォルダを作っても抜けない）。土台（kernel・platform）とテストの手伝いは読める
   // - 境界の決まりなので、テストにもかける。no-restricted-imports は上のまとまりを上書きするので、OS のコマンドの止め方も入れ直す
   {
@@ -441,15 +442,21 @@ export default tseslint.config(
           patterns: [
             {
               regex:
-                "^(\\.\\./)+(?!(account|suite|event)/index\\.ts$)(?!(kernel|platform|test)/)[a-z][^/]*/",
+                "^(\\.\\./)+(?!(account|suite|event|reception)/index\\.ts$)(?!(kernel|platform|test)/)[a-z][^/]*/",
               message:
-                "人物メモが読んでよいほかの領域は、account・suite の index.ts と、event の index.ts の eventTable だけです（構成の決めごと AD-31）。",
+                "人物メモが読んでよいほかの領域は、account・suite の index.ts と、event・reception の index.ts の決めた名前だけです（構成の決めごと AD-31）。",
             },
             {
               regex: "^(\\.\\./)+event/index\\.ts$",
-              allowImportNames: ["eventTable"],
+              allowImportNames: ["eventTable", "listAccountEventSummaries"],
               message:
-                "人物メモが event から読んでよいのは eventTable（外部キーにだけ使う）だけです（構成の決めごと AD-31）。",
+                "人物メモが event から読んでよいのは eventTable（外部キーにだけ使う）と listAccountEventSummaries だけです（構成の決めごと AD-31）。",
+            },
+            {
+              regex: "^(\\.\\./)+reception/index\\.ts$",
+              allowImportNames: ["listCheckedInEventIds"],
+              message:
+                "人物メモが reception から読んでよいのは listCheckedInEventIds だけです。名簿・チェックインした人は読みません（構成の決めごと AD-31・PRD 人物メモ FR-P8）。",
             },
           ],
         },
