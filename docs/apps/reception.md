@@ -1,6 +1,6 @@
 # 受付（reception）の地図
 
-2026-11-19 作成（reception-001。決めた理由は [specs/reception/001-checkin/research.md](../../specs/reception/001-checkin/research.md)）。2026-11-19 直した（reception-002：割引・紹介者の名前。理由は [specs/reception/002-discounts/research.md](../../specs/reception/002-discounts/research.md)）。2026-11-20 直した（event-002：主催者の決め方・運営者でない主催者の A5 の削除）。2026-11-20 直した（booking-001：ほかの領域・ほかのアプリに出す関数〈チェックインした人・チェックインしたか・手でのチェックインを作る〉と、画面の差しこみの場所〈一覧画面の上〉・欄の部品。理由は [specs/booking/001-roster/research.md](../../specs/booking/001-roster/research.md)）。
+2026-11-19 作成（reception-001。決めた理由は [specs/reception/001-checkin/research.md](../../specs/reception/001-checkin/research.md)）。2026-11-19 直した（reception-002：割引・紹介者の名前。理由は [specs/reception/002-discounts/research.md](../../specs/reception/002-discounts/research.md)）。2026-11-20 直した（event-002：主催者の決め方・運営者でない主催者の A5 の削除）。2026-11-20 直した（booking-001：ほかの領域・ほかのアプリに出す関数〈チェックインした人・チェックインしたか・手でのチェックインを作る〉と、画面の差しこみの場所〈一覧画面の上〉・欄の部品。理由は [specs/booking/001-roster/research.md](../../specs/booking/001-roster/research.md)）。2026-11-28 直した（人物メモ：その人がチェックインした交流会の ID を出す関数。AD-31）。
 
 チェックインを持ち、参加者のチェックイン（受付QR → P1）・主催者（交流会の持ち主と、入れた組織の管理者・編集者。event-002。判定は event の `requireEventRole`）と受付係の一覧画面（手でのチェックイン・直す・取り消す・合計）・主催者の内訳と参加者の CSV と削除を出す。survey・booking とほかのアプリには、チェックインと名前を1つの仕組みで出す（構成の決めごと AD-3・AD-5・AD-6・AD-7）。reception は booking（予約の名簿）を読まない。名簿との当ては booking が持つ（AD-23）。
 
@@ -46,6 +46,7 @@ import {
   findCheckin,
   getCheckin,
   hasCheckedIn,
+  listCheckedInEventIds,
   listCheckins,
   listEventAttendees,
 } from "../reception/index.ts";
@@ -64,6 +65,7 @@ const checkin = await findCheckin(deps.db, eventId, currentAccount(c).accountId)
 | `listCheckins(db, eventId)` | その交流会のチェックイン（新しい順）。困りごとの一覧と CSV の名前は、いつもここの `name`（AD-6） |
 | `listEventAttendees(db, eventId)` | その交流会でチェックインした人 `EventAttendee`（`{ checkinId, name, accountId, method, checkedInAt }`。古い順）。ほかのアプリ（試合表など）にも出す（PRD 予約 FR-B103）。booking が名簿に当てるのに使う |
 | `hasCheckedIn(db, eventId, accountId)` | その人がその交流会にチェックインしたか（`boolean`。FR-B103） |
+| `listCheckedInEventIds(db, accountId)` | その人が自分のアカウントでチェックインした交流会の ID（`string[]`。新しいチェックインの順）。手でのチェックインと、手で入れた人は数えない。人物メモが会った場に選べる交流会を決めるのに使う（AD-31）。名前は返さない |
 | `createManualCheckin(db, config, { eventId, enteredBy, input })` | 手でのチェックインを作る（参加費・割引・金額の決め方は手でのチェックインの窓口と同じ。窓口もこれを使う）。呼ぶ側のトランザクションを渡してよい（booking の飛び入り・名簿から選んで手でチェックイン）。ない交流会は event の `NOT_FOUND`、選べない割引は `DISCOUNT_UNAVAILABLE` を投げる |
 | `checkinTable` | 外部キーのためだけ |
 | `CheckinRecord` | `{ id, eventId, accountId, enteredBy, name, applicationSource, referral, paymentMethod, amount, discountId, discountName, discountAmount, referrerName, createdAt, updatedAt }`（紹介者の名前は主催者だけが読むもの。ほかの領域で画面や CSV に出さない） |
