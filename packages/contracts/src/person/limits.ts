@@ -23,6 +23,9 @@ export const PERSON_NOTE_LIMITS = {
   tag: 30,
 } as const;
 
+/** 行に持つ「最近受けた書き足しの ID」の数（新しい順。同じ ID の送り直しを見分ける。DB の CHECK と同じ。research R7）。 */
+export const PERSON_RECENT_APPEND_IDS_MAX = 20;
+
 /** 会った場の欄の上限（字）。 */
 export const PERSON_MEETING_LIMITS = {
   /** 名前（1字以上） */

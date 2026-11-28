@@ -8,6 +8,7 @@ import {
   PERSON_MEETING_LIMITS,
   PERSON_MEETING_SOURCES,
   PERSON_NOTE_LIMITS,
+  PERSON_RECENT_APPEND_IDS_MAX,
 } from "@workspace/contracts/person";
 import { beforeEach, describe, expect, it } from "vitest";
 import { buildApp, testConfig } from "../../../test/helpers/app.ts";
@@ -171,6 +172,13 @@ describe("人物メモの表", () => {
     await expectRejected(() => insertNote({ tags: ["AI", "Go"], tag_keys: ["ai"] }), CHECK);
     await expectRejected(() => insertNote({ tags: ["AI", null], tag_keys: ["ai", "x"] }), CHECK);
     await expectRejected(() => insertNote({ tags: ["AI", "Go"], tag_keys: ["ai", null] }), CHECK);
+  });
+
+  it("最近の書き足しの ID は約束の数まで（空の値は入らない）", async () => {
+    const ids = Array.from({ length: PERSON_RECENT_APPEND_IDS_MAX }, () => randomUUID());
+    await insertNote({ recent_append_ids: ids });
+    await expectRejected(() => insertNote({ recent_append_ids: [...ids, randomUUID()] }), CHECK);
+    await expectRejected(() => insertNote({ recent_append_ids: [randomUUID(), null] }), CHECK);
   });
 
   it("会った場の作り方は選択肢だけで、手で書いたものは交流会を指さない", async () => {

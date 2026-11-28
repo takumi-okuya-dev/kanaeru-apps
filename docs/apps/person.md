@@ -24,7 +24,7 @@
 
 | 表 | 列 | 決まり |
 |---|---|---|
-| `person_note` | `id`・`owner_account_id`・`full_name`・`reading`・`line_name`・`appearance`・`account_x`・`account_connpass`・`account_github`・`account_linkedin`・`account_line`・`account_url`・`tags`・`tag_keys`・`talk`・`next_topic`・`search_text`・`search_version`・`version`・`create_request_id`・`last_append_id`・`created_at`・`updated_at` | 人のメモ（最上位の記録）。相手の account の ID は持たない（AD-2）。長さの CHECK は約束の `PERSON_NOTE_LIMITS` と同じ（`char_length`。コードポイントで数える）。`account_url` は `http://`・`https://` で始まるものだけ。`tag_keys` は `tags` をそろえた形で、同じ数（タグの数の上限は置かない）。`search_text` は検索のためにそろえた文で、`search_version` はそろえ方の版。`create_request_id` は人を足す送りの ID（空でなければ使う人ごとに一意）。一意 `(id, owner_account_id)`（組の表の複合の外部キーが指す）。索引 `(owner_account_id, updated_at desc)` |
+| `person_note` | `id`・`owner_account_id`・`full_name`・`reading`・`line_name`・`appearance`・`account_x`・`account_connpass`・`account_github`・`account_linkedin`・`account_line`・`account_url`・`tags`・`tag_keys`・`talk`・`next_topic`・`search_text`・`search_version`・`version`・`create_request_id`・`recent_append_ids`・`created_at`・`updated_at` | 人のメモ（最上位の記録）。相手の account の ID は持たない（AD-2）。長さの CHECK は約束の `PERSON_NOTE_LIMITS` と同じ（`char_length`。コードポイントで数える）。`account_url` は `http://`・`https://` で始まるものだけ。`tag_keys` は `tags` をそろえた形で、同じ数（タグの数の上限は置かない）。`search_text` は検索のためにそろえた文で、`search_version` はそろえ方の版。`create_request_id` は人を足す送りの ID（空でなければ使う人ごとに一意）。`recent_append_ids` は最近受けた書き足しの ID（新しい順に最大20個。CHECK）。一意 `(id, owner_account_id)`（組の表の複合の外部キーが指す）。索引 `(owner_account_id, updated_at desc)` |
 | `person_meeting` | `id`・`owner_account_id`・`source`・`name`・`name_key`・`met_on`・`event_id`・`created_at`・`updated_at` | 会った場（使う人の一覧の1件）。`source` は `manual`・`event`（作ったあと変えない。この版は `manual` だけを作る）。`manual` は `event_id` を持たない（CHECK）。名前は1〜100字で、`name_key` はそろえた名前。一意は部分の索引2つ：`(owner_account_id, event_id)` と、`manual` の `(owner_account_id, name_key, met_on)`。一意 `(id, owner_account_id)` |
 | `person_note_meeting` | `note_id`・`meeting_id`・`owner_account_id`・`created_at` | 人と会った場の組。主キーは `(note_id, meeting_id)`。`(note_id, owner_account_id)` と `(meeting_id, owner_account_id)` の複合の外部キーで、持ち主の違う人と会った場を結ばせない。索引 `meeting_id` |
 
@@ -48,7 +48,7 @@ person が読むほかの領域は account・suite の `index.ts` と、外部�
 | `personCreateNote` | `POST /notes` | 人を足す（`meetingId` で会った場も付く。同じ `clientRequestId` の送り直しは 200 で前の人） |
 | `personGetNote` | `GET /notes/{noteId}` | 人を読む（付いている会った場つき） |
 | `personUpdateNote` | `PATCH /notes/{noteId}` | 送った欄だけ直す（`baseVersion` が違えば `409 PERSON_VERSION_CONFLICT`） |
-| `personAppendTalk` | `POST /notes/{noteId}/appends` | 話したことに見出しつきで書き足す（同じ `appendId` は書かずに今の値。比べるのは最後の1つだけ〈research R7 の分かっている限り〉。超えると 400 `fields.talk`） |
+| `personAppendTalk` | `POST /notes/{noteId}/appends` | 話したことに見出しつきで書き足す（最近の20個の `appendId` と同じなら書かずに今の値〈research R7〉。超えると 400 `fields.talk`） |
 | `personDeleteNote` | `DELETE /notes/{noteId}` | 人を消す（会った場は残る） |
 | `personSearchNotes` | `POST /notes/search` | 言葉とタグで探す（両方なら AND・最大100人・当たった所の前後の文つき） |
 | `personAttachMeeting`・`personDetachMeeting` | `PUT`・`DELETE /notes/{noteId}/meetings/{meetingId}` | 会った場を付ける・外す（人の `updated_at` が新しくなる） |

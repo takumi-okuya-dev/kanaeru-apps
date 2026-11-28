@@ -364,7 +364,7 @@ export function personRoutes(deps: DomainRouteDeps) {
         db.transaction(async (tx) => {
           const current = await requireOwnedNote(tx, accountId, noteId, true);
           // 受けたのに答えが届かなかった書き足しの送り直し：書かずに今の値を返す（R7）
-          if (current.lastAppendId === input.appendId) return;
+          if (current.recentAppendIds.includes(input.appendId)) return;
           const meeting = input.meetingId
             ? await requireOwnedMeeting(tx, accountId, input.meetingId, true)
             : null;
