@@ -2,6 +2,7 @@
 // 読み書きは lib/api.ts の request を通す（エラーの読み方をそろえる）。探す言葉とタグは POST の本文で送り、URL に載せない（AD-31）。
 import type {
   MeetingCreateInput,
+  MeetingFromEventInput,
   NoteAppendInput,
   NoteCreateInput,
   NoteSearchInput,
@@ -128,6 +129,23 @@ export function fetchMeetings() {
  */
 export function createMeeting(input: MeetingCreateInput) {
   return request(() => personApi().meetings.$post({ json: input }));
+}
+
+/**
+ * 会った場に選べる PaletKit の交流会（受付アプリが見えなければ available が false）。
+ * @returns 一覧
+ */
+export function fetchEventCandidates() {
+  return request(() => personApi()["event-candidates"].$get());
+}
+
+/**
+ * 交流会から会った場を作る（その交流会の会った場がもうあれば、前のものが返る）。
+ * @param input 交流会の ID
+ * @returns 会った場
+ */
+export function createMeetingFromEvent(input: MeetingFromEventInput) {
+  return request(() => personApi().meetings["from-event"].$post({ json: input }));
 }
 
 /**
